@@ -54,67 +54,11 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
     out.push_str("    /// Presence flag for `timeout_ms`; set to `1` to apply the deadline.\n");
     out.push_str("    pub has_timeout_ms: i32,\n");
     out.push_str("}\n\n");
-    out.push_str(
-        "// Layout drift-guard for the LP64 `#[repr(C)]` ABI contract shared with the C header.\n",
-    );
-    out.push_str("const _: () = {\n");
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, venue) == 0);\n",
-    );
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, min_time) == 8);\n",
-    );
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, interval) == 16);\n",
-    );
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_time) == 24);\n");
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_time) == 32);\n",
-    );
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_date) == 40);\n");
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_date) == 48);\n",
-    );
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, exclusive) == 56);\n",
-    );
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_exclusive) == 60);\n");
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike) == 64);\n",
-    );
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, right) == 72);\n",
-    );
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, symbol) == 80);\n",
-    );
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, max_dte) == 88);\n",
-    );
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_max_dte) == 92);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike_range) == 96);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_strike_range) == 100);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, annual_dividend) == 104);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_annual_dividend) == 112);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_type) == 120);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_value) == 128);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_rate_value) == 136);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, stock_price) == 144);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_stock_price) == 152);\n");
-    out.push_str(
-        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 160);\n",
-    );
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 168);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 172);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 176);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 180);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 184);\n");
-    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 192);\n");
-    out.push_str(
-        "    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 200);\n",
-    );
-    out.push_str("    assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == 8);\n");
-    out.push_str("};\n\n");
+    // Layout drift-guard for the LP64 `#[repr(C)]` ABI contract shared with
+    // the C header. Offsets are computed from the field list (in declaration
+    // order) using repr(C) alignment rules, so adding or reordering a builder
+    // param can never leave a stale literal behind.
+    out.push_str(&render_request_options_layout_asserts(params));
     out.push_str("fn apply_endpoint_request_options(\n");
     out.push_str("    args: &mut thetadatadx::EndpointArgs,\n");
     out.push_str("    options: *const ThetaDataDxEndpointRequestOptions,\n");
@@ -141,6 +85,77 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
     out.push_str("    }\n");
     out.push_str("    Ok(())\n");
     out.push_str("}\n");
+    out
+}
+
+/// Size and alignment of an FFI scalar/pointer field type, for computing the
+/// `#[repr(C)]` layout of `ThetaDataDxEndpointRequestOptions`. Panics on an
+/// unmapped type so a new field kind fails the build rather than silently
+/// producing a wrong offset guard.
+fn ffi_field_size_align(ty: &str) -> (usize, usize) {
+    let ty = ty.trim();
+    if ty.contains('*') {
+        (8, 8) // any pointer
+    } else {
+        match ty {
+            "i32" => (4, 4),
+            "u32" => (4, 4),
+            "i64" | "u64" | "f64" => (8, 8),
+            other => panic!(
+                "ffi_field_size_align: unmapped ThetaDataDxEndpointRequestOptions field type {other:?}; \
+                 add its size/align before adding a field of this type"
+            ),
+        }
+    }
+}
+
+/// Emit the `const _: () = { .. }` layout drift-guard for
+/// `ThetaDataDxEndpointRequestOptions`. Offsets are computed from the field
+/// list in declaration order using repr(C) alignment, so the guard can never
+/// carry a stale literal after a field is added or reordered.
+fn render_request_options_layout_asserts(params: &[GeneratedParam]) -> String {
+    // (field name, size, align) in exact declaration order — mirror the struct
+    // emission above: each param's value field, then its `has_` flag (i32),
+    // and finally the fixed `timeout_ms` (u64) + `has_timeout_ms` (i32) tail.
+    let mut fields: Vec<(String, usize, usize)> = Vec::new();
+    for param in params {
+        let (size, align) = ffi_field_size_align(&ffi_option_value_type(param));
+        fields.push((param.name.clone(), size, align));
+        if ffi_option_has_flag(param) {
+            fields.push((format!("has_{}", param.name), 4, 4));
+        }
+    }
+    fields.push(("timeout_ms".to_string(), 8, 8));
+    fields.push(("has_timeout_ms".to_string(), 4, 4));
+
+    let struct_align = fields.iter().map(|(_, _, a)| *a).max().unwrap_or(1);
+    let mut out = String::new();
+    out.push_str(
+        "// Layout drift-guard for the LP64 `#[repr(C)]` ABI contract shared with the C header.\n",
+    );
+    out.push_str("const _: () = {\n");
+    let mut offset = 0usize;
+    for (name, size, align) in &fields {
+        offset = offset.div_ceil(*align) * align;
+        writeln!(
+            out,
+            "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, {name}) == {offset});"
+        )
+        .unwrap();
+        offset += size;
+    }
+    let struct_size = offset.div_ceil(struct_align) * struct_align;
+    writeln!(
+        out,
+        "    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == {struct_size});"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "    assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == {struct_align});"
+    )
+    .unwrap();
+    out.push_str("};\n\n");
     out
 }
 

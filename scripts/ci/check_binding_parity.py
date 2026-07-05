@@ -11090,7 +11090,7 @@ def _run_selftest() -> int:
             _endpoint_method_to_snake("optionHistoryGreeksImpliedVolatility")
             == "option_history_greeks_implied_volatility"
         )
-        assert _endpoint_method_to_snake("stockHistoryOHLCRange") == "stock_history_ohlc_range"
+        assert _endpoint_method_to_snake("stockHistoryOHLC") == "stock_history_ohlc"
 
     _case("hist-stream positive — all five surfaces stream", _case_hist_stream_positive_all_bound)
     _case("hist-stream negative — missing C++ member trips", _case_hist_stream_missing_on_cpp_trips)

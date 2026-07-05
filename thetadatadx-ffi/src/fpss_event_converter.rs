@@ -47,7 +47,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_cstring = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(&contract.symbol[..]).ok()
+                Some(cstring_for_ffi(&contract.symbol[..]))
             };
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
@@ -100,7 +100,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_cstring = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(&contract.symbol[..]).ok()
+                Some(cstring_for_ffi(&contract.symbol[..]))
             };
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
@@ -151,7 +151,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_cstring = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(&contract.symbol[..]).ok()
+                Some(cstring_for_ffi(&contract.symbol[..]))
             };
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
@@ -204,7 +204,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_cstring = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(&contract.symbol[..]).ok()
+                Some(cstring_for_ffi(&contract.symbol[..]))
             };
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()
@@ -261,7 +261,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             let contract_symbol_cstring = if contract.symbol.is_empty() {
                 None
             } else {
-                std::ffi::CString::new(&contract.symbol[..]).ok()
+                Some(cstring_for_ffi(&contract.symbol[..]))
             };
             let contract_symbol_ptr = contract_symbol_cstring
                 .as_ref()

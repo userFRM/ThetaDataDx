@@ -10,8 +10,8 @@ aside: false
 const cfg = {
   httpPath: "v3/stock/history/ohlc",
   method: { rust: "stock_history_ohlc", python: "stock_history_ohlc", ts: "stockHistoryOHLC", cpp: "stock_history_ohlc" },
-  required: [{ key: "symbol", type: "string", default: "AAPL" }, { key: "date", type: "date", default: "20250303" }],
-  optional: [{ key: "interval", type: "string", default: "1m" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  required: [{ key: "symbol", type: "string", default: "AAPL" }],
+  optional: [{ key: "date", type: "date", default: "" }, { key: "interval", type: "string", default: "1m" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
   print: ["date", "open", "high", "low", "close"],
   returns: "OhlcTick",
   sample: [
@@ -39,7 +39,7 @@ Fetch intraday OHLC bars for a stock on a single date.
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `date` | date | yes | — | Date YYYYMMDD |
+| `date` | date | no | — | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
 | `interval` | string | no | `1s` | Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |

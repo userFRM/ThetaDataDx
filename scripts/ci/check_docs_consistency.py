@@ -301,10 +301,8 @@ def check_static_docs() -> None:
         DOCS_SITE / "server/websocket.md",
     ]
     expect_contains(ROOT / "tools/server/README.md", "25503")
-    expect_contains(ROOT / "tools/server/README.md", "/v3/stock/history/ohlc_range")
     expect_contains(ROOT / "tools/server/README.md", "/v3/option/snapshot/quote?symbol=")
     expect_contains(DOCS_SITE / "server/index.md", "25503")
-    expect_contains(DOCS_SITE / "server/http.md", "/v3/stock/history/ohlc_range")
     expect_contains(DOCS_SITE / "server/http.md", "/v3/option/snapshot/quote?symbol=")
     for path in [ROOT / "tools/server/README.md", *server_pages]:
         expect_not_contains(path, "/v2/")

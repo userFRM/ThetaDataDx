@@ -13,7 +13,7 @@ info:
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
     Intervals accept milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     All prices are f64 (double) -- decoded during parsing.
-  version: 13.0.0-rc.15
+  version: 13.0.0-rc.16
   contact:
     name: ThetaDataDx
     url: https://github.com/userFRM/ThetaDataDx
@@ -127,6 +127,24 @@ x-anchors:
       type: string
       pattern: '^\d{8}$'
     description: Date in YYYYMMDD format (optional when using start_date/end_date)
+
+  start_date-optional-param: &start_date-optional-param
+    name: start_date
+    in: query
+    required: false
+    schema:
+      type: string
+      pattern: '^\d{8}$'
+    description: Range start date in YYYYMMDD format (optional; pair with end_date instead of date)
+
+  end_date-optional-param: &end_date-optional-param
+    name: end_date
+    in: query
+    required: false
+    schema:
+      type: string
+      pattern: '^\d{8}$'
+    description: Range end date in YYYYMMDD format (optional; pair with start_date instead of date)
 
   interval-param: &interval-param
     name: interval
@@ -852,13 +870,15 @@ paths:
       operationId: stockHistoryOhlc
       summary: Stock intraday OHLC bars
       description: |
-        Intraday OHLC bars for a single date.
+        Intraday OHLC bars. Supply `date` for a single day, or `start_date`/`end_date` for a date range on the same route.
         Interval accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
         gRPC: GetStockHistoryOhlc
       tags: [Stock / History]
       parameters:
         - *symbol-param
-        - *date-param
+        - *date-optional-param
+        - *start_date-optional-param
+        - *end_date-optional-param
         - *interval-param
         - *start_time-param
         - *end_time-param
@@ -869,49 +889,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let bars = client.historical().stock_history_ohlc("AAPL", "20240315", "60000").await?;
+            let bars = client.historical().stock_history_ohlc("AAPL").date("20240315").interval("60000").await?;
         - lang: python
           label: Python
           source: |
-            bars = client.historical.stock_history_ohlc("AAPL", "20240315", "60000")
+            bars = client.historical.stock_history_ohlc("AAPL", date="20240315", interval="60000")
         - lang: cpp
           label: C++
           source: |
-            auto bars = client.historical().stock_history_ohlc("AAPL", "20240315", "60000");
-
-  /v3/stock/history/ohlc_range:
-    x-min-subscription: value
-    get:
-      operationId: stockHistoryOhlcRange
-      summary: Stock intraday OHLC bars across a date range
-      description: |
-        Intraday OHLC bars across a date range.
-        Interval accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
-        gRPC: synthetic ThetaDataDx range projection over GetStockHistoryOhlc
-      tags: [Stock / History]
-      parameters:
-        - *symbol-param
-        - *start_date-param
-        - *end_date-param
-        - *interval-param
-        - *start_time-param
-        - *end_time-param
-        - *venue-param
-      responses:
-        '200': *ohlc-response
-      x-code-examples:
-        - lang: rust
-          label: Rust
-          source: |
-            let bars = client.historical().stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000").await?;
-        - lang: python
-          label: Python
-          source: |
-            bars = client.historical.stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000")
-        - lang: cpp
-          label: C++
-          source: |
-            auto bars = client.historical().stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000");
+            auto bars = client.historical().stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315").with_interval("60000"));
 
   /v3/stock/history/trade:
     x-min-subscription: standard
@@ -946,15 +932,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let trades = client.historical().stock_history_trade("AAPL", "20240315").await?;
+            let trades = client.historical().stock_history_trade("AAPL").date("20240315").await?;
         - lang: python
           label: Python
           source: |
-            trades = client.historical.stock_history_trade("AAPL", "20240315")
+            trades = client.historical.stock_history_trade("AAPL", date="20240315")
         - lang: cpp
           label: C++
           source: |
-            auto trades = client.historical().stock_history_trade("AAPL", "20240315");
+            auto trades = client.historical().stock_history_trade("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
   /v3/stock/history/quote:
     x-min-subscription: value
     get:
@@ -989,15 +975,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = client.historical().stock_history_quote("AAPL", "20240315", "60000").await?;
+            let quotes = client.historical().stock_history_quote("AAPL").date("20240315").interval("60000").await?;
         - lang: python
           label: Python
           source: |
-            quotes = client.historical.stock_history_quote("AAPL", "20240315", "60000")
+            quotes = client.historical.stock_history_quote("AAPL", date="20240315", interval="60000")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.historical().stock_history_quote("AAPL", "20240315", "60000");
+            auto quotes = client.historical().stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315").with_interval("60000"));
   /v3/stock/history/trade_quote:
     x-min-subscription: standard
     get:
@@ -1033,15 +1019,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let tq = client.historical().stock_history_trade_quote("AAPL", "20240315").await?;
+            let tq = client.historical().stock_history_trade_quote("AAPL").date("20240315").await?;
         - lang: python
           label: Python
           source: |
-            tq = client.historical.stock_history_trade_quote("AAPL", "20240315")
+            tq = client.historical.stock_history_trade_quote("AAPL", date="20240315")
         - lang: cpp
           label: C++
           source: |
-            auto tq = client.historical().stock_history_trade_quote("AAPL", "20240315");
+            auto tq = client.historical().stock_history_trade_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
 
   # =========================================================================
   # STOCK / AT-TIME

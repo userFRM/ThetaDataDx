@@ -77,38 +77,38 @@ std::vector<EodTick> HistoricalClient::stock_history_eod(const std::string& symb
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
-std::vector<OhlcTick> HistoricalClient::stock_history_ohlc(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<OhlcTick> HistoricalClient::stock_history_ohlc(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_ohlc_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_ohlc_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 
-std::vector<TradeTick> HistoricalClient::stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeTick> HistoricalClient::stock_history_trade(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_trade_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_trade_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_tick_array_free);
 }
 
-std::vector<QuoteTick> HistoricalClient::stock_history_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<QuoteTick> HistoricalClient::stock_history_quote(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_quote_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_quote_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<QuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_quote_tick_array_free);
 }
 
-std::vector<TradeQuoteTick> HistoricalClient::stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeQuoteTick> HistoricalClient::stock_history_trade_quote(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_trade_quote_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_trade_quote_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
 }
@@ -282,47 +282,47 @@ std::vector<EodTick> HistoricalClient::option_history_eod(const std::string& sym
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
-std::vector<OhlcTick> HistoricalClient::option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<OhlcTick> HistoricalClient::option_history_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_ohlc_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_ohlc_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 
-std::vector<TradeTick> HistoricalClient::option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeTick> HistoricalClient::option_history_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_tick_array_free);
 }
 
-std::vector<QuoteTick> HistoricalClient::option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<QuoteTick> HistoricalClient::option_history_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<QuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_quote_tick_array_free);
 }
 
-std::vector<TradeQuoteTick> HistoricalClient::option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeQuoteTick> HistoricalClient::option_history_trade_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
 }
 
-std::vector<OpenInterestTick> HistoricalClient::option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<OpenInterestTick> HistoricalClient::option_history_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_open_interest_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_open_interest_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<OpenInterestTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_open_interest_tick_array_free);
 }
@@ -336,92 +336,92 @@ std::vector<GreeksEodTick> HistoricalClient::option_history_greeks_eod(const std
     return detail::check_tick_array<GreeksEodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_eod_tick_array_free);
 }
 
-std::vector<GreeksAllTick> HistoricalClient::option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksAllTick> HistoricalClient::option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
 }
 
-std::vector<TradeGreeksAllTick> HistoricalClient::option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksAllTick> HistoricalClient::option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_all_tick_array_free);
 }
 
-std::vector<GreeksFirstOrderTick> HistoricalClient::option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksFirstOrderTick> HistoricalClient::option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
 }
 
-std::vector<TradeGreeksFirstOrderTick> HistoricalClient::option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksFirstOrderTick> HistoricalClient::option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_first_order_tick_array_free);
 }
 
-std::vector<GreeksSecondOrderTick> HistoricalClient::option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksSecondOrderTick> HistoricalClient::option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
 }
 
-std::vector<TradeGreeksSecondOrderTick> HistoricalClient::option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksSecondOrderTick> HistoricalClient::option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_second_order_tick_array_free);
 }
 
-std::vector<GreeksThirdOrderTick> HistoricalClient::option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksThirdOrderTick> HistoricalClient::option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
 }
 
-std::vector<TradeGreeksThirdOrderTick> HistoricalClient::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksThirdOrderTick> HistoricalClient::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_third_order_tick_array_free);
 }
 
-std::vector<IvTick> HistoricalClient::option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<IvTick> HistoricalClient::option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<IvTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_iv_tick_array_free);
 }
 
-std::vector<TradeGreeksImpliedVolatilityTick> HistoricalClient::option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksImpliedVolatilityTick> HistoricalClient::option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksImpliedVolatilityTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_implied_volatility_tick_array_free);
 }
@@ -516,11 +516,11 @@ std::vector<OhlcTick> HistoricalClient::index_history_ohlc(const std::string& sy
     return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 
-std::vector<PriceTick> HistoricalClient::index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<PriceTick> HistoricalClient::index_history_price(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_index_history_price_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_index_history_price_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<PriceTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_price_tick_array_free);
 }
@@ -568,15 +568,6 @@ std::vector<InterestRateTick> HistoricalClient::interest_rate_history_eod(const 
     auto arr = thetadatadx_interest_rate_history_eod_with_options(historical_handle(), symbol.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<InterestRateTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_interest_rate_tick_array_free);
-}
-
-std::vector<OhlcTick> HistoricalClient::stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
-    detail::FfiEndpointRequestOptions ffi_options(options);
-    thetadatadx_clear_error();
-    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_ohlc_range_with_options(historical_handle(), symbol.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
-    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
-    return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 
 std::vector<std::string> Historical::stock_list_symbols(const EndpointRequestOptions& options) const {
@@ -656,38 +647,38 @@ std::vector<EodTick> Historical::stock_history_eod(const std::string& symbol, co
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
-std::vector<OhlcTick> Historical::stock_history_ohlc(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<OhlcTick> Historical::stock_history_ohlc(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_ohlc_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_ohlc_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 
-std::vector<TradeTick> Historical::stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeTick> Historical::stock_history_trade(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_trade_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_trade_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_tick_array_free);
 }
 
-std::vector<QuoteTick> Historical::stock_history_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<QuoteTick> Historical::stock_history_quote(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_quote_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_quote_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<QuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_quote_tick_array_free);
 }
 
-std::vector<TradeQuoteTick> Historical::stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeQuoteTick> Historical::stock_history_trade_quote(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_trade_quote_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_stock_history_trade_quote_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
 }
@@ -861,47 +852,47 @@ std::vector<EodTick> Historical::option_history_eod(const std::string& symbol, c
     return detail::check_tick_array<EodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_eod_tick_array_free);
 }
 
-std::vector<OhlcTick> Historical::option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<OhlcTick> Historical::option_history_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_ohlc_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_ohlc_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 
-std::vector<TradeTick> Historical::option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeTick> Historical::option_history_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_tick_array_free);
 }
 
-std::vector<QuoteTick> Historical::option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<QuoteTick> Historical::option_history_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<QuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_quote_tick_array_free);
 }
 
-std::vector<TradeQuoteTick> Historical::option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeQuoteTick> Historical::option_history_trade_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_quote_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeQuoteTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_quote_tick_array_free);
 }
 
-std::vector<OpenInterestTick> Historical::option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<OpenInterestTick> Historical::option_history_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_open_interest_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_open_interest_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<OpenInterestTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_open_interest_tick_array_free);
 }
@@ -915,92 +906,92 @@ std::vector<GreeksEodTick> Historical::option_history_greeks_eod(const std::stri
     return detail::check_tick_array<GreeksEodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_eod_tick_array_free);
 }
 
-std::vector<GreeksAllTick> Historical::option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksAllTick> Historical::option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
 }
 
-std::vector<TradeGreeksAllTick> Historical::option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksAllTick> Historical::option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_all_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_all_tick_array_free);
 }
 
-std::vector<GreeksFirstOrderTick> Historical::option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksFirstOrderTick> Historical::option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
 }
 
-std::vector<TradeGreeksFirstOrderTick> Historical::option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksFirstOrderTick> Historical::option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_first_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_first_order_tick_array_free);
 }
 
-std::vector<GreeksSecondOrderTick> Historical::option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksSecondOrderTick> Historical::option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
 }
 
-std::vector<TradeGreeksSecondOrderTick> Historical::option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksSecondOrderTick> Historical::option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_second_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_second_order_tick_array_free);
 }
 
-std::vector<GreeksThirdOrderTick> Historical::option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<GreeksThirdOrderTick> Historical::option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
 }
 
-std::vector<TradeGreeksThirdOrderTick> Historical::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksThirdOrderTick> Historical::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_third_order_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_third_order_tick_array_free);
 }
 
-std::vector<IvTick> Historical::option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<IvTick> Historical::option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<IvTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_iv_tick_array_free);
 }
 
-std::vector<TradeGreeksImpliedVolatilityTick> Historical::option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<TradeGreeksImpliedVolatilityTick> Historical::option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_option_history_trade_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_option_history_trade_greeks_implied_volatility_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksImpliedVolatilityTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_implied_volatility_tick_array_free);
 }
@@ -1095,11 +1086,11 @@ std::vector<OhlcTick> Historical::index_history_ohlc(const std::string& symbol, 
     return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 
-std::vector<PriceTick> Historical::index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+std::vector<PriceTick> Historical::index_history_price(const std::string& symbol, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_index_history_price_with_options(historical_handle(), symbol.c_str(), date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    auto arr = thetadatadx_index_history_price_with_options(historical_handle(), symbol.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<PriceTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_price_tick_array_free);
 }
@@ -1147,14 +1138,5 @@ std::vector<InterestRateTick> Historical::interest_rate_history_eod(const std::s
     auto arr = thetadatadx_interest_rate_history_eod_with_options(historical_handle(), symbol.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<InterestRateTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_interest_rate_tick_array_free);
-}
-
-std::vector<OhlcTick> Historical::stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
-    detail::FfiEndpointRequestOptions ffi_options(options);
-    thetadatadx_clear_error();
-    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
-    auto arr = thetadatadx_stock_history_ohlc_range_with_options(historical_handle(), symbol.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
-    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
-    return detail::check_tick_array<OhlcTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_ohlc_tick_array_free);
 }
 

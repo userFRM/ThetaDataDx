@@ -723,7 +723,7 @@ impl StockHistoryEodBuilder {
 pub struct StockHistoryOhlcBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
-    date: String,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -735,6 +735,12 @@ pub struct StockHistoryOhlcBuilder {
 
 #[pymethods]
 impl StockHistoryOhlcBuilder {
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
     /// Set `interval` on the pending request.
     fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.interval = Some(value.into_string());
@@ -777,12 +783,6 @@ impl StockHistoryOhlcBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -805,7 +805,10 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -845,7 +848,10 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -893,7 +899,10 @@ impl StockHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -962,7 +971,10 @@ impl StockHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, &date);
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1053,7 +1065,7 @@ impl StockHistoryOhlcBuilder {
 pub struct StockHistoryTradeBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
-    date: String,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     venue: Option<String>,
@@ -1064,6 +1076,12 @@ pub struct StockHistoryTradeBuilder {
 
 #[pymethods]
 impl StockHistoryTradeBuilder {
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
     fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.start_time = Some(value.into_string());
@@ -1100,12 +1118,6 @@ impl StockHistoryTradeBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -1127,7 +1139,10 @@ impl StockHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1163,7 +1178,10 @@ impl StockHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1207,7 +1225,10 @@ impl StockHistoryTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1272,7 +1293,10 @@ impl StockHistoryTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol, &date);
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1363,7 +1387,7 @@ impl StockHistoryTradeBuilder {
 pub struct StockHistoryQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
-    date: String,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -1375,6 +1399,12 @@ pub struct StockHistoryQuoteBuilder {
 
 #[pymethods]
 impl StockHistoryQuoteBuilder {
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
     /// Set `interval` on the pending request.
     fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.interval = Some(value.into_string());
@@ -1417,12 +1447,6 @@ impl StockHistoryQuoteBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -1445,7 +1469,10 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1485,7 +1512,10 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1533,7 +1563,10 @@ impl StockHistoryQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1602,7 +1635,10 @@ impl StockHistoryQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -1694,7 +1730,7 @@ impl StockHistoryQuoteBuilder {
 pub struct StockHistoryTradeQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
-    date: String,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     exclusive: Option<bool>,
@@ -1706,6 +1742,12 @@ pub struct StockHistoryTradeQuoteBuilder {
 
 #[pymethods]
 impl StockHistoryTradeQuoteBuilder {
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
     /// Set `start_time` on the pending request.
     fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
         slf.start_time = Some(value.into_string());
@@ -1748,12 +1790,6 @@ impl StockHistoryTradeQuoteBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -1776,7 +1812,10 @@ impl StockHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1816,7 +1855,10 @@ impl StockHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1864,7 +1906,10 @@ impl StockHistoryTradeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -1933,7 +1978,10 @@ impl StockHistoryTradeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5256,9 +5304,9 @@ pub struct OptionHistoryOhlcBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -5279,6 +5327,12 @@ impl OptionHistoryOhlcBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -5330,12 +5384,6 @@ impl OptionHistoryOhlcBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -5350,9 +5398,9 @@ impl OptionHistoryOhlcBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5361,12 +5409,15 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -5399,9 +5450,9 @@ impl OptionHistoryOhlcBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5410,12 +5461,15 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -5447,9 +5501,9 @@ impl OptionHistoryOhlcBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5467,12 +5521,15 @@ impl OptionHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -5528,9 +5585,9 @@ impl OptionHistoryOhlcBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -5545,12 +5602,15 @@ impl OptionHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -5646,9 +5706,9 @@ pub struct OptionHistoryTradeBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     max_dte: Option<i32>,
@@ -5669,6 +5729,12 @@ impl OptionHistoryTradeBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -5720,12 +5786,6 @@ impl OptionHistoryTradeBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -5740,9 +5800,9 @@ impl OptionHistoryTradeBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let max_dte = self.max_dte;
@@ -5751,12 +5811,15 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -5789,9 +5852,9 @@ impl OptionHistoryTradeBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let max_dte = self.max_dte;
@@ -5800,12 +5863,15 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -5837,9 +5903,9 @@ impl OptionHistoryTradeBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let max_dte = self.max_dte;
@@ -5857,12 +5923,15 @@ impl OptionHistoryTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -5918,9 +5987,9 @@ impl OptionHistoryTradeBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let max_dte = self.max_dte;
@@ -5935,12 +6004,15 @@ impl OptionHistoryTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -6036,9 +6108,9 @@ pub struct OptionHistoryQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -6060,6 +6132,12 @@ impl OptionHistoryQuoteBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -6117,12 +6195,6 @@ impl OptionHistoryQuoteBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -6137,9 +6209,9 @@ impl OptionHistoryQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6149,12 +6221,15 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -6190,9 +6265,9 @@ impl OptionHistoryQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6202,12 +6277,15 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -6242,9 +6320,9 @@ impl OptionHistoryQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6263,12 +6341,15 @@ impl OptionHistoryQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -6327,9 +6408,9 @@ impl OptionHistoryQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -6345,12 +6426,15 @@ impl OptionHistoryQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -6450,9 +6534,9 @@ pub struct OptionHistoryTradeQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     exclusive: Option<bool>,
@@ -6474,6 +6558,12 @@ impl OptionHistoryTradeQuoteBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -6531,12 +6621,6 @@ impl OptionHistoryTradeQuoteBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -6551,9 +6635,9 @@ impl OptionHistoryTradeQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let exclusive = self.exclusive;
@@ -6563,12 +6647,15 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -6604,9 +6691,9 @@ impl OptionHistoryTradeQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let exclusive = self.exclusive;
@@ -6616,12 +6703,15 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -6656,9 +6746,9 @@ impl OptionHistoryTradeQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let exclusive = self.exclusive;
@@ -6677,12 +6767,15 @@ impl OptionHistoryTradeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -6741,9 +6834,9 @@ impl OptionHistoryTradeQuoteBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let exclusive = self.exclusive;
@@ -6759,12 +6852,15 @@ impl OptionHistoryTradeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -6860,9 +6956,9 @@ pub struct OptionHistoryOpenInterestBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     max_dte: Option<i32>,
     strike_range: Option<i32>,
     start_date: Option<String>,
@@ -6881,6 +6977,12 @@ impl OptionHistoryOpenInterestBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -6920,12 +7022,6 @@ impl OptionHistoryOpenInterestBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -6940,21 +7036,24 @@ impl OptionHistoryOpenInterestBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -6981,21 +7080,24 @@ impl OptionHistoryOpenInterestBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -7021,9 +7123,9 @@ impl OptionHistoryOpenInterestBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
@@ -7039,12 +7141,15 @@ impl OptionHistoryOpenInterestBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -7094,9 +7199,9 @@ impl OptionHistoryOpenInterestBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let max_dte = self.max_dte;
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
@@ -7109,12 +7214,15 @@ impl OptionHistoryOpenInterestBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
@@ -7631,9 +7739,9 @@ pub struct OptionHistoryGreeksAllBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -7658,6 +7766,12 @@ impl OptionHistoryGreeksAllBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -7733,12 +7847,6 @@ impl OptionHistoryGreeksAllBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -7753,9 +7861,9 @@ impl OptionHistoryGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -7768,12 +7876,15 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -7818,9 +7929,9 @@ impl OptionHistoryGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -7833,12 +7944,15 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -7882,9 +7996,9 @@ impl OptionHistoryGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -7906,12 +8020,15 @@ impl OptionHistoryGreeksAllBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -7979,9 +8096,9 @@ impl OptionHistoryGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -8000,12 +8117,15 @@ impl OptionHistoryGreeksAllBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -8115,9 +8235,9 @@ pub struct OptionHistoryTradeGreeksAllBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -8142,6 +8262,12 @@ impl OptionHistoryTradeGreeksAllBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -8217,12 +8343,6 @@ impl OptionHistoryTradeGreeksAllBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -8237,9 +8357,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -8252,12 +8372,15 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8302,9 +8425,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -8317,12 +8440,15 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8366,9 +8492,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -8390,12 +8516,15 @@ impl OptionHistoryTradeGreeksAllBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8463,9 +8592,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -8484,12 +8613,15 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -8600,9 +8732,9 @@ pub struct OptionHistoryGreeksFirstOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -8627,6 +8759,12 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -8702,12 +8840,6 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -8722,9 +8854,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -8737,12 +8869,15 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -8787,9 +8922,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -8802,12 +8937,15 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -8851,9 +8989,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -8875,12 +9013,15 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -8948,9 +9089,9 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -8969,12 +9110,15 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -9084,9 +9228,9 @@ pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -9111,6 +9255,12 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -9186,12 +9336,6 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -9206,9 +9350,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -9221,12 +9365,15 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -9271,9 +9418,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -9286,12 +9433,15 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -9335,9 +9485,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -9359,12 +9509,15 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -9432,9 +9585,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -9453,12 +9606,15 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -9569,9 +9725,9 @@ pub struct OptionHistoryGreeksSecondOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -9596,6 +9752,12 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -9671,12 +9833,6 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -9691,9 +9847,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -9706,12 +9862,15 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -9756,9 +9915,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -9771,12 +9930,15 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -9820,9 +9982,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -9844,12 +10006,15 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -9917,9 +10082,9 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -9938,12 +10103,15 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -10053,9 +10221,9 @@ pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -10080,6 +10248,12 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -10155,12 +10329,6 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -10175,9 +10343,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -10190,12 +10358,15 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10240,9 +10411,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -10255,12 +10426,15 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10304,9 +10478,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -10328,12 +10502,15 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10401,9 +10578,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -10422,12 +10599,15 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -10538,9 +10718,9 @@ pub struct OptionHistoryGreeksThirdOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -10565,6 +10745,12 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -10640,12 +10826,6 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -10660,9 +10840,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -10675,12 +10855,15 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -10725,9 +10908,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -10740,12 +10923,15 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -10789,9 +10975,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -10813,12 +10999,15 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -10886,9 +11075,9 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -10907,12 +11096,15 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -11022,9 +11214,9 @@ pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -11049,6 +11241,12 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -11124,12 +11322,6 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -11144,9 +11336,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -11159,12 +11351,15 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11209,9 +11404,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -11224,12 +11419,15 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11273,9 +11471,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -11297,12 +11495,15 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11370,9 +11571,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -11391,12 +11592,15 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -11506,9 +11710,9 @@ pub struct OptionHistoryGreeksImpliedVolatilityBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -11533,6 +11737,12 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -11608,12 +11818,6 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -11628,9 +11832,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -11643,12 +11847,15 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -11693,9 +11900,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -11708,12 +11915,15 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -11757,9 +11967,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -11781,12 +11991,15 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -11854,9 +12067,9 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let interval = self.interval.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
@@ -11875,12 +12088,15 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -11989,9 +12205,9 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
     expiration: String,
-    date: String,
     strike: Option<String>,
     right: Option<String>,
+    date: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
     annual_dividend: Option<f64>,
@@ -12016,6 +12232,12 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     /// Set `right` on the pending request.
     fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
         slf
     }
 
@@ -12091,12 +12313,6 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -12111,9 +12327,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -12126,12 +12342,15 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12176,9 +12395,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -12191,12 +12410,15 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12240,9 +12462,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -12264,12 +12486,15 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -12337,9 +12562,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
-        let date = self.date.clone();
         let strike = self.strike.clone();
         let right = self.right.clone();
+        let date = self.date.clone();
         let start_time = self.start_time.clone();
         let end_time = self.end_time.clone();
         let annual_dividend = self.annual_dividend;
@@ -12358,12 +12583,15 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = &right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -13922,7 +14150,7 @@ impl IndexHistoryOhlcBuilder {
 pub struct IndexHistoryPriceBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     symbol: String,
-    date: String,
+    date: Option<String>,
     interval: Option<String>,
     start_time: Option<String>,
     end_time: Option<String>,
@@ -13933,6 +14161,12 @@ pub struct IndexHistoryPriceBuilder {
 
 #[pymethods]
 impl IndexHistoryPriceBuilder {
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
     /// Set `interval` on the pending request.
     fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.interval = Some(value.into_string());
@@ -13969,12 +14203,6 @@ impl IndexHistoryPriceBuilder {
         slf
     }
 
-    /// Replace the required `date` on the pending request.
-    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.date = value.into_string();
-        slf
-    }
-
     /// Apply a per-request deadline in milliseconds.
     fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
         slf.timeout_ms = Some(value);
@@ -13996,7 +14224,10 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14032,7 +14263,10 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14076,7 +14310,10 @@ impl IndexHistoryPriceBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14141,7 +14378,10 @@ impl IndexHistoryPriceBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_price(&symbol, &date);
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14799,299 +15039,6 @@ impl InterestRateHistoryEodBuilder {
     }
 }
 
-/// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-///
-/// Defaults (upstream):
-/// - `interval`: `"1s"`
-/// - `start_time`: `"09:30:00"`
-/// - `end_time`: `"16:00:00"`
-/// - `venue`: `"nqb"`
-#[pyclass(module = "thetadatadx", name = "StockHistoryOhlcRangeBuilder")]
-pub struct StockHistoryOhlcRangeBuilder {
-    client: std::sync::Arc<thetadatadx::Client>,
-    symbol: String,
-    start_date: String,
-    end_date: String,
-    interval: Option<String>,
-    start_time: Option<String>,
-    end_time: Option<String>,
-    venue: Option<String>,
-    timeout_ms: Option<u64>,
-}
-
-#[pymethods]
-impl StockHistoryOhlcRangeBuilder {
-    /// Set `interval` on the pending request.
-    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
-        slf.interval = Some(value.into_string());
-        slf
-    }
-
-    /// Set `start_time` on the pending request.
-    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
-        slf.start_time = Some(value.into_string());
-        slf
-    }
-
-    /// Set `end_time` on the pending request.
-    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
-        slf.end_time = Some(value.into_string());
-        slf
-    }
-
-    /// Set `venue` on the pending request.
-    fn venue<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
-        slf.venue = Some(value.into_string());
-        slf
-    }
-
-    /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
-        slf.symbol = value.into_string();
-        slf
-    }
-
-    /// Replace the required `start_date` on the pending request.
-    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.start_date = value.into_string();
-        slf
-    }
-
-    /// Replace the required `end_date` on the pending request.
-    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
-        slf.end_date = value.into_string();
-        slf
-    }
-
-    /// Apply a per-request deadline in milliseconds.
-    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
-        slf.timeout_ms = Some(value);
-        slf
-    }
-
-    /// Execute the request and return a typed list wrapper.
-    ///
-    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
-    /// on the result to convert to the downstream representation.
-    fn list(&self, py: Python<'_>) -> PyResult<Py<OhlcTickList>> {
-        let client = self.client.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
-            if let Some(value) = &interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })?;
-        ohlc_ticks_to_pyclass_list(py, ticks)
-    }
-
-    /// Async companion to `list()` — awaitable yields the typed list wrapper.
-    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let client = self.client.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
-            if let Some(value) = &interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
-    }
-
-    /// Stream chunks of `stock_history_ohlc_range` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
-    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
-        let client = self.client.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        let handler_arc = std::sync::Arc::new(handler);
-        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
-        // Callback PyErr is captured in a Mutex<Option<PyErr>>
-        // because the chunk closure is `FnMut`, not `FnOnce`, and
-        // can't move-out of `&mut Option<PyErr>`. The Mutex also
-        // gives us `Send`, which `run_blocking`'s bound requires.
-        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
-            std::sync::Arc::new(std::sync::Mutex::new(None));
-        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
-            if let Some(value) = &interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
-                Python::attach(|py| {
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
-                        Err(e) => {
-                            *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
-                        }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
-                });
-            }).await
-        });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
-        if let Some(py_err) = callback_error.lock().unwrap().take() {
-            return Err(py_err);
-        }
-        stream_result?;
-        Ok(())
-    }
-
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc_range` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
-    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        let client = self.client.clone();
-        let symbol = self.symbol.clone();
-        let start_date = self.start_date.clone();
-        let end_date = self.end_date.clone();
-        let interval = self.interval.clone();
-        let start_time = self.start_time.clone();
-        let end_time = self.end_time.clone();
-        let venue = self.venue.clone();
-        let timeout_ms = self.timeout_ms;
-        let handler_arc = std::sync::Arc::new(handler);
-        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
-        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
-            std::sync::Arc::new(std::sync::Mutex::new(None));
-        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
-        spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
-            if let Some(value) = &interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = &start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = &end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = &venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
-                // Copy the chunk out synchronously so nothing borrowed
-                // is held across the await, then run the GIL-bound
-                // handler on the blocking pool: a slow handler parks a
-                // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
-                // Arc'd once (Send + Sync); we clone the Arc per chunk
-                // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
-                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
-                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
-                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
-                async move {
-                    let Some(owned) = owned else { return; };
-                    // GIL acquired strictly inside spawn_blocking — never
-                    // held on the async side while awaiting the join, so a
-                    // pool thread waiting on the GIL cannot deadlock the
-                    // task awaiting it.
-                    let join = tokio::task::spawn_blocking(move || {
-                        Python::attach(|py| {
-                            let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
-                                Ok(list) => list,
-                                Err(e) => {
-                                    *cb_err_for_task.lock().unwrap() = Some(e);
-                                    return;
-                                }
-                            };
-                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
-                                *cb_err_for_task.lock().unwrap() = Some(e);
-                            }
-                        })
-                    }).await;
-                    if let Err(join_err) = join {
-                        // A panic in the handler task surfaces as a
-                        // re-raised RuntimeError instead of being swallowed.
-                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
-                    }
-                }
-            }).await)
-        }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
-            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
-                return Err(py_err);
-            }
-            stream_result.map_err(to_py_err)?;
-            Ok::<_, PyErr>(py.None())
-        })
-    }
-}
-
 fn register_generated_historical_builders(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StockListSymbolsBuilder>()?;
     m.add_class::<StockListDatesBuilder>()?;
@@ -15153,7 +15100,6 @@ fn register_generated_historical_builders(m: &Bound<'_, PyModule>) -> PyResult<(
     m.add_class::<CalendarOnDateBuilder>()?;
     m.add_class::<CalendarYearBuilder>()?;
     m.add_class::<InterestRateHistoryEodBuilder>()?;
-    m.add_class::<StockHistoryOhlcRangeBuilder>()?;
     Ok(())
 }
 
@@ -15747,12 +15693,12 @@ impl HistoricalView {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_ohlc(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -15761,7 +15707,10 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.client.historical().stock_history_ohlc(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_ohlc(symbol.as_str());
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -15803,12 +15752,12 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_ohlc_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -15819,7 +15768,10 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_ohlc(symbol.as_str());
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -15851,16 +15803,15 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_ohlc()` for the sync signature; `stock_history_ohlc_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date))]
+    #[pyo3(signature = (symbol))]
     fn stock_history_ohlc_builder(
         &self,
         symbol: PyStringArg,
-        date: PyDateArg,
     ) -> StockHistoryOhlcBuilder {
         StockHistoryOhlcBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
-            date: date.into_string(),
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -15880,12 +15831,12 @@ impl HistoricalView {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         venue: Option<PyStringArg>,
@@ -15893,7 +15844,10 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.client.historical().stock_history_trade(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_trade(symbol.as_str());
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -15930,12 +15884,12 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         venue: Option<PyStringArg>,
@@ -15945,7 +15899,10 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_trade(symbol.as_str());
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -15974,16 +15931,15 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_trade()` for the sync signature; `stock_history_trade_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date))]
+    #[pyo3(signature = (symbol))]
     fn stock_history_trade_builder(
         &self,
         symbol: PyStringArg,
-        date: PyDateArg,
     ) -> StockHistoryTradeBuilder {
         StockHistoryTradeBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
-            date: date.into_string(),
+            date: None,
             start_time: None,
             end_time: None,
             venue: None,
@@ -16005,12 +15961,12 @@ impl HistoricalView {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_quote(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -16019,7 +15975,10 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.client.historical().stock_history_quote(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_quote(symbol.as_str());
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -16062,12 +16021,12 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, interval=None, start_time=None, end_time=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_quote_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -16078,7 +16037,10 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_quote(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_quote(symbol.as_str());
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -16110,16 +16072,15 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_quote()` for the sync signature; `stock_history_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date))]
+    #[pyo3(signature = (symbol))]
     fn stock_history_quote_builder(
         &self,
         symbol: PyStringArg,
-        date: PyDateArg,
     ) -> StockHistoryQuoteBuilder {
         StockHistoryQuoteBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
-            date: date.into_string(),
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -16140,12 +16101,12 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `false`
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=false, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=false, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_quote(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
@@ -16154,7 +16115,10 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.client.historical().stock_history_trade_quote(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().stock_history_trade_quote(symbol.as_str());
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
         }
@@ -16195,12 +16159,12 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, *, start_time=None, end_time=None, exclusive=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=None, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_quote_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
@@ -16211,7 +16175,10 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(symbol.as_str(), date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(symbol.as_str());
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -16243,16 +16210,15 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `stock_history_trade_quote()` for the sync signature; `stock_history_trade_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date))]
+    #[pyo3(signature = (symbol))]
     fn stock_history_trade_quote_builder(
         &self,
         symbol: PyStringArg,
-        date: PyDateArg,
     ) -> StockHistoryTradeQuoteBuilder {
         StockHistoryTradeQuoteBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
-            date: date.into_string(),
+            date: None,
             start_time: None,
             end_time: None,
             exclusive: None,
@@ -18486,15 +18452,15 @@ impl HistoricalView {
     /// - `interval`: `"1s"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_ohlc(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -18503,12 +18469,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
@@ -18552,15 +18521,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_ohlc_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -18571,12 +18540,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -18609,20 +18581,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_ohlc()` for the sync signature; `option_history_ohlc_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_ohlc_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryOhlcBuilder {
         OptionHistoryOhlcBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -18645,15 +18616,15 @@ impl HistoricalView {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         max_dte: Option<i32>,
@@ -18662,12 +18633,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.client.historical().option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -18711,15 +18685,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         max_dte: Option<i32>,
@@ -18730,12 +18704,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -18768,20 +18745,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade()` for the sync signature; `option_history_trade_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_trade_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryTradeBuilder {
         OptionHistoryTradeBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             start_time: None,
             end_time: None,
             max_dte: None,
@@ -18804,15 +18780,15 @@ impl HistoricalView {
     /// - `interval`: `"1s"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_quote(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -18822,12 +18798,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.client.historical().option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_quote(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
@@ -18874,15 +18853,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_quote_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -18894,12 +18873,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -18935,20 +18917,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_quote()` for the sync signature; `option_history_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_quote_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryQuoteBuilder {
         OptionHistoryQuoteBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -18973,15 +18954,15 @@ impl HistoricalView {
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
     /// - `exclusive`: `false`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, exclusive=false, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=false, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
@@ -18991,12 +18972,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -19044,15 +19028,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         exclusive: Option<bool>,
@@ -19064,12 +19048,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -19105,20 +19092,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_quote()` for the sync signature; `option_history_trade_quote_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_trade_quote_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryTradeQuoteBuilder {
         OptionHistoryTradeQuoteBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             start_time: None,
             end_time: None,
             exclusive: None,
@@ -19139,27 +19125,30 @@ impl HistoricalView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_open_interest(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OpenInterestTickList>> {
-        let mut request = self.client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
@@ -19194,15 +19183,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_open_interest_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         max_dte: Option<i32>,
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
@@ -19211,12 +19200,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -19243,20 +19235,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_open_interest()` for the sync signature; `option_history_open_interest_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_open_interest_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryOpenInterestBuilder {
         OptionHistoryOpenInterestBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             max_dte: None,
             strike_range: None,
             start_date: None,
@@ -19452,15 +19443,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -19473,12 +19464,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksAllTickList>> {
-        let mut request = self.client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
@@ -19537,15 +19531,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -19560,12 +19554,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -19610,20 +19607,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_all()` for the sync signature; `option_history_greeks_all_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_greeks_all_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryGreeksAllBuilder {
         OptionHistoryGreeksAllBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -19652,15 +19648,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_all(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -19673,12 +19669,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksAllTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -19736,15 +19735,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -19759,12 +19758,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -19809,20 +19811,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_all()` for the sync signature; `option_history_trade_greeks_all_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_trade_greeks_all_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksAllBuilder {
         OptionHistoryTradeGreeksAllBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -19852,15 +19853,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -19873,12 +19874,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksFirstOrderTickList>> {
-        let mut request = self.client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
@@ -19937,15 +19941,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -19960,12 +19964,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -20010,20 +20017,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_first_order()` for the sync signature; `option_history_greeks_first_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_greeks_first_order_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryGreeksFirstOrderBuilder {
         OptionHistoryGreeksFirstOrderBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -20052,15 +20058,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -20073,12 +20079,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -20136,15 +20145,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -20159,12 +20168,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -20209,20 +20221,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_first_order()` for the sync signature; `option_history_trade_greeks_first_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_trade_greeks_first_order_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksFirstOrderBuilder {
         OptionHistoryTradeGreeksFirstOrderBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -20252,15 +20263,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -20273,12 +20284,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksSecondOrderTickList>> {
-        let mut request = self.client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
@@ -20337,15 +20351,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -20360,12 +20374,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -20410,20 +20427,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_second_order()` for the sync signature; `option_history_greeks_second_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_greeks_second_order_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryGreeksSecondOrderBuilder {
         OptionHistoryGreeksSecondOrderBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -20452,15 +20468,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -20473,12 +20489,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -20536,15 +20555,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -20559,12 +20578,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -20609,20 +20631,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_second_order()` for the sync signature; `option_history_trade_greeks_second_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_trade_greeks_second_order_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksSecondOrderBuilder {
         OptionHistoryTradeGreeksSecondOrderBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -20652,15 +20673,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -20673,12 +20694,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksThirdOrderTickList>> {
-        let mut request = self.client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
@@ -20737,15 +20761,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -20760,12 +20784,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -20810,20 +20837,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_third_order()` for the sync signature; `option_history_greeks_third_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_greeks_third_order_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryGreeksThirdOrderBuilder {
         OptionHistoryGreeksThirdOrderBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -20852,15 +20878,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -20873,12 +20899,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -20936,15 +20965,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -20959,12 +20988,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -21009,20 +21041,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_third_order()` for the sync signature; `option_history_trade_greeks_third_order_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_trade_greeks_third_order_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksThirdOrderBuilder {
         OptionHistoryTradeGreeksThirdOrderBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -21051,15 +21082,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -21072,12 +21103,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<IvTickList>> {
-        let mut request = self.client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
@@ -21135,15 +21169,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -21158,12 +21192,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -21208,20 +21245,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_greeks_implied_volatility()` for the sync signature; `option_history_greeks_implied_volatility_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_greeks_implied_volatility_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryGreeksImpliedVolatilityBuilder {
         OptionHistoryGreeksImpliedVolatilityBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -21249,15 +21285,15 @@ impl HistoricalView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -21270,12 +21306,15 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+        let mut request = self.client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
         if let Some(value) = right {
             request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
         }
         if let Some(value) = start_time {
             request = request.start_time(value.as_str());
@@ -21332,15 +21371,15 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, date, *, strike=None, right=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
         strike: Option<PyStringArg>,
         right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
         annual_dividend: Option<f64>,
@@ -21355,12 +21394,15 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -21405,20 +21447,19 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_history_trade_greeks_implied_volatility()` for the sync signature; `option_history_trade_greeks_implied_volatility_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, expiration, date))]
+    #[pyo3(signature = (symbol, expiration))]
     fn option_history_trade_greeks_implied_volatility_builder(
         &self,
         symbol: PyStringArg,
         expiration: PyDateArg,
-        date: PyDateArg,
     ) -> OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
             expiration: expiration.into_string(),
-            date: date.into_string(),
             strike: None,
             right: None,
+            date: None,
             start_time: None,
             end_time: None,
             annual_dividend: None,
@@ -22233,12 +22274,12 @@ impl HistoricalView {
     /// - `interval`: `"1s"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, interval=None, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
     fn index_history_price(
         &self,
         py: Python<'_>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -22246,7 +22287,10 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PriceTickList>> {
-        let mut request = self.client.historical().index_history_price(symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().index_history_price(symbol.as_str());
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -22285,12 +22329,12 @@ impl HistoricalView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, date, *, interval=None, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, interval=None, start_time=None, end_time=None, start_date=None, end_date=None, timeout_ms=None))]
     fn index_history_price_async<'py>(
         &self,
         py: Python<'py>,
         symbol: PyStringArg,
-        date: PyDateArg,
+        date: Option<PyDateArg>,
         interval: Option<PyStringArg>,
         start_time: Option<PyTimeArg>,
         end_time: Option<PyTimeArg>,
@@ -22300,7 +22344,10 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_price(symbol.as_str(), date.as_str());
+            let mut request = client.historical().index_history_price(symbol.as_str());
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -22329,16 +22376,15 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `index_history_price()` for the sync signature; `index_history_price_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, date))]
+    #[pyo3(signature = (symbol))]
     fn index_history_price_builder(
         &self,
         symbol: PyStringArg,
-        date: PyDateArg,
     ) -> IndexHistoryPriceBuilder {
         IndexHistoryPriceBuilder {
             client: self.client.clone(),
             symbol: symbol.into_string(),
-            date: date.into_string(),
+            date: None,
             interval: None,
             start_time: None,
             end_time: None,
@@ -22691,119 +22737,6 @@ impl HistoricalView {
             symbol: symbol.into_string(),
             start_date: start_date.into_string(),
             end_date: end_date.into_string(),
-            timeout_ms: None,
-        }
-    }
-
-    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-    ///
-    /// Defaults (upstream):
-    /// - `interval`: `"1s"`
-    /// - `start_time`: `"09:30:00"`
-    /// - `end_time`: `"16:00:00"`
-    /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, venue=None, timeout_ms=None))]
-    fn stock_history_ohlc_range(
-        &self,
-        py: Python<'_>,
-        symbol: PyStringArg,
-        start_date: PyDateArg,
-        end_date: PyDateArg,
-        interval: Option<PyStringArg>,
-        start_time: Option<PyTimeArg>,
-        end_time: Option<PyTimeArg>,
-        venue: Option<PyStringArg>,
-        timeout_ms: Option<u64>,
-    ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.client.historical().stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
-        if let Some(value) = interval {
-            request = request.interval(value.as_str());
-        }
-        if let Some(value) = start_time {
-            request = request.start_time(value.as_str());
-        }
-        if let Some(value) = end_time {
-            request = request.end_time(value.as_str());
-        }
-        if let Some(value) = venue {
-            request = request.venue(value.as_str());
-        }
-        if let Some(ms) = timeout_ms {
-            request = request.with_deadline(std::time::Duration::from_millis(ms));
-        }
-        let ticks = run_blocking(py, async move { request.await })?;
-        ohlc_ticks_to_pyclass_list(py, ticks)
-    }
-
-    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-    ///
-    /// Defaults (upstream):
-    /// - `interval`: `"1s"`
-    /// - `start_time`: `"09:30:00"`
-    /// - `end_time`: `"16:00:00"`
-    /// - `venue`: `"nqb"`
-    ///
-    ///
-    /// Async companion — returns an awaitable (`asyncio.Future`).
-    /// Shares the same shared tokio runtime as the sync variant; no
-    /// second runtime is created per call.
-    #[pyo3(signature = (symbol, start_date, end_date, *, interval=None, start_time=None, end_time=None, venue=None, timeout_ms=None))]
-    fn stock_history_ohlc_range_async<'py>(
-        &self,
-        py: Python<'py>,
-        symbol: PyStringArg,
-        start_date: PyDateArg,
-        end_date: PyDateArg,
-        interval: Option<PyStringArg>,
-        start_time: Option<PyTimeArg>,
-        end_time: Option<PyTimeArg>,
-        venue: Option<PyStringArg>,
-        timeout_ms: Option<u64>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        let client = self.client.clone();
-        spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc_range(symbol.as_str(), start_date.as_str(), end_date.as_str());
-            if let Some(value) = interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
-    }
-
-    /// Create a fluent-builder for `stock_history_ohlc_range`. Chain setters then call `.list()`
-    /// (or `.list_async()`) to execute the request; the returned typed list
-    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
-    /// / `.to_pandas()` / `.to_polars()`.
-    ///
-    /// See `stock_history_ohlc_range()` for the sync signature; `stock_history_ohlc_range_async()` for the awaitable companion.
-    #[pyo3(signature = (symbol, start_date, end_date))]
-    fn stock_history_ohlc_range_builder(
-        &self,
-        symbol: PyStringArg,
-        start_date: PyDateArg,
-        end_date: PyDateArg,
-    ) -> StockHistoryOhlcRangeBuilder {
-        StockHistoryOhlcRangeBuilder {
-            client: self.client.clone(),
-            symbol: symbol.into_string(),
-            start_date: start_date.into_string(),
-            end_date: end_date.into_string(),
-            interval: None,
-            start_time: None,
-            end_time: None,
-            venue: None,
             timeout_ms: None,
         }
     }

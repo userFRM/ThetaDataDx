@@ -138,9 +138,20 @@ struct Inner {
     /// scrape one number to detect WS-side back-pressure independent of the
     /// SDK-side event ring overrun counter.
     fpss_broadcast_dropped: AtomicU64,
+    /// Per-client WS-send drops: a slow client whose bounded mpsc channel is
+    /// full when [`AppState::broadcast_ws`] tries to fan an event to it.
+    /// Distinct from `fpss_broadcast_dropped` (the upstream callback->task
+    /// handoff): this counts the downstream client-delivery overrun and, like
+    /// the sibling, is rate-limited so one lagged client under a firehose
+    /// cannot flood stderr with a warning per event.
+    ws_client_dropped: AtomicU64,
     /// WebSocket option-`strike` wire encoding (see [`StrikeFormat`]).
     strike_format: StrikeFormat,
 }
+
+/// Emit one rate-limited warning per this many drops so a sustained overrun
+/// stays visible without a per-event log flood.
+const WS_DROP_WARN_EVERY_N: u64 = 1024;
 
 impl AppState {
     /// Create new app state wrapping a connected `Client`.
@@ -154,6 +165,7 @@ impl AppState {
                 shutdown: tokio::sync::Notify::new(),
                 ws_session: std::sync::Mutex::new(None),
                 fpss_broadcast_dropped: AtomicU64::new(0),
+                ws_client_dropped: AtomicU64::new(0),
                 strike_format,
             }),
         }
@@ -197,7 +209,13 @@ impl AppState {
     /// FPSS connection status string matching the JVM terminal: one of
     /// `CONNECTED` / `UNVERIFIED` / `DISCONNECTED` / `ERROR`.
     pub fn fpss_status(&self) -> &'static str {
-        FpssStatus::from_u8(self.inner.fpss_status.load(Ordering::Acquire)).as_terminal_str()
+        self.fpss_status_kind().as_terminal_str()
+    }
+
+    /// The current FPSS status as the typed enum (the `&str` terminal token
+    /// form is [`AppState::fpss_status`]).
+    pub fn fpss_status_kind(&self) -> FpssStatus {
+        FpssStatus::from_u8(self.inner.fpss_status.load(Ordering::Acquire))
     }
 
     /// Set the FPSS channel health, driven by the stream control events in
@@ -227,8 +245,10 @@ impl AppState {
     /// waiting on the `RwLock`, matching the async context.
     ///
     /// If a per-client channel is full, that single slow client's event is
-    /// dropped and a warning is logged -- the same backpressure semantics as
-    /// the old `broadcast::channel`'s `Lagged` behavior.
+    /// dropped and a rate-limited warning is logged (one per
+    /// [`WS_DROP_WARN_EVERY_N`] drops) -- the same backpressure semantics as
+    /// the old `broadcast::channel`'s `Lagged` behavior, without letting one
+    /// lagged client flood stderr under a firehose.
     ///
     /// If a per-client channel is `Closed` (the receiver side was dropped
     /// because the WS handler exited), the dead sender is pruned inline --
@@ -246,7 +266,18 @@ impl AppState {
                 match tx.try_send(Arc::clone(&event)) {
                     Ok(()) => {}
                     Err(mpsc::error::TrySendError::Full(_)) => {
-                        tracing::warn!("WebSocket client lagged, dropped event");
+                        let dropped = self
+                            .inner
+                            .ws_client_dropped
+                            .fetch_add(1, Ordering::Relaxed)
+                            .wrapping_add(1);
+                        if dropped.is_multiple_of(WS_DROP_WARN_EVERY_N) {
+                            tracing::warn!(
+                                dropped_total = dropped,
+                                warn_every_n = WS_DROP_WARN_EVERY_N,
+                                "WebSocket client lagged, dropping events"
+                            );
+                        }
                     }
                     Err(mpsc::error::TrySendError::Closed(_)) => {
                         saw_closed = true;

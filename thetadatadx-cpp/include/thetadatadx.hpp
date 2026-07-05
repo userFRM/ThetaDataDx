@@ -1395,7 +1395,8 @@ public:
     }
 
     /// Pull a flat-file blob and write the requested vendor format
-    /// (`csv` / `jsonl`) directly to `path`. Throws on FFI failure.
+    /// (`csv` / `json` / `jsonl` / `ndjson` / `html`) directly to
+    /// `path`. Throws on FFI failure.
     void to_path(const std::string& sec_type,
                  const std::string& req_type,
                  const std::string& date,

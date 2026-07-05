@@ -66,9 +66,6 @@ PATH_REWRITES: dict[str, str] = {
     "reference/option/list/dates.md": "/option/list/dates/{request_type}",
     "reference/option/list/contracts.md": "/option/list/contracts/{request_type}",
     "reference/stock/list/dates.md": "/stock/list/dates/{request_type}",
-    # The ranged OHLC endpoint is the date-range form of the upstream
-    # single-date OHLC route — same data, same tier.
-    "reference/stock/history/ohlc-range.md": "/stock/history/ohlc",
 }
 
 # OpenAPI YAML is large but highly regular: every endpoint starts with

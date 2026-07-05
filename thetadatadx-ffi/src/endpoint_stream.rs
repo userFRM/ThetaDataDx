@@ -81,8 +81,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
     client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -96,11 +94,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -140,8 +133,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
     client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -155,11 +146,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -199,8 +185,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
     client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -214,11 +198,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -258,8 +237,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
     client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -273,11 +250,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -538,8 +510,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -558,11 +528,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -604,8 +569,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -624,11 +587,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -670,8 +628,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -690,11 +646,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -736,8 +687,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -756,11 +705,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -802,8 +746,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -822,11 +764,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -941,8 +878,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -961,11 +896,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1007,8 +937,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1027,11 +955,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1073,8 +996,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1093,11 +1014,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1139,8 +1055,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1159,11 +1073,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1205,8 +1114,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1225,11 +1132,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1271,8 +1173,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1291,11 +1191,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1337,8 +1232,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1357,11 +1250,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1403,8 +1291,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1423,11 +1309,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1469,8 +1350,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1489,11 +1368,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1535,8 +1409,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
 ,
     expiration: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1555,11 +1427,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
         args.insert(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -1891,8 +1758,6 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
     client: *const ThetaDataDxHistoricalClient,
     symbol: *const c_char
 ,
-    date: *const c_char
-,
     callback: Option<ThetaDataDxTickChunkCallback>,
     ctx: *mut c_void,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -1906,11 +1771,6 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-        );
-        let date = require_cstr!(date, empty);
-        args.insert(
-            "date".to_string(),
-            thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
@@ -2064,72 +1924,6 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "interest_rate_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
-            Ok(()) => 0,
-            Err(error) => {
-                set_error_from(&thetadatadx::Error::from(error));
-                empty
-            }
-        }
-    })
-}
-
-/// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-///
-/// Stream the result chunk-by-chunk through `callback` without
-/// materialising the full response. `callback(rows, len, ctx)` is
-/// invoked once per server chunk with a pointer to a contiguous run
-/// of the endpoint's tick struct (the same layout the buffered
-/// `_with_options` array returns); the chunk is freed before the next
-/// is fetched, so peak memory tracks a single chunk. Accepts the same
-/// optional builder parameters as the buffered form. Returns 0 on a
-/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_stream(
-    client: *const ThetaDataDxHistoricalClient,
-    symbol: *const c_char
-,
-    start_date: *const c_char
-,
-    end_date: *const c_char
-,
-    callback: Option<ThetaDataDxTickChunkCallback>,
-    ctx: *mut c_void,
-    options: *const ThetaDataDxEndpointRequestOptions,
-) -> i32 {
-    ffi_boundary!(-1, {
-        let empty = -1;
-        let client = require_client!(client, empty);
-
-        let mut args = thetadatadx::EndpointArgs::new();
-        let symbol = require_cstr!(symbol, empty);
-        args.insert(
-            "symbol".to_string(),
-            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
-        );
-        let start_date = require_cstr!(start_date, empty);
-        args.insert(
-            "start_date".to_string(),
-            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
-        );
-        let end_date = require_cstr!(end_date, empty);
-        args.insert(
-            "end_date".to_string(),
-            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
-        );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
-            return empty;
-        }
-
-        let Some(callback) = callback else {
-            set_error("callback function pointer is null");
-            return empty;
-        };
-        let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_ohlc_range", &args, move |rows, len| sink.emit(rows, len)).await
         }) {
             Ok(()) => 0,
             Err(error) => {

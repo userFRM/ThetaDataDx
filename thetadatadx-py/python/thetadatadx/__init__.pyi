@@ -1362,7 +1362,6 @@ CalendarOnDateBuilder = Any
 CalendarYearBuilder = Any
 InterestRateTickList = Any
 InterestRateHistoryEodBuilder = Any
-StockHistoryOhlcRangeBuilder = Any
 
 @final
 class HistoricalView:
@@ -1678,8 +1677,8 @@ class HistoricalView:
     def stock_history_ohlc(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -1705,8 +1704,8 @@ class HistoricalView:
     def stock_history_ohlc_async(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -1735,7 +1734,6 @@ class HistoricalView:
     def stock_history_ohlc_builder(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
     ) -> StockHistoryOhlcBuilder:
         """Fluent builder for `stock_history_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -1743,8 +1741,8 @@ class HistoricalView:
     def stock_history_trade(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         venue: Optional[str] = None,
@@ -1767,8 +1765,8 @@ class HistoricalView:
     def stock_history_trade_async(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         venue: Optional[str] = None,
@@ -1794,7 +1792,6 @@ class HistoricalView:
     def stock_history_trade_builder(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
     ) -> StockHistoryTradeBuilder:
         """Fluent builder for `stock_history_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -1802,8 +1799,8 @@ class HistoricalView:
     def stock_history_quote(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -1830,8 +1827,8 @@ class HistoricalView:
     def stock_history_quote_async(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -1861,7 +1858,6 @@ class HistoricalView:
     def stock_history_quote_builder(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
     ) -> StockHistoryQuoteBuilder:
         """Fluent builder for `stock_history_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -1869,8 +1865,8 @@ class HistoricalView:
     def stock_history_trade_quote(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         exclusive: Optional[bool] = False,
@@ -1895,8 +1891,8 @@ class HistoricalView:
     def stock_history_trade_quote_async(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         exclusive: Optional[bool] = None,
@@ -1924,7 +1920,6 @@ class HistoricalView:
     def stock_history_trade_quote_builder(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
     ) -> StockHistoryTradeQuoteBuilder:
         """Fluent builder for `stock_history_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -2985,10 +2980,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3016,10 +3011,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3050,7 +3045,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryOhlcBuilder:
         """Fluent builder for `option_history_ohlc`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3059,10 +3053,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         max_dte: Optional[int] = None,
@@ -3090,10 +3084,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         max_dte: Optional[int] = None,
@@ -3124,7 +3118,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryTradeBuilder:
         """Fluent builder for `option_history_trade`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3133,10 +3126,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3165,10 +3158,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3200,7 +3193,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryQuoteBuilder:
         """Fluent builder for `option_history_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3209,10 +3201,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         exclusive: Optional[bool] = False,
@@ -3242,10 +3234,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         exclusive: Optional[bool] = None,
@@ -3278,7 +3270,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryTradeQuoteBuilder:
         """Fluent builder for `option_history_trade_quote`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3287,10 +3278,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -3313,10 +3304,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -3342,7 +3333,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryOpenInterestBuilder:
         """Fluent builder for `option_history_open_interest`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3430,10 +3420,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3468,10 +3458,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3509,7 +3499,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryGreeksAllBuilder:
         """Fluent builder for `option_history_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3518,10 +3507,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -3555,10 +3544,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -3595,7 +3584,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksAllBuilder:
         """Fluent builder for `option_history_trade_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3604,10 +3592,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3642,10 +3630,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3683,7 +3671,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryGreeksFirstOrderBuilder:
         """Fluent builder for `option_history_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3692,10 +3679,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -3729,10 +3716,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -3769,7 +3756,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksFirstOrderBuilder:
         """Fluent builder for `option_history_trade_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3778,10 +3764,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3816,10 +3802,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3857,7 +3843,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryGreeksSecondOrderBuilder:
         """Fluent builder for `option_history_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3866,10 +3851,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -3903,10 +3888,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -3943,7 +3928,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksSecondOrderBuilder:
         """Fluent builder for `option_history_trade_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -3952,10 +3936,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -3990,10 +3974,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -4031,7 +4015,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryGreeksThirdOrderBuilder:
         """Fluent builder for `option_history_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -4040,10 +4023,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -4077,10 +4060,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -4117,7 +4100,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksThirdOrderBuilder:
         """Fluent builder for `option_history_trade_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -4126,10 +4108,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -4163,10 +4145,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -4203,7 +4185,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryGreeksImpliedVolatilityBuilder:
         """Fluent builder for `option_history_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -4212,10 +4193,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -4248,10 +4229,10 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
         *,
         strike: Optional[str] = None,
         right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
         annual_dividend: Optional[float] = None,
@@ -4287,7 +4268,6 @@ class HistoricalView:
         self,
         symbol: str,
         expiration: Union[str, date, datetime],
-        date: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksImpliedVolatilityBuilder:
         """Fluent builder for `option_history_trade_greeks_implied_volatility`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -4704,8 +4684,8 @@ class HistoricalView:
     def index_history_price(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -4730,8 +4710,8 @@ class HistoricalView:
     def index_history_price_async(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
         *,
+        date: Optional[Union[str, date, datetime]] = None,
         interval: Optional[str] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
@@ -4759,7 +4739,6 @@ class HistoricalView:
     def index_history_price_builder(
         self,
         symbol: str,
-        date: Union[str, date, datetime],
     ) -> IndexHistoryPriceBuilder:
         """Fluent builder for `index_history_price`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
@@ -4968,62 +4947,6 @@ class HistoricalView:
         end_date: Union[str, date, datetime],
     ) -> InterestRateHistoryEodBuilder:
         """Fluent builder for `interest_rate_history_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
-        ...
-
-    def stock_history_ohlc_range(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> OhlcTickList:
-        """Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-
-        Defaults (upstream):
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `venue`: `"nqb"`
-        """
-        ...
-
-    def stock_history_ohlc_range_async(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-        *,
-        interval: Optional[str] = None,
-        start_time: Optional[Union[str, time, datetime]] = None,
-        end_time: Optional[Union[str, time, datetime]] = None,
-        venue: Optional[str] = None,
-        timeout_ms: Optional[int] = None,
-    ) -> Awaitable[OhlcTickList]:
-        """Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-
-        Defaults (upstream):
-        - `interval`: `"1s"`
-        - `start_time`: `"09:30:00"`
-        - `end_time`: `"16:00:00"`
-        - `venue`: `"nqb"`
-
-
-        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
-        """
-        ...
-
-    def stock_history_ohlc_range_builder(
-        self,
-        symbol: str,
-        start_date: Union[str, date, datetime],
-        end_date: Union[str, date, datetime],
-    ) -> StockHistoryOhlcRangeBuilder:
-        """Fluent builder for `stock_history_ohlc_range`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
 # --- END GENERATED HISTORICAL VIEW ---

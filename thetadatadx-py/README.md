@@ -78,7 +78,7 @@ for tick in eod:
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
-bars = client.historical.stock_history_ohlc("AAPL", "20240315", interval="1m")   # 1-minute bars
+bars = client.historical.stock_history_ohlc("AAPL", date="20240315", interval="1m")   # 1-minute bars
 exps = client.historical.option_list_expirations("SPY")
 strikes = client.historical.option_list_strikes("SPY", exps[0])
 ```

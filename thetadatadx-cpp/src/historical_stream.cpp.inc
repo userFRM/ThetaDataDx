@@ -14,7 +14,7 @@ void Historical::stock_history_eod_stream(const std::string& symbol, const std::
     }
 }
 
-void Historical::stock_history_ohlc_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::stock_history_ohlc_stream(const std::string& symbol, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -22,13 +22,13 @@ void Historical::stock_history_ohlc_stream(const std::string& symbol, const std:
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const OhlcTick>(static_cast<const OhlcTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_stock_history_ohlc_stream(hist, symbol.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_stock_history_ohlc_stream(hist, symbol.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::stock_history_trade_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::stock_history_trade_stream(const std::string& symbol, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -36,13 +36,13 @@ void Historical::stock_history_trade_stream(const std::string& symbol, const std
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeTick>(static_cast<const TradeTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_stock_history_trade_stream(hist, symbol.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_stock_history_trade_stream(hist, symbol.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::stock_history_quote_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::stock_history_quote_stream(const std::string& symbol, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -50,13 +50,13 @@ void Historical::stock_history_quote_stream(const std::string& symbol, const std
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const QuoteTick>(static_cast<const QuoteTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_stock_history_quote_stream(hist, symbol.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_stock_history_quote_stream(hist, symbol.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::stock_history_trade_quote_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::stock_history_trade_quote_stream(const std::string& symbol, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -64,7 +64,7 @@ void Historical::stock_history_trade_quote_stream(const std::string& symbol, con
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeQuoteTick>(static_cast<const TradeQuoteTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_stock_history_trade_quote_stream(hist, symbol.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_stock_history_trade_quote_stream(hist, symbol.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -112,7 +112,7 @@ void Historical::option_history_eod_stream(const std::string& symbol, const std:
     }
 }
 
-void Historical::option_history_ohlc_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_ohlc_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -120,13 +120,13 @@ void Historical::option_history_ohlc_stream(const std::string& symbol, const std
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const OhlcTick>(static_cast<const OhlcTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_ohlc_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_ohlc_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_trade_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_trade_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -134,13 +134,13 @@ void Historical::option_history_trade_stream(const std::string& symbol, const st
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeTick>(static_cast<const TradeTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_trade_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_trade_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_quote_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -148,13 +148,13 @@ void Historical::option_history_quote_stream(const std::string& symbol, const st
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const QuoteTick>(static_cast<const QuoteTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_quote_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_quote_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_trade_quote_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_trade_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -162,13 +162,13 @@ void Historical::option_history_trade_quote_stream(const std::string& symbol, co
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeQuoteTick>(static_cast<const TradeQuoteTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_trade_quote_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_trade_quote_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_open_interest_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const OpenInterestTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_open_interest_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OpenInterestTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -176,7 +176,7 @@ void Historical::option_history_open_interest_stream(const std::string& symbol, 
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const OpenInterestTick>(static_cast<const OpenInterestTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_open_interest_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_open_interest_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -196,7 +196,7 @@ void Historical::option_history_greeks_eod_stream(const std::string& symbol, con
     }
 }
 
-void Historical::option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -204,13 +204,13 @@ void Historical::option_history_greeks_all_stream(const std::string& symbol, con
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksAllTick>(static_cast<const GreeksAllTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -218,13 +218,13 @@ void Historical::option_history_trade_greeks_all_stream(const std::string& symbo
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksAllTick>(static_cast<const TradeGreeksAllTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_trade_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_trade_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -232,13 +232,13 @@ void Historical::option_history_greeks_first_order_stream(const std::string& sym
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksFirstOrderTick>(static_cast<const GreeksFirstOrderTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -246,13 +246,13 @@ void Historical::option_history_trade_greeks_first_order_stream(const std::strin
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksFirstOrderTick>(static_cast<const TradeGreeksFirstOrderTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_trade_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_trade_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -260,13 +260,13 @@ void Historical::option_history_greeks_second_order_stream(const std::string& sy
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksSecondOrderTick>(static_cast<const GreeksSecondOrderTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -274,13 +274,13 @@ void Historical::option_history_trade_greeks_second_order_stream(const std::stri
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksSecondOrderTick>(static_cast<const TradeGreeksSecondOrderTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_trade_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_trade_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -288,13 +288,13 @@ void Historical::option_history_greeks_third_order_stream(const std::string& sym
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksThirdOrderTick>(static_cast<const GreeksThirdOrderTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -302,13 +302,13 @@ void Historical::option_history_trade_greeks_third_order_stream(const std::strin
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksThirdOrderTick>(static_cast<const TradeGreeksThirdOrderTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_trade_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_trade_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const IvTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const IvTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -316,13 +316,13 @@ void Historical::option_history_greeks_implied_volatility_stream(const std::stri
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const IvTick>(static_cast<const IvTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
 }
 
-void Historical::option_history_trade_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksImpliedVolatilityTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::option_history_trade_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksImpliedVolatilityTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -330,7 +330,7 @@ void Historical::option_history_trade_greeks_implied_volatility_stream(const std
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksImpliedVolatilityTick>(static_cast<const TradeGreeksImpliedVolatilityTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_option_history_trade_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_option_history_trade_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -392,7 +392,7 @@ void Historical::index_history_ohlc_stream(const std::string& symbol, const std:
     }
 }
 
-void Historical::index_history_price_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const PriceTick>)> handler, const EndpointRequestOptions& options) const {
+void Historical::index_history_price_stream(const std::string& symbol, std::function<void(Span<const PriceTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxHistoricalClient* hist = historical_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -400,7 +400,7 @@ void Historical::index_history_price_stream(const std::string& symbol, const std
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const PriceTick>(static_cast<const PriceTick*>(rows), len));
         };
-    int32_t rc = thetadatadx_index_history_price_stream(hist, symbol.c_str(), date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
+    int32_t rc = thetadatadx_index_history_price_stream(hist, symbol.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -429,20 +429,6 @@ void Historical::interest_rate_history_eod_stream(const std::string& symbol, con
             handler(Span<const InterestRateTick>(static_cast<const InterestRateTick*>(rows), len));
         };
     int32_t rc = thetadatadx_interest_rate_history_eod_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
-    if (rc != 0) {
-        detail::throw_last_ffi_error();
-    }
-}
-
-void Historical::stock_history_ohlc_range_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options) const {
-    const ThetaDataDxHistoricalClient* hist = historical_handle();
-    detail::FfiEndpointRequestOptions ffi_options(options);
-    thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
-        [&handler](const void* rows, std::size_t len) {
-            handler(Span<const OhlcTick>(static_cast<const OhlcTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_history_ohlc_range_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &Historical::stream_chunk_shim, &erased, &ffi_options.raw);
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }

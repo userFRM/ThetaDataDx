@@ -10,8 +10,8 @@ aside: false
 const cfg = {
   httpPath: "v3/stock/history/trade",
   method: { rust: "stock_history_trade", python: "stock_history_trade", ts: "stockHistoryTrade", cpp: "stock_history_trade" },
-  required: [{ key: "symbol", type: "string", default: "AAPL" }, { key: "date", type: "date", default: "20250303" }],
-  optional: [{ key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  required: [{ key: "symbol", type: "string", default: "AAPL" }],
+  optional: [{ key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "venue", type: "string", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
   print: ["date", "ms_of_day", "price", "size"],
   returns: "TradeTick",
   sample: [
@@ -38,7 +38,7 @@ Returns every trade reported by UTP & CTA. Set the `venue` parameter to `nqb` to
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `date` | date | yes | — | Date YYYYMMDD |
+| `date` | date | no | — | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
 | `venue` | string | no | `nqb` | Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. |

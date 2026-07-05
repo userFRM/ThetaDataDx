@@ -36,8 +36,6 @@ For pricing, see [thetadata.net](https://www.thetadata.net/subscribe.html).
 | **At-Time** |  |  |  |  |
 | [Trade](/reference/stock/at-time/trade) |  |  | ✓ | ✓ |
 | [Quote](/reference/stock/at-time/quote) |  | ✓ | ✓ | ✓ |
-| **History** |  |  |  |  |
-| [OHLC Range](/reference/stock/history/ohlc-range) |  | ✓ | ✓ | ✓ |
 
 ## Option Endpoints
 

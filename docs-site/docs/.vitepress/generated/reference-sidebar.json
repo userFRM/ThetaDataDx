@@ -15,8 +15,7 @@
       { "text": "OHLC", "link": "/reference/stock/history/ohlc" },
       { "text": "Trade", "link": "/reference/stock/history/trade" },
       { "text": "Quote", "link": "/reference/stock/history/quote" },
-      { "text": "Trade Quote", "link": "/reference/stock/history/trade-quote" },
-      { "text": "OHLC Range", "link": "/reference/stock/history/ohlc-range" }
+      { "text": "Trade Quote", "link": "/reference/stock/history/trade-quote" }
     ]},
     { "text": "At-Time", "collapsed": true, "items": [
       { "text": "Trade", "link": "/reference/stock/at-time/trade" },

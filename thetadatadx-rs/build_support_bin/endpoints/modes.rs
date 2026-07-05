@@ -100,7 +100,9 @@ fn rationale_for_mode(name: &str) -> &'static str {
 fn with_optional_rationale(param_name: &str, literal: &str) -> String {
     let label = match param_name {
         "max_dte" | "strike" | "right" | "interval" | "strike_range" | "min_time" | "exclusive"
-        | "start_time" | "end_time" | "start_date" | "end_date" => "optional filter wiring",
+        | "start_time" | "end_time" | "date" | "start_date" | "end_date" => {
+            "optional filter wiring"
+        }
         "symbol" => "optional symbol-filter wiring",
         "venue" => "optional venue selector wiring",
         "annual_dividend" | "rate_type" | "rate_value" | "stock_price" => {
@@ -124,10 +126,9 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
 /// `x-min-subscription`, so docs-site `<TierBadge>` and this function agree
 /// as long as the snapshot is fresh.
 ///
-/// Four kinds of endpoints don't have an upstream entry and fall back to a
+/// A few endpoints don't have an upstream entry and fall back to a
 /// tiny override table ([`sdk_only_min_tier`]): streaming RPCs (FPSS, not
-/// MDDS), SDK-private endpoints like `interest_rate_history_eod`, and
-/// SDK-only synthetic clones like `stock_history_ohlc_range`.
+/// MDDS) and SDK-private endpoints like `interest_rate_history_eod`.
 fn endpoint_min_tier(name: &str) -> &'static str {
     if let Some(tier) = sdk_only_min_tier(name) {
         return tier;
@@ -159,8 +160,6 @@ fn endpoint_min_tier(name: &str) -> &'static str {
 /// through [`endpoint_min_tier`]'s snapshot lookup.
 fn sdk_only_min_tier(name: &str) -> Option<&'static str> {
     Some(match name {
-        // Synthetic clone sharing a wire RPC with `stock_history_ohlc`.
-        "stock_history_ohlc_range" => "value",
         // SDK-only endpoint not documented upstream (FRED-backed, thetadatadx-local).
         "interest_rate_history_eod" => "free",
         _ => return None,

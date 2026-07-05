@@ -15,6 +15,8 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub venue: *const c_char,
     /// Minimum time filter
     pub min_time: *const c_char,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: *const c_char,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: *const c_char,
     /// Start time filter
@@ -77,35 +79,36 @@ pub struct ThetaDataDxEndpointRequestOptions {
 const _: () = {
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, venue) == 0);
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, min_time) == 8);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, interval) == 16);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_time) == 24);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_time) == 32);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_date) == 40);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_date) == 48);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, exclusive) == 56);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_exclusive) == 60);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike) == 64);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, right) == 72);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, symbol) == 80);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, max_dte) == 88);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_max_dte) == 92);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike_range) == 96);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_strike_range) == 100);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, annual_dividend) == 104);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_annual_dividend) == 112);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_type) == 120);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_value) == 128);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_rate_value) == 136);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, stock_price) == 144);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_stock_price) == 152);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 160);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 168);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 172);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 176);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 180);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 184);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 192);
-    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 200);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, date) == 16);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, interval) == 24);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_time) == 32);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_time) == 40);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_date) == 48);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_date) == 56);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, exclusive) == 64);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_exclusive) == 68);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike) == 72);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, right) == 80);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, symbol) == 88);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, max_dte) == 96);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_max_dte) == 100);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike_range) == 104);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_strike_range) == 108);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, annual_dividend) == 112);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_annual_dividend) == 120);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_type) == 128);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_value) == 136);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_rate_value) == 144);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, stock_price) == 152);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_stock_price) == 160);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 168);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 176);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 180);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 184);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 188);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 192);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 200);
+    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 208);
     assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == 8);
 };
 
@@ -122,6 +125,7 @@ fn apply_endpoint_request_options(
     let options = unsafe { &*options };
     insert_optional_str_arg(args, "venue", options.venue)?;
     insert_optional_str_arg(args, "min_time", options.min_time)?;
+    insert_optional_str_arg(args, "date", options.date)?;
     insert_optional_str_arg(args, "interval", options.interval)?;
     insert_optional_str_arg(args, "start_time", options.start_time)?;
     insert_optional_str_arg(args, "end_time", options.end_time)?;

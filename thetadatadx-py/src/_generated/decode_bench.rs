@@ -478,15 +478,6 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
             let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
-        "stock_history_ohlc_range" => {
-            let table = decode_chunks_into_table(&refs)?;
-            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
-            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
-            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
-            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
-            let ticks = thetadatadx::Ticks::new(rows, columns);
-            Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
-        }
         "stock_history_quote" => {
             let table = decode_chunks_into_table(&refs)?;
             let rows = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
