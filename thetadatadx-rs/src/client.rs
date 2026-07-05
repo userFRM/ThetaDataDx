@@ -1871,9 +1871,12 @@ impl Client {
     ///   legacy terminal's downloads on the same input.
     /// - [`crate::flatfiles::FlatFileFormat::Jsonl`] — JSON Lines, one
     ///   object per row.
+    /// - [`crate::flatfiles::FlatFileFormat::Json`] — a single JSON array of
+    ///   the same per-row objects.
+    /// - [`crate::flatfiles::FlatFileFormat::Html`] — an HTML `<table>`.
     ///
     /// If `output_path` lacks a file extension, the format's canonical
-    /// extension (`csv` / `jsonl`) is appended automatically.
+    /// extension (`csv` / `jsonl` / `json` / `html`) is appended automatically.
     ///
     /// For columnar consumers (Parquet, Arrow IPC, polars) use
     /// [`Self::flatfile_request_decoded`] and feed the resulting

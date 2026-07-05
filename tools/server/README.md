@@ -8,7 +8,7 @@ Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v
 
 Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
-> **FLATFILES coverage:** the REST server exposes FLATFILES whole-universe daily blobs at `GET /v3/flatfile/{sec_type}/{req_type}?date=YYYYMMDD&format=csv|jsonl` and `POST /v3/flatfile/request`. Bytes are streamed back via a chunked response body so large blobs do not pin server memory. Flat files are batch downloads, not streaming subscriptions; the WebSocket surface is unchanged.
+> **FLATFILES coverage:** the REST server exposes FLATFILES whole-universe daily blobs at `GET /v3/{sec_type}/flat_file/{req_type}?date=YYYYMMDD&format=csv|json|ndjson|jsonl|html`. Bytes are streamed back via a chunked response body so large blobs do not pin server memory. Flat files are batch downloads, not streaming subscriptions; the WebSocket surface is unchanged.
 
 ## Quick start
 
@@ -110,7 +110,7 @@ GET /v3/terminal/mdds/status    # historical channel health: CONNECTED / DISCONN
 
 ### Response format
 
-Every registry endpoint accepts a `format` query parameter: `csv` (default, RFC 4180 with a header row and CRLF line endings), `json`, and `ndjson` / `jsonl` (one JSON object per row, `\n`-delimited). Unknown `format` values return 400 with the supported set.
+Every registry endpoint accepts a `format` query parameter: `csv` (default, RFC 4180 with a header row and CRLF line endings), `json`, `ndjson` / `jsonl` (one JSON object per row, `\n`-delimited), and `html` (a browser-viewable `<table>`, served inline as `text/html`). Unknown `format` values return 400 with the supported set.
 
 JSON responses carry the v3 body `{ "response": [ ... ] }` (no `header` key), `Content-Type: application/json`. Stock and index rows are flat; option / contract endpoints group their rows under the owning contract:
 

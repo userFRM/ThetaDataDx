@@ -3182,84 +3182,17 @@ paths:
   # FLAT FILES
   # =========================================================================
 
-  /v3/flatfile/{sec_type}/{req_type}:
-    get:
-      operationId: flatfileGet
-      tags: [Flat Files]
-      summary: Download a daily flat file (path form)
-      description: |
-        Downloads a whole-universe daily flat file for one security type and
-        request type. The `sec_type` and `req_type` path segments are matched
-        case-insensitively. The response body is the file bytes, streamed as an
-        attachment. Only these pairs are served (any other pairing returns 400):
-        `option/trade_quote`, `option/open_interest`, `option/eod`,
-        `stock/trade_quote`, `stock/eod`, `index/eod`. The path form takes the
-        parameters independently, so an unserved pairing (for example
-        `stock/open_interest`) is accepted by the route but rejected at request
-        time with 400; the body form constrains the served pairs in the schema
-        itself.
-      parameters:
-        - name: sec_type
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [option, stock, index]
-          description: Security type (case-insensitive).
-        - name: req_type
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [trade_quote, open_interest, eod]
-          description: |
-            Request type (case-insensitive). `open_interest` is served for
-            `option` only; `index` serves `eod` only.
-        - name: date
-          in: query
-          required: true
-          schema:
-            type: string
-          description: Trading date in YYYYMMDD format.
-        - name: format
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [csv, jsonl]
-            default: csv
-          description: On-disk format. Defaults to csv.
-      responses:
-        '200':
-          description: |
-            Flat-file bytes streamed as an attachment. Content type is
-            `text/csv` for csv or `application/x-ndjson` for jsonl.
-          content:
-            text/csv:
-              schema:
-                type: string
-                format: binary
-            application/x-ndjson:
-              schema:
-                type: string
-                format: binary
-        '400':
-          description: Unknown security type, request type, format, or date, or an unserved pair.
-        '502':
-          description: The flat-file distribution is unavailable upstream.
-
   /v3/{sec_type}/flat_file/{req_type}:
     get:
       operationId: flatfileGetBySecType
       tags: [Flat Files]
       summary: Download a daily flat file (sec_type/flat_file/req_type path form)
       description: |
-        Terminal-compatible spelling of `/v3/flatfile/{sec_type}/{req_type}`:
-        the security type leads the path and `flat_file` separates it from the
-        request type. Same handler, parameters, and response as the other path
-        form. The `sec_type` and `req_type` segments are matched
-        case-insensitively. The response body is the file bytes, streamed as an
-        attachment. Only these pairs are served (any other pairing returns 400):
+        The terminal's flat-file path form: the security type leads the path
+        and `flat_file` separates it from the request type. The `sec_type` and
+        `req_type` segments are matched case-insensitively. The response body
+        is the file bytes, streamed as an attachment. Only these pairs are
+        served (any other pairing returns 400):
         `option/trade_quote`, `option/open_interest`, `option/eod`,
         `stock/trade_quote`, `stock/eod`, `index/eod`. The path form takes the
         parameters independently, so an unserved pairing (for example
@@ -3287,22 +3220,31 @@ paths:
           required: true
           schema:
             type: string
-          description: Trading date in YYYYMMDD format.
+            format: date
+          description: Trading date in YYYY-MM-DD or YYYYMMDD format.
         - name: format
           in: query
           required: false
           schema:
             type: string
-            enum: [csv, jsonl]
+            enum: [csv, json, ndjson, jsonl, html]
             default: csv
-          description: On-disk format. Defaults to csv.
+          description: |
+            On-disk format. Defaults to csv. `json` streams a single JSON
+            array; `ndjson` (alias `jsonl`) newline-delimited JSON; `html` an
+            HTML table.
       responses:
         '200':
           description: |
             Flat-file bytes streamed as an attachment. Content type is
-            `text/csv` for csv or `application/x-ndjson` for jsonl.
+            `text/csv` for csv, `application/json` for json,
+            `application/x-ndjson` for ndjson / jsonl, or `text/html` for html.
           content:
             text/csv:
+              schema:
+                type: string
+                format: binary
+            application/json:
               schema:
                 type: string
                 format: binary
@@ -3310,90 +3252,7 @@ paths:
               schema:
                 type: string
                 format: binary
-        '400':
-          description: Unknown security type, request type, format, or date, or an unserved pair.
-        '502':
-          description: The flat-file distribution is unavailable upstream.
-
-  /v3/flatfile/request:
-    post:
-      operationId: flatfileRequest
-      tags: [Flat Files]
-      summary: Download a daily flat file (body form)
-      description: |
-        Downloads a whole-universe daily flat file described by a JSON body.
-        The `sec_type` and `req_type` fields are matched case-insensitively.
-        The response body is the file bytes, streamed as an attachment. A
-        security-type / request-type pair the flat-file distribution does not
-        serve returns 400.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [sec_type, req_type, date]
-              description: |
-                Only the served security-type / request-type pairs validate.
-                The `oneOf` branches constrain `req_type` to the request types
-                served for each `sec_type`: `option` serves `trade_quote`,
-                `open_interest`, and `eod`; `stock` serves `trade_quote` and
-                `eod`; `index` serves `eod`. The `sec_type` and `req_type`
-                fields are matched case-insensitively.
-              properties:
-                date:
-                  type: string
-                  description: Trading date in YYYYMMDD format.
-                format:
-                  type: string
-                  enum: [csv, jsonl]
-                  default: csv
-                  description: On-disk format. Defaults to csv.
-              oneOf:
-                - title: option
-                  required: [sec_type, req_type]
-                  properties:
-                    sec_type:
-                      type: string
-                      enum: [option]
-                      description: Security type (case-insensitive).
-                    req_type:
-                      type: string
-                      enum: [trade_quote, open_interest, eod]
-                      description: Request type served for option flat files.
-                - title: stock
-                  required: [sec_type, req_type]
-                  properties:
-                    sec_type:
-                      type: string
-                      enum: [stock]
-                      description: Security type (case-insensitive).
-                    req_type:
-                      type: string
-                      enum: [trade_quote, eod]
-                      description: Request type served for stock flat files.
-                - title: index
-                  required: [sec_type, req_type]
-                  properties:
-                    sec_type:
-                      type: string
-                      enum: [index]
-                      description: Security type (case-insensitive).
-                    req_type:
-                      type: string
-                      enum: [eod]
-                      description: Request type served for index flat files.
-      responses:
-        '200':
-          description: |
-            Flat-file bytes streamed as an attachment. Content type is
-            `text/csv` for csv or `application/x-ndjson` for jsonl.
-          content:
-            text/csv:
-              schema:
-                type: string
-                format: binary
-            application/x-ndjson:
+            text/html:
               schema:
                 type: string
                 format: binary

@@ -34,6 +34,7 @@ Add `format=` to any route:
 | `json` (default) | `application/json` | The envelope below. |
 | `csv` | `text/csv` | RFC 4180 with a header row. |
 | `ndjson` / `jsonl` | `application/x-ndjson` | One JSON object per row, newline-delimited. |
+| `html` | `text/html` | A browser-viewable `<table>`, served inline. |
 
 The JSON envelope:
 
@@ -51,12 +52,7 @@ Failures use one envelope shape across every route — see the [error codes tabl
 Whole-universe daily archives stream through dedicated routes with chunked bodies (bounded server memory at any download size):
 
 ```bash
-curl 'http://127.0.0.1:25503/v3/flatfile/option/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
-
-curl -X POST 'http://127.0.0.1:25503/v3/flatfile/request' \
-    -H 'Content-Type: application/json' \
-    -d '{"sec_type":"OPTION","req_type":"TRADE_QUOTE","date":"20250303","format":"csv"}' \
-    -o trade_quotes.csv
+curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
 ```
 
 See [Flat Files](/articles/flat-files) for sizing guidance.

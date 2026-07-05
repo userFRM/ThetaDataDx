@@ -398,16 +398,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Step 6: Build HTTP REST server with CORS.
     //
     // Permissive by design, matching the legacy terminal: browser-based
-    // dashboards on any local origin must be able to call both the GET
-    // data routes and the POST flat-file request route
-    // (`/v3/flatfile/request`). The previous configuration pinned
-    // `allow_origin` to the server's own listener address — a client
-    // running on the server's origin IS the server, so the restriction
-    // blocked every real browser client while protecting nothing — and
-    // `allow_methods=[GET]` failed every POST preflight.
+    // dashboards on any local origin must be able to call the data routes
+    // and the flat-file download (`GET /v3/{sec_type}/flat_file/{req_type}`).
+    // Every served route is a GET — there is no mutating route — so the CORS
+    // policy allows GET. The previous configuration pinned `allow_origin` to
+    // the server's own listener address — a client running on the server's
+    // origin IS the server, so the restriction blocked every real browser
+    // client while protecting nothing.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
-        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_methods([axum::http::Method::GET])
         .allow_headers(tower_http::cors::Any);
 
     let http_app = router::build(state.clone()).layer(cors);

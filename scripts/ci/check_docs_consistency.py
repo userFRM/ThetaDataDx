@@ -147,8 +147,6 @@ SERVER_ONLY_PATHS = (
 # slip in. `/v3/system/shutdown` carries no operationId (it never has), so it
 # contributes none.
 SERVER_ONLY_OPERATION_IDS = {
-    "flatfileGet",
-    "flatfileRequest",
     # Terminal system routes, mirrored 1:1 from the JVM terminal: an
     # unauthenticated shutdown plus the two plain-text channel-health probes.
     # The route paths carry the vendor's codenames verbatim; the operationIds
@@ -978,13 +976,10 @@ def _enum_values(block: str) -> list[str]:
 def check_flatfile_matrix() -> None:
     """OpenAPI flat-file enums must equal the `SERVED_DATASETS` served matrix.
 
-    The path form (`/v3/flatfile/{sec_type}/{req_type}`) takes the two segments
+    The path form (`/v3/{sec_type}/flat_file/{req_type}`) takes the two segments
     independently, so its `sec_type` enum must be the served security types and
-    its `req_type` enum the union of every served request type. The body form
-    (`POST /v3/flatfile/request`) constrains the served pairs per security type
-    through a `oneOf`, so each branch must pin one `sec_type` to exactly that
-    type's served request types. A served-matrix drift in the checked-in spec
-    in either direction fails the gate.
+    its `req_type` enum the union of every served request type. A served-matrix
+    drift in the checked-in spec in either direction fails the gate.
     """
     matrix = flatfile_served_matrix()
     expected_secs = set(matrix)
@@ -992,14 +987,14 @@ def check_flatfile_matrix() -> None:
 
     text = OPENAPI_YAML.read_text()
 
-    # --- Path form: /v3/flatfile/{sec_type}/{req_type} ----------------------
+    # --- Path form: /v3/{sec_type}/flat_file/{req_type} ---------------------
     path_block, _ = _yaml_block(
-        text, r"^  /v3/flatfile/\{sec_type\}/\{req_type\}:\s*$"
+        text, r"^  /v3/\{sec_type\}/flat_file/\{req_type\}:\s*$"
     )
     if not path_block:
         fail(
             f"{OPENAPI_YAML.relative_to(ROOT)} missing the flat-file path "
-            f"/v3/flatfile/{{sec_type}}/{{req_type}}"
+            f"/v3/{{sec_type}}/flat_file/{{req_type}}"
         )
     sec_param, _ = _yaml_block(path_block, r"^        - name: sec_type\s*$")
     req_param, _ = _yaml_block(path_block, r"^        - name: req_type\s*$")
@@ -1015,53 +1010,6 @@ def check_flatfile_matrix() -> None:
             f"{OPENAPI_YAML.relative_to(ROOT)} flat-file path req_type enum "
             f"{sorted(path_reqs)} != union of served request types "
             f"{sorted(expected_req_union)}"
-        )
-
-    # --- Body form: POST /v3/flatfile/request oneOf branches ----------------
-    req_path_block, _ = _yaml_block(text, r"^  /v3/flatfile/request:\s*$")
-    if not req_path_block:
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} missing the flat-file body path "
-            f"/v3/flatfile/request"
-        )
-    oneof_block, _ = _yaml_block(req_path_block, r"^              oneOf:\s*$")
-    if not oneof_block:
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} POST /v3/flatfile/request has no "
-            f"oneOf constraining the served (sec_type, req_type) pairs"
-        )
-    # Each branch begins at a `- title:` list item; split on those markers.
-    branch_starts = [m.start() for m in re.finditer(r"^                - ", oneof_block, re.MULTILINE)]
-    if not branch_starts:
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf has no "
-            f"branches"
-        )
-    branch_bounds = branch_starts + [len(oneof_block)]
-    body_matrix: dict[str, set[str]] = {}
-    for i in range(len(branch_starts)):
-        branch = oneof_block[branch_bounds[i] : branch_bounds[i + 1]]
-        sec_prop, _ = _yaml_block(branch, r"^                    sec_type:\s*$")
-        req_prop, _ = _yaml_block(branch, r"^                    req_type:\s*$")
-        secs = _enum_values(sec_prop)
-        reqs = set(_enum_values(req_prop))
-        if len(secs) != 1:
-            fail(
-                f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf branch "
-                f"must pin exactly one sec_type; got {secs}"
-            )
-        sec = secs[0]
-        if sec in body_matrix:
-            fail(
-                f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf has "
-                f"duplicate branch for sec_type {sec!r}"
-            )
-        body_matrix[sec] = reqs
-    if body_matrix != matrix:
-        fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf matrix "
-            f"{ {k: sorted(v) for k, v in body_matrix.items()} } != served matrix "
-            f"{ {k: sorted(v) for k, v in matrix.items()} }"
         )
 
 
