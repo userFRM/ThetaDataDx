@@ -38,19 +38,19 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 ## Install
 
-> [!WARNING]
-> The active release line is the **13.0.0 release candidate**. It carries the latest data coverage and fixes, and we recommend installing it. Grab the newest RC:
+> [!IMPORTANT]
+> The supported release line is **13.0.0**. Install the stable package directly. Versions before 13.0.0 are unsupported and have been withdrawn from the registries — pin `>=13.0.0`.
 >
 > ```bash
-> pip install --pre thetadatadx          # Python (pinned: pip install thetadatadx==13.0.0rc17)
-> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.18)
-> cargo add thetadatadx@13.0.0-rc.18     # Rust
+> pip install thetadatadx            # Python
+> npm install thetadatadx            # TypeScript / Node.js
+> cargo add thetadatadx              # Rust
 > ```
 
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
 
 ```json
-{ "command": "npx", "args": ["-y", "thetadatadx-mcp@next"], "env": { "THETADATA_API_KEY": "your_key" } }
+{ "command": "npx", "args": ["-y", "thetadatadx-mcp"], "env": { "THETADATA_API_KEY": "your_key" } }
 ```
 
 C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](thetadatadx-cpp/).
@@ -200,7 +200,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.18"
+thetadatadx = "13.0.0"
 ```
 
 ```rust
@@ -231,7 +231,7 @@ no row-by-row iteration:
 
 ```python
 greeks.to_polars()   # polars.DataFrame
-greeks.to_pandas()   # pandas.DataFrame   (pip install --pre "thetadatadx[pandas]")
+greeks.to_pandas()   # pandas.DataFrame   (pip install "thetadatadx[pandas]")
 greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 ```
 
@@ -325,7 +325,7 @@ common `ThetaDataError` base.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp@next`.
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp`.
 
 ## Contributing
 

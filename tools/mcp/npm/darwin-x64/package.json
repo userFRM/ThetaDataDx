@@ -1,6 +1,6 @@
 {
   "name": "thetadatadx-mcp-darwin-x64",
-  "version": "13.0.0-rc.18",
+  "version": "13.0.0",
   "description": "thetadatadx-mcp prebuilt server binary for darwin-x64",
   "license": "Apache-2.0",
   "repository": {
