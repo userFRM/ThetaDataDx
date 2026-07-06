@@ -580,7 +580,7 @@ jobs:
         continue-on-error: false
         with:
           package: thetadatadx
-          baseline-rev: v11.0.0  # VOCAB-OK: published-release tag is the semver-checks baseline anchor
+          baseline-rev: v13.0.0  # VOCAB-OK: published-release tag is the semver-checks baseline anchor
 
   surfaces:
     name: Extended Surfaces
