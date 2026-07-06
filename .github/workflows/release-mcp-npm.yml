@@ -202,7 +202,7 @@ jobs:
       # freshly installed launcher always finds its optionalDependency on
       # the registry. Idempotent: skip a version already published. The
       # dist-tag mirrors the TypeScript SDK — a hyphenated pre-release
-      # version (e.g. `13.0.0-rc.6`) goes to `next`, a final release to
+      # version (e.g. `0.1.0-rc.1`) goes to `next`, a final release to
       # `latest`.
       - name: Publish platform packages
         working-directory: tools/mcp/npm

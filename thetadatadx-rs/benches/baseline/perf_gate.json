@@ -1,7 +1,7 @@
 {
   "_meta": {
     "comment": "Per-binding performance-gate baseline (issue #696). Each tracked metric is a DETERMINISTIC allocation count, not a wall-clock time, so it gates identically on a 2-vCPU hosted runner and on a developer workstation. The loader in `scripts/ci/check_perf_gate.py` keys on `metric_file` + `allocs_per_unit`; it ignores the `_meta` and `_captured_on` fields and any key prefixed with `_`. Refresh by re-running the decode-allocations bench on a green main and copying the new per-row figures here in a dedicated PR.",
-    "how_to_refresh": "PERF_GATE_OUT_DIR=$PWD/target/perf-gate cargo bench -p thetadatadx --features __internal --bench bench_decode_allocations -- --noplot, then copy each allocs_per_unit from target/perf-gate/decode_allocations.json into the matching entry below."
+    "how_to_refresh": "PERF_GATE_OUT_DIR=$PWD/target/perf-gate cargo bench -p thetadatadx-rs --features __internal --bench bench_decode_allocations -- --noplot, then copy each allocs_per_unit from target/perf-gate/decode_allocations.json into the matching entry below."
   },
   "_captured_on": "2026-06-12",
   "decode_allocations/trade": {

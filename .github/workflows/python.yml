@@ -263,7 +263,7 @@ jobs:
 
   fresh-install-smoke:
     # Gate 8 (#551): fresh-venv smoke test. Simulates a first-time
-    # user typing `pip install thetadatadx` then importing every
+    # user typing `pip install thetadatadx-py` then importing every
     # documented top-level export. Runs in a brand-new venv so a
     # pollution-by-development-deps regression cannot mask a real
     # missing export.

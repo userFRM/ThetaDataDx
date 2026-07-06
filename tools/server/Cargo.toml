@@ -11,7 +11,7 @@ license = "Apache-2.0"
 keywords = ["thetadata", "terminal", "market-data", "rest-api", "websocket"]
 categories = ["finance", "network-programming", "web-programming::http-server"]
 
-# Binary — not published to crates.io. Only `thetadatadx` is published
+# Binary — not published to crates.io. Only `thetadatadx-rs` is published
 # per the publish-crate CI job.
 publish = false
 

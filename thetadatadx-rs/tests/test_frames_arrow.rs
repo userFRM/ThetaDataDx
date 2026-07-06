@@ -1,6 +1,6 @@
 //! `TicksArrowExt::to_arrow` coverage.
 //!
-//! Runs under `cargo test -p thetadatadx --features arrow`. Mirrors the
+//! Runs under `cargo test -p thetadatadx-rs --features arrow`. Mirrors the
 //! polars test — asserts column set, order, row count, and dtypes match
 //! the schema emitted by the Python slice_arrow path.
 

@@ -9,7 +9,7 @@ to print "from -> to" for context), then walks every file that pins a
 version of the published artifact and rewrites it. Every npm
 ``package.json`` file (the TypeScript SDK launcher + its three platform
 packages, and the MCP server launcher + its five platform packages), the
-six member Cargo.toml files (thetadatadx + ffi + tools/mcp + tools/server
+six member Cargo.toml files (thetadatadx-rs + ffi + tools/mcp + tools/server
 + thetadatadx-py + thetadatadx-ts), and the ``optionalDependencies`` pins
 inside both ``package.json`` launchers. Cargo.lock files are refreshed via
 ``cargo update --workspace`` against every manifest that carries its own

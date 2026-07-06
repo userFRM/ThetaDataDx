@@ -8,7 +8,7 @@ description = "C FFI layer for thetadatadx — the C ABI consumed by the C++ SDK
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
-# Internal FFI shim — never published to crates.io. Only `thetadatadx`
+# Internal FFI shim — never published to crates.io. Only `thetadatadx-rs`
 # is published (see publish-crate job in ci.yml).
 publish = false
 

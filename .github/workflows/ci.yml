@@ -316,7 +316,7 @@ jobs:
         with:
           python-version: "3.12"
       # Cross-Cargo.lock dependency-version drift on security-critical
-      # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx)
+      # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx-rs)
       # deps. A workspace bump must land in every binding lockfile or the
       # wheel / npm package ships a stale runtime.
       - run: python3 scripts/ci/check_lockfile_drift.py
@@ -422,7 +422,7 @@ jobs:
       # entirely, so a sample config that silently drops a section — or a
       # test asserting an override that never applies — passes by never
       # executing.
-      - run: cargo test --workspace --locked --features thetadatadx/__test-helpers,thetadatadx/config-file
+      - run: cargo test --workspace --locked --features thetadatadx-rs/__test-helpers,thetadatadx-rs/config-file
       # Gate 3 (#546) - Rust side: doctests run as part of `cargo test
       # --workspace` above, but invoking `--doc` explicitly verifies
       # the FFI crate's `extern "C"` doc examples compile + run on

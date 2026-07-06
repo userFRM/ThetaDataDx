@@ -14,7 +14,7 @@ pyclasses registered under the same Python name, which is
 last-write-wins in pyo3.
 
 If this test fails after a future codegen change, run
-`cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file`
+`cargo run -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file`
 and rebuild the wheel (`maturin develop` from `thetadatadx-py`).
 """
 

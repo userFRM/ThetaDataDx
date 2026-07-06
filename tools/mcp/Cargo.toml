@@ -7,7 +7,7 @@ description = "MCP server for ThetaDataDx — gives LLMs instant access to Theta
 license = "Apache-2.0"
 repository = "https://github.com/userFRM/ThetaDataDx"
 
-# Binary — not published to crates.io. Only `thetadatadx` is published
+# Binary — not published to crates.io. Only `thetadatadx-rs` is published
 # per the publish-crate CI job.
 publish = false
 

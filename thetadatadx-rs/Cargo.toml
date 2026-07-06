@@ -23,7 +23,7 @@ workspace = true
 
 [package.metadata.docs.rs]
 # Explicit feature list mirroring the CI rustdoc job
-# (`cargo doc --no-deps -p thetadatadx --features arrow,polars,frames,config-file`).
+# (`cargo doc --no-deps -p thetadatadx-rs --features arrow,polars,frames,config-file`).
 # Never use `all-features = true` here — it would re-enable any internal
 # bench-only feature flag and surface non-public symbols on docs.rs.
 features = ["arrow", "polars", "frames", "config-file"]

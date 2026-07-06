@@ -105,22 +105,22 @@
 
 ```bash
 # Run all 39 benchmarks
-cargo bench -p thetadatadx --bench bench
+cargo bench -p thetadatadx-rs --bench bench
 
 # Run a specific group
-cargo bench -p thetadatadx --bench bench -- fit
-cargo bench -p thetadatadx --bench bench -- price
-cargo bench -p thetadatadx --bench bench -- decode
-cargo bench -p thetadatadx --bench bench -- frame
-cargo bench -p thetadatadx --bench bench -- protocol
-cargo bench -p thetadatadx --bench bench -- auth
-cargo bench -p thetadatadx --bench bench -- enum
-cargo bench -p thetadatadx --bench bench -- tick
+cargo bench -p thetadatadx-rs --bench bench -- fit
+cargo bench -p thetadatadx-rs --bench bench -- price
+cargo bench -p thetadatadx-rs --bench bench -- decode
+cargo bench -p thetadatadx-rs --bench bench -- frame
+cargo bench -p thetadatadx-rs --bench bench -- protocol
+cargo bench -p thetadatadx-rs --bench bench -- auth
+cargo bench -p thetadatadx-rs --bench bench -- enum
+cargo bench -p thetadatadx-rs --bench bench -- tick
 
 # Compare against a baseline
-cargo bench -p thetadatadx --bench bench -- --save-baseline before
+cargo bench -p thetadatadx-rs --bench bench -- --save-baseline before
 # ... make changes ...
-cargo bench -p thetadatadx --bench bench -- --baseline before
+cargo bench -p thetadatadx-rs --bench bench -- --baseline before
 ```
 
 Criterion writes HTML reports to `target/criterion/`. Open `report/index.html` for interactive charts.

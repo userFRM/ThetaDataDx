@@ -12,7 +12,7 @@
 //! the live server uses (Number for ints/dates, Price for prices/floats,
 //! Timestamp for timestamps).
 //!
-//! Run with: `cargo run -p thetadatadx --example build_eod_greeks_fixtures`
+//! Run with: `cargo run -p thetadatadx-rs --example build_eod_greeks_fixtures`
 //! Writes:
 //!   - `thetadatadx-rs/tests/fixtures/captures/option_history_greeks_eod.pb.zst`
 //!   - `thetadatadx-rs/tests/fixtures/captures/index_at_time_price.pb.zst`

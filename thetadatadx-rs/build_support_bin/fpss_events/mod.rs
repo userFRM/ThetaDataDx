@@ -60,7 +60,7 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
         let current = std::fs::read_to_string(&abs).unwrap_or_default();
         if current.replace("\r\n", "\n") != file.contents {
             return Err(format!(
-                "generated file out of date: {} (run: cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file)",
+                "generated file out of date: {} (run: cargo run -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file)",
                 file.relative_path
             )
             .into());

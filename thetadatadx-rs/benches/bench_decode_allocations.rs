@@ -21,7 +21,7 @@
 //! the `#[global_allocator]` below). The shipped `thetadatadx` rlib
 //! declares no custom global allocator and is unaffected.
 //!
-//! Run: `cargo bench -p thetadatadx --features __internal \
+//! Run: `cargo bench -p thetadatadx-rs --features __internal \
 //!         --bench bench_decode_allocations -- --noplot`
 
 use std::hint::black_box;

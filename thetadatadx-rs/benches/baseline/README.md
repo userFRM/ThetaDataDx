@@ -50,9 +50,9 @@ intentional perf regression both need a human in the loop.
 1. Land any genuine perf-affecting changes on `main`.
 2. On a clean checkout of green `main`, run:
    ```
-   cargo bench -p thetadatadx \
+   cargo bench -p thetadatadx-rs \
        --bench grpc_channel -- "stock_list_symbols/in_house" --quick
-   cargo bench -p thetadatadx \
+   cargo bench -p thetadatadx-rs \
        --bench streaming_channels -- "streaming_channels/" --quick
    ```
 3. Read the freshly written `target/criterion/<...>/new/estimates.json`

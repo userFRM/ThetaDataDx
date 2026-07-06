@@ -4,7 +4,7 @@
 //! logic under `build_support/grpc/`) changes intentionally:
 //!
 //! ```sh
-//! cargo run -p thetadatadx \
+//! cargo run -p thetadatadx-rs \
 //!     --bin refresh_grpc_snapshot \
 //!     --features grpc-codegen
 //! ```

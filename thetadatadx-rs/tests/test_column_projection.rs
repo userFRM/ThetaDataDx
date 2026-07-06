@@ -1,6 +1,6 @@
 //! Per-response column-projection coverage.
 //!
-//! Runs under `cargo test -p thetadatadx --features "arrow,polars,__internal"`.
+//! Runs under `cargo test -p thetadatadx-rs --features "arrow,polars,__internal"`.
 //!
 //! The gRPC decode emits exactly the columns each response's wire carried —
 //! terminal-exact, no superset. Two long-standing symptoms are one bug:

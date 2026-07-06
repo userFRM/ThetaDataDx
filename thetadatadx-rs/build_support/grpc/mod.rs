@@ -34,7 +34,7 @@
 //! run the dedicated binary:
 //!
 //! ```sh
-//! cargo run -p thetadatadx \
+//! cargo run -p thetadatadx-rs \
 //!     --bin refresh_grpc_snapshot \
 //!     --features grpc-codegen
 //! ```
@@ -81,7 +81,7 @@ pub fn check() -> Result<(), Box<dyn std::error::Error>> {
     if !snapshot_path.exists() {
         return Err(format!(
             "codegen snapshot missing at {}; \
-            regenerate with `cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen` \
+            regenerate with `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen` \
             and commit the resulting snapshot",
             snapshot_path.display()
         )
@@ -108,7 +108,7 @@ pub fn check() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!(
             "codegen drift detected between proto/mdds.proto and {snapshot}.\n\
             {diff_summary}\n\
-            Refresh the snapshot with `cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen` and commit the resulting diff.",
+            Refresh the snapshot with `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen` and commit the resulting diff.",
             snapshot = snapshot_path.display(),
         )
         .into());

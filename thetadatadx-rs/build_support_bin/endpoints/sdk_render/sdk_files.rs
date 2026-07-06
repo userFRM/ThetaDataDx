@@ -60,7 +60,7 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
         let actual_normalized = actual.replace("\r\n", "\n");
         if actual_normalized != file.contents {
             return Err(format!(
-                "generated SDK surface '{}' is stale; run `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh",
+                "generated SDK surface '{}' is stale; run `cargo run -p thetadatadx-rs --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
             .into());
@@ -72,7 +72,7 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
         let expected = splice_region(&actual, &file)?;
         if actual != expected {
             return Err(format!(
-                "generated region of '{}' is stale; run `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh",
+                "generated region of '{}' is stale; run `cargo run -p thetadatadx-rs --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
             .into());

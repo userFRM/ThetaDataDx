@@ -165,7 +165,7 @@ pub fn check_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error:
         let actual = std::fs::read_to_string(&path).map_err(|e| {
             format!(
                 "generated docs page '{}' is missing ({e}); run \
-                 `cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site` to refresh",
+                 `cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site` to refresh",
                 file.relative_path
             )
         })?;
@@ -173,7 +173,7 @@ pub fn check_docs_site_files(repo_root: &Path) -> Result<(), Box<dyn std::error:
         if actual_normalized != file.contents {
             return Err(format!(
                 "generated docs page '{}' is stale; run \
-                 `cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site` to refresh",
+                 `cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site` to refresh",
                 file.relative_path
             )
             .into());

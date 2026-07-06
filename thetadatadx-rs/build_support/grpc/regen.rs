@@ -5,7 +5,7 @@
 //! includes `mod.rs` via `build_support/mod.rs`) cannot accidentally
 //! pull in the write path. The build script side stays strictly
 //! read-only; any source-tree mutation lives behind
-//! `cargo run -p thetadatadx --bin refresh_grpc_snapshot
+//! `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot
 //! --features grpc-codegen`.
 
 use std::fs;
