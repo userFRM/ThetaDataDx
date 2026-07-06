@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [13.0.0] - 2026-07-06
+## [0.1.0] - 2026-07-07
 
 The first public release of ThetaDataDx: a terminal-exact, drop-in market-data SDK across Rust, Python, TypeScript, and C++, plus a bundled HTTP + WebSocket server and an MCP server, all over one Rust engine. It connects straight to ThetaData with nothing to install and run locally, and delivers US stock, option, index, and interest-rate data three ways from a single authenticated client: point-in-time history, real-time streaming, and whole-universe flat files.
+
+The SDK ships under per-language package names: `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), and `thetadatadx-ts` (npm, with its platform packages); `thetadatadx-cpp` is the in-repo CMake/header target; the MCP server is `thetadatadx-mcp` on npm. The import surface is unchanged — `use thetadatadx::…` in Rust, `import thetadatadx` in Python, the `thetadatadx` namespace in C++.
 
 ### Added
 
@@ -36,5 +38,5 @@ The first public release of ThetaDataDx: a terminal-exact, drop-in market-data S
 - The streaming login wipes the account password from memory the moment the login frame is sent, so the cleartext password is not retained in released heap or a buffered protocol frame after authentication, on the first connect and every reconnect.
 - Authentication errors carry only the HTTP status and never the upstream response body, the auth client does not follow redirects, and session UUIDs are redacted from `Debug` output.
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0...HEAD
-[13.0.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v13.0.0
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/userFRM/ThetaDataDx/releases/tag/v0.1.0

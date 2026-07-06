@@ -120,7 +120,7 @@ jobs:
           # `actions/setup-python@v6` honours the `t` suffix and
           # provisions the `python3.14t` binary the matching wheel needs.
           python-version: ${{ matrix.python }}
-      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
       # `too_many_arguments` is allow-listed because every offender is a
       # generated pyo3 endpoint method whose signature mirrors the
       # underlying REST surface — not a real code smell. Every other
@@ -406,7 +406,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash

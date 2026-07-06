@@ -1,11 +1,11 @@
 [package]
-name = "thetadatadx"
-version = "13.0.0"
+name = "thetadatadx-rs"
+version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 description = "No-JVM ThetaData SDK — native Rust client for market-data, streaming, and bulk flat-file market data"
-documentation = "https://docs.rs/thetadatadx"
+documentation = "https://docs.rs/thetadatadx-rs"
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true

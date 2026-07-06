@@ -3,7 +3,7 @@ requires = ["maturin>=1.9.4,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "thetadatadx"
+name = "thetadatadx-py"
 dynamic = ["version"]
 description = "No-JVM ThetaData Terminal — native Rust SDK for direct market data access (Python bindings)"
 readme = "README.md"

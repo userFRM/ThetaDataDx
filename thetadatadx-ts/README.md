@@ -6,7 +6,7 @@
 
 The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
-[![npm](https://img.shields.io/npm/v/thetadatadx?logo=npm)](https://www.npmjs.com/package/thetadatadx)
+[![npm](https://img.shields.io/npm/v/thetadatadx-ts?logo=npm)](https://www.npmjs.com/package/thetadatadx-ts)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
 [![Node](https://img.shields.io/badge/node-20%2B-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
@@ -27,7 +27,7 @@ The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock
 ## Install
 
 ```bash
-npm install thetadatadx
+npm install thetadatadx-ts
 ```
 
 Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm64 (Apple Silicon), and Windows x64 (MSVC). No Rust toolchain is required.

@@ -97,9 +97,9 @@ println!("{} {}", rows[0].bid, rows[0].ask);
 The supported release line is **13.0.0**. Install the stable package directly. Versions before 13.0.0 are unsupported and have been withdrawn from the registries.
 
 ```bash
-pip install thetadatadx            # Python 3.12+
-npm install thetadatadx            # Node.js 20+
-cargo add thetadatadx              # Rust async client
+pip install thetadatadx-py            # Python 3.12+
+npm install thetadatadx-ts            # Node.js 20+
+cargo add thetadatadx-rs              # Rust async client
 ```
 
 :::

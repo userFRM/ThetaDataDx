@@ -296,7 +296,7 @@ DOC_PIN_PATHS: tuple[Path, ...] | None = None
 # version closes that hole so a doc that pins an aged release fails the
 # gate.
 DOC_PIN_RE = re.compile(
-    r'thetadatadx\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")'
+    r'thetadatadx-rs\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")'
 )
 
 

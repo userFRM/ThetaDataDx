@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-server"
-version = "13.0.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 authors = ["userFRM"]
@@ -22,7 +22,7 @@ name = "thetadatadx-server"
 path = "src/main.rs"
 
 [dependencies]
-thetadatadx = { path = "../../thetadatadx-rs", features = ["config-file", "__internal"] }
+thetadatadx = { package = "thetadatadx-rs", path = "../../thetadatadx-rs", features = ["config-file", "__internal"] }
 rustls = { version = "0.23.38", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 axum = { version = "0.8.9", features = ["ws"] }
 tokio = { version = "1.52.1", features = ["full"] }

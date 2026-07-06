@@ -15,7 +15,7 @@ surface by checking a few high-signal invariants:
   is a release-note bug the moment it lands)
 
 The generated reference tree itself is byte-verified by
-`cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site -- --check`
+`cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site -- --check`
 in CI; the structural checks here are the cargo-free fast path the docs
 deploy workflow runs.
 
@@ -275,7 +275,7 @@ def check_static_docs() -> None:
     )["package"]["version"]
     expect_contains(
         DOCS_SITE / "articles/getting-started.md",
-        f'thetadatadx = "{cargo_version}"',
+        f'thetadatadx-rs = "{cargo_version}"',
     )
     expect_contains(
         DOCS_SITE / "mcp.md",

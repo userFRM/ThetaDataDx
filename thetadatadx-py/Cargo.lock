@@ -2211,8 +2211,25 @@ dependencies = [
 ]
 
 [[package]]
-name = "thetadatadx"
-version = "13.0.0"
+name = "thetadatadx-py"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "disruptor",
+ "libc",
+ "prost",
+ "pyo3",
+ "pyo3-async-runtimes",
+ "thetadatadx-rs",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "thetadatadx-rs"
+version = "0.1.0"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -2251,23 +2268,6 @@ dependencies = [
  "x509-parser",
  "zeroize",
  "zstd",
-]
-
-[[package]]
-name = "thetadatadx-py"
-version = "13.0.0"
-dependencies = [
- "arrow",
- "disruptor",
- "libc",
- "prost",
- "pyo3",
- "pyo3-async-runtimes",
- "thetadatadx",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

@@ -155,7 +155,7 @@ pub(crate) fn project_full_subscriptions(
 /// `connect(creds, config?)`.
 ///
 /// ```ts
-/// import { Credentials, Client } from "thetadatadx";
+/// import { Credentials, Client } from "thetadatadx-ts";
 /// const creds = Credentials.fromFile("creds.txt");
 /// const client = await Client.connect(creds);
 /// ```
@@ -936,7 +936,7 @@ impl Client {
     /// reused or mutated afterward without affecting this client.
     ///
     /// ```ts
-    /// import { Credentials, Client } from "thetadatadx";
+    /// import { Credentials, Client } from "thetadatadx-ts";
     /// const creds = Credentials.fromFile("creds.txt");
     /// const client = await Client.connect(creds);
     /// ```
@@ -1214,7 +1214,7 @@ impl StreamView {
 /// unified `Client` when you need both surfaces.
 ///
 /// ```ts
-/// import { MarketDataClient } from "thetadatadx";
+/// import { MarketDataClient } from "thetadatadx-ts";
 /// const marketData = await MarketDataClient.connectFromFile("creds.txt");
 /// const eod = await marketData.stockHistoryEOD("AAPL", "20240101", "20240301");
 /// ```

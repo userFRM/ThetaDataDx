@@ -28,7 +28,7 @@ export declare class Client {
    * reused or mutated afterward without affecting this client.
    *
    * ```ts
-   * import { Credentials, Client } from "thetadatadx";
+   * import { Credentials, Client } from "thetadatadx-ts";
    * const creds = Credentials.fromFile("creds.txt");
    * const client = await Client.connect(creds);
    * ```
@@ -693,7 +693,7 @@ export declare class ContractRef {
  * `connect(creds, config?)`.
  *
  * ```ts
- * import { Credentials, Client } from "thetadatadx";
+ * import { Credentials, Client } from "thetadatadx-ts";
  * const creds = Credentials.fromFile("creds.txt");
  * const client = await Client.connect(creds);
  * ```
@@ -808,7 +808,7 @@ export declare class FlatFilesNamespace {
  * unified `Client` when you need both surfaces.
  *
  * ```ts
- * import { MarketDataClient } from "thetadatadx";
+ * import { MarketDataClient } from "thetadatadx-ts";
  * const marketData = await MarketDataClient.connectFromFile("creds.txt");
  * const eod = await marketData.stockHistoryEOD("AAPL", "20240101", "20240301");
  * ```
@@ -2735,7 +2735,7 @@ export declare class SecType {
  * at connect time.
  *
  * ```ts
- * import { StreamingClient, Contract } from "thetadatadx";
+ * import { StreamingClient, Contract } from "thetadatadx-ts";
  * const streaming = StreamingClient.connectFromFile("creds.txt");
  * await streaming.startStreaming((event) => console.log(event.kind, event));
  * streaming.subscribe(Contract.stock("AAPL").quote());

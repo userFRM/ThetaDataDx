@@ -2105,8 +2105,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "thetadatadx"
-version = "13.0.0"
+name = "thetadatadx-rs"
+version = "0.1.0"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -2147,7 +2147,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "13.0.0"
+version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
@@ -2157,7 +2157,7 @@ dependencies = [
  "serde",
  "serde_urlencoded",
  "sonic-rs",
- "thetadatadx",
+ "thetadatadx-rs",
  "time",
  "tokio",
  "tokio-util",

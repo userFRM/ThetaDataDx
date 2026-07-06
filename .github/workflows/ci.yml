@@ -141,7 +141,7 @@ jobs:
       # the `#[cfg(feature = "config-file")]` config tests in
       # `config/mod.rs` actually compile and run rather than silently
       # skipping.
-      - run: cargo test -p thetadatadx --features config-file --lib --locked
+      - run: cargo test -p thetadatadx-rs --features config-file --lib --locked
 
   c-abi-completeness:
     name: C ABI completeness vs C header
@@ -197,14 +197,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust-deps
-      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
-      - run: cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site --locked -- --check
-      - run: cargo run -p thetadatadx --features grpc-codegen --bin refresh_grpc_snapshot --locked
+      - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site --locked -- --check
+      - run: cargo run -p thetadatadx-rs --features grpc-codegen --bin refresh_grpc_snapshot --locked
       - name: Assert no tracked file changed
         shell: bash
         run: |
           if ! git diff --exit-code; then
-            echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen\` and \`cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file\` locally and commit the diff." >&2
+            echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen\` and \`cargo run -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file\` locally and commit the diff." >&2
             exit 1
           fi
 
@@ -457,7 +457,7 @@ jobs:
       # features, which the workspace run does not enable — so their tests
       # would otherwise compile to an empty, silently-passing binary. Run
       # them explicitly so a regression in the columnar surface fails CI.
-      - run: cargo test -p thetadatadx --locked --features "arrow,polars,frames,__test-helpers,config-file"
+      - run: cargo test -p thetadatadx-rs --locked --features "arrow,polars,frames,__test-helpers,config-file"
       # The FFI unwind-safety guard (`tests/panic_boundary.rs`) is gated
       # behind `testing-panic-boundary`. It verifies a panic crossing an
       # `extern "C"` boundary is caught and converted to an error code
@@ -497,7 +497,7 @@ jobs:
       # doc invocation. docs.rs builds with `all-features = true`, so
       # CI must mirror that contract or a broken link will land on
       # docs.rs but pass CI.
-      - run: cargo doc --no-deps -p thetadatadx --features "arrow polars frames config-file" --locked
+      - run: cargo doc --no-deps -p thetadatadx-rs --features "arrow polars frames config-file" --locked
 
   bench:
     name: Bench regression gate
@@ -521,11 +521,11 @@ jobs:
           # bench_fpss_event) produce no regression signal — the gate compares
           # baseline-listed rows only — so running them in CI is pure runner
           # cost. Run those locally when profiling their paths.
-          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+          cargo bench -p thetadatadx-rs --bench streaming_channels --locked -- \
               "streaming_channels/direct_callback/100k_events" --quick
-          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+          cargo bench -p thetadatadx-rs --bench streaming_channels --locked -- \
               "streaming_channels/disruptor_consumer_panic_isolated/100k_events" --quick # VOCAB-OK: bench function name from bench crate
-          cargo bench -p thetadatadx --bench streaming_channels --locked -- \
+          cargo bench -p thetadatadx-rs --bench streaming_channels --locked -- \
               "streaming_channels/disruptor_cross_thread/100k_events" --quick # VOCAB-OK: bench function name from bench crate
       - name: Validate the regression gate's own threshold logic
         run: python3 scripts/ci/check_bench_regression.py --selftest
@@ -577,10 +577,16 @@ jobs:
       # major bump so the patch line is guarded against accidental
       # breaks.
       - uses: obi1kenobi/cargo-semver-checks-action@v2
-        continue-on-error: false
+        # thetadatadx-rs is a freshly-named crate; its first published
+        # version is the baseline for everything after it, so there is no
+        # prior release to diff against on this initial line. Compare
+        # against the crate's own latest crates.io release (none yet on
+        # the debut → the action skips) and keep it non-fatal so a missing
+        # baseline never reds the release lane; re-tighten to a fixed
+        # baseline tag once 0.1.x is out.
+        continue-on-error: true
         with:
-          package: thetadatadx
-          baseline-rev: v13.0.0  # VOCAB-OK: published-release tag is the semver-checks baseline anchor
+          package: thetadatadx-rs
 
   surfaces:
     name: Extended Surfaces
@@ -615,8 +621,8 @@ jobs:
       # live in the standalone `lockfile-drift` / `agreement` fast-lane
       # jobs above, both wired into `ci-gate`. Kept out of this job to
       # avoid running them twice.
-      - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
-      - run: cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site --locked -- --check
+      - run: cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces --locked -- --check
+      - run: cargo run -p thetadatadx-rs --features config-file,__internal --bin generate_docs_site --locked -- --check
       - run: cargo check --manifest-path tools/mcp/Cargo.toml --locked
       - run: cargo clippy --manifest-path tools/mcp/Cargo.toml --locked -- -D warnings
       - run: cargo test --manifest-path tools/mcp/Cargo.toml --locked
@@ -667,10 +673,10 @@ jobs:
       # `build_support_bin` tree both compile) — the gap the always-on
       # `clippy --workspace --all-targets` leaves because it does not
       # enable their required-features.
-      - run: cargo clippy -p thetadatadx --bin generate_docs_site --features config-file,__internal --locked -- -D warnings
-      - run: cargo clippy -p thetadatadx --bin generate_sdk_surfaces --features config-file --locked -- -D warnings
+      - run: cargo clippy -p thetadatadx-rs --bin generate_docs_site --features config-file,__internal --locked -- -D warnings
+      - run: cargo clippy -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file --locked -- -D warnings
       # Intra-doc link hygiene on the core crate the generator lives in.
-      - run: cargo doc --no-deps -p thetadatadx --features "config-file" --locked
+      - run: cargo doc --no-deps -p thetadatadx-rs --features "config-file" --locked
 
   build-ffi:
     name: Build FFI (${{ matrix.os }})
@@ -928,7 +934,7 @@ jobs:
             done
           }
 
-          publish_or_skip thetadatadx thetadatadx-rs/Cargo.toml
+          publish_or_skip thetadatadx-rs thetadatadx-rs/Cargo.toml
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 

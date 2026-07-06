@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-ffi"
-version = "13.0.0"
+version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -30,7 +30,7 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 testing-panic-boundary = []
 
 [dependencies]
-thetadatadx = { path = "../thetadatadx-rs", features = ["arrow", "__internal"] }
+thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs", features = ["arrow", "__internal"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 arrow-ipc = "59.0.0"
 # RecordBatch / Schema types for the streaming `RecordBatch` reader's Arrow
@@ -53,4 +53,4 @@ disruptor = "4.2.0" # VOCAB-OK: actual dep crate name
 # Enables `StreamingClient::for_self_join_test` and `HarnessPublishMode` so
 # the panic-isolation unit test in `src/streaming.rs` can drive the ring
 # consumer directly without a live FPSS connection.
-thetadatadx = { path = "../thetadatadx-rs", features = ["arrow", "__internal", "__test-helpers"] }
+thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs", features = ["arrow", "__internal", "__test-helpers"] }

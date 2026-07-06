@@ -1715,8 +1715,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "thetadatadx"
-version = "13.0.0"
+name = "thetadatadx-mcp"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sonic-rs",
+ "thetadatadx-rs",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zeroize",
+]
+
+[[package]]
+name = "thetadatadx-rs"
+version = "0.1.0"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -1753,19 +1766,6 @@ dependencies = [
  "x509-parser",
  "zeroize",
  "zstd",
-]
-
-[[package]]
-name = "thetadatadx-mcp"
-version = "13.0.0"
-dependencies = [
- "serde",
- "sonic-rs",
- "thetadatadx",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "zeroize",
 ]
 
 [[package]]

@@ -2976,8 +2976,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "thetadatadx"
-version = "13.0.0"
+name = "thetadatadx-ffi"
+version = "0.1.0"
+dependencies = [
+ "arrow-array",
+ "arrow-ipc",
+ "arrow-schema",
+ "disruptor",
+ "thetadatadx-rs",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "thetadatadx-rs"
+version = "0.1.0"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -3024,19 +3037,6 @@ dependencies = [
  "x509-parser",
  "zeroize",
  "zstd",
-]
-
-[[package]]
-name = "thetadatadx-ffi"
-version = "13.0.0"
-dependencies = [
- "arrow-array",
- "arrow-ipc",
- "arrow-schema",
- "disruptor",
- "thetadatadx",
- "tokio",
- "tracing",
 ]
 
 [[package]]

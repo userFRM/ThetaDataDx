@@ -3,7 +3,7 @@
 //! Mirrors the contract-first Rust API:
 //!
 //! ```ts
-//! import { Contract, SecType } from "thetadatadx";
+//! import { Contract, SecType } from "thetadatadx-ts";
 //!
 //! const stock  = Contract.stock("AAPL");
 //! const option = Contract.option("SPY", "20260620", "550", "C");

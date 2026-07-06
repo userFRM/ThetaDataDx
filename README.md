@@ -16,10 +16,10 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 [![TypeScript SDK](https://github.com/userFRM/ThetaDataDx/actions/workflows/typescript.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/typescript.yml)
 [![Deploy Docs](https://github.com/userFRM/ThetaDataDx/actions/workflows/docs.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/docs.yml)
 
-[![Crates.io](https://img.shields.io/crates/v/thetadatadx.svg?logo=rust)](https://crates.io/crates/thetadatadx)
-[![PyPI](https://img.shields.io/pypi/v/thetadatadx?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx)
-[![npm](https://img.shields.io/npm/v/thetadatadx?logo=npm)](https://www.npmjs.com/package/thetadatadx)
-[![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx)
+[![Crates.io](https://img.shields.io/crates/v/thetadatadx-rs.svg?logo=rust)](https://crates.io/crates/thetadatadx-rs)
+[![PyPI](https://img.shields.io/pypi/v/thetadatadx-py?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx-py)
+[![npm](https://img.shields.io/npm/v/thetadatadx-ts?logo=npm)](https://www.npmjs.com/package/thetadatadx-ts)
+[![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg?logo=rust)](https://www.rust-lang.org)
@@ -47,9 +47,9 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 > The supported release line is **13.0.0**. Install the stable package directly. Versions before 13.0.0 are unsupported and have been withdrawn from the registries — pin `>=13.0.0`.
 >
 > ```bash
-> pip install thetadatadx            # Python
-> npm install thetadatadx            # TypeScript / Node.js
-> cargo add thetadatadx              # Rust
+> pip install thetadatadx-py            # Python
+> npm install thetadatadx-ts            # TypeScript / Node.js
+> cargo add thetadatadx-rs              # Rust
 > ```
 
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
@@ -205,7 +205,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0"
+thetadatadx-rs = "0.1.0"
 ```
 
 ```rust
@@ -236,7 +236,7 @@ no row-by-row iteration:
 
 ```python
 greeks.to_polars()   # polars.DataFrame
-greeks.to_pandas()   # pandas.DataFrame   (pip install "thetadatadx[pandas]")
+greeks.to_pandas()   # pandas.DataFrame   (pip install "thetadatadx-py[pandas]")
 greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 ```
 
