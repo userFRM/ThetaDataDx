@@ -1592,7 +1592,7 @@ def main() -> int:
     _check("client view accessors all-enrolled passes", test_client_view_accessors_all_enrolled_passes)
     _check("client view accessor orphan trips", test_client_view_accessor_orphan_trips)
     _check("client view accessors live sources enrolled", test_client_view_accessors_live_sources_enrolled)
-    _check("rust buffered endpoints from registry (61)", test_rust_buffered_endpoints_from_registry)
+    _check("rust buffered endpoints from registry (60)", test_rust_buffered_endpoints_from_registry)
     _check("rust streaming mirror equals generated python", test_rust_streaming_mirror_equals_generated_python)
     _check("c-abi base matches registry", test_cabi_base_matches_registry)
     _check("c-abi header matches ffi source", test_cabi_header_matches_ffi_source)
