@@ -62,7 +62,7 @@ int main() {
         .connect();
 
     // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", "20240315");
+    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
                     t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
