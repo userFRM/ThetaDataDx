@@ -1,14 +1,14 @@
 """ThetaData market-data SDK.
 
 `thetadatadx` provides direct access to ThetaData's real-time and
-historical market data without a separate terminal process. The package
+market-data market data without a separate terminal process. The package
 exposes:
 
 - Connection types: :class:`Credentials` and :class:`Config`.
-- Clients: :class:`Client` (historical plus on-demand
+- Clients: :class:`Client` (market-data plus on-demand
   streaming), :class:`AsyncClient` (``await``-based
-  historical), :class:`StreamingClient` (streaming only), and
-  :class:`MarketDataClient` (historical only).
+  market-data), :class:`StreamingClient` (streaming only), and
+  :class:`MarketDataClient` (market-data only).
 - A fluent subscription surface: :class:`Contract`,
   :class:`Subscription`, and :class:`SecType`.
 - Real-time event types delivered to the streaming callback
@@ -21,7 +21,7 @@ Type checkers discover these annotations through the ``py.typed`` marker
 (PEP 561) shipped alongside this file.
 """
 
-# Per-endpoint historical builders and typed `<Tick>List` wrappers share
+# Per-endpoint market-data builders and typed `<Tick>List` wrappers share
 # one structural shape and resolve through the module-level `__getattr__`
 # to `Any`; only the load-bearing public surface is annotated explicitly
 # here.
@@ -182,7 +182,7 @@ class Config:
 
     @staticmethod
     def stage() -> Config:
-        """Return the historical-staging configuration (historical staging cluster + auth marker; streaming stays on production). Testing, unstable."""
+        """Return the market-data-staging configuration (market-data staging cluster + auth marker; streaming stays on production). Testing, unstable."""
         ...
 
     @staticmethod
@@ -198,13 +198,13 @@ class Config:
         ...
 
     market_data_host: str
-    """Hostname of the historical-data server."""
+    """Hostname of the market-data server."""
     market_data_port: int
-    """TCP port of the historical-data server."""
+    """TCP port of the market-data server."""
     warn_on_buffered_threshold_bytes: int
     """Byte ceiling above which a buffered (non-``.stream()``) historical response logs a warning pointing the caller at the streaming surface. ``0`` disables the warning; the default is ``100 * 1024 * 1024`` (100 MiB). The data is still delivered."""
     request_timeout_secs: int
-    """Default per-request deadline, in seconds, for historical queries. Bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever. ``0`` no longer disables the default: it is floored to the ``300``-second default at request time. The default is ``300`` (5 minutes)."""
+    """Default per-request deadline, in seconds, for market-data queries. Bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever. ``0`` no longer disables the default: it is floored to the ``300``-second default at request time. The default is ``300`` (5 minutes)."""
     reconnect_policy: str
     """Active reconnect policy name: ``"auto"``, ``"manual"``, or ``"custom"`` (the last reported when a :attr:`reconnect_callback` is installed)."""
     reconnect_max_attempts: int
@@ -287,7 +287,7 @@ class Config:
     """Streaming write-flush policy. ``"batched"`` (default) flushes on the heartbeat (~100 ms); ``"immediate"`` flushes after every wire write. The setter accepts the same two strings case-insensitively and raises ``ValueError`` otherwise."""
     @property
     def market_data_environment(self) -> Literal["PROD", "STAGE"]:
-        """Target market-data environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The historical and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the market-data channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``market_data_type`` string the inline :class:`Client` constructor accepts."""
+        """Target market-data environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The market-data and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the market-data channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``market_data_type`` string the inline :class:`Client` constructor accepts."""
     @property
     def streaming_environment(self) -> Literal["PROD", "DEV"]:
         """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster or ``"DEV"`` for the dev cluster. The streaming and market-data channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
@@ -570,7 +570,7 @@ class Venue:
 
 @final
 class Interval:
-    """Aggregation interval for bar / OHLC historical requests."""
+    """Aggregation interval for bar / OHLC market-data requests."""
 
     TICK: Interval
     """Per-tick, no aggregation."""
@@ -1259,7 +1259,7 @@ StreamEvent = Any
 EventCallback = Callable[[Any], None]
 
 
-# --- BEGIN GENERATED HISTORICAL VIEW (endpoint_surface.toml) ---
+# --- BEGIN GENERATED MARKET DATA VIEW (endpoint_surface.toml) ---
 # Generated from endpoint_surface.toml; do not edit by hand. Run
 # `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh.
 #
@@ -1365,7 +1365,7 @@ InterestRateHistoryEodBuilder = Any
 
 @final
 class MarketDataView:
-    """Historical-data sub-namespace returned by :attr:`Client.market_data`.
+    """Market-data sub-namespace returned by :attr:`Client.market_data`.
 
     Exposes every historical / list / snapshot / at-time endpoint as a
     method: the synchronous call, its ``*_async`` awaitable companion,
@@ -4949,7 +4949,7 @@ class MarketDataView:
         """Fluent builder for `interest_rate_history_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
-# --- END GENERATED HISTORICAL VIEW ---
+# --- END GENERATED MARKET DATA VIEW ---
 
 
 @final
@@ -5168,7 +5168,7 @@ class Client:
     """Unified client for historical data and real-time streaming.
 
     Connects to ThetaData at construction (a single authentication
-    covers both historical access and streaming). Historical endpoints
+    covers both market-data access and streaming). Market-data endpoints
     are available immediately; real-time streaming starts on demand via
     :meth:`start_streaming`. This is the recommended entry point.
     """
@@ -5333,7 +5333,7 @@ class Client:
     # Data sub-namespaces.
     @property
     def market_data(self) -> MarketDataView:
-        """Historical-data sub-namespace.
+        """Market-data sub-namespace.
 
         Every historical / list / snapshot / at-time endpoint is reached
         through this view, e.g. ``client.market_data.stock_eod(...)`` and
@@ -5390,7 +5390,7 @@ class Client:
         Stops streaming if it is live (idempotent), waits for the streaming
         consumer thread to finish firing the registered callback, and drops
         the stored callback. Safe to call more than once and safe on a
-        client that only ran historical queries. Prefer the context manager
+        client that only ran market-data queries. Prefer the context manager
         (``with Client(...) as c:``) so this runs on block exit.
         """
         ...
@@ -5449,19 +5449,19 @@ class Client:
         ...
 
     def __repr__(self) -> str:
-        """Return a representation including historical and streaming state."""
+        """Return a representation including market-data and streaming state."""
         ...
 
 
 @final
 class AsyncClient:
-    """Async client exposing ``await``-based historical methods.
+    """Async client exposing ``await``-based market-data methods.
 
-    Each historical endpoint is available as an ``*_async`` coroutine
+    Each market-data endpoint is available as an ``*_async`` coroutine
     (e.g. ``await client.stock_history_eod_async(...)``). The streaming
     lifecycle and subscription methods (``start_streaming``,
     ``stop_streaming``, ``subscribe``, ``streaming`` etc.) mirror those
-    on :class:`Client`. Accessing the synchronous historical
+    on :class:`Client`. Accessing the synchronous market-data
     methods on this class raises ``AttributeError`` — use
     :class:`Client` for those.
     """
@@ -5558,7 +5558,7 @@ class AsyncClient:
         ...
 
     def __repr__(self) -> str:
-        """Return a representation including historical and streaming state."""
+        """Return a representation including market-data and streaming state."""
         ...
 
     async def close(self) -> None:
@@ -5581,7 +5581,7 @@ class AsyncClient:
     ) -> bool: ...
 
     def __getattr__(self, name: str) -> Any:
-        """Resolve an ``*_async`` historical method or a streaming method.
+        """Resolve an ``*_async`` market-data method or a streaming method.
 
         Raises:
             AttributeError: If ``name`` is not part of the async surface.
@@ -5815,7 +5815,7 @@ class StreamingClient:
 class MarketDataClient:
     """Market-data-only client — the streaming surface is blocked.
 
-    Exposes the same historical endpoints as :class:`Client`
+    Exposes the same market-data endpoints as :class:`Client`
     and never opens the real-time feed. Any streaming method (e.g.
     ``start_streaming`` / ``subscribe``) raises ``AttributeError``; use
     :class:`StreamingClient` or :class:`Client` for streaming.
@@ -5884,7 +5884,7 @@ class MarketDataClient:
     ) -> bool: ...
 
     def __getattr__(self, name: str) -> Any:
-        """Resolve a historical method.
+        """Resolve a market-data method.
 
         Raises:
             AttributeError: If ``name`` is a streaming method (blocked on
@@ -6245,7 +6245,7 @@ TimeoutError: Type[DeadlineExceededError]
 def decode_response_bytes(endpoint: str, chunks: List[bytes]) -> Any:
     """Decode raw response chunks for ``endpoint`` into the typed result.
 
-    ``chunks`` are the wire-frame byte buffers for one historical
+    ``chunks`` are the wire-frame byte buffers for one market-data
     response in order; ``endpoint`` selects the decoder. Returns the
     endpoint's typed ``<Tick>List`` wrapper.
     """
@@ -6266,12 +6266,12 @@ def split_date_range(
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Module-level fallback: the per-endpoint historical builders and typed
+# Module-level fallback: the per-endpoint market-data builders and typed
 # `<Tick>List` wrappers share one structural shape and resolve to `Any`
 # at the module level rather than being annotated individually.
 # ─────────────────────────────────────────────────────────────────────
 
 
 def __getattr__(name: str) -> Any:
-    """Resolve a per-endpoint historical builder or typed result wrapper."""
+    """Resolve a per-endpoint market-data builder or typed result wrapper."""
     ...

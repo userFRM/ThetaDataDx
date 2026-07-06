@@ -1,6 +1,6 @@
-// Historical tuning setters + getters on thetadatadx::Config.
+// Market-data tuning setters + getters on thetadatadx::Config.
 //
-// Offline test pinning the contract that the historical tuning setters
+// Offline test pinning the contract that the market-data tuning setters
 // and readback getters on the `thetadatadx::Config` C++ wrapper
 // round-trip through the underlying C ABI.
 
@@ -11,7 +11,7 @@
 #include "thetadatadx.h"
 #include "thetadatadx.hpp"
 
-TEST_CASE("Config historical request_timeout_secs setter + getter round-trip",
+TEST_CASE("Config market-data request_timeout_secs setter + getter round-trip",
           "[config][pool_sizing][offline]") {
     auto cfg = thetadatadx::Config::production();
     // The readback getter mirrors the Python `Config.request_timeout_secs`
@@ -30,7 +30,7 @@ TEST_CASE("Config historical request_timeout_secs setter + getter round-trip",
 
 TEST_CASE("Config market_data_host / market_data_port setters + getters round-trip",
           "[config][market_data][offline]") {
-    // The historical endpoint overrides mirror the Python `Config.market_data_host` /
+    // The market-data endpoint overrides mirror the Python `Config.market_data_host` /
     // `.market_data_port` advanced knobs, so a value set through the C++ wrapper
     // reads back through the same wrapper.
     auto cfg = thetadatadx::Config::production();
@@ -51,9 +51,9 @@ TEST_CASE("Config environment getters read back the selected clusters",
     // `Config.market_data_environment` / `.streaming_environment` and the
     // TypeScript `marketDataEnvironment` / `streamingEnvironment` getters.
     // The two channels are selected independently: the stage preset moves
-    // the historical channel to staging while streaming stays on
+    // the market-data channel to staging while streaming stays on
     // production, and the dev preset moves the streaming channel to dev
-    // while historical stays on production.
+    // while market-data stays on production.
     REQUIRE(thetadatadx::Config::stage().get_market_data_environment() == "STAGE");
     REQUIRE(thetadatadx::Config::stage().get_streaming_environment() == "PROD");
     REQUIRE(thetadatadx::Config::dev().get_market_data_environment() == "PROD");

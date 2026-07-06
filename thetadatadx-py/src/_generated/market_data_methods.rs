@@ -657,7 +657,7 @@ impl StockHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -1001,7 +1001,7 @@ impl StockHistoryOhlcBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -1320,7 +1320,7 @@ impl StockHistoryTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -1665,7 +1665,7 @@ impl StockHistoryQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -2008,7 +2008,7 @@ impl StockHistoryTradeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -2248,7 +2248,7 @@ impl StockAtTimeTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -2488,7 +2488,7 @@ impl StockAtTimeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -3009,7 +3009,7 @@ impl OptionListContractsBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -5236,7 +5236,7 @@ impl OptionHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -5638,7 +5638,7 @@ impl OptionHistoryOhlcBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -6040,7 +6040,7 @@ impl OptionHistoryTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -6465,7 +6465,7 @@ impl OptionHistoryQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -6891,7 +6891,7 @@ impl OptionHistoryTradeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -7244,7 +7244,7 @@ impl OptionHistoryOpenInterestBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -7668,7 +7668,7 @@ impl OptionHistoryGreeksEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -8165,7 +8165,7 @@ impl OptionHistoryGreeksAllBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -8661,7 +8661,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -9158,7 +9158,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -9654,7 +9654,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -10151,7 +10151,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -10647,7 +10647,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -11144,7 +11144,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -11640,7 +11640,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -12136,7 +12136,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -12631,7 +12631,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -12949,7 +12949,7 @@ impl OptionAtTimeTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -13265,7 +13265,7 @@ impl OptionAtTimeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -13811,7 +13811,7 @@ impl IndexHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -14084,7 +14084,7 @@ impl IndexHistoryOhlcBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -14405,7 +14405,7 @@ impl IndexHistoryPriceBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -14614,7 +14614,7 @@ impl IndexAtTimePriceBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -14988,7 +14988,7 @@ impl InterestRateHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -15039,7 +15039,7 @@ impl InterestRateHistoryEodBuilder {
     }
 }
 
-fn register_generated_historical_builders(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn register_generated_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StockListSymbolsBuilder>()?;
     m.add_class::<StockListDatesBuilder>()?;
     m.add_class::<StockSnapshotOhlcBuilder>()?;

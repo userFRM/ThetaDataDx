@@ -155,13 +155,13 @@ declare module './index' {
     /**
      * TC39 explicit resource management: `using client = await
      * MarketDataClient.connect(...)` calls this on scope exit. Runs
-     * {@link MarketDataClient.close}. The historical-only surface has no
+     * {@link MarketDataClient.close}. The market-data-only surface has no
      * streaming to drain, so the sync and async disposers are equivalent.
      */
     [Symbol.dispose](): void;
 
     /** Async counterpart of {@link MarketDataClient[Symbol.dispose]}; no
-     * streaming drain on the historical-only surface. */
+     * streaming drain on the market-data-only surface. */
     [Symbol.asyncDispose](): Promise<void>;
   }
 

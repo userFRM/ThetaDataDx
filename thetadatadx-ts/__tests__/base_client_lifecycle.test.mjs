@@ -8,7 +8,7 @@
 //   * the sync disposer routes through `close()`;
 //   * the async disposer on the unified client pairs `stopStreaming()` with
 //     `awaitDrain(5000)` and warns (never throws) on drain timeout;
-//   * the async disposer on the historical-only surface (no `.stream`) falls
+//   * the async disposer on the market-data-only surface (no `.stream`) falls
 //     back to `close()`.
 //
 // Runs without a live FPSS handshake: the disposer bodies read `this.stream`
@@ -100,10 +100,10 @@ describe('base-client lifecycle surface', () => {
 
   it('[Symbol.asyncDispose] falls back to close() with no streaming surface', async () => {
     let closed = 0;
-    // Historical-only shape: no `.stream`. The async disposer must not throw
+    // Market-data-only shape: no `.stream`. The async disposer must not throw
     // reaching for `stopStreaming`; it closes instead.
     const fake = { stream: undefined, close() { closed += 1; } };
     await mod.MarketDataClient.prototype[Symbol.asyncDispose].call(fake);
-    assert.equal(closed, 1, 'historical async dispose must call close() exactly once');
+    assert.equal(closed, 1, 'market-data async dispose must call close() exactly once');
   });
 });

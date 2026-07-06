@@ -2,7 +2,7 @@
 // server advertises only the tools `tools/call` can serve in the current
 // connection state: with no credentials it stays in offline mode and must
 // advertise exactly the one connection-free tool (`ping`); the flat-file
-// tools and registry historical endpoints require a live client and must
+// tools and registry market-data endpoints require a live client and must
 // be withheld until one connects.
 //
 // We can't easily call into the MCP main.rs internals from a separate
@@ -21,7 +21,7 @@ use std::time::Duration;
 const OFFLINE_TOOLS: [&str; 1] = ["ping"];
 
 /// Connection-only tools that must NOT appear while the server is offline:
-/// the flat-file tools and a representative registry historical endpoint.
+/// the flat-file tools and a representative registry market-data endpoint.
 const CONNECTION_ONLY_TOOLS: [&str; 7] = [
     "thetadatadx_flatfile_request",
     "thetadatadx_flatfile_option_trade_quote",

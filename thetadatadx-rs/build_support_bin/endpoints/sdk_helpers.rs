@@ -352,7 +352,7 @@ pub(super) fn cpp_converter_expr(return_type: &str) -> String {
 }
 
 /// Name of the generated `*_to_pyclass_list` converter for a given tick
-/// return type. This is the PRIMARY return path for Python historical
+/// return type. This is the PRIMARY return path for Python market-data
 /// endpoints — typed `#[pyclass]` objects matching Rust/TS/C++ SDKs.
 /// See `build_support_bin/ticks/python_classes.rs::render_python_tick_classes`.
 pub(super) fn python_pyclass_list_converter(return_type: &str) -> String {
@@ -360,7 +360,7 @@ pub(super) fn python_pyclass_list_converter(return_type: &str) -> String {
 }
 
 /// Name of the generated `<TickName>List` pyclass wrapper (e.g.
-/// `EodTickList`). Historical endpoints return `Py<<TickName>List>`
+/// `EodTickList`). Market-data endpoints return `Py<<TickName>List>`
 /// directly so callers can chain `.to_polars()` / `.to_arrow()` /
 /// `.to_pandas()` / `.to_list()` off the endpoint return value.
 ///

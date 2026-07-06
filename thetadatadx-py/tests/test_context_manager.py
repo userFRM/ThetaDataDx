@@ -260,7 +260,7 @@ def test_context_manager_closes_cleanly(client) -> None:
     """
     with client as bound:
         assert bound is client
-        # A historical query still works inside the block (channel open).
+        # A market-data query still works inside the block (channel open).
         assert bound.stream.is_streaming() is False
     # After the block the client is closed; a second close is idempotent
     # and must not raise.
@@ -428,7 +428,7 @@ def test_closed_unified_session_subscribe_raises_closed_error(client) -> None:
 
 def test_close_makes_client_unusable(client) -> None:
     """After `close()` every surface accessor raises a clear closed error, so a
-    subsequent historical or streaming call cannot reach the network. Live-gated
+    subsequent market-data or streaming call cannot reach the network. Live-gated
     because the constructor needs a real handshake.
     """
     client.close()

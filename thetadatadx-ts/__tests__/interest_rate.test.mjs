@@ -48,7 +48,7 @@ describe('InterestRateTick (index.d.ts)', () => {
   });
 
   it('interestRateHistoryEOD returns Promise<Array<InterestRateTick>>', () => {
-    // Pin that the historical endpoint signature still returns the new
+    // Pin that the market-data endpoint signature still returns the new
     // tick type (no accidental rename / collection mismatch). The method
     // resolves the fetch off the runtime's execution thread, so the
     // surface is a Promise; the element type is unchanged.
@@ -77,7 +77,7 @@ describe('InterestRateTick (runtime shape)', () => {
   it('native addon exposes a client class', () => {
     // Smoke-check that the addon imported at module top level is the
     // actual native binding (not the SKIP path) and exports at least
-    // one historical-data client class. The exact entry-point name
+    // one market-data client class. The exact entry-point name
     // varies across major versions; accept any of the canonical
     // Client client names.
     assert.ok(

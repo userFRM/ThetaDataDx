@@ -49,7 +49,7 @@ pub struct FlatFilesConfig {
     /// abandoned and the next host (or the retry ladder) takes over.
     /// Without it a host that accepts the TCP connection but never
     /// completes the TLS handshake would hang the request indefinitely.
-    /// Mirrors the historical (gRPC) channel's `connect_timeout_secs`.
+    /// Mirrors the market-data (gRPC) channel's `connect_timeout_secs`.
     pub connect_timeout_secs: u64,
 
     /// Read timeout for a single FLAT_FILE response frame, in seconds.
@@ -78,7 +78,7 @@ impl FlatFilesConfig {
             initial_backoff: Duration::from_secs(1),
             max_backoff: Duration::from_secs(30),
             jitter: true,
-            // Matches the historical (gRPC) channel connect bound; long
+            // Matches the market-data (gRPC) channel connect bound; long
             // enough for a TLS handshake behind NAT / VPN, short enough
             // that a black-holed host fails over fast.
             connect_timeout_secs: 10,

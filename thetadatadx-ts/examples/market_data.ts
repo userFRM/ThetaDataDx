@@ -1,10 +1,10 @@
 // Fetch historical stock and option data from ThetaData via the Rust
-// SDK — ported from `thetadatadx-py/examples/historical.py`.
+// SDK — ported from `thetadatadx-py/examples/market_data.py`.
 //
 // Run with valid `creds.txt` (line 1 = email, line 2 = password) in
 // the working directory:
 //
-//     npx tsx historical.ts
+//     npx tsx market_data.ts
 //
 // Requires the prebuilt napi binding (`npm install thetadatadx`)
 // plus `npm install --save-dev tsx` for the runner.

@@ -98,7 +98,7 @@ const PRICE_X100: i32 = 6_105;
 const UND_PRICE_X100: i32 = 56_513;
 
 /// Encode the standard `[symbol, expiration, strike, right]` lead-in
-/// the v3 server emits on every wildcard-decoded historical endpoint.
+/// the v3 server emits on every wildcard-decoded market-data endpoint.
 fn lead_in_values() -> Vec<proto::DataValue> {
     vec![
         dv_text("SPY"),

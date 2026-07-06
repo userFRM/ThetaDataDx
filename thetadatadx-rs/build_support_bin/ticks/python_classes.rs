@@ -2,7 +2,7 @@
 //! `<Tick>List` wrapper pyclasses, and list converters.
 //!
 //! Matches the typed-struct approach used by Rust core, TypeScript,
-//! and C++ FFI. Primary return shape for all historical endpoint methods:
+//! and C++ FFI. Primary return shape for all market-data endpoint methods:
 //! every generated endpoint returns `Py<<TickName>List>`, a typed list
 //! wrapper whose terminal methods chain straight into Arrow / pandas /
 //! polars / plain `list` without any free-function round-trip.
@@ -25,9 +25,9 @@ pub(super) fn render_python_tick_classes(
         "// Typed pyclass structs per tick type + `<Tick>List` wrappers + list converters.\n",
     );
     out.push_str("// Matches the typed-struct approach used by Rust core, TypeScript,\n");
-    out.push_str("// and C++ FFI. Primary return shape for historical endpoint methods.\n");
+    out.push_str("// and C++ FFI. Primary return shape for market-data endpoint methods.\n");
     out.push_str("//\n");
-    out.push_str("// Every historical endpoint returns `Py<<TickName>List>`; terminal\n");
+    out.push_str("// Every market-data endpoint returns `Py<<TickName>List>`; terminal\n");
     out.push_str("// methods (`to_list`, `to_arrow`, `to_pandas`, `to_polars`) live on\n");
     out.push_str("// the wrapper so chained calls like\n");
     out.push_str("//     client.stock_history_eod(...).to_polars()\n");
@@ -51,7 +51,7 @@ pub(super) fn render_python_tick_classes(
     }
 
     // `<Tick>List` + `<Tick>ListIter` pyclasses. Emitted per tick type so
-    // every historical endpoint that returns `EodTicks` (etc.) lands on a
+    // every market-data endpoint that returns `EodTicks` (etc.) lands on a
     // concrete typed wrapper.
     for type_name in &type_names {
         let def = &schema.types[*type_name];
@@ -847,7 +847,7 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
 
     writeln!(
         out,
-        "/// Typed list of `{class}` returned by every historical endpoint"
+        "/// Typed list of `{class}` returned by every market-data endpoint"
     )
     .unwrap();
     writeln!(

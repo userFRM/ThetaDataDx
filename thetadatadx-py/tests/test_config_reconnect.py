@@ -160,7 +160,7 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     must not interfere with each other.
 
     Mirrors the TS ``Reconnect setters are independent`` case: the
-    reconnect setters have no getters, so we assert via a historical
+    reconnect setters have no getters, so we assert via a market-data
     tuning getter that that state survives a reconnect setter
     sequence.
     """

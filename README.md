@@ -211,7 +211,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
     let client = Client::builder().api_key("td1_...").connect().await?;
 
     let greeks = client
-        .historical()
+        .market_data()
         .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
         .await?;
 
@@ -226,7 +226,7 @@ Call the async function from your application's runtime.
 
 ## DataFrames
 
-Every historical result is a typed list that converts directly to a dataframe:
+Every market-data result is a typed list that converts directly to a dataframe:
 no row-by-row iteration:
 
 ```python
@@ -241,7 +241,7 @@ instead of buffering it. See [Request sizing](https://userfrm.github.io/ThetaDat
 
 ## Streaming
 
-One connection, one authentication. Historical queries work immediately; the
+One connection, one authentication. Market-data queries work immediately; the
 streaming transport connects on the first subscription. Subscribe specific
 contracts with the fluent `Contract` API, or take a whole-market feed: every
 option trade across the universe, no per-contract setup. The full-trade feed
@@ -315,7 +315,7 @@ common `ThetaDataError` base.
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` (npm) | MCP server exposing every historical endpoint to AI clients |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` (npm) | MCP server exposing every market-data endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation

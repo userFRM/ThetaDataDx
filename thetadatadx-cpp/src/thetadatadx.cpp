@@ -31,16 +31,16 @@ static std::vector<const char*> string_ptrs(const std::vector<std::string>& item
 #include "lifecycle.cpp.inc"
 
 // ═══════════════════════════════════════════════════════════════
-//  Historical endpoints (generated)
+//  Market-data endpoints (generated)
 // ═══════════════════════════════════════════════════════════════
 
-#include "historical.cpp.inc"
+#include "market_data.cpp.inc"
 
 // ═══════════════════════════════════════════════════════════════
-//  Historical server-stream endpoints (generated)
+//  Market-data server-stream endpoints (generated)
 // ═══════════════════════════════════════════════════════════════
 
-#include "historical_stream.cpp.inc"
+#include "market_data_stream.cpp.inc"
 
 // ═══════════════════════════════════════════════════════════════
 //  FPSS (streaming) — typed #[repr(C)] events (generated)

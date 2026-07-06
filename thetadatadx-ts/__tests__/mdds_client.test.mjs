@@ -1,13 +1,13 @@
 // Standalone `MarketDataClient` structural contract (offline — no connect).
 //
-// `MarketDataClient` is the historical-only napi handle: the same MDDS/Nexus
+// `MarketDataClient` is the market-data-only napi handle: the same MDDS/Nexus
 // surface as the unified `Client`, with no streaming methods
 // reachable. It mirrors the Python `MarketDataClient`
 // (`thetadatadx-py/src/mdds_client.rs`), the C++ `thetadatadx::Client`, and the C
 // ABI `thetadatadx_client_*` entry points. These assertions pin the split
 // structurally against `index.d.ts` and the loaded addon so a generator
 // or lib.rs change that leaks an FPSS method onto the MDDS surface — or
-// drops the historical surface from it — fails here without live
+// drops the market-data surface from it — fails here without live
 // credentials.
 
 import { describe, it } from 'node:test';
@@ -29,10 +29,10 @@ try {
 
 // The `MarketDataClient` class body as declared in `index.d.ts`.
 const mddsBlock = dts.match(/export declare class MarketDataClient \{[\s\S]*?\n\}/);
-// The unified client's historical surface lives on the `client.marketData`
+// The unified client's market-data surface lives on the `client.marketData`
 // `MarketDataView` view, and its streaming surface on the `client.stream`
 // `StreamView` view.
-const historicalViewBlock = dts.match(
+const marketDataViewBlock = dts.match(
   /export declare class MarketDataView \{[\s\S]*?\n\}/
 );
 const streamViewBlock = dts.match(
@@ -64,12 +64,12 @@ describe('MarketDataClient native addon surface', () => {
 
   it('declares the MarketDataClient class in index.d.ts', () => {
     assert.ok(mddsBlock, 'MarketDataClient class missing from index.d.ts');
-    assert.ok(historicalViewBlock, 'MarketDataView class missing from index.d.ts');
+    assert.ok(marketDataViewBlock, 'MarketDataView class missing from index.d.ts');
     assert.ok(streamViewBlock, 'StreamView class missing from index.d.ts');
   });
 });
 
-describe('MarketDataClient carries the historical surface', () => {
+describe('MarketDataClient carries the market-data surface', () => {
   it('exposes the buffered data-fetch families', () => {
     const methods = methodNames(mddsBlock[0]);
     for (const expected of [
@@ -82,7 +82,7 @@ describe('MarketDataClient carries the historical surface', () => {
     ]) {
       assert.ok(
         methods.has(expected),
-        `MarketDataClient must expose historical method ${expected}`
+        `MarketDataClient must expose market-data method ${expected}`
       );
     }
   });
@@ -95,9 +95,9 @@ describe('MarketDataClient carries the historical surface', () => {
     );
   });
 
-  it('matches the unified client on the historical surface (lockstep)', () => {
+  it('matches the unified client on the market-data surface (lockstep)', () => {
     const mdds = methodNames(mddsBlock[0]);
-    const historical = methodNames(historicalViewBlock[0]);
+    const marketData = methodNames(marketDataViewBlock[0]);
     // The `connect` / `connectFromFile` static factories are lifecycle
     // constructors that live only on the standalone client; the
     // `MarketDataView` is reached through `client.marketData` and has no
@@ -112,14 +112,14 @@ describe('MarketDataClient carries the historical surface', () => {
     // the generated data-fetch surface.
     const LIFECYCLE = new Set(['connect', 'connectFromFile', 'flatFileToPath', 'close']);
     // Every data-fetch method the MDDS-only client exposes must also exist
-    // on the unified client's `client.marketData` view — the historical
+    // on the unified client's `client.marketData` view — the market-data
     // surface is generated identically onto both, so the MDDS set is a
     // strict subset of the `MarketDataView` set.
     for (const name of mdds) {
       if (LIFECYCLE.has(name)) continue;
       assert.ok(
-        historical.has(name),
-        `MarketDataClient method ${name} is missing from MarketDataView — the two historical surfaces have drifted`
+        marketData.has(name),
+        `MarketDataClient method ${name} is missing from MarketDataView — the two market-data surfaces have drifted`
       );
     }
   });
@@ -130,7 +130,7 @@ describe('MarketDataClient exposes the flat-files surface its contract promises'
   // flat-files surface is identical to the unified client. The flat-file
   // entry points must therefore be reachable here, matching the unified
   // `Client` and the Python `MarketDataClient`, which delegates to its
-  // wrapped client. A historical-only handle opens the same data channel,
+  // wrapped client. A market-data-only handle opens the same data channel,
   // so the namespace and the to-path writer are client-agnostic.
   const FLATFILE_GETTER = 'flatFiles';
   const FLATFILE_METHOD = 'flatFileToPath';

@@ -14,7 +14,7 @@
 //!     |
 //! thetadatadx-server (this binary)
 //!     |
-//!     |--- MarketDataClient (MDDS historical) for historical data
+//!     |--- MarketDataClient (MDDS market-data) for historical data
 //!     |--- StreamingClient (FPSS streaming) for real-time streaming
 //!     |
 //! ThetaData upstream servers
@@ -86,7 +86,7 @@ struct Args {
     config: Option<String>,
 
     /// Streaming environment: "production" (default) or "dev".
-    /// Selects the streaming channel independently of the historical
+    /// Selects the streaming channel independently of the market-data
     /// channel; an invalid value is rejected at parse time.
     #[arg(long, default_value = "production", value_parser = ["production", "dev"])]
     streaming_region: String,
@@ -241,7 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!();
     eprintln!("thetadatadx-server v{version}");
     eprintln!(
-        "Configuration: Historical: {}, Streaming: {}",
+        "Configuration: Market-data: {}, Streaming: {}",
         args.market_data_region, args.streaming_region
     );
     eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
@@ -356,7 +356,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // and apply each axis with its own setter. Composing this way (rather
     // than reaching for the `stage()` / `dev()` whole-config presets, which
     // each move only one axis) means `--market-data-region stage --streaming-region dev`
-    // yields historical-staging plus streaming-dev, and every other
+    // yields market-data-staging plus streaming-dev, and every other
     // combination resolves correctly too. The arg parser has already
     // rejected any value outside each channel's allowed set, so the matches
     // below are total over the values that reach here.
@@ -374,7 +374,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config
     };
 
-    // Step 3: Connect unified client (gRPC historical).
+    // Step 3: Connect unified client (gRPC market-data).
     let client = Client::connect(&creds, config).await?;
     tracing::info!("MDDS connected");
 
@@ -476,7 +476,7 @@ fn load_or_prompt_credentials(creds_path: &str) -> Result<Credentials, Box<dyn s
     }
 
     if !std::io::stdin().is_terminal() {
-        // Non-interactive and no file: preserve the historical behaviour of
+        // Non-interactive and no file: preserve the market-data behaviour of
         // erroring on missing credentials rather than hanging on stdin.
         let c = Credentials::from_file(creds_path)?;
         tracing::info!(creds_file = %creds_path, "loaded credentials from file");

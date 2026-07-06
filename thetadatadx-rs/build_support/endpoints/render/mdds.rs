@@ -80,7 +80,7 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
 }
 
 /// Single source of truth for the `.await` vs `.stream(handler)`
-/// guidance attached to every parsed historical builder. Composed here
+/// guidance attached to every parsed market-data builder. Composed here
 /// so every `option_history_*` / `stock_history_*` / `index_history_*`
 /// / `interest_rate_history_*` builder advertises the same matrix in
 /// rustdoc.
@@ -107,7 +107,7 @@ exceeds [`crate::config::MarketDataConfig::warn_on_buffered_threshold_bytes`]\n\
 \n\
 ";
 
-/// Emits a `parsed_endpoint!` macro invocation for a typed historical
+/// Emits a `parsed_endpoint!` macro invocation for a typed market-data
 /// endpoint, rendering its builder, signature, query fields, parser, per-tick
 /// stream item type, and optional setters.
 pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
@@ -120,7 +120,7 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
     )
     .unwrap();
     // Surface the `.await` vs `.stream(handler)` decision matrix in
-    // rustdoc on every historical builder. Same copy on every
+    // rustdoc on every market-data builder. Same copy on every
     // endpoint so `cargo doc` readers do not have to hunt for it —
     // placed AFTER the per-endpoint description so the endpoint's
     // own prose stays at the top of the rustdoc panel.

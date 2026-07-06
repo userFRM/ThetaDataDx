@@ -71,7 +71,7 @@ impl Config {
         }
     }
 
-    /// Historical-staging config (historical staging cluster + auth marker; streaming
+    /// Market-data-staging config (market-data staging cluster + auth marker; streaming
     /// stays on production). Unstable testing servers.
     #[napi(factory)]
     pub fn stage() -> Self {
@@ -318,9 +318,9 @@ impl Config {
 
     /// Target market-data environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
-    /// historical and streaming channels are selected independently;
+    /// market-data and streaming channels are selected independently;
     /// `Config.production()` / `Config.stage()` (and the
-    /// `THETADATA_MARKET_DATA_TYPE` key on `Config.fromDotenv`) set the historical
+    /// `THETADATA_MARKET_DATA_TYPE` key on `Config.fromDotenv`) set the market-data
     /// channel, and this is the readback of that selection. Mirrors the
     /// `marketDataType` string the inline `Client.connectWith` factory accepts.
     #[napi(getter, js_name = "marketDataEnvironment")]

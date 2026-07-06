@@ -5,7 +5,7 @@
 //! * Compatibility set (`THETADATA_MARKET_DATA_HOST`,
 //!   `THETADATA_MARKET_DATA_PORT`, `THETADATA_EMAIL`, `THETADATA_PASSWORD`)
 //!   — environment variable names operators use to configure the
-//!   historical endpoint; setting them steers an existing shell config
+//!   market-data endpoint; setting them steers an existing shell config
 //!   without a code change.
 //! * DX extensions — cover surfaces that were previously hardcoded (Nexus
 //!   URL, streaming host/port, `client_type`) so site operators can steer
@@ -42,9 +42,9 @@ pub const ENV_MARKET_DATA_TYPE: &str = "THETADATA_MARKET_DATA_TYPE";
 /// support) is a hard error naming the valid set, never a silent fallback.
 pub const ENV_STREAMING_TYPE: &str = "THETADATA_STREAMING_TYPE";
 
-/// Historical host.
+/// Market-data host.
 pub const ENV_MARKET_DATA_HOST: &str = "THETADATA_MARKET_DATA_HOST";
-/// Historical port.
+/// Market-data port.
 pub const ENV_MARKET_DATA_PORT: &str = "THETADATA_MARKET_DATA_PORT";
 /// Nexus auth base URL override.
 pub const ENV_NEXUS_URL: &str = "THETADATA_NEXUS_URL";
@@ -152,7 +152,7 @@ where
     // that redirects the cluster (`THETADATA_MARKET_DATA_TYPE=STAGE`) and supplies a
     // staging `THETADATA_NEXUS_URL` in the same source expects auth to follow
     // the cluster, not keep POSTing production. Environment selection routes
-    // only the historical + streaming hosts (it does not touch `auth`), so the
+    // only the market-data + streaming hosts (it does not touch `auth`), so the
     // Nexus URL override is the only thing that re-points auth — it must be
     // honoured from every source that carries it.
     if let Some(url) = get(ENV_NEXUS_URL) {
@@ -333,12 +333,12 @@ mod tests {
     }
 
     #[test]
-    fn cross_channel_historical_selector_fails_loud() {
+    fn cross_channel_market_data_selector_fails_loud() {
         // The market-data channel has no dev cluster: a stale/cross-channel
         // value must NOT silently fall back to a default — it is a typed error
         // that names the key and the valid set.
         let err = apply(&[(ENV_MARKET_DATA_TYPE, "DEV")])
-            .expect_err("HISTORICAL_TYPE=DEV must fail loud, never fall back");
+            .expect_err("MARKET_DATA_TYPE=DEV must fail loud, never fall back");
         let msg = err.to_string();
         assert!(msg.contains(ENV_MARKET_DATA_TYPE), "names the key: {msg}");
         assert!(
@@ -389,11 +389,11 @@ mod tests {
         // host override, so the `.env` path trims it just like the process-env
         // path does.
         let pairs = crate::auth::dotenv::parse(
-            "THETADATA_MARKET_DATA_HOST=\"  historical.example.test  \"\n",
+            "THETADATA_MARKET_DATA_HOST=\"  market-data.example.test  \"\n",
         );
         let mut cfg = DirectConfig::production_defaults();
         apply_dotenv_overrides(&mut cfg, &pairs).expect("valid host override");
-        assert_eq!(cfg.market_data.host, "historical.example.test");
+        assert_eq!(cfg.market_data.host, "market-data.example.test");
     }
 
     #[test]
@@ -402,10 +402,10 @@ mod tests {
         // explicit host patch the selected cluster rather than be overwritten.
         let cfg = apply(&[
             (ENV_MARKET_DATA_TYPE, "STAGE"),
-            (ENV_MARKET_DATA_HOST, "historical.example.test"),
+            (ENV_MARKET_DATA_HOST, "market-data.example.test"),
         ])
         .expect("valid selector + explicit host");
         assert_eq!(cfg.market_data_environment, MarketDataEnvironment::Stage);
-        assert_eq!(cfg.market_data.host, "historical.example.test");
+        assert_eq!(cfg.market_data.host, "market-data.example.test");
     }
 }

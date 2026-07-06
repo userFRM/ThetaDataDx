@@ -5,7 +5,7 @@
 # `Subscription` / `SecType` types, the typed FPSS event payload
 # classes, streaming context managers, the FlatFiles namespace, the
 # typed exception hierarchy. Generator-emitted classes (100+
-# historical builders, 50+ typed `<Tick>List` / `<Tick>ListIter`
+# market-data builders, 50+ typed `<Tick>List` / `<Tick>ListIter`
 # wrappers, every enum produced by
 # `coerce::register_string_enums`, etc.) are exposed via the
 # module-level `__getattr__` fallback to `Any` because a hand-typed
@@ -54,7 +54,7 @@ thetadatadx\.AsyncClient\.__getattr__
 # `Client.__getattr__` is intentionally NOT stubbed —
 # every public method on the unified client is hand-listed in the
 # .pyi so stubtest catches drift on the load-bearing pyclass (C6
-# closure). Generator-emitted historical builders reach the module
+# closure). Generator-emitted market-data builders reach the module
 # via the module-level `__getattr__` instead.
 thetadatadx\.StreamingClient\.__init__
 thetadatadx\.StreamingClient\.__new__

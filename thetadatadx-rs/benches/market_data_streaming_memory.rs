@@ -16,7 +16,7 @@
 //! a step-function increase in `peak_extra_bytes` rather than as a
 //! sub-percentage latency drift hidden under runtime noise.
 //!
-//! Run: `cargo bench --bench historical_streaming_memory -- --noplot`
+//! Run: `cargo bench --bench market_data_streaming_memory -- --noplot`
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -190,7 +190,7 @@ fn build_accumulator(frames: usize, payload_bytes: usize) -> BytesMut {
 }
 
 fn bench_drain(c: &mut Criterion) {
-    let mut group = c.benchmark_group("historical_streaming_memory/drain_paths");
+    let mut group = c.benchmark_group("market_data_streaming_memory/drain_paths");
     // Frame count chosen so the steady-state buf.len() between
     // frames is non-trivial (the deep-clone path scales linearly
     // with buf.len() so a single-frame accumulator would hide the

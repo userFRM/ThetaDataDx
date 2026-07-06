@@ -23,7 +23,7 @@ mod mdds_client;
 mod streaming_batches;
 
 // These imports look unused at source level — they are pulled in by
-// the `include!("_generated/historical_methods.rs")` and
+// the `include!("_generated/market_data_methods.rs")` and
 // `include!("_generated/streaming_methods.rs")` blocks below, which
 // expand inside this module and reference these names without their
 // own `use` declarations.
@@ -300,7 +300,7 @@ impl Config {
         Self::from_direct(config::DirectConfig::dev())
     }
 
-    /// Historical-staging configuration (historical staging cluster + auth marker;
+    /// Market-data-staging configuration (market-data staging cluster + auth marker;
     /// streaming stays on production). Testing, unstable.
     #[staticmethod]
     fn stage() -> Self {
@@ -468,7 +468,7 @@ impl Config {
 
     /// Target market-data environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"STAGE"`` for staging.
-    /// The historical and streaming channels are selected independently;
+    /// The market-data and streaming channels are selected independently;
     /// :meth:`Config.production` / :meth:`Config.stage` (and the
     /// ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the
     /// market-data channel, and this is the readback of that selection.
@@ -520,7 +520,7 @@ impl Config {
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
-            "Config(historical={}:{}, streaming_hosts={})",
+            "Config(market_data={}:{}, streaming_hosts={})",
             guard.market_data_host(),
             guard.market_data.port,
             guard.streaming_hosts().len()
@@ -541,7 +541,7 @@ include!("_generated/config_accessors.rs");
 // `tick_arrow.rs` is the schema-generated Arrow pipeline used by the
 // DataFrame adapter -- zero-copy handoff to pyarrow via the Arrow C
 // Data Interface. `tick_classes.rs` is the primary return path for
-// all historical endpoints -- matches the typed-struct approach used
+// all market-data endpoints -- matches the typed-struct approach used
 // by Rust core, TypeScript, and C++ FFI.
 
 include!("_generated/tick_classes.rs");
@@ -554,9 +554,9 @@ include!("_generated/utility_functions.rs");
 
 // ── Unified Client client ──
 
-/// Unified ThetaData client — single connection for both historical and streaming.
+/// Unified ThetaData client — single connection for both market-data and streaming.
 ///
-/// This is the recommended entry point. Connects historical (gRPC over
+/// This is the recommended entry point. Connects the market-data channel (gRPC over
 /// HTTP/2 + TLS) with a single authentication. Real-time streaming
 /// starts lazily via ``start_streaming(callback)``.
 ///
@@ -636,7 +636,7 @@ fn resolve_credentials(
 /// Resolve the environment selection into a [`config::DirectConfig`].
 ///
 /// A full `config` handle wins (its environments and hosts are taken
-/// verbatim). Otherwise the historical and streaming
+/// verbatim). Otherwise the market-data and streaming
 /// channels are selected independently on top of the production defaults:
 /// `market_data_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
 /// market-data channel and `streaming_type` (`"PROD"` / `"DEV"`,
@@ -676,7 +676,7 @@ fn resolve_direct_config(
 
 #[pyclass(frozen)]
 struct Client {
-    /// The underlying Rust unified client (Deref to MarketDataClient for historical).
+    /// The underlying Rust unified client (Deref to MarketDataClient for market-data access).
     ///
     /// Held as `Option` behind a `Mutex` so `close()` can DETERMINISTICALLY
     /// RELEASE the handle: closing takes the `Arc<Client>` out of the slot and
@@ -690,7 +690,7 @@ struct Client {
     /// The inner `thetadatadx::Client` is not `Clone` — its streaming mutex and
     /// subscription-tier state forbid it — so surfaces co-own a cheap
     /// `Arc<Client>` clone (surviving past a parent close, exactly as the C++
-    /// `Historical` / `Stream` views co-own the `shared_ptr`).
+    /// `MarketData` / `Stream` views co-own the `shared_ptr`).
     ///
     /// Deadlock-safe drop: the core `Client::Drop` runs the DETACHED streaming
     /// quiesce (never a GIL-reacquiring join), so dropping the taken `Arc` on
@@ -748,7 +748,7 @@ impl Client {
 
     /// The live core client handle, or a "client is closed" error.
     ///
-    /// Every surface the client vends (`historical` / `stream` / `flat_files`)
+    /// Every surface the client vends (`market_data` / `stream` / `flat_files`)
     /// resolves the handle through here, so once `close()` has taken it the
     /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
     /// co-owns.
@@ -765,12 +765,12 @@ impl Client {
     }
 }
 
-/// User-facing historical-data sub-namespace returned by
+/// User-facing market-data sub-namespace returned by
 /// `client.market_data`.
 ///
 /// Holds a cheap `Arc` clone of the inner unified client; constructing it
 /// performs no auth round-trip and mutates no streaming state. Every
-/// historical endpoint method (sync, `*_async`, and `*_builder`) is
+/// market-data endpoint method (sync, `*_async`, and `*_builder`) is
 /// generated onto this view from `endpoint_surface.toml`, so the surface
 /// stays a single generated source of truth.
 #[pyclass(frozen)]
@@ -843,7 +843,7 @@ impl Drop for CallbackReservation<'_> {
 impl Client {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
-    /// Connect to ThetaData (historical only -- streaming is NOT started).
+    /// Connect to ThetaData (market-data only -- streaming is NOT started).
     ///
     /// Authenticates once, opens gRPC channel. Call
     /// ``start_streaming(callback)`` to begin real-time streaming —
@@ -862,7 +862,7 @@ impl Client {
     /// inline. Email + password is the parallel method:
     /// ``Client(email="user@example.com", password="secret")``. The
     /// lower-level typed path stays a clean superset:
-    /// ``Client(credentials=creds, config=cfg)`` (and the historical
+    /// ``Client(credentials=creds, config=cfg)`` (and the original
     /// positional ``Client(creds, config)``) still work.
     ///
     /// Exactly one authentication argument must be given — ``api_key``,
@@ -979,7 +979,7 @@ impl Client {
     }
 
     // No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
-    // Every historical endpoint returns `Py<<TickName>List>` (or
+    // Every market-data endpoint returns `Py<<TickName>List>` (or
     // `Py<StringList>` for list endpoints); chain `.to_polars()` /
     // `.to_pandas()` / `.to_arrow()` / `.to_list()` on the return
     // value for the Arrow-backed conversion. One code path, one SSOT,
@@ -999,10 +999,10 @@ impl Client {
         } else {
             "streaming=none"
         };
-        format!("Client(historical=connected, {streaming})")
+        format!("Client(market_data=connected, {streaming})")
     }
 
-    /// Historical-data sub-namespace: `client.market_data.stock_eod(...)`.
+    /// Market-data sub-namespace: `client.market_data.stock_eod(...)`.
     ///
     /// Returns a fresh [`MarketDataView`] over a cheap `Arc` clone of the
     /// inner client. No auth round-trip, no streaming-state mutation;
@@ -1034,7 +1034,7 @@ impl Client {
     /// Stops streaming if it is live (idempotent), waits for the streaming
     /// consumer thread to finish firing the registered callback, and drops the
     /// stored callback reference. Safe to call more than once and safe on a
-    /// client that only ran historical queries — those cases are a fast no-op.
+    /// client that only ran market-data queries — those cases are a fast no-op.
     ///
     /// This is the recommended teardown. It runs on the calling thread with the
     /// GIL released around the wait, so the dispatcher can re-acquire the GIL
@@ -1397,7 +1397,7 @@ impl StreamView {
 // ── AsyncClient — async-only sibling ───────────────────────
 //
 // The underlying `Client` exposes both sync and `*_async`
-// historical methods. This thin wrapper holds a `Client`
+// market-data methods. This thin wrapper holds a `Client`
 // handle and proxies attribute access through `__getattr__`, but raises
 // on access to non-`async_` methods so users that opt into the async
 // surface do not accidentally call a blocking sync path.
@@ -1691,13 +1691,13 @@ impl AsyncClient {
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if !name.ends_with("_async") && !ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) {
             return Err(pyo3::exceptions::PyAttributeError::new_err(format!(
-                "AsyncClient surfaces only `*_async` historical methods plus \
+                "AsyncClient surfaces only `*_async` market-data methods plus \
                  streaming lifecycle helpers; `{name}` is not on the async surface. \
-                 Use `Client` for the synchronous historical methods."
+                 Use `Client` for the synchronous market-data methods."
             )));
         }
         let bound = self.inner.bind(py);
-        // The historical and streaming surfaces moved off `Client` onto the
+        // The market-data and streaming surfaces moved off `Client` onto the
         // `client.market_data` / `client.stream` sub-namespace views. Resolve
         // each proxied name against the surface that actually owns it so the
         // async façade keeps a flat call shape
@@ -1787,7 +1787,7 @@ use streaming_session::StreamingSession;
 // `start_streaming(cb)` plus the `StreamingSession` context manager is
 // the sole streaming surface on the bundled client.
 
-include!("_generated/historical_methods.rs");
+include!("_generated/market_data_methods.rs");
 
 // `decode_response_bytes(endpoint, chunks)` hook used by the external
 // parity bench harness. Generator-emitted from `endpoint_surface.toml`
@@ -1797,7 +1797,7 @@ include!("_generated/decode_bench.rs");
 
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
-// Every historical endpoint returns a typed `<TickName>List` (or
+// Every market-data endpoint returns a typed `<TickName>List` (or
 // `StringList` for list endpoints), generator-emitted from
 // `tick_schema.toml` + `endpoint_surface.toml`. Terminals live on the
 // wrapper: `ticks.to_list()`, `ticks.to_arrow()`, `ticks.to_pandas()`,
@@ -1809,7 +1809,7 @@ include!("_generated/decode_bench.rs");
 // lives in `tick_arrow.rs` + `tick_classes.rs`.
 //
 // Zero-copy path:
-//   Vec<tick::T>     -- Rust-side (historical endpoints)
+//   Vec<tick::T>     -- Rust-side (market-data endpoints)
 //     -> `<TickName>List` (decoder-owned Vec, no copy)
 //     -> RecordBatch  -- schema-generated arrow builders
 //     -> FFI_ArrowArrayStream  -- Arrow C Stream Interface export
@@ -1928,7 +1928,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<flatfile_methods::FlatFileRowList>()?;
     register_fpss_event_classes(m)?;
     register_tick_classes(m)?;
-    register_generated_historical_builders(m)?;
+    register_generated_market_data_builders(m)?;
     coerce::register_string_enums(m)?;
     register_generated_util_submodule(m)?;
 

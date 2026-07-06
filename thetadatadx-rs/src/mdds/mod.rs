@@ -1,7 +1,7 @@
 //! MDDS (Market Data Distribution Server) gRPC client.
 //!
 //! [`MarketDataClient`] authenticates against the Nexus HTTP API, opens a gRPC
-//! channel to the MDDS server, and exposes typed methods for every historical
+//! channel to the MDDS server, and exposes typed methods for every market-data
 //! data endpoint. Macro-driven builder patterns (`list_endpoint!`,
 //! `parsed_endpoint!`) live in the in-crate `macros` module and are applied
 //! here via generated code (`include!`) from `endpoint_surface.toml`.

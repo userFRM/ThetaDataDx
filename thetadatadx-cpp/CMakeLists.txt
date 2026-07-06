@@ -91,7 +91,7 @@ target_link_libraries(thetadatadx_validate PRIVATE thetadatadx_cpp)
 add_executable(thetadatadx_streaming_smoke examples/streaming_smoke.cpp)
 target_link_libraries(thetadatadx_streaming_smoke PRIVATE thetadatadx_cpp)
 
-add_executable(thetadatadx_market_data_stream_smoke examples/historical_stream_smoke.cpp)
+add_executable(thetadatadx_market_data_stream_smoke examples/market_data_stream_smoke.cpp)
 target_link_libraries(thetadatadx_market_data_stream_smoke PRIVATE thetadatadx_cpp)
 
 add_executable(thetadatadx_flatfiles_example examples/flatfiles_trade_quotes_to_arrow.cpp)

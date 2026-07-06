@@ -108,7 +108,7 @@ pub(crate) struct StreamingSession {
     /// transports the session knows how to drive, so the lifecycle path
     /// compiles only against pyclasses that actually implement it. The
     /// non-lifecycle `__getattr__` proxy still erases the type for
-    /// downstream attribute lookup (e.g. `subscribe` / historical
+    /// downstream attribute lookup (e.g. `subscribe` / market_data
     /// methods).
     pub(crate) client: StreamableHandle,
     pub(crate) callback: Option<Py<PyAny>>,
@@ -263,7 +263,7 @@ impl crate::Client {
         )
     }
 
-    /// Current historical session UUID. Reads through the shared session
+    /// Current market-data session UUID. Reads through the shared session
     /// token so the returned value reflects any mid-session refresh.
     ///
     /// Backs the `session_uuid` entry on `AsyncClient`'s

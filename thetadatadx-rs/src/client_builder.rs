@@ -127,10 +127,10 @@ enum EnvSource {
     /// No environment selected — default to [`DirectConfig::production`].
     Default,
     /// Select per-channel environments on top of [`DirectConfig::production`].
-    /// Either channel may be left unset (production); the historical and
+    /// Either channel may be left unset (production); the market-data and
     /// streaming channels are chosen independently.
     Environment {
-        historical: Option<MarketDataEnvironment>,
+        market_data: Option<MarketDataEnvironment>,
         streaming: Option<StreamingEnvironment>,
     },
     /// Use a caller-supplied [`DirectConfig`] verbatim. The config and
@@ -149,11 +149,11 @@ impl EnvSource {
         match self {
             EnvSource::Default => DirectConfig::try_production(),
             EnvSource::Environment {
-                historical,
+                market_data,
                 streaming,
             } => {
                 let mut config = DirectConfig::try_production()?;
-                if let Some(env) = historical {
+                if let Some(env) = market_data {
                     config = config.with_market_data_environment(env);
                 }
                 if let Some(env) = streaming {
@@ -168,22 +168,22 @@ impl EnvSource {
 
     /// Fold a per-channel selection into the current source, preserving any
     /// already-selected channel so `.stage().dev()` composes to
-    /// historical-staging + streaming-dev. A `Config` / `DotenvFile` source is
+    /// market-data-staging + streaming-dev. A `Config` / `DotenvFile` source is
     /// replaced (last-setter-wins on the kind), matching the prior behavior.
     fn with_channel(
         self,
-        historical: Option<MarketDataEnvironment>,
+        market_data: Option<MarketDataEnvironment>,
         streaming: Option<StreamingEnvironment>,
     ) -> Self {
         let (prev_h, prev_s) = match self {
             EnvSource::Environment {
-                historical,
+                market_data,
                 streaming,
-            } => (historical, streaming),
+            } => (market_data, streaming),
             _ => (None, None),
         };
         EnvSource::Environment {
-            historical: historical.or(prev_h),
+            market_data: market_data.or(prev_h),
             streaming: streaming.or(prev_s),
         }
     }
@@ -291,7 +291,7 @@ impl ClientBuilder {
 
     // ─── Environment setters (optional, default production) ───────────
 
-    /// Select the historical [`MarketDataEnvironment`]. Equivalent to
+    /// Select the market-data [`MarketDataEnvironment`]. Equivalent to
     /// the `THETADATA_MARKET_DATA_TYPE` env var and to
     /// [`DirectConfig::with_market_data_environment`]. Composes with a streaming
     /// selection — `.streaming_environment(..).market_data_environment(..)`
@@ -303,21 +303,21 @@ impl ClientBuilder {
 
     /// Select the streaming [`StreamingEnvironment`]. Equivalent to the
     /// `THETADATA_STREAMING_TYPE` env var and to
-    /// [`DirectConfig::with_streaming_environment`]. Composes with a historical
+    /// [`DirectConfig::with_streaming_environment`]. Composes with a market-data
     /// selection.
     pub fn streaming_environment(mut self, environment: StreamingEnvironment) -> Self {
         self.env = self.env.with_channel(None, Some(environment));
         self
     }
 
-    /// Target the historical staging cluster (streaming stays on production).
+    /// Target the market-data staging cluster (streaming stays on production).
     /// Shorthand for `.market_data_environment(MarketDataEnvironment::Stage)`;
     /// matches [`DirectConfig::stage`].
     pub fn stage(self) -> Self {
         self.market_data_environment(MarketDataEnvironment::Stage)
     }
 
-    /// Target the streaming dev-replay cluster (historical stays on
+    /// Target the streaming dev-replay cluster (market-data stays on
     /// production). Shorthand for
     /// `.streaming_environment(StreamingEnvironment::Dev)`; matches
     /// [`DirectConfig::dev`].
@@ -502,7 +502,7 @@ mod tests {
     }
 
     #[test]
-    fn stage_selects_historical_staging_only() {
+    fn stage_selects_market_data_staging_only() {
         let (_, config) = resolve(ClientBuilder::new().api_key("k").stage()).unwrap();
         assert_eq!(
             config.market_data_environment(),
@@ -517,7 +517,7 @@ mod tests {
     fn dev_selects_streaming_dev_only() {
         let (_, config) = resolve(ClientBuilder::new().api_key("k").dev()).unwrap();
         assert_eq!(config.streaming_environment(), StreamingEnvironment::Dev);
-        // Historical stays on production — `dev()` is streaming-only.
+        // Market-data stays on production — `dev()` is streaming-only.
         assert_eq!(
             config.market_data_environment(),
             MarketDataEnvironment::Prod
@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn per_channel_selectors_compose() {
-        // `.stage().dev()` selects historical-staging AND streaming-dev — the
+        // `.stage().dev()` selects market-data-staging AND streaming-dev — the
         // two channels are independent and both selections survive.
         let (_, config) = resolve(ClientBuilder::new().api_key("k").stage().dev()).unwrap();
         assert_eq!(

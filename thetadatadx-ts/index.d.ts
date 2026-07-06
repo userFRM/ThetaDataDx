@@ -2,7 +2,7 @@
 /* eslint-disable */
 export declare class Client {
   /**
-   * Historical-data sub-namespace: `client.market_data.stockHistoryEOD(...)`.
+   * Market-data sub-namespace: `client.market_data.stockHistoryEOD(...)`.
    *
    * Returns a fresh [`MarketDataView`] that shares the underlying
    * client connection. No auth round-trip, no streaming-state mutation.
@@ -21,7 +21,7 @@ export declare class Client {
    * Connect to ThetaData with a `Credentials` handle. Pass an
    * optional `Config` (`dev` / `stage` / `production`, plus any
    * tuned setters) to override the production-default endpoint.
-   * Historical only; call `client.stream.startStreaming(...)` to
+   * Market-data only; call `client.stream.startStreaming(...)` to
    * begin streaming real-time data.
    *
    * The config is snapshot at connect time: the `Config` handle may be
@@ -68,7 +68,7 @@ export declare class Client {
    * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
    * or `credentialsFile`. Passing none, or two different ones, rejects
    * with a `ConfigError` before any network round-trip. `marketDataType`
-   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
+   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the market-data
    * environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
    * the streaming environment, independently. For a pre-built full
    * `Config` (or a pre-built `Credentials` handle), use
@@ -82,12 +82,12 @@ export declare class Client {
    *
    * Stops streaming if it is live (idempotent), RELEASES the core client
    * handle, and releases the registered callback back to V8. Taking the
-   * handle out of its slot and dropping it frees the historical gRPC channel
+   * handle out of its slot and dropping it frees the market-data gRPC channel
    * pool once no vended surface still co-owns it, and makes the client
-   * UNUSABLE — every subsequent `historical` / `stream` / `flatFiles` access
+   * UNUSABLE — every subsequent `marketData` / `stream` / `flatFiles` access
    * rejects with "client is closed". Safe to call more than once (a second
    * close finds an empty slot and is a no-op) and safe on a client that only
-   * ran historical queries.
+   * ran market-data queries.
    *
    * This is the recommended teardown. Prefer the `using` declaration
    * (`using client = connect(...)`) so `close()` runs on scope exit through
@@ -138,7 +138,7 @@ export declare class Config {
   /** Dev streaming config (port 20200, infinite historical replay). */
   static dev(): Config
   /**
-   * Historical-staging config (historical staging cluster + auth marker; streaming
+   * Market-data-staging config (market-data staging cluster + auth marker; streaming
    * stays on production). Unstable testing servers.
    */
   static stage(): Config
@@ -215,11 +215,11 @@ export declare class Config {
    */
   get workerThreads(): number | null
   /**
-   * Target historical environment carried by this configuration:
+   * Target market-data environment carried by this configuration:
    * `"PROD"` for the production cluster or `"STAGE"` for staging. The
-   * historical and streaming channels are selected independently;
+   * market-data and streaming channels are selected independently;
    * `Config.production()` / `Config.stage()` (and the
-   * `THETADATA_MARKET_DATA_TYPE` key on `Config.fromDotenv`) set the historical
+   * `THETADATA_MARKET_DATA_TYPE` key on `Config.fromDotenv`) set the market-data
    * channel, and this is the readback of that selection. Mirrors the
    * `marketDataType` string the inline `Client.connectWith` factory accepts.
    */
@@ -227,7 +227,7 @@ export declare class Config {
   /**
    * Target streaming environment carried by this configuration:
    * `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
-   * The streaming and historical channels are selected independently;
+   * The streaming and market-data channels are selected independently;
    * `Config.production()` / `Config.dev()` (and the
    * `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming
    * channel, and this is the readback of that selection. Mirrors the
@@ -334,7 +334,7 @@ export declare class Config {
   get streamingRingSize(): bigint
   /**
    * Set the wall-clock envelope (seconds) for one
-   * historical-channel retry sequence, measured from the first
+   * market-data-channel retry sequence, measured from the first
    * attempt. `0n` disables the envelope (attempt budget only).
    * Default `300n`.
    */
@@ -353,18 +353,18 @@ export declare class Config {
   /** Current `flatfiles.jitter` value (default `true`). */
   get flatfilesJitter(): boolean
   /**
-   * Set the initial backoff delay (ms) for the historical-channel retry policy.
+   * Set the initial backoff delay (ms) for the market-data-channel retry policy.
    * Default `250n`. Subsequent retries double from here, capped at
    * `retryMaxDelayMs`.
    */
   setRetryInitialDelayMs(ms: bigint): void
   /**
-   * Set the upper-bound backoff delay (ms) for the historical retry
+   * Set the upper-bound backoff delay (ms) for the market-data retry
    * policy. Default `30_000n` (30 s).
    */
   setRetryMaxDelayMs(ms: bigint): void
   /**
-   * Set the total attempt budget for the historical-channel retry policy. `1`
+   * Set the total attempt budget for the market-data-channel retry policy. `1`
    * disables retry; higher values permit retries up to
    * `maxAttempts - 1` after the initial call. Default `20`.
    */
@@ -372,7 +372,7 @@ export declare class Config {
   /** Current `retry.max_attempts` value. */
   get retryMaxAttempts(): number
   /**
-   * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+   * Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
    * `true`. `false` gives the deterministic backoff schedule
    * `min(max_delay, initial * 2^attempt)`, useful for tests that
    * need to assert exact timings.
@@ -443,7 +443,7 @@ export declare class Config {
    * port range.
    */
   setMarketDataPort(port: number): void
-  /** Current historical gRPC port. */
+  /** Current market-data gRPC port. */
   get marketDataPort(): number
   /**
    * Set the warning threshold (in bytes) for buffered (non-streaming)
@@ -463,7 +463,7 @@ export declare class Config {
    */
   get warnOnBufferedThresholdBytes(): bigint
   /**
-   * Set the default per-request deadline (seconds) for historical
+   * Set the default per-request deadline (seconds) for market-data
    * queries. Bounds every request that did not set its own deadline,
    * so a live-but-silent stream resolves to a timeout instead of
    * blocking forever. `0n` no longer disables the default; it is floored
@@ -473,7 +473,7 @@ export declare class Config {
    */
   setRequestTimeoutSecs(secs: bigint): void
   /**
-   * Current historical `request_timeout_secs` setting in seconds
+   * Current market-data `request_timeout_secs` setting in seconds
    * (default `300n`). A stored `0n` is floored to the `300n`-second
    * default at request time rather than disabling the deadline.
    */
@@ -561,9 +561,9 @@ export declare class Config {
   setClientType(clientType: string): void
   /** Current `auth.client_type` value. */
   get clientType(): string
-  /** Override the historical gRPC host. Companion to `setMarketDataPort`. */
+  /** Override the market-data gRPC host. Companion to `setMarketDataPort`. */
   setMarketDataHost(host: string): void
-  /** Current historical gRPC host. */
+  /** Current market-data gRPC host. */
   get marketDataHost(): string
   /**
    * Set the streaming write-flush policy.
@@ -791,32 +791,32 @@ export declare class FlatFilesNamespace {
 }
 
 /**
- * Standalone historical-only client.
+ * Standalone market-data-only client.
  *
  * Opens ONLY the historical data channel and the Nexus authentication
  * flow — no real-time streaming connection or streaming state machine.
- * This lets a caller run a historical-only session alongside a parallel
+ * This lets a caller run a market-data-only session alongside a parallel
  * streaming process without the unified `Client` taking over
  * the Nexus session at connect time.
  *
  * The full historical / list / snapshot / at-time / flat-files surface
- * is identical to the unified client, so `historicalClient.stockHistoryEOD(...)`
+ * is identical to the unified client, so `market_dataClient.stockHistoryEOD(...)`
  * behaves exactly like `client.stockHistoryEOD(...)`. The streaming and
  * subscription methods are simply not present: there is no
- * `startStreaming` / `subscribe` on this class, so a historical-only handle
+ * `startStreaming` / `subscribe` on this class, so a market-data-only handle
  * cannot open a streaming slot. Use `StreamingClient` for streaming, or the
  * unified `Client` when you need both surfaces.
  *
  * ```ts
  * import { MarketDataClient } from "thetadatadx";
- * const historical = await MarketDataClient.connectFromFile("creds.txt");
+ * const marketData = await MarketDataClient.connectFromFile("creds.txt");
  * const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
  * ```
  */
 export declare class MarketDataClient {
   /**
    * Connect to ThetaData with a `Credentials` handle and open the
-   * historical data channel. Historical only — this client never
+   * historical data channel. Market-data only — this client never
    * opens the streaming transport. Pass an optional `Config` to
    * override the production-default endpoint. Use `StreamingClient` for
    * real-time data.
@@ -833,16 +833,16 @@ export declare class MarketDataClient {
   /**
    * Connect with a credentials file (line 1 = email, line 2 =
    * password). Convenience wrapper over `Credentials.fromFile` +
-   * `connect`. Historical only. Pass an optional
+   * `connect`. Market-data only. Pass an optional
    * `Config` to override the production-default endpoint.
    *
    * `async` for the same reason as [`MarketDataClient::connect`].
    */
   static connectFromFile(path: string, config?: Config | undefined | null): Promise<MarketDataClient>
   /**
-   * Deterministically close the historical client.
+   * Deterministically close the market-data client.
    *
-   * The historical-only surface never opens streaming, so there is no
+   * The market-data-only surface never opens streaming, so there is no
    * dispatcher to drain; closing takes the core client handle out of its slot
    * and drops it, RELEASING the gRPC channel pool once no vended surface still
    * co-owns it and making the client UNUSABLE (every endpoint call rejects
@@ -1742,7 +1742,7 @@ export declare class MarketDataClient {
   interestRateHistoryEODWithColumns(symbol: string, startDate: string | Date, endDate: string | Date, options?: InterestRateHistoryEodOptions | undefined | null): Promise<InterestRateTickWithColumns>
   /**
    * FLATFILES namespace handle. Cheap — shares the underlying client connection.
-   * The historical-only client opens the same data channel as the unified
+   * The market-data-only client opens the same data channel as the unified
    * client, so the full flat-file surface is reachable here unchanged.
    */
   get flatFiles(): FlatFilesNamespace
@@ -1755,12 +1755,12 @@ export declare class MarketDataClient {
 }
 
 /**
- * User-facing historical-data sub-namespace returned by the
+ * User-facing market-data sub-namespace returned by the
  * `client.market_data` getter.
  *
  * A lightweight handle that shares the underlying client connection;
  * constructing it performs no auth round-trip and mutates no streaming
- * state. Every historical endpoint method is generated onto this view
+ * state. Every market-data endpoint method is generated onto this view
  * from a single declarative surface definition, so the surface stays a
  * single generated source of truth.
  */
@@ -2729,7 +2729,7 @@ export declare class SecType {
  * Standalone streaming-only client.
  *
  * Opens ONLY the streaming TLS transport, no historical data channel, no
- * Nexus HTTP authentication. Use when a parallel historical process is
+ * Nexus HTTP authentication. Use when a parallel market-data process is
  * already running in the same environment and you need to stream
  * without the bundled `Client` taking over the Nexus session
  * at connect time.
@@ -3080,7 +3080,7 @@ export declare class StreamView {
    */
   reconnect(): Promise<void>
   /**
-   * Stop streaming while keeping the historical client usable.
+   * Stop streaming while keeping the market-data client usable.
    *
    * Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
    */
@@ -3464,8 +3464,8 @@ export interface ClientConnectOptions {
    */
   credentialsFile?: string
   /**
-   * Historical environment selector (`"PROD"` / `"STAGE"`,
-   * case-insensitive). Defaults to production. The historical and
+   * Market-data environment selector (`"PROD"` / `"STAGE"`,
+   * case-insensitive). Defaults to production. The market-data and
    * streaming channels are selected independently. For full host-level
    * control, build a `Config` and use `Client.connect(creds, config)`.
    */
@@ -3473,7 +3473,7 @@ export interface ClientConnectOptions {
   /**
    * Streaming environment selector (`"PROD"` / `"DEV"`,
    * case-insensitive). Defaults to production. Selected independently of
-   * the historical channel.
+   * the market-data channel.
    */
   streamingType?: string
 }

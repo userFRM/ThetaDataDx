@@ -66,7 +66,7 @@ const withLogin = await Client.connectWith({ email: 'you@example.com', password:
 const fullControl = await Client.connectFromFile('creds.txt');
 ```
 
-Every historical method resolves a `Promise` of typed tick objects off the runtime's execution thread, so a fetch never holds the event loop:
+Every market-data method resolves a `Promise` of typed tick objects off the runtime's execution thread, so a fetch never holds the event loop:
 
 ```typescript
 const eod = await client.marketData.stockHistoryEOD('AAPL', '20240101', '20240301');

@@ -70,7 +70,7 @@ fn parse_flatfile_format(fmt: Option<&str>) -> napi::Result<FlatFileFormat> {
 /// A flat-file pull is a full-day blob download — seconds of network
 /// transfer and a large decode. Running it on the runtime's execution
 /// thread via [`spawn_endpoint_task`] keeps the Node event loop free for
-/// the whole call, matching every historical endpoint. Callers are
+/// the whole call, matching every market-data endpoint. Callers are
 /// `async fn`s, so napi-rs returns a JS `Promise` resolved off-thread.
 async fn pull_decoded(
     client: &Arc<thetadatadx::Client>,

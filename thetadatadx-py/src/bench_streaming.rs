@@ -101,7 +101,7 @@ fn make_event(contract: &Arc<Contract>, idx: u64) -> StreamEvent {
     })
 }
 
-/// Project a `&StreamEvent::Data(Trade)` into the historical `TradeTick`
+/// Project a `&StreamEvent::Data(Trade)` into the market-data `TradeTick`
 /// row shape the Arrow builder consumes. Non-trade events are skipped
 /// (the bench only floods trades). Field-for-field copy — same columns the
 /// `TradeTick` Arrow schema declares.

@@ -9,7 +9,7 @@ Pins the contract that:
   (``thetadatadx_fpss_connect`` allocates, ``thetadatadx_fpss_set_callback`` opens
   the network).
 * ``MarketDataClient(creds, config)`` opens ONLY the MDDS gRPC channel
-  plus the Nexus HTTP authentication. It exposes the historical /
+  plus the Nexus HTTP authentication. It exposes the market-data /
   FLATFILES surface but raises ``AttributeError`` on every
   FPSS-touching method (``subscribe`` / ``start_streaming`` / etc.).
 * The bundled ``Client`` continues to expose its unified
@@ -170,7 +170,7 @@ def test_fpss_client_blocks_subscribe_before_start() -> None:
 
 
 def test_mdds_client_blocks_fpss_attrs() -> None:
-    """`MarketDataClient` is the historical-only surface -- every
+    """`MarketDataClient` is the market-data-only surface -- every
     FPSS-touching method must raise `AttributeError` so callers
     cannot accidentally open an FPSS connection that would conflict
     with a parallel FPSS process."""
@@ -184,13 +184,13 @@ def test_mdds_client_blocks_fpss_attrs() -> None:
     creds = mod.Credentials.from_file(_live_creds_path())
     client = mod.MarketDataClient(creds, mod.Config.production())
     for name in BLOCKED_FPSS_METHODS:
-        with pytest.raises(AttributeError, match="standalone historical surface"):
+        with pytest.raises(AttributeError, match="standalone market-data surface"):
             getattr(client, name)
 
 
 def test_mdds_client_close_releases_and_is_unusable() -> None:
     """`MarketDataClient.close()` RELEASES the underlying handle and makes the
-    client unusable: a subsequent historical call raises a clear closed error,
+    client unusable: a subsequent market-data call raises a clear closed error,
     and a second close is a no-op. Live-gated because construction needs the
     gRPC handshake.
     """
@@ -201,7 +201,7 @@ def test_mdds_client_close_releases_and_is_unusable() -> None:
     creds = mod.Credentials.from_file(_live_creds_path())
     mdds = mod.MarketDataClient(creds, mod.Config.production())
     mdds.close()
-    # A historical call after close reaches the closed-guard on the wrapped
+    # A market-data call after close reaches the closed-guard on the wrapped
     # unified client (raised before any network round-trip).
     with pytest.raises(RuntimeError, match="closed"):
         mdds.stock_history_eod("AAPL", "20240101", "20240301")
@@ -253,7 +253,7 @@ def test_fpss_client_no_mdds_channel() -> None:
     1. ``StreamingClient(creds, config)`` constructs cleanly, because the
        FPSS surface never opens the MDDS channel;
     2. ``MarketDataClient(creds, config)`` against the SAME config fails
-       fast (some network-level error), because the historical
+       fast (some network-level error), because the market-data
        surface must open the channel at construction time.
 
     Together these two assertions prove the standalone FPSS path is

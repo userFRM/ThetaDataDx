@@ -95,7 +95,7 @@ def test_interest_rate_tick_signature_pins_two_params(InterestRateTick) -> None:
 def test_interest_rate_tick_list_round_trips(InterestRateTick) -> None:
     """The `InterestRateTickList` companion accepts the new 2-field
     pyclass and round-trips through `__getitem__`. This is the path
-    that historical methods return to Python callers; it must stay
+    that market-data methods return to Python callers; it must stay
     indexable and yield instances whose `date`/`rate` survive the
     round-trip."""
     mod = importlib.import_module("thetadatadx")

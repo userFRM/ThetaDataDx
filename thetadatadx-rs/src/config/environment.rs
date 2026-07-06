@@ -11,15 +11,15 @@
 //!   [`StreamingEnvironment::Dev`]. The streaming environment selects only the
 //!   streaming hosts; it never affects auth.
 //!
-//! The two are chosen independently: a config can be historical-staging with
-//! streaming-production, historical-production with streaming-dev, and so on.
-//! There is no historical dev cluster and no streaming staging cluster; the
+//! The two are chosen independently: a config can be market-data-staging with
+//! streaming-production, market-data-production with streaming-dev, and so on.
+//! There is no market-data dev cluster and no streaming staging cluster; the
 //! enums encode exactly the environments each channel supports.
 //!
 //! The selectors are set by the [`DirectConfig`] presets:
 //! [`DirectConfig::production`] selects production on both channels;
-//! [`DirectConfig::stage`] selects historical-staging while streaming stays on
-//! production; [`DirectConfig::dev`] selects streaming-dev while historical
+//! [`DirectConfig::stage`] selects market-data-staging while streaming stays on
+//! production; [`DirectConfig::dev`] selects streaming-dev while market-data
 //! stays on production. They can also be chosen directly with
 //! [`DirectConfig::with_market_data_environment`] /
 //! [`DirectConfig::with_streaming_environment`], or via the
@@ -102,15 +102,15 @@ impl MarketDataEnvironment {
         }
     }
 
-    /// Historical (gRPC) host for this environment's cluster.
+    /// Market-data (gRPC) host for this environment's cluster.
     ///
-    /// Every cluster serves historical over TLS on port 443; only the host
-    /// differs, so this is the single place that maps the historical
+    /// Every cluster serves market-data over TLS on port 443; only the host
+    /// differs, so this is the single place that maps the market-data
     /// environment to its host.
     #[must_use]
     pub(crate) fn host(self) -> &'static str {
         match self {
-            // Production keeps the canonical historical default in
+            // Production keeps the canonical market-data default in
             // `MarketDataConfig::production_defaults`; the literal here mirrors
             // it so the two never drift (a unit test asserts the equality).
             MarketDataEnvironment::Prod => "mdds-01.thetadata.us",
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn stage_historical_uses_staging_host() {
+    fn stage_market_data_uses_staging_host() {
         assert_eq!(
             MarketDataEnvironment::Stage.host(),
             "mdds-stage.thetadata.us"

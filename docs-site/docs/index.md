@@ -1,7 +1,7 @@
 ---
 layout: home
 title: ThetaDataDx
-description: Every ThetaData endpoint, historical, streaming, and bulk, over REST, four native SDKs, or an MCP server for AI.
+description: Every ThetaData endpoint, market-data, streaming, and bulk, over REST, four native SDKs, or an MCP server for AI.
 
 hero:
   name: "ThetaDataDx"

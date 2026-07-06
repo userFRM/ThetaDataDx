@@ -133,7 +133,7 @@ function hist(lang) {
 
 // Client construction, mapped to the real SDK surface. The unified `Client`
 // has the ergonomic one-step constructors (builder / connectWith / inline
-// kwargs); the historical-only `MarketDataClient` exposes no such sugar, so it
+// kwargs); the market-data-only `MarketDataClient` exposes no such sugar, so it
 // is built from a `Credentials` value passed to `connect(creds, config)` (or
 // the `from_file` / connectFromFile convenience). The `auth.source === 'env'`
 // + `creds` cell sources email + password from a `.env`/creds file — the SDK
@@ -214,7 +214,7 @@ function clientLine(lang) {
   }
 
   // MarketDataClient: build a Credentials, then connect(creds, config).
-  const historical = {
+  const marketData = {
     python: {
       'env-apikey': {
         line: `client = MarketDataClient(Credentials.from_env(), Config.production())`,
@@ -286,7 +286,7 @@ function clientLine(lang) {
     },
   }
 
-  const table = clientKind.value === 'unified' ? unified : historical
+  const table = clientKind.value === 'unified' ? unified : marketData
   return table[lang][cell]
 }
 
@@ -450,7 +450,7 @@ function copy() {
         <span class="rb-ol">Client</span>
         <div class="rb-pg">
           <button :class="{ on: clientKind === 'unified' }" @click="clientKind = 'unified'">Unified</button>
-          <button :class="{ on: clientKind === 'historical' }" @click="clientKind = 'historical'">Historical</button>
+          <button :class="{ on: clientKind === 'market_data' }" @click="clientKind = 'market_data'">Market-data</button>
         </div>
       </div>
       <div class="rb-og">

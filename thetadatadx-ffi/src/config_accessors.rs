@@ -506,7 +506,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_ring_size(
     })
 }
 
-/// Set the wall-clock envelope (seconds) for one historical-channel
+/// Set the wall-clock envelope (seconds) for one market-data-channel
 /// retry sequence, measured from the first attempt. `0` disables the
 /// envelope (attempt budget only). Default `300`.
 #[no_mangle]
@@ -579,7 +579,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_jitter(
     })
 }
 
-/// Set the initial backoff delay (ms) for the historical retry policy.
+/// Set the initial backoff delay (ms) for the market-data retry policy.
 /// Default `250`. Subsequent retries double from here, capped at
 /// `thetadatadx_config_set_retry_max_delay_ms`.
 #[no_mangle]
@@ -593,7 +593,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_retry_initial_delay_ms(
     })
 }
 
-/// Set the upper-bound backoff delay (ms) for the historical retry policy.
+/// Set the upper-bound backoff delay (ms) for the market-data retry policy.
 /// Default `30_000` (30 s). The exponential schedule never exceeds
 /// this value regardless of attempt number.
 #[no_mangle]
@@ -607,7 +607,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_retry_max_delay_ms(
     })
 }
 
-/// Set the total attempt budget for the historical retry policy. `1`
+/// Set the total attempt budget for the market-data retry policy. `1`
 /// disables retry (single call only); higher values permit
 /// retries up to `max_attempts - 1` after the initial call. Default
 /// `20`.
@@ -643,7 +643,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_max_attempts(
     })
 }
 
-/// Toggle AWS-style full-jitter on the historical retry policy. Default
+/// Toggle AWS-style full-jitter on the market-data retry policy. Default
 /// `true`. With `jitter=false` the backoff schedule is deterministic
 /// (`min(max_delay, initial * 2^attempt)`), which is useful for tests
 /// that need to assert exact timings.
@@ -953,7 +953,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes
     })
 }
 
-/// Set the default per-request deadline (seconds) for historical queries
+/// Set the default per-request deadline (seconds) for market-data queries
 /// on a config handle.
 ///
 /// Bounds every request that did not call `with_deadline(...)`, so a
@@ -974,7 +974,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_request_timeout_secs(
     })
 }
 
-/// Read the current historical `request_timeout_secs` setting (default
+/// Read the current market-data `request_timeout_secs` setting (default
 /// `300`). A stored `0` is floored to the `300`-second default at request
 /// time rather than disabling the deadline.
 ///

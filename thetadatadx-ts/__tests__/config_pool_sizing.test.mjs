@@ -1,6 +1,6 @@
-// Historical tuning setters on `Config`.
+// Market-data tuning setters on `Config`.
 //
-// Locks the contract that the historical tuning properties exposed by
+// Locks the contract that the market-data tuning properties exposed by
 // the `Config` napi class (such as `requestTimeoutSecs`) round-trip
 // through napi-rs to the underlying Rust `MarketDataConfig` correctly.
 //

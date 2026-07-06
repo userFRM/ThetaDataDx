@@ -20,7 +20,7 @@
 //! let creds = Credentials::from_file("creds.txt")?;
 //! let client = Client::connect(&creds, DirectConfig::production()).await?;
 //!
-//! // Historical — every query endpoint on the `historical` surface
+//! // Market-data — every query endpoint on the `market-data` surface
 //! let ticks = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //! // Real-time streaming — on the `stream` surface
@@ -86,7 +86,7 @@
 //!
 //! Historical data arrives over ThetaData's MDDS service; real-time
 //! ticks arrive over ThetaData's FPSS service. Both are decoded
-//! inside the crate — consumers see typed tick rows on the historical side
+//! inside the crate — consumers see typed tick rows on the market-data side
 //! and a typed [`streaming::StreamEvent`] stream on the streaming side.
 
 // `wire_semantics.rs` is `#[path]`-shared between this library and the
@@ -379,22 +379,22 @@ pub mod streaming {
     }
 }
 
-// ─── Historical queries ──────────────────────────────────────────────────────
+// ─── Market-data queries ──────────────────────────────────────────────────────
 // The canonical market-data surface lives in the [`market_data`] module: build a
 // standalone [`market_data::MarketDataClient`], or reach the same query surface
 // through [`Client::market_data`] on the unified client.
 
-/// Standalone historical-query client.
+/// Standalone market-data query client.
 ///
 /// `MarketDataClient` and its [`SubscriptionTier`] are also re-exported at the
 /// crate root so both `thetadatadx::MarketDataClient` and
 /// `thetadatadx::market_data::MarketDataClient` resolve.
 pub use mdds::{MarketDataClient, SubscriptionTier};
 
-/// Historical-query consumer surface.
+/// Market-data query consumer surface.
 ///
 /// `thetadatadx::market_data` is the canonical path for the standalone
-/// historical-query client, the counterpart to [`streaming`].
+/// market-data query client, the counterpart to [`streaming`].
 /// Build a [`MarketDataClient`] directly, or reach the same query surface
 /// through [`Client::market_data`](crate::Client::market_data) on the unified
 /// client.

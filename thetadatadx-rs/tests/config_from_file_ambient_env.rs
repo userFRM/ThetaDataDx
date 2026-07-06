@@ -37,7 +37,7 @@ fn from_toml_str_ignores_ambient_env_for_panic_and_port() {
     std::env::remove_var("THETADATA_MARKET_DATA_PORT");
     let prod_port = DirectConfig::production().market_data.port;
 
-    // Case 1: a bad ambient historical selector must NOT panic `from_toml_str`.
+    // Case 1: a bad ambient market-data selector must NOT panic `from_toml_str`.
     // The file config is env-independent, so a bogus selector is simply
     // irrelevant to parsing — no panic, a usable config back.
     std::env::set_var("THETADATA_MARKET_DATA_TYPE", "definitely-not-a-real-env");
@@ -50,7 +50,7 @@ fn from_toml_str_ignores_ambient_env_for_panic_and_port() {
     );
 
     // Case 2: an ambient port override must NOT leak into a TOML that omits the
-    // port. The parsed historical port stays the env-independent default.
+    // port. The parsed market-data port stays the env-independent default.
     let leaked_port: u16 = prod_port.wrapping_add(1);
     std::env::set_var("THETADATA_MARKET_DATA_PORT", leaked_port.to_string());
     let cfg = DirectConfig::from_toml_str("").expect("empty TOML parses");

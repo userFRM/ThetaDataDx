@@ -131,8 +131,8 @@ function parseMethods(source) {
   let depth = 0;
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    // The unified client exposes historical/stream methods through the
-    // `historical` / `stream` sub-namespace views, so the projected
+    // The unified client exposes market-data/stream methods through the
+    // `marketData` / `stream` sub-namespace views, so the projected
     // methods live on `MarketDataView` / `StreamView` rather than flat on
     // `Client`. Scope the parse to all three (exact match excludes the
     // standalone `MarketDataClient` / `StreamingClient`).

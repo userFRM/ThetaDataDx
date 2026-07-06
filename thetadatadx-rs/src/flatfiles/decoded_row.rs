@@ -25,7 +25,7 @@ pub struct FlatFileRow {
     /// Strike price in dollars. `None` for stocks. The vendor file
     /// format carries a fixed-point integer (1/1000 of a dollar); the
     /// decoded row speaks dollars like every other typed surface, so
-    /// values join directly against historical-row `strike` columns.
+    /// values join directly against market-data-row `strike` columns.
     pub strike: Option<f64>,
     /// `'C'` (call), `'P'` (put), or `None` for stocks / unknown.
     pub right: Option<char>,

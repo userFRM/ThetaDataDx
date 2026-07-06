@@ -287,7 +287,7 @@ def test_explicit_widened_abi_accepted() -> None:
 
 def test_setter_override_resolves_alternate_name(tmpdir: pathlib.Path) -> None:
     """`MarketDataConfig.host` binds on Python as `set_market_data_host`
-    (with the `historical_` prefix). The row's `setter = "market_data_host"`
+    (with the `market_data_` prefix). The row's `setter = "market_data_host"`
     field overrides the default `host` derivation and the gate accepts
     the binding.
     """
@@ -826,13 +826,13 @@ def test_from_file_parity_live_sources_clean() -> None:
 def test_client_view_accessors_all_enrolled_passes() -> None:
     """Every view accessor present on `Client` has an enrolling row."""
     rows = [
-        {"class": "Client", "name": "historical", "python": True, "typescript": True, "cpp": True},
+        {"class": "Client", "name": "marketData", "python": True, "typescript": True, "cpp": True},
         {"class": "Client", "name": "stream", "python": True, "typescript": True, "cpp": True},
         {"class": "Client", "name": "flatFiles", "python": True, "typescript": True, "cpp": True},
     ]
-    py_methods = {"Client": {"historical", "stream", "flat_files"}}
-    ts_methods = {"Client": {"historical", "stream", "flatFiles"}}
-    cpp_methods = {"Client": {"historical", "stream", "flat_files"}}
+    py_methods = {"Client": {"market_data", "stream", "flat_files"}}
+    ts_methods = {"Client": {"marketData", "stream", "flatFiles"}}
+    cpp_methods = {"Client": {"market_data", "stream", "flat_files"}}
     errors = cbp._check_method_rows(rows, py_methods, ts_methods, cpp_methods)
     assert errors == [], f"fully-enrolled view accessors must pass; got {errors!r}"
 
@@ -840,13 +840,13 @@ def test_client_view_accessors_all_enrolled_passes() -> None:
 def test_client_view_accessor_orphan_trips() -> None:
     """A view accessor on `Client` with no enrolling row trips the gate."""
     rows = [
-        {"class": "Client", "name": "historical", "python": True, "typescript": True, "cpp": True},
+        {"class": "Client", "name": "marketData", "python": True, "typescript": True, "cpp": True},
         {"class": "Client", "name": "stream", "python": True, "typescript": True, "cpp": True},
         # `flatFiles` deliberately omitted — present on the bindings below.
     ]
-    py_methods = {"Client": {"historical", "stream", "flat_files"}}
-    ts_methods = {"Client": {"historical", "stream", "flatFiles"}}
-    cpp_methods = {"Client": {"historical", "stream", "flat_files"}}
+    py_methods = {"Client": {"market_data", "stream", "flat_files"}}
+    ts_methods = {"Client": {"marketData", "stream", "flatFiles"}}
+    cpp_methods = {"Client": {"market_data", "stream", "flat_files"}}
     errors = cbp._check_method_rows(rows, py_methods, ts_methods, cpp_methods)
     assert any(
         "Client.flatFiles" in e and "no `[[method]]` row" in e for e in errors
@@ -871,7 +871,7 @@ def test_client_view_accessors_live_sources_enrolled() -> None:
     )
 
 
-# ─── Historical Rust surface + buffered base family ────────────────
+# ─── Market-data Rust surface + buffered base family ────────────────
 
 
 def test_rust_buffered_endpoints_from_registry() -> None:
@@ -926,7 +926,7 @@ def test_cabi_header_matches_ffi_source() -> None:
     )
 
 
-def test_historical_async_rust_column_missing_trips() -> None:
+def test_market_data_async_rust_column_missing_trips() -> None:
     """An async row claiming Rust presence the registry does not back trips —
     the dropped / renamed Rust endpoint defect class.
     """
@@ -940,13 +940,13 @@ def test_historical_async_rust_column_missing_trips() -> None:
         }
     ]
     bound = {"stock_history_eod"}
-    errors = cbp._check_historical_async_rows(rows, set(), bound, bound, bound)
+    errors = cbp._check_market_data_async_rows(rows, set(), bound, bound, bound)
     assert any("rust" in e and "missing" in e for e in errors), (
         f"a dropped Rust async endpoint must trip; got {errors!r}"
     )
 
 
-def test_historical_streaming_rust_column_missing_trips() -> None:
+def test_market_data_streaming_rust_column_missing_trips() -> None:
     """A streaming row claiming Rust presence the registry does not back
     trips.
     """
@@ -961,7 +961,7 @@ def test_historical_streaming_rust_column_missing_trips() -> None:
         }
     ]
     bound = {"option_history_trade"}
-    errors = cbp._check_historical_streaming_rows(
+    errors = cbp._check_market_data_streaming_rows(
         rows, set(), bound, bound, bound, bound
     )
     assert any("rust" in e and "missing" in e for e in errors), (
@@ -969,7 +969,7 @@ def test_historical_streaming_rust_column_missing_trips() -> None:
     )
 
 
-def test_historical_base_missing_on_cabi_trips() -> None:
+def test_market_data_base_missing_on_cabi_trips() -> None:
     """A base row claiming the C-ABI `_with_options` symbol the shipped
     header does not declare trips — the 61-symbol blind spot.
     """
@@ -984,13 +984,13 @@ def test_historical_base_missing_on_cabi_trips() -> None:
         }
     ]
     s = {"stock_history_eod"}
-    errors = cbp._check_historical_base_rows(rows, s, s, s, s, set(), set())
+    errors = cbp._check_market_data_base_rows(rows, s, s, s, s, set(), set())
     assert any("ffi" in e and "missing" in e for e in errors), (
         f"missing C-ABI base symbol must trip; got {errors!r}"
     )
 
 
-def test_historical_base_header_source_divergence_trips() -> None:
+def test_market_data_base_header_source_divergence_trips() -> None:
     """A shipped header that dropped a base symbol the `thetadatadx-ffi/src` source still
     defines (a stale regenerated header) trips, independent of any per-row
     column.
@@ -1008,26 +1008,26 @@ def test_historical_base_header_source_divergence_trips() -> None:
     s = {"stock_history_eod"}
     cabi = {"stock_history_eod"}
     ffi = {"stock_history_eod", "option_history_eod"}
-    errors = cbp._check_historical_base_rows(rows, s, s, s, s, cabi, ffi)
+    errors = cbp._check_market_data_base_rows(rows, s, s, s, s, cabi, ffi)
     assert any("option_history_eod" in e and "stale header" in e for e in errors), (
         f"a header/source divergence must trip; got {errors!r}"
     )
 
 
-def test_historical_base_untracked_orphan_trips() -> None:
+def test_market_data_base_untracked_orphan_trips() -> None:
     """An endpoint present on a surface but with no row at all trips the
     reverse-direction orphan scan.
     """
-    errors = cbp._check_historical_base_rows(
+    errors = cbp._check_market_data_base_rows(
         [], {"stock_history_eod"}, set(), set(), set(), set(), set()
     )
     assert any(
-        "stock_history_eod" in e and "no [[historical_base]] row" in e
+        "stock_history_eod" in e and "no [[market_data_base]] row" in e
         for e in errors
     ), f"untracked base endpoint must trip; got {errors!r}"
 
 
-def test_historical_base_live_sources_clean() -> None:
+def test_market_data_base_live_sources_clean() -> None:
     """The live buffered base surface is symmetric across all five surfaces:
     every one of the 60 endpoints present on Rust / Python / TypeScript /
     C++ / the C-ABI base, with the shipped header, the `thetadatadx-ffi/src` source, and
@@ -1036,11 +1036,11 @@ def test_historical_base_live_sources_clean() -> None:
     import tomllib
 
     data = tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
-    rows = data.get("historical_base", [])
-    assert rows, "live parity.toml must declare [[historical_base]] rows"
+    rows = data.get("market_data_base", [])
+    assert rows, "live parity.toml must declare [[market_data_base]] rows"
     ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
     cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
-    errors = cbp._check_historical_base_rows(
+    errors = cbp._check_market_data_base_rows(
         rows,
         cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML),
         cbp._collect_python_buffered_endpoints(cbp.PY_SRC),
@@ -1052,8 +1052,8 @@ def test_historical_base_live_sources_clean() -> None:
     assert errors == [], f"live buffered base surface must be clean; got {errors!r}"
 
 
-def test_historical_families_live_rust_column_clean() -> None:
-    """The live `[[historical_async]]` / `[[historical_streaming]]` rows with
+def test_market_data_families_live_rust_column_clean() -> None:
+    """The live `[[market_data_async]]` / `[[market_data_streaming]]` rows with
     their new `rust` column resolve clean against the registry of record.
     """
     import tomllib
@@ -1063,15 +1063,15 @@ def test_historical_families_live_rust_column_clean() -> None:
     rust_stream = cbp._collect_rust_streaming_endpoints(cbp.ENDPOINT_SURFACE_TOML)
     ts_methods = cbp._collect_typescript_class_methods(cbp.TS_SRC)
     cpp_methods = cbp._collect_cpp_class_methods(cbp.CPP_HPP)
-    async_errors = cbp._check_historical_async_rows(
-        data.get("historical_async", []),
+    async_errors = cbp._check_market_data_async_rows(
+        data.get("market_data_async", []),
         rust_buffered,
         cbp._collect_python_async_endpoints(cbp.PY_SRC),
         cbp._collect_typescript_async_endpoints(ts_methods),
         cbp._collect_cpp_async_endpoints(cpp_methods),
     )
-    stream_errors = cbp._check_historical_streaming_rows(
-        data.get("historical_streaming", []),
+    stream_errors = cbp._check_market_data_streaming_rows(
+        data.get("market_data_streaming", []),
         rust_stream,
         cbp._collect_python_streaming_endpoints(cbp.PY_SRC),
         cbp._collect_typescript_streaming_endpoints(ts_methods),
@@ -1596,13 +1596,13 @@ def main() -> int:
     _check("rust streaming mirror equals generated python", test_rust_streaming_mirror_equals_generated_python)
     _check("c-abi base matches registry", test_cabi_base_matches_registry)
     _check("c-abi header matches ffi source", test_cabi_header_matches_ffi_source)
-    _check("historical-async rust column missing trips", test_historical_async_rust_column_missing_trips)
-    _check("historical-streaming rust column missing trips", test_historical_streaming_rust_column_missing_trips)
-    _check("historical-base missing on C-ABI trips", test_historical_base_missing_on_cabi_trips)
-    _check("historical-base header/source divergence trips", test_historical_base_header_source_divergence_trips)
-    _check("historical-base untracked orphan trips", test_historical_base_untracked_orphan_trips)
-    _check("historical-base live sources clean", test_historical_base_live_sources_clean)
-    _check("historical families live rust column clean", test_historical_families_live_rust_column_clean)
+    _check("market-data-async rust column missing trips", test_market_data_async_rust_column_missing_trips)
+    _check("market-data-streaming rust column missing trips", test_market_data_streaming_rust_column_missing_trips)
+    _check("market-data-base missing on C-ABI trips", test_market_data_base_missing_on_cabi_trips)
+    _check("market-data-base header/source divergence trips", test_market_data_base_header_source_divergence_trips)
+    _check("market-data-base untracked orphan trips", test_market_data_base_untracked_orphan_trips)
+    _check("market-data-base live sources clean", test_market_data_base_live_sources_clean)
+    _check("market-data families live rust column clean", test_market_data_families_live_rust_column_clean)
     # napi balanced-paren collector (G2) + C++ decl-position collector (G11)
     with tempfile.TemporaryDirectory() as tmp:
         _check(

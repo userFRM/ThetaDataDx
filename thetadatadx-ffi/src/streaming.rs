@@ -117,7 +117,7 @@ impl FfiCallback {
 
 // ── Unified + FPSS handles ──
 
-/// Opaque unified client handle — wraps both historical and streaming.
+/// Opaque unified client handle — wraps both market-data and streaming.
 pub struct ThetaDataDxClient {
     pub(crate) inner: thetadatadx::Client,
     /// Callback registered via `thetadatadx_client_set_callback`. `None` until
@@ -450,13 +450,13 @@ pub unsafe extern "C" fn thetadatadx_subscription_array_free(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Unified client — historical + streaming through one handle
+//  Unified client — market-data + streaming through one handle
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Connect to `ThetaData` (historical only — FPSS streaming is NOT started).
+/// Connect to `ThetaData` (market-data only — FPSS streaming is NOT started).
 ///
 /// Authenticates once, opens gRPC channel. Call `thetadatadx_client_set_callback()`
-/// later to start FPSS. Historical endpoints are available immediately.
+/// later to start FPSS. Market-data endpoints are available immediately.
 ///
 /// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
 #[no_mangle]
@@ -1156,7 +1156,7 @@ pub unsafe extern "C" fn thetadatadx_client_market_data(
     })
 }
 
-/// Stop streaming on the unified client. Historical remains available.
+/// Stop streaming on the unified client. Market-data remains available.
 ///
 /// Initiates teardown of the FPSS event-dispatch consumer thread and the
 /// underlying TLS reader, but returns immediately after the streaming
@@ -1479,7 +1479,7 @@ pub unsafe extern "C" fn thetadatadx_client_free(handle: *mut ThetaDataDxClient)
         //       consumer is still firing past the budget, ops must
         //       see this surfaced so they can investigate.
         //   (b) no prior session was ever live — `prev_drained` is
-        //       `None` (e.g. a unified handle that only ran historical
+        //       `None` (e.g. a unified handle that only ran market-data
         //       endpoints; nothing to wait on). This is the normal
         //       free-without-streaming flow and must NOT be flagged.
         //

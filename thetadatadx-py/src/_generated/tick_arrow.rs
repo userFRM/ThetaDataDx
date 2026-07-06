@@ -4,7 +4,7 @@
 // over through the PyCapsule protocol (`_import_from_c_capsule`), with an
 // address-based `_import_from_c` fallback for pyarrow < 14.
 //
-// Every historical endpoint hands its decoder-owned `Vec<tick::T>`
+// Every market-data endpoint hands its decoder-owned `Vec<tick::T>`
 // straight to the typed `<TickName>List` wrapper (see `tick_classes.rs`);
 // the wrapper's `.to_arrow()` / `.to_pandas()` / `.to_polars()` terminals
 // call into `slice_arrow::<tick>_slice_to_arrow_table` below.
@@ -3684,7 +3684,7 @@ pub(crate) mod slice_arrow {
 
     /// Convert a decoder-owned `&[tick::TradeTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
-    /// Primary fast path for historical endpoints — avoids the
+    /// Primary fast path for market-data endpoints — avoids the
     /// double-buffering RSS spike of the pyclass-list converter.
     pub(crate) fn trade_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::TradeTick]) -> PyResult<Py<PyAny>> {
         let batch = py.detach(|| read_arrow_batch_from_trade_tick_slice(ticks))?;

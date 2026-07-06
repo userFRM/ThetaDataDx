@@ -383,7 +383,7 @@ impl Config {
         Ok(())
     }
 
-    /// Set the upper-bound backoff delay (ms) for the historical retry
+    /// Set the upper-bound backoff delay (ms) for the market-data retry
     /// policy. Default `30_000n` (30 s).
     #[napi(js_name = "setRetryMaxDelayMs")]
     pub fn set_retry_max_delay_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
@@ -642,7 +642,7 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.market_data.warn_on_buffered_threshold_bytes as u64))
     }
 
-    /// Set the default per-request deadline (seconds) for historical
+    /// Set the default per-request deadline (seconds) for market-data
     /// queries. Bounds every request that did not set its own deadline,
     /// so a live-but-silent stream resolves to a timeout instead of
     /// blocking forever. `0n` no longer disables the default; it is floored
@@ -660,7 +660,7 @@ impl Config {
         Ok(())
     }
 
-    /// Current historical `request_timeout_secs` setting in seconds
+    /// Current market-data `request_timeout_secs` setting in seconds
     /// (default `300n`). A stored `0n` is floored to the `300n`-second
     /// default at request time rather than disabling the deadline.
     #[napi(getter, js_name = "requestTimeoutSecs")]

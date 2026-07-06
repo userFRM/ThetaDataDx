@@ -4,7 +4,7 @@
 //!
 //! Each tick type is emitted as a flat `#[napi(object)]` struct so napi-rs
 //! generates a matching TypeScript interface in `index.d.ts`. `Vec<Tick>`
-//! returns from endpoint methods become `Tick[]` in TS — every historical
+//! returns from endpoint methods become `Tick[]` in TS — every market-data
 //! endpoint is fully typed, no `any`.
 //!
 //! A parallel `{snake_type}_to_class_vec(&[tick::Type]) -> Vec<Type>` helper

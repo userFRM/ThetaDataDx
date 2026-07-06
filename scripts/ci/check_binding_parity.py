@@ -41,16 +41,16 @@ Rust-only rows: a dotted row with `rust_only = true` MUST cite an
 `rust_only` flag with no issue or an `issue` flag with no `rust_only`
 fails the gate.
 
-Historical endpoint families (`[[historical_base]]` /
-`[[historical_async]]` / `[[historical_streaming]]`): the buffered,
+Market-data endpoint families (`[[market_data_base]]` /
+`[[market_data_async]]` / `[[market_data_streaming]]`): the buffered,
 async-query, and server-stream surfaces per endpoint. Each carries a
 `rust` column whose source of truth is the registry of record,
 `thetadatadx-rs/endpoint_surface.toml` — the file the build pipeline
-generates every binding's historical method from. The Rust buffered
+generates every binding's market-data method from. The Rust buffered
 surface is every `[[endpoints]]` entry except the four `*_stream` FPSS
 subscription endpoints (60 endpoints); the Rust streaming subset mirrors
 the build's `endpoint_streams` SSOT (list / snapshot / calendar endpoints
-get no server-stream terminal). `[[historical_base]]` additionally pins
+get no server-stream terminal). `[[market_data_base]]` additionally pins
 the C-ABI `thetadatadx_<endpoint>_with_options` base symbol read from the
 SHIPPED header (`thetadatadx-cpp/include/endpoint_with_options.h.inc`) and
 cross-checks the shipped header, the `thetadatadx-ffi/src` source, and the registry
@@ -124,10 +124,10 @@ def _resolve_ts_entry(pkg_dir: pathlib.Path, key: str, fallback: str) -> pathlib
 TS_DTS = _resolve_ts_entry(TS_PKG_DIR, "types", "index.d.ts")
 TS_MAIN_JS = _resolve_ts_entry(TS_PKG_DIR, "main", "index.js")
 TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
-# The committed generated napi historical surface. The `<endpoint>WithColumns`
+# The committed generated napi market-data surface. The `<endpoint>WithColumns`
 # reachability gate reads its `#[napi(js_name = ...)]` attributes directly (a
 # deterministic no-build source the napi compile lowers into `index.d.ts`).
-TS_HISTORICAL_METHODS_RS = TS_SRC / "_generated" / "historical_methods.rs"
+TS_HISTORICAL_METHODS_RS = TS_SRC / "_generated" / "market_data_methods.rs"
 CPP_HPP = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.hpp"
 CPP_H = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.h"
 FFI_SRC = REPO_ROOT / "thetadatadx-ffi" / "src"
@@ -142,11 +142,11 @@ RUST_CLIENT_BUILDER_RS = (
 CORE_CLIENT_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "client.rs"
 CORE_FPSS_MOD_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "mod.rs"
 # The canonical endpoint registry of record. The build pipeline generates
-# the Rust historical surface (`MarketDataClient::<endpoint>` methods + the
+# the Rust market-data surface (`MarketDataClient::<endpoint>` methods + the
 # per-endpoint streaming builders) from this file; the parity gate reads it
-# directly so a dropped or renamed Rust historical endpoint trips without a
+# directly so a dropped or renamed Rust market-data endpoint trips without a
 # full build. Every `[[endpoints]]` entry not named `*_stream` (the four FPSS
-# real-time subscription endpoints) is one of the buffered historical
+# real-time subscription endpoints) is one of the buffered market-data
 # endpoints (the 61-endpoint base surface).
 ENDPOINT_SURFACE_TOML = (
     REPO_ROOT / "thetadatadx-rs" / "endpoint_surface.toml"
@@ -422,7 +422,7 @@ def _strip_js_comments(text: str) -> str:
 # those sources is a bare identifier in declaration position, never a
 # string-literal payload, so stripping comments before the symbol regexes
 # cannot drop a tracked name — but it DOES stop a deleted symbol left
-# behind in a comment (`// removed: historical()`) from reading as still
+# behind in a comment (`// removed: market_data()`) from reading as still
 # present, which would otherwise let real cross-binding drift pass.
 def _read_source(path: pathlib.Path) -> str:
     """Read a Rust / C / C++ source file with comments stripped."""
@@ -433,7 +433,7 @@ def _read_source(path: pathlib.Path) -> str:
 # parentheses, e.g.
 #   #[napi(ts_args_type = "cb: (e: Event) => void", js_name = "setCallback")]
 # The `#[napi(` ... `)]` argument list therefore is NOT
-# parenthesis-free, so the historical `#[napi(...[^)]*...)]` collectors
+# parenthesis-free, so the market-data `#[napi(...[^)]*...)]` collectors
 # stopped at the FIRST inner `)` (inside `(e: Event)`) and never reached
 # the trailing `js_name`, silently reading a callback-typed method as
 # ABSENT. The helper below scans the attribute argument list with a paren
@@ -832,7 +832,7 @@ CPP_ALIASES: dict[str, str] = {
     "ParseError": "StreamParseError",
     # The unified client's sub-namespace views carry the Python / TypeScript
     # canonical names in `parity.toml`; the C++ header names them without the
-    # `View` suffix (`client.market_data()` -> `Historical`, `client.stream()`
+    # `View` suffix (`client.market_data()` -> `MarketData`, `client.stream()`
     # -> `Stream`).
     "MarketDataView": "MarketData",
     "StreamView": "Stream",
@@ -2260,14 +2260,14 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
 
 
 # The unified `Client`'s data surfaces are reached through view accessors
-# that return a cheap handle clone (`historical`, `stream`, `flatFiles`).
+# that return a cheap handle clone (`marketData`, `stream`, `flatFiles`).
 # They are hand-written per binding rather than generated from
 # `endpoint_surface.toml`. Kept as the canonical-name reference for the view
 # accessors; the reverse-orphan scan below is no longer limited to this set.
 # It discovers every Client-level helper from the bindings so a NEW helper
 # (any shape, not just a view accessor) cannot ship on a binding untracked.
 CLIENT_VIEW_ACCESSORS: frozenset[str] = frozenset(
-    {"historical", "stream", "flatFiles"}
+    {"marketData", "stream", "flatFiles"}
 )
 
 
@@ -3988,7 +3988,7 @@ def _balanced_body(text: str, body_start: int) -> str:
     return text[body_start : i - 1]
 
 
-# ─── Historical server-stream surface discovery ─────────────────────
+# ─── Market-data server-stream surface discovery ─────────────────────
 #
 # The endpoint codegen casts an endpoint's snake_case name to PascalCase
 # / camelCase with INITIALISM awareness: the segments `eod` / `ohlc` /
@@ -4018,16 +4018,16 @@ def _endpoint_method_to_snake(name: str) -> str:
     return s.lower()
 
 #
-# The buffered historical endpoints have a server-stream companion on
+# The buffered market-data endpoints have a server-stream companion on
 # every binding — the `.stream(handler)` core primitive surfaced as a
 # per-binding terminal:
 #
 #   * Python: `fn stream` + `fn stream_async` on each `<Endpoint>Builder`
 #     pyclass (generated into
-#     `thetadatadx-py/src/_generated/historical_methods.rs`).
+#     `thetadatadx-py/src/_generated/market_data_methods.rs`).
 #   * TypeScript: a `<endpoint>Stream` method on the `Client`
 #     napi class (generated into
-#     `thetadatadx-ts/src/_generated/historical_methods.rs`).
+#     `thetadatadx-ts/src/_generated/market_data_methods.rs`).
 #   * C ABI: a `thetadatadx_<endpoint>_stream` extern "C" symbol in `thetadatadx-ffi/src/`.
 #   * C++: an `<endpoint>_stream` member on the `Client` wrapper
 #     (`thetadatadx.hpp` + its `.inc` fragments).
@@ -4037,7 +4037,7 @@ def _endpoint_method_to_snake(name: str) -> str:
 # this dedicated family a binding could ship streaming on some endpoints
 # and silently omit it on others (or on a whole binding) with no checker
 # noticing — the exact gap the cross-binding contract exists to close.
-# Each `[[historical_streaming]]` row pins one endpoint's streaming
+# Each `[[market_data_streaming]]` row pins one endpoint's streaming
 # presence across the four bindings.
 
 
@@ -4082,9 +4082,9 @@ def _collect_typescript_streaming_endpoints(
     exposes a `<endpoint>Stream` method.
 
     The server-stream companions live on the `client.market_data`
-    `MarketDataView` view alongside the buffered historical queries.
+    `MarketDataView` view alongside the buffered market-data queries.
     Reuses the already-collected `{class: {method, ...}}` map. A method
-    whose camelCase name ends in `Stream` is a historical server-stream
+    whose camelCase name ends in `Stream` is a market-data server-stream
     terminal; strip the suffix and lower to snake_case to recover the
     endpoint name. The FPSS lifecycle methods (`startStreaming` /
     `stopStreaming` / `isStreaming`) do NOT end in the bare `Stream`
@@ -4112,7 +4112,7 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
     The `thetadatadx_client_*` / `thetadatadx_streaming_*` callback symbols never match
     the `thetadatadx_<name>_stream` shape (their stems are `client` / `streaming`
     and they end in `set_callback` / `reconnect` / `shutdown`, not
-    `_stream`), so they are not mistaken for a historical endpoint.
+    `_stream`), so they are not mistaken for a market-data endpoint.
     """
     out: set[str] = set()
     if not ffi_src.is_dir():
@@ -4143,7 +4143,7 @@ def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[st
     return out
 
 
-def _check_historical_streaming_rows(
+def _check_market_data_streaming_rows(
     rows: list[dict[str, Any]],
     rust_stream: set[str],
     py_stream: set[str],
@@ -4151,7 +4151,7 @@ def _check_historical_streaming_rows(
     cpp_stream: set[str],
     ffi_stream: set[str],
 ) -> list[str]:
-    """Per-endpoint cross-binding gate for `[[historical_streaming]]` rows.
+    """Per-endpoint cross-binding gate for `[[market_data_streaming]]` rows.
 
     Each row declares a snake_case endpoint `name` plus the expected
     server-stream presence on Rust / Python / TypeScript / C++ / the C ABI.
@@ -4172,7 +4172,7 @@ def _check_historical_streaming_rows(
     for row in rows:
         name = row.get("name")
         if not name:
-            errors.append(f"  [[historical_streaming]] row missing `name`: {row!r}")
+            errors.append(f"  [[market_data_streaming]] row missing `name`: {row!r}")
             continue
         camel = _snake_to_camel(name)
         pascal = camel[:1].upper() + camel[1:] if camel else camel
@@ -4208,21 +4208,21 @@ def _check_historical_streaming_rows(
         )
         errors.append(
             f"  {endpoint}: streams on {on} but has no "
-            f"[[historical_streaming]] row. Add one declaring its "
+            f"[[market_data_streaming]] row. Add one declaring its "
             f"per-binding presence so the surface stays tracked."
         )
     return errors
 
 
-# ─── Historical async query surface ([[historical_async]]) ────────────
+# ─── Market-data async query surface ([[market_data_async]]) ────────────
 #
-# Every buffered historical endpoint carries a non-blocking query
+# Every buffered market-data endpoint carries a non-blocking query
 # companion so callers can run a request off the calling thread without
 # managing their own threads. The shape is per-binding idiom:
 #
-#   * Python: an `<endpoint>_async` method on the historical surface,
+#   * Python: an `<endpoint>_async` method on the market-data surface,
 #     returning an awaitable (generated into
-#     `thetadatadx-py/src/_generated/historical_methods.rs`).
+#     `thetadatadx-py/src/_generated/market_data_methods.rs`).
 #   * TypeScript: the buffered `<endpoint>` method is itself `async` and
 #     returns a `Promise`, so there is no separate `_async` name — the
 #     presence of the buffered endpoint method on `MarketDataView` IS the
@@ -4251,7 +4251,7 @@ def _collect_python_async_endpoints(py_src: pathlib.Path) -> set[str]:
     query returns, so the builder's endpoint name (the CamelCase struct
     stem, lowered to snake_case) is the async-query presence signal. The
     server-stream `stream_async` terminal is a different surface (tracked by
-    the `[[historical_streaming]]` family) and is not matched here.
+    the `[[market_data_streaming]]` family) and is not matched here.
     """
     out: set[str] = set()
     if not py_src.is_dir():
@@ -4325,14 +4325,14 @@ def _collect_cpp_async_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
     return out
 
 
-def _check_historical_async_rows(
+def _check_market_data_async_rows(
     rows: list[dict[str, Any]],
     rust_async: set[str],
     py_async: set[str],
     ts_async: set[str],
     cpp_async: set[str],
 ) -> list[str]:
-    """Per-endpoint cross-binding gate for `[[historical_async]]` rows.
+    """Per-endpoint cross-binding gate for `[[market_data_async]]` rows.
 
     Each row declares a snake_case endpoint `name` plus the expected async
     query presence on Rust / Python / TypeScript / C++. The checker compares
@@ -4355,12 +4355,12 @@ def _check_historical_async_rows(
     for row in rows:
         name = row.get("name")
         if not name:
-            errors.append(f"  [[historical_async]] row missing `name`: {row!r}")
+            errors.append(f"  [[market_data_async]] row missing `name`: {row!r}")
             continue
         camel = _snake_to_camel(name)
         for lang, actual_set, hint in (
             ("rust", rust_async, f"`MarketDataClient::{name}` async query method (registry of record)"),
-            ("python", py_async, f"`fn {name}_async` on the historical surface"),
+            ("python", py_async, f"`fn {name}_async` on the market-data surface"),
             ("typescript", ts_async, f"`{camel}` async (Promise) method on `MarketDataView`"),
             ("cpp", cpp_async, f"`{name}_async(` on the C++ `MarketData` view"),
         ):
@@ -4388,22 +4388,22 @@ def _check_historical_async_rows(
         )
         errors.append(
             f"  {endpoint}: exposes an async query on {on} but has no "
-            f"[[historical_async]] row. Add one declaring its "
+            f"[[market_data_async]] row. Add one declaring its "
             f"per-binding presence so the surface stays tracked."
         )
     return errors
 
 
-# ─── Rust historical surface (registry of record) ────────────────────
+# ─── Rust market-data surface (registry of record) ────────────────────
 #
-# The historical-async / historical-streaming / historical-base families
+# The market-data-async / market-data-streaming / market-data-base families
 # gate the managed bindings (Python / TypeScript / C++) and the C ABI, but
 # the Rust core is the SOURCE OF TRUTH every one of them is generated from:
 # the build pipeline reads `endpoint_surface.toml` and emits the
 # `MarketDataClient::<endpoint>` buffered method, its async / streaming
 # companions, and the `thetadatadx_<endpoint>_with_options` C-ABI base
 # symbol. Without a Rust column + a collector that reads the actual Rust
-# historical surface, a dropped or renamed Rust endpoint reaches none of
+# market-data surface, a dropped or renamed Rust endpoint reaches none of
 # the bindings yet trips no checker — the registry simply has one fewer
 # entry and every downstream surface shrinks in lockstep, silently.
 #
@@ -4411,20 +4411,20 @@ def _check_historical_async_rows(
 # so the gate reads the registry of record directly — `endpoint_surface.toml`
 # — which is the deterministic, no-build source the build pipeline itself
 # consumes. Every `[[endpoints]]` entry generates a `MarketDataClient`
-# method, so the registry IS the Rust historical surface.
+# method, so the registry IS the Rust market-data surface.
 
 
 def _collect_rust_buffered_endpoints(
     surface_toml: pathlib.Path,
 ) -> set[str]:
-    """Snake_case names of every buffered historical endpoint in the
+    """Snake_case names of every buffered market-data endpoint in the
     registry of record.
 
     Parses `endpoint_surface.toml` and returns each `[[endpoints]]` `name`
     that is NOT a `*_stream` entry. The four `*_stream` entries are the
     FPSS real-time subscription endpoints (a distinct surface tracked by
     the streaming-client `[[method]]` rows); the remainder are the buffered
-    historical endpoints (the 61-endpoint base surface). Each generates a
+    market-data endpoints (the 61-endpoint base surface). Each generates a
     `MarketDataClient::<name>` method on the Rust core, so this set is the
     Rust buffered + async query surface (every buffered endpoint carries an
     `.await` collect and the `list_async` / builder-await async twin).
@@ -4478,7 +4478,7 @@ def _endpoint_is_calendar(endpoint: dict[str, Any]) -> bool:
 def _collect_rust_columnar_buffered_endpoints(
     surface_toml: pathlib.Path,
 ) -> set[str]:
-    """Snake_case names of every buffered COLUMNAR historical endpoint.
+    """Snake_case names of every buffered COLUMNAR market-data endpoint.
 
     The buffered set (`_collect_rust_buffered_endpoints`) minus the flat
     `StringList` list endpoints, which carry no column set. Each columnar
@@ -4506,11 +4506,11 @@ def _collect_rust_columnar_buffered_endpoints(
 def _collect_typescript_with_columns_endpoints(
     hist_methods_rs: pathlib.Path,
 ) -> set[str]:
-    """Snake_case endpoint names whose TypeScript historical surface exposes a
+    """Snake_case endpoint names whose TypeScript market-data surface exposes a
     `<endpoint>WithColumns` presence-carrying query variant.
 
     Reads the committed generated napi source
-    (`thetadatadx-ts/src/_generated/historical_methods.rs`) rather than the
+    (`thetadatadx-ts/src/_generated/market_data_methods.rs`) rather than the
     built `index.d.ts`, so the gate holds against the deterministic no-build
     source the napi compile lowers into the `.d.ts` — the same reason the
     streaming / buffered rows read `endpoint_surface.toml`. Each variant carries
@@ -4550,7 +4550,7 @@ def _check_typescript_with_columns_reachability(
             f"WithColumns` TypeScript variant. Without it a live caller cannot "
             f"obtain the response's presentColumns / symbol, so the projected "
             f"Arrow-IPC export is unreachable (the #1072 always-zero-flag frame). "
-            f"Regenerate the TypeScript historical surface."
+            f"Regenerate the TypeScript market-data surface."
         )
     for name in sorted(actual - expected):
         errors.append(
@@ -4640,9 +4640,9 @@ def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
     return out
 
 
-# ─── Historical buffered base surface ([[historical_base]]) ───────────
+# ─── Market-data buffered base surface ([[market_data_base]]) ───────────
 #
-# Every buffered historical endpoint exposes a blocking query terminal on
+# Every buffered market-data endpoint exposes a blocking query terminal on
 # all five surfaces: the Rust `MarketDataClient::<endpoint>` method, the
 # Python `<Endpoint>Builder.list()` collect, the TypeScript buffered
 # `<endpoint>` method (it is itself async-returning, so the buffered and
@@ -4653,7 +4653,7 @@ def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
 # this family the base sync presence was asserted only TRANSITIVELY — via
 # the async / stream companions on the managed bindings — and the 61 C-ABI
 # `_with_options` base functions were checked by NO family at all. A
-# `[[historical_base]]` row pins one endpoint's blocking-query presence
+# `[[market_data_base]]` row pins one endpoint's blocking-query presence
 # across all five surfaces directly.
 
 
@@ -4682,7 +4682,7 @@ def _collect_python_buffered_endpoints(py_src: pathlib.Path) -> set[str]:
     return out
 
 
-def _check_historical_base_rows(
+def _check_market_data_base_rows(
     rows: list[dict[str, Any]],
     rust_buffered: set[str],
     py_buffered: set[str],
@@ -4691,7 +4691,7 @@ def _check_historical_base_rows(
     cabi_base: set[str],
     ffi_base: set[str],
 ) -> list[str]:
-    """Per-endpoint cross-binding gate for `[[historical_base]]` rows.
+    """Per-endpoint cross-binding gate for `[[market_data_base]]` rows.
 
     Each row declares a snake_case endpoint `name` plus the expected
     buffered-query presence on all five surfaces: Rust (the registry-of-
@@ -4716,7 +4716,7 @@ def _check_historical_base_rows(
     for row in rows:
         name = row.get("name")
         if not name:
-            errors.append(f"  [[historical_base]] row missing `name`: {row!r}")
+            errors.append(f"  [[market_data_base]] row missing `name`: {row!r}")
             continue
         for lang, actual_set, hint in (
             ("rust", rust_buffered, f"`MarketDataClient::{name}` buffered method (registry of record)"),
@@ -4754,7 +4754,7 @@ def _check_historical_base_rows(
             if endpoint in s
         )
         errors.append(
-            f"  {endpoint}: present on {on} but has no [[historical_base]] "
+            f"  {endpoint}: present on {on} but has no [[market_data_base]] "
             f"row. Add one declaring its per-surface presence so the "
             f"buffered base surface stays tracked."
         )
@@ -4893,7 +4893,7 @@ def _collect_ffi_from_file_stems(ffi_src: pathlib.Path) -> set[str]:
     """C ABI symbol stems whose `thetadatadx_<stem>_connect_from_file` extern "C"
     symbol exists in `thetadatadx-ffi/src/`.
 
-    Returns the bare stems (`client` / `historical` / `streaming`); the
+    Returns the bare stems (`client` / `market_data` / `streaming`); the
     checker maps each parity class name to its stem via
     `FROM_FILE_FFI_STEMS`.
     """
@@ -5444,7 +5444,7 @@ def _check_dotted_rows(
         # when a single struct has a mix of prefixed / unprefixed
         # binding-side names (e.g. `MarketDataConfig.host` binds as
         # `market_data_host` because the bare `host` name would collide with
-        # nothing meaningful and the `historical_` prefix clarifies intent).
+        # nothing meaningful and the `market_data_` prefix clarifies intent).
         canonical = row.get("setter") or f"{prefix}{suffix}"
 
         rust_only = bool(row.get("rust_only", False))
@@ -5835,7 +5835,7 @@ def _check_value_field_roster(rows: list[dict[str, Any]]) -> list[str]:
 # The `[[method]]` / endpoint / config / utility families each gate one
 # slice of the C ABI by SHAPE. None of them tracks the streaming-batch /
 # borrowed-handle externs (the columnar reader, the flat-file Arrow bridge,
-# the historical sub-handle), and nothing asserts the reverse direction:
+# the market-data sub-handle), and nothing asserts the reverse direction:
 # that EVERY `extern "C"` symbol belongs to some enrolled family. A new
 # C-ABI symbol could ship — breaking the ABI contract the C++ wrappers and
 # external FFI consumers depend on — with no row anywhere. Two checks close
@@ -5945,7 +5945,7 @@ _FFI_CONFIG_MISC: frozenset[str] = frozenset(
     {"config_dev", "config_stage", "config_production", "config_from_dotenv"}
 )
 
-# Client / streaming / historical construction symbols (the `[[connect]]` /
+# Client / streaming / market-data construction symbols (the `[[connect]]` /
 # `[[from_file]]` families).
 _FFI_CONNECT_SYMBOLS: frozenset[str] = frozenset(
     f"{stem}_{suf}"
@@ -7323,7 +7323,7 @@ def _sig_pyi_public_member_missing(
     member that belongs on a fully-enumerated stub class was dropped.
 
     False when the class is absent from the stub (a generator-emitted class the
-    stub deliberately omits — the 100+ historical builders / `<Tick>List`
+    stub deliberately omits — the 100+ market-data builders / `<Tick>List`
     wrappers reached via the module-level `__getattr__ -> Any`), OR when the
     class carries its own `__getattr__` fallback (`AsyncClient`,
     `MarketDataClient`, `StreamingSession` route extras to `Any`). In both
@@ -7987,13 +7987,13 @@ def main(argv: list[str] | None = None) -> int:
     method_rows: list[dict[str, Any]] = data.get("method", [])
     value_field_rows: list[dict[str, Any]] = data.get("value_field", [])
     utility_rows: list[dict[str, Any]] = data.get("utility", [])
-    historical_streaming_rows: list[dict[str, Any]] = data.get(
-        "historical_streaming", []
+    market_data_streaming_rows: list[dict[str, Any]] = data.get(
+        "market_data_streaming", []
     )
-    historical_async_rows: list[dict[str, Any]] = data.get(
-        "historical_async", []
+    market_data_async_rows: list[dict[str, Any]] = data.get(
+        "market_data_async", []
     )
-    historical_base_rows: list[dict[str, Any]] = data.get("historical_base", [])
+    market_data_base_rows: list[dict[str, Any]] = data.get("market_data_base", [])
     from_file_rows: list[dict[str, Any]] = data.get("from_file", [])
     connect_rows: list[dict[str, Any]] = data.get("connect", [])
     ffi_symbol_rows: list[dict[str, Any]] = data.get("ffi_symbol", [])
@@ -8124,14 +8124,14 @@ def main(argv: list[str] | None = None) -> int:
         utility_rows, py_utils, ts_utils
     )
 
-    # Historical server-stream surface ([[historical_streaming]] rows) —
+    # Market-data server-stream surface ([[market_data_streaming]] rows) —
     # the `.stream(handler)` / `<endpoint>Stream` / `thetadatadx_<endpoint>_stream`
     # terminal per endpoint. These live on per-endpoint builders or as
     # endpoint-named methods, NOT on a class the `[[method]]` rows cover,
     # so they would otherwise drift silently across bindings.
-    # The Rust historical surface is the registry of record
+    # The Rust market-data surface is the registry of record
     # (`endpoint_surface.toml`): the build pipeline generates every binding's
-    # historical method from it, so a dropped / renamed Rust endpoint must
+    # market-data method from it, so a dropped / renamed Rust endpoint must
     # trip the gate. The buffered set is the async + base surface; the
     # streamable subset (mirroring the build's `endpoint_streams` SSOT) is
     # the streaming surface.
@@ -8142,8 +8142,8 @@ def main(argv: list[str] | None = None) -> int:
     ts_stream = _collect_typescript_streaming_endpoints(ts_class_methods)
     cpp_stream = _collect_cpp_streaming_endpoints(cpp_class_methods)
     ffi_stream = _collect_ffi_streaming_endpoints(FFI_SRC)
-    historical_streaming_errors = _check_historical_streaming_rows(
-        historical_streaming_rows,
+    market_data_streaming_errors = _check_market_data_streaming_rows(
+        market_data_streaming_rows,
         rust_stream,
         py_stream,
         ts_stream,
@@ -8151,7 +8151,7 @@ def main(argv: list[str] | None = None) -> int:
         ffi_stream,
     )
 
-    # Historical async query surface ([[historical_async]] rows) — the
+    # Market-data async query surface ([[market_data_async]] rows) — the
     # non-blocking `<endpoint>_async` / Promise companion per endpoint.
     # Python / C++ name an `<endpoint>_async` method; TypeScript's buffered
     # method is itself async (Promise). No C ABI row: the async surface is
@@ -8159,8 +8159,8 @@ def main(argv: list[str] | None = None) -> int:
     py_async = _collect_python_async_endpoints(PY_SRC)
     ts_async = _collect_typescript_async_endpoints(ts_class_methods)
     cpp_async = _collect_cpp_async_endpoints(cpp_class_methods)
-    historical_async_errors = _check_historical_async_rows(
-        historical_async_rows, rust_buffered, py_async, ts_async, cpp_async
+    market_data_async_errors = _check_market_data_async_rows(
+        market_data_async_rows, rust_buffered, py_async, ts_async, cpp_async
     )
 
     # TypeScript projected-Arrow reachability — every buffered columnar endpoint
@@ -8180,11 +8180,11 @@ def main(argv: list[str] | None = None) -> int:
         rust_columnar_buffered, ts_with_columns
     )
 
-    # Historical buffered base surface ([[historical_base]] rows) — the
+    # Market-data buffered base surface ([[market_data_base]] rows) — the
     # blocking query terminal per endpoint on ALL FIVE surfaces: the Rust
     # `MarketDataClient::<endpoint>` method (registry of record), the Python
     # `<Endpoint>Builder.list()` collect, the buffered TypeScript method, the
-    # C++ `Historical::<endpoint>` member, and the C-ABI
+    # C++ `MarketData::<endpoint>` member, and the C-ABI
     # `thetadatadx_<endpoint>_with_options` base symbol read from the SHIPPED
     # header. This is the core "every endpoint exists everywhere" guarantee,
     # previously only implicit via the async / stream companions and unchecked
@@ -8194,8 +8194,8 @@ def main(argv: list[str] | None = None) -> int:
     cpp_buffered = cpp_class_methods.get(_cpp_class_for("MarketDataView"), set())
     cabi_base = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
     ffi_base = _collect_ffi_base_endpoints(FFI_SRC)
-    historical_base_errors = _check_historical_base_rows(
-        historical_base_rows,
+    market_data_base_errors = _check_market_data_base_rows(
+        market_data_base_rows,
         rust_buffered,
         py_buffered,
         ts_buffered,
@@ -8492,36 +8492,36 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
-    if historical_streaming_errors:
+    if market_data_streaming_errors:
         had_errors = True
         print(
-            f"check_binding_parity: {len(historical_streaming_errors)} "
-            f"historical-streaming mismatch(es) (per-endpoint "
-            f"`[[historical_streaming]]` granularity):"
+            f"check_binding_parity: {len(market_data_streaming_errors)} "
+            f"market-data-streaming mismatch(es) (per-endpoint "
+            f"`[[market_data_streaming]]` granularity):"
         )
-        for e in historical_streaming_errors:
+        for e in market_data_streaming_errors:
             print(e)
         print()
 
-    if historical_async_errors:
+    if market_data_async_errors:
         had_errors = True
         print(
-            f"check_binding_parity: {len(historical_async_errors)} "
-            f"historical-async mismatch(es) (per-endpoint "
-            f"`[[historical_async]]` granularity):"
+            f"check_binding_parity: {len(market_data_async_errors)} "
+            f"market-data-async mismatch(es) (per-endpoint "
+            f"`[[market_data_async]]` granularity):"
         )
-        for e in historical_async_errors:
+        for e in market_data_async_errors:
             print(e)
         print()
 
-    if historical_base_errors:
+    if market_data_base_errors:
         had_errors = True
         print(
-            f"check_binding_parity: {len(historical_base_errors)} "
-            f"historical-base mismatch(es) (per-endpoint "
-            f"`[[historical_base]]` granularity):"
+            f"check_binding_parity: {len(market_data_base_errors)} "
+            f"market-data-base mismatch(es) (per-endpoint "
+            f"`[[market_data_base]]` granularity):"
         )
-        for e in historical_base_errors:
+        for e in market_data_base_errors:
             print(e)
         print()
 
@@ -8695,9 +8695,9 @@ def main(argv: list[str] | None = None) -> int:
     n_method_sigs = sum(1 for r in method_rows if r.get("signature"))
     n_value_fields = len(value_field_rows)
     n_utilities = len(utility_rows)
-    n_hist_stream = len(historical_streaming_rows)
-    n_hist_async = len(historical_async_rows)
-    n_hist_base = len(historical_base_rows)
+    n_hist_stream = len(market_data_streaming_rows)
+    n_hist_async = len(market_data_async_rows)
+    n_hist_base = len(market_data_base_rows)
     n_from_file = len(from_file_rows)
     n_connect = len(connect_rows)
     n_ffi_symbol = len(ffi_symbol_rows)
@@ -8707,9 +8707,9 @@ def main(argv: list[str] | None = None) -> int:
         f"{n_methods} method rows ({n_method_sigs} signature-pinned) + "
         f"{n_value_fields} value-field rows + "
         f"{n_utilities} utility rows + "
-        f"{n_hist_stream} historical-streaming rows + "
-        f"{n_hist_async} historical-async rows + "
-        f"{n_hist_base} historical-base rows + "
+        f"{n_hist_stream} market-data-streaming rows + "
+        f"{n_hist_async} market-data-async rows + "
+        f"{n_hist_base} market-data-base rows + "
         f"{n_from_file} from-file rows + "
         f"{n_connect} connect rows + "
         f"{n_ffi_symbol} ffi-symbol rows + "
@@ -9334,7 +9334,7 @@ def _run_selftest() -> int:
     _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)
 
     def _case_client_reverse_orphan_generalized_trips() -> None:
-        """A NEW Client helper (not one of the historical view accessors)
+        """A NEW Client helper (not one of the market-data view accessors)
         present on Python + TypeScript but carrying no `[[method]]` row trips
         the generalized reverse-orphan scan."""
         rows: list[dict[str, Any]] = []  # no Client rows at all
@@ -10968,7 +10968,7 @@ def _run_selftest() -> int:
     _case("utility — TS collector skips impl methods", _case_utility_ts_free_fn_collector_skips_methods)
     _case("utility — FFI collector strips thetadatadx_ prefix", _case_utility_ffi_collector_strips_prefix)
 
-    # ── Historical server-stream surface selftests ────────────────
+    # ── Market-data server-stream surface selftests ────────────────
 
     def _case_hist_stream_positive_all_bound() -> None:
         """An endpoint streaming on every declared surface is silent."""
@@ -10983,7 +10983,7 @@ def _run_selftest() -> int:
             }
         ]
         s = {"option_history_trade"}
-        errors = _check_historical_streaming_rows(rows, s, s, s, s, s)
+        errors = _check_market_data_streaming_rows(rows, s, s, s, s, s)
         assert errors == [], f"all-bound row must be silent; got {errors!r}"
 
     def _case_hist_stream_missing_on_cpp_trips() -> None:
@@ -10999,7 +10999,7 @@ def _run_selftest() -> int:
             }
         ]
         bound = {"option_history_trade"}
-        errors = _check_historical_streaming_rows(
+        errors = _check_market_data_streaming_rows(
             rows, bound, bound, bound, set(), bound
         )
         assert any("cpp" in e and "missing" in e for e in errors), (
@@ -11023,7 +11023,7 @@ def _run_selftest() -> int:
         bound = {"option_history_trade"}
         # Rust set is empty — the endpoint vanished from the registry of
         # record while the bindings still declare it.
-        errors = _check_historical_streaming_rows(
+        errors = _check_market_data_streaming_rows(
             rows, set(), bound, bound, bound, bound
         )
         assert any("rust" in e and "missing" in e for e in errors), (
@@ -11047,7 +11047,7 @@ def _run_selftest() -> int:
             }
         ]
         bound = {"option_list_contracts"}
-        errors = _check_historical_streaming_rows(
+        errors = _check_market_data_streaming_rows(
             rows, bound, bound, bound, set(), set()
         )
         assert errors == [], f"managed-only state must be silent; got {errors!r}"
@@ -11056,11 +11056,11 @@ def _run_selftest() -> int:
         """An endpoint streaming on a surface with no row at all trips
         the reverse-direction orphan check.
         """
-        errors = _check_historical_streaming_rows(
+        errors = _check_market_data_streaming_rows(
             [], {"option_history_trade"}, set(), set(), set(), set()
         )
         assert any(
-            "option_history_trade" in e and "no [[historical_streaming]] row" in e
+            "option_history_trade" in e and "no [[market_data_streaming]] row" in e
             for e in errors
         ), f"untracked streaming endpoint must trip; got {errors!r}"
 
@@ -11100,7 +11100,7 @@ def _run_selftest() -> int:
     _case("hist-stream — Rust mirror equals generated Python stream surface", _case_hist_stream_rust_mirrors_generated)
     _case("hist-stream — initialism-aware inverse agrees across bindings", _case_hist_stream_initialism_inverse)
 
-    # ── Historical async query surface selftests ──────────────────
+    # ── Market-data async query surface selftests ──────────────────
 
     def _case_hist_async_positive_all_bound() -> None:
         """An endpoint with an async query on every declared surface is
@@ -11115,7 +11115,7 @@ def _run_selftest() -> int:
             }
         ]
         s = {"stock_history_eod"}
-        errors = _check_historical_async_rows(rows, s, s, s, s)
+        errors = _check_market_data_async_rows(rows, s, s, s, s)
         assert errors == [], f"all-bound async row must be silent; got {errors!r}"
 
     def _case_hist_async_missing_on_cpp_trips() -> None:
@@ -11131,7 +11131,7 @@ def _run_selftest() -> int:
             }
         ]
         bound = {"stock_history_eod"}
-        errors = _check_historical_async_rows(rows, bound, bound, bound, set())
+        errors = _check_market_data_async_rows(rows, bound, bound, bound, set())
         assert any("cpp" in e and "missing" in e for e in errors), (
             f"missing C++ async member must trip; got {errors!r}"
         )
@@ -11150,7 +11150,7 @@ def _run_selftest() -> int:
             }
         ]
         bound = {"stock_history_eod"}
-        errors = _check_historical_async_rows(rows, set(), bound, bound, bound)
+        errors = _check_market_data_async_rows(rows, set(), bound, bound, bound)
         assert any("rust" in e and "missing" in e for e in errors), (
             f"a dropped Rust async endpoint must trip; got {errors!r}"
         )
@@ -11158,11 +11158,11 @@ def _run_selftest() -> int:
     def _case_hist_async_untracked_orphan_trips() -> None:
         """An endpoint with an async query on a surface but no row at all
         trips the reverse-direction orphan check."""
-        errors = _check_historical_async_rows(
+        errors = _check_market_data_async_rows(
             [], {"stock_history_eod"}, set(), set(), set()
         )
         assert any(
-            "stock_history_eod" in e and "no [[historical_async]] row" in e
+            "stock_history_eod" in e and "no [[market_data_async]] row" in e
             for e in errors
         ), f"untracked async endpoint must trip; got {errors!r}"
 
@@ -11184,7 +11184,7 @@ def _run_selftest() -> int:
     _case("hist-async negative — untracked async endpoint trips", _case_hist_async_untracked_orphan_trips)
     _case("hist-async — C++ collector strips `_async` suffix", _case_hist_async_cpp_collector_strips_suffix)
 
-    # ── Historical buffered base surface selftests ────────────────
+    # ── Market-data buffered base surface selftests ────────────────
 
     def _case_hist_base_positive_all_five() -> None:
         """An endpoint present on all five surfaces is silent."""
@@ -11199,7 +11199,7 @@ def _run_selftest() -> int:
             }
         ]
         s = {"stock_history_eod"}
-        errors = _check_historical_base_rows(rows, s, s, s, s, s, s)
+        errors = _check_market_data_base_rows(rows, s, s, s, s, s, s)
         assert errors == [], f"all-five-surface base row must be silent; got {errors!r}"
 
     def _case_hist_base_missing_on_cabi_trips() -> None:
@@ -11219,7 +11219,7 @@ def _run_selftest() -> int:
         s = {"stock_history_eod"}
         # `cabi_base` AND `ffi_base` empty — the `_with_options` base symbol
         # is gone everywhere on the C side.
-        errors = _check_historical_base_rows(rows, s, s, s, s, set(), set())
+        errors = _check_market_data_base_rows(rows, s, s, s, s, set(), set())
         assert any("ffi" in e and "missing" in e for e in errors), (
             f"missing C-ABI base symbol must trip; got {errors!r}"
         )
@@ -11239,7 +11239,7 @@ def _run_selftest() -> int:
             }
         ]
         s = {"stock_history_eod"}
-        errors = _check_historical_base_rows(rows, set(), s, s, s, s, s)
+        errors = _check_market_data_base_rows(rows, set(), s, s, s, s, s)
         assert any("rust" in e and "missing" in e for e in errors), (
             f"a dropped Rust buffered endpoint must trip; got {errors!r}"
         )
@@ -11262,7 +11262,7 @@ def _run_selftest() -> int:
         # Header is missing `option_history_eod` that the source defines.
         cabi = {"stock_history_eod"}
         ffi = {"stock_history_eod", "option_history_eod"}
-        errors = _check_historical_base_rows(rows, s, s, s, s, cabi, ffi)
+        errors = _check_market_data_base_rows(rows, s, s, s, s, cabi, ffi)
         assert any(
             "option_history_eod" in e and "stale header" in e for e in errors
         ), f"a header/source divergence must trip; got {errors!r}"
@@ -11270,11 +11270,11 @@ def _run_selftest() -> int:
     def _case_hist_base_untracked_orphan_trips() -> None:
         """An endpoint present on a surface but with no row at all trips the
         reverse-direction orphan scan."""
-        errors = _check_historical_base_rows(
+        errors = _check_market_data_base_rows(
             [], {"stock_history_eod"}, set(), set(), set(), set(), set()
         )
         assert any(
-            "stock_history_eod" in e and "no [[historical_base]] row" in e
+            "stock_history_eod" in e and "no [[market_data_base]] row" in e
             for e in errors
         ), f"untracked base endpoint must trip; got {errors!r}"
 
@@ -11284,11 +11284,11 @@ def _run_selftest() -> int:
         TypeScript / C++ / the C-ABI base, and the shipped header agrees with
         the `thetadatadx-ffi/src` source and the Rust registry."""
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
-        rows = data.get("historical_base", [])
-        assert rows, "live parity.toml must declare [[historical_base]] rows"
+        rows = data.get("market_data_base", [])
+        assert rows, "live parity.toml must declare [[market_data_base]] rows"
         ts_methods = _collect_typescript_class_methods(TS_SRC)
         cpp_methods = _collect_cpp_class_methods(CPP_HPP)
-        errors = _check_historical_base_rows(
+        errors = _check_market_data_base_rows(
             rows,
             _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML),
             _collect_python_buffered_endpoints(PY_SRC),
@@ -12116,7 +12116,7 @@ def _run_selftest() -> int:
     # The `.rs` / `.hpp` / `.h` / `.inc` collectors strip C-style
     # comments before their symbol regexes run, so a symbol that survives
     # only inside a comment (a deleted-but-not-removed declaration like
-    # `// removed: historical()`) no longer reads as present. Without the
+    # `// removed: market_data()`) no longer reads as present. Without the
     # strip, a `DOTALL` collector regex spans the comment markers and a
     # ghost symbol passes — masking real cross-binding drift.
 
@@ -12126,7 +12126,7 @@ def _run_selftest() -> int:
             "pub fn live() {}\n"
             "// pub fn ghost_line() {}\n"
             "/* pub fn ghost_block() {} */\n"
-            "/// removed: historical()\n"
+            "/// removed: market_data()\n"
         )
         with tempfile.TemporaryDirectory() as td:
             p = pathlib.Path(td) / "x.rs"

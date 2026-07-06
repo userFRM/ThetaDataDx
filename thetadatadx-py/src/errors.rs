@@ -528,7 +528,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let invalid_value = to_py_err(thetadatadx::Error::config_invalid(
-                "historical.uri",
+                "market_data.uri",
                 "invalid URI",
             ));
             assert_exception_class(py, &invalid_value, "InvalidParameterError");

@@ -166,7 +166,7 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: ffi::render_c_endpoint_request_options(&builder_params),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/include/historical_stream.h.inc",
+            relative_path: "thetadatadx-cpp/include/market_data_stream.h.inc",
             contents: ffi::render_c_stream_decls(&parsed.endpoints),
         },
         GeneratedSourceFile {
@@ -174,11 +174,11 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: cpp::render_cpp_options(&builder_params),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/include/historical.hpp.inc",
-            contents: cpp::render_cpp_historical_decls(&parsed.endpoints),
+            relative_path: "thetadatadx-cpp/include/market_data.hpp.inc",
+            contents: cpp::render_cpp_market_data_decls(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/include/historical_stream.hpp.inc",
+            relative_path: "thetadatadx-cpp/include/market_data_stream.hpp.inc",
             contents: cpp::render_cpp_stream_decls(&parsed.endpoints),
         },
         GeneratedSourceFile {
@@ -186,24 +186,24 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: cpp::render_c_endpoint_with_options_decls(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/src/historical.cpp.inc",
-            contents: cpp::render_cpp_historical_defs(&parsed.endpoints),
+            relative_path: "thetadatadx-cpp/src/market_data.cpp.inc",
+            contents: cpp::render_cpp_market_data_defs(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/src/historical_stream.cpp.inc",
+            relative_path: "thetadatadx-cpp/src/market_data_stream.cpp.inc",
             contents: cpp::render_cpp_stream_defs(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-py/src/_generated/historical_methods.rs",
-            contents: python::render_python_historical_methods(&parsed.endpoints),
+            relative_path: "thetadatadx-py/src/_generated/market_data_methods.rs",
+            contents: python::render_python_market_data_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-py/src/_generated/decode_bench.rs",
             contents: python::render_python_decode_bench(&parsed.endpoints),
         },
         GeneratedSourceFile {
-            relative_path: "thetadatadx-ts/src/_generated/historical_methods.rs",
-            contents: typescript::render_typescript_historical_methods(&parsed.endpoints),
+            relative_path: "thetadatadx-ts/src/_generated/market_data_methods.rs",
+            contents: typescript::render_typescript_market_data_methods(&parsed.endpoints),
         },
         GeneratedSourceFile {
             relative_path: "scripts/ci/check_python.py",
@@ -226,6 +226,6 @@ fn render_spliced_files() -> Result<Vec<SplicedSourceFile>, Box<dyn std::error::
         relative_path: "thetadatadx-py/python/thetadatadx/__init__.pyi",
         begin_marker: python_stub::STUB_BEGIN_MARKER,
         end_marker: python_stub::STUB_END_MARKER,
-        region: python_stub::render_python_historical_view_stub(&parsed.endpoints),
+        region: python_stub::render_python_market_data_view_stub(&parsed.endpoints),
     }])
 }

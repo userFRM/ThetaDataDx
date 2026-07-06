@@ -50,7 +50,7 @@ describe('endpoint options objects', () => {
   });
 });
 
-describe('historical methods resolve off the execution thread', () => {
+describe('market-data methods resolve off the execution thread', () => {
   // The 60 buffered data-fetch methods declared on the `client.marketData`
   // `MarketDataView` sub-namespace. Each runs the network round-trip on a
   // worker and resolves a Promise with the full typed row array, so a
@@ -60,11 +60,11 @@ describe('historical methods resolve off the execution thread', () => {
   // Pulled from the `MarketDataView` interface block so streaming
   // lifecycle declarations on `StreamView` (awaitDrain etc.) cannot dilute
   // the assertion.
-  const historicalBlock = dts.match(
+  const marketDataBlock = dts.match(
     /export declare class MarketDataView \{[\s\S]*?\n\}/
   );
-  assert.ok(historicalBlock, 'MarketDataView class missing from index.d.ts');
-  const body = historicalBlock[0];
+  assert.ok(marketDataBlock, 'MarketDataView class missing from index.d.ts');
+  const body = marketDataBlock[0];
 
   // The streaming lifecycle lives on the `client.stream` `StreamView`
   // sub-namespace.

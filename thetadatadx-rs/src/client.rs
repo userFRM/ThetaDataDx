@@ -15,7 +15,7 @@
 //!         DirectConfig::production(),
 //!     ).await?;
 //!
-//!     // Historical -- works immediately, via the `historical` surface
+//!     // Market-data -- works immediately, via the `market-data` surface
 //!     let eod = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //!     // Streaming -- connects lazily on first subscribe, via `stream`
@@ -1383,7 +1383,7 @@ impl Client {
     /// session's drain flag into the internal slot, even if the flag
     /// has not yet flipped. Returns `false` on a fresh handle that has
     /// never started streaming, or on a unified handle that has only
-    /// served historical endpoints.
+    /// served market-data endpoints.
     ///
     /// FFI free paths use this to disambiguate the two `false` returns
     /// from `await_drain` (timeout vs. nothing-to-wait-on); only the
@@ -1594,7 +1594,7 @@ impl Client {
         self.with_streaming(|s| Ok(s.active_full_subscriptions()))
     }
 
-    /// Shut down the streaming connection. Historical remains available.
+    /// Shut down the streaming connection. Market-data remains available.
     ///
     /// Idempotent: calling on an `Idle` or `Stopped` slot is a no-op,
     /// repeated calls during the drain race are safe (only the first
@@ -2505,7 +2505,7 @@ impl StreamSurface<'_> {
         self.0.active_full_subscriptions()
     }
 
-    /// Shut down the streaming connection. Historical remains available.
+    /// Shut down the streaming connection. Market-data remains available.
     ///
     /// Idempotent. Returns once the slot has swapped to stopped and the
     /// shutdown signal is raised; pair with [`Self::await_drain`] for
@@ -3174,7 +3174,7 @@ mod tests {
     /// never-started (and already-stopped) streaming state: the slot walks to
     /// `Stopped`, stays there, and each call bumps the stop generation without
     /// panicking or blocking. This is the base-client `close()` contract —
-    /// calling it twice, or on a client that only ran historical queries, is a
+    /// calling it twice, or on a client that only ran market-data queries, is a
     /// no-op teardown.
     #[test]
     fn quiesce_is_idempotent_on_a_never_started_state() {

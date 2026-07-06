@@ -206,7 +206,7 @@
         return out;
     }
 
-    /// Initial backoff delay (ms) for the historical retry policy. Default 250.
+    /// Initial backoff delay (ms) for the market-data retry policy. Default 250.
     void set_retry_initial_delay_ms(std::uint64_t ms) {
         thetadatadx_config_set_retry_initial_delay_ms(handle_.get(), ms);
     }
@@ -342,7 +342,7 @@
         return out;
     }
 
-    /// Set the default per-request deadline (seconds) for historical queries.
+    /// Set the default per-request deadline (seconds) for market-data queries.
     ///
     /// Bounds every request that did not set its own deadline, so a
     /// live-but-silent stream resolves to a timeout instead of blocking
@@ -352,7 +352,7 @@
         thetadatadx_config_set_request_timeout_secs(handle_.get(), secs);
     }
 
-    /// Read the current historical `request_timeout_secs` setting.
+    /// Read the current market-data `request_timeout_secs` setting.
     ///
     /// Returns the configured seconds (a stored `0` is floored to the
     /// `300`-second default at request time), or `0` on a null handle

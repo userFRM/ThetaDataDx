@@ -23,7 +23,7 @@ def _write_dotenv(tmp_path, name: str, body: str) -> str:
 def test_from_dotenv_stage_selects_staging_host(tmp_path):
     path = _write_dotenv(tmp_path, "stage.env", "# select staging\nTHETADATA_MARKET_DATA_TYPE=STAGE\n")
     cfg = client.Config.from_dotenv(path)
-    # A staging `.env` resolves to the staging historical host, distinct
+    # A staging `.env` resolves to the staging market-data host, distinct
     # from the production host a prod `.env` yields.
     assert cfg.market_data_host == "mdds-stage.thetadata.us"
 

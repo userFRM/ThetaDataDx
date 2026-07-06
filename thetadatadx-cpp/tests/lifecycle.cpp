@@ -115,7 +115,7 @@ TEST_CASE("Config::from_dotenv selects the staging environment from a .env file"
     }
     auto config = thetadatadx::Config::from_dotenv(path);
     REQUIRE(config.get() != nullptr);
-    // A staging `.env` resolves to the staging historical host, distinct
+    // A staging `.env` resolves to the staging market-data host, distinct
     // from the production host a prod `.env` (or no selector) yields.
     REQUIRE(config.get_market_data_host() == "mdds-stage.thetadata.us");
     std::remove(path.c_str());
@@ -177,10 +177,10 @@ TEST_CASE("Config consumer_cpu round-trip", "[lifecycle][offline]") {
 // cross-binding lifecycle surface is enforced without a live connection.
 TEST_CASE("base clients expose a deterministic close()", "[lifecycle][offline]") {
     void (thetadatadx::Client::*unified_close)() = &thetadatadx::Client::close;
-    void (thetadatadx::MarketDataClient::*historical_close)() =
+    void (thetadatadx::MarketDataClient::*market_data_close)() =
         &thetadatadx::MarketDataClient::close;
     REQUIRE(unified_close != nullptr);
-    REQUIRE(historical_close != nullptr);
+    REQUIRE(market_data_close != nullptr);
 }
 
 TEST_CASE("MarketDataClient::connect succeeds against the production server", "[lifecycle][live]") {
@@ -207,11 +207,11 @@ TEST_CASE("close() is idempotent and safe before destruction", "[lifecycle][live
     REQUIRE_NOTHROW(client.close());
     REQUIRE_NOTHROW(client.close());
 
-    // Historical-only client: same idempotent-close contract, no streaming to
+    // Market-data-only client: same idempotent-close contract, no streaming to
     // drain.
-    auto historical = thetadatadx::MarketDataClient::connect(creds, config);
-    REQUIRE_NOTHROW(historical.close());
-    REQUIRE_NOTHROW(historical.close());
+    auto market_data = thetadatadx::MarketDataClient::connect(creds, config);
+    REQUIRE_NOTHROW(market_data.close());
+    REQUIRE_NOTHROW(market_data.close());
 }
 
 TEST_CASE("close() releases the handle deterministically", "[lifecycle][live]") {
@@ -225,7 +225,7 @@ TEST_CASE("close() releases the handle deterministically", "[lifecycle][live]") 
     // Cross-binding parity anchor (the Python / TypeScript bindings match this):
     // close() RELEASES the client handle, so the client is unusable afterward.
     // The public raw-handle accessor going null is the deterministic-release
-    // proof — the historical gRPC channel pool is freed at close, not at some
+    // proof — the market-data gRPC channel pool is freed at close, not at some
     // later GC. `MarketDataClient` releases through the same `handle_.reset()`
     // path (its handle accessor is private, so the idempotent-close case above
     // is its observable pin).

@@ -47,7 +47,7 @@
 ///
 /// A configured default of `0` does NOT disable the fallback: it is floored to
 /// the production default here — the single
-/// point every historical request routes through — so the gRPC hang guard
+/// point every market-data request routes through — so the gRPC hang guard
 /// holds regardless of whether [`crate::config::DirectConfig::validate`] ran
 /// on the config (the connect paths and the SDK bindings pass unvalidated
 /// snapshots). The only way to run a request with no deadline is the explicit
@@ -1570,7 +1570,7 @@ mod classify_error_tests {
     #[test]
     fn non_grpc_errors_are_terminal() {
         assert_eq!(
-            classify_error(&Error::config_invalid("historical.endpoint", "bad config")),
+            classify_error(&Error::config_invalid("market-data.endpoint", "bad config")),
             StatusClass::Terminal
         );
         assert_eq!(
@@ -1690,7 +1690,7 @@ mod effective_deadline_tests {
     }
 
     /// The production default seeds a positive per-request deadline, so
-    /// the historical request path is bounded out of the box.
+    /// the market-data request path is bounded out of the box.
     #[test]
     fn production_default_is_positive() {
         let cfg = crate::config::MarketDataConfig::production_defaults();

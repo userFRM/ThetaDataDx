@@ -673,7 +673,7 @@ abi_type = "u64"
 path = "retry.max_elapsed"
 duration_unit = "secs"
 doc = """
-Set the wall-clock envelope (seconds) for one historical-channel
+Set the wall-clock envelope (seconds) for one market-data-channel
 retry sequence, measured from the first attempt. `0` disables the
 envelope (attempt budget only). Default `300`.
 """
@@ -776,12 +776,12 @@ abi_type = "u64"
 path = "retry.initial_delay"
 duration_unit = "ms"
 doc = """
-Set the initial backoff delay (ms) for the historical retry policy.
+Set the initial backoff delay (ms) for the market-data retry policy.
 Default `250`. Subsequent retries double from here, capped at
 `thetadatadx_config_set_retry_max_delay_ms`.
 """
 cpp_doc = """
-Initial backoff delay (ms) for the historical retry policy. Default 250.
+Initial backoff delay (ms) for the market-data retry policy. Default 250.
 """
 py_doc = """
 Set the initial backoff delay (ms) for the market-data-channel retry policy.
@@ -804,7 +804,7 @@ abi_type = "u64"
 path = "retry.max_delay"
 duration_unit = "ms"
 doc = """
-Set the upper-bound backoff delay (ms) for the historical retry policy.
+Set the upper-bound backoff delay (ms) for the market-data retry policy.
 Default `30_000` (30 s). The exponential schedule never exceeds
 this value regardless of attempt number.
 """
@@ -816,7 +816,7 @@ Set the upper-bound backoff delay (ms) for the
 market-data-channel retry policy. Default ``30_000`` (30 s).
 """
 ts_doc = """
-Set the upper-bound backoff delay (ms) for the historical retry
+Set the upper-bound backoff delay (ms) for the market-data retry
 policy. Default `30_000n` (30 s).
 """
 py_param = "ms"
@@ -829,7 +829,7 @@ param = "n"
 abi_type = "u32"
 path = "retry.max_attempts"
 doc = """
-Set the total attempt budget for the historical retry policy. `1`
+Set the total attempt budget for the market-data retry policy. `1`
 disables retry (single call only); higher values permit
 retries up to `max_attempts - 1` after the initial call. Default
 `20`.
@@ -877,7 +877,7 @@ param = "jitter"
 abi_type = "bool"
 path = "retry.jitter"
 doc = """
-Toggle AWS-style full-jitter on the historical retry policy. Default
+Toggle AWS-style full-jitter on the market-data retry policy. Default
 `true`. With `jitter=false` the backoff schedule is deterministic
 (`min(max_delay, initial * 2^attempt)`), which is useful for tests
 that need to assert exact timings.
@@ -1348,7 +1348,7 @@ param = "secs"
 abi_type = "u64"
 path = "market_data.request_timeout_secs"
 doc = """
-Set the default per-request deadline (seconds) for historical queries
+Set the default per-request deadline (seconds) for market-data queries
 on a config handle.
 
 Bounds every request that did not call `with_deadline(...)`, so a
@@ -1360,7 +1360,7 @@ Reach for the per-call `with_deadline(...)` opt-out to run a single
 request with no deadline. Default `300`.
 """
 cpp_doc = """
-Set the default per-request deadline (seconds) for historical queries.
+Set the default per-request deadline (seconds) for market-data queries.
 
 Bounds every request that did not set its own deadline, so a
 live-but-silent stream resolves to a timeout instead of blocking
@@ -1368,7 +1368,7 @@ forever. @p secs = 0 no longer disables the default; it is floored to
 the `300`-second default at request time. Default is `300`.
 """
 py_doc = """
-Set the default per-request deadline (in seconds) for historical
+Set the default per-request deadline (in seconds) for market-data
 queries. Bounds every request that did not call
 ``with_deadline(...)``, so a live-but-silent stream resolves to a
 timeout instead of blocking forever. ``0`` no longer disables the
@@ -1381,7 +1381,7 @@ Examples
     cfg.request_timeout_secs = 120
 """
 ts_doc = """
-Set the default per-request deadline (seconds) for historical
+Set the default per-request deadline (seconds) for market-data
 queries. Bounds every request that did not set its own deadline,
 so a live-but-silent stream resolves to a timeout instead of
 blocking forever. `0n` no longer disables the default; it is floored
@@ -1399,7 +1399,7 @@ param = "out"
 abi_type = "u64"
 path = "market_data.request_timeout_secs"
 doc = """
-Read the current historical `request_timeout_secs` setting (default
+Read the current market-data `request_timeout_secs` setting (default
 `300`). A stored `0` is floored to the `300`-second default at request
 time rather than disabling the deadline.
 
@@ -1407,19 +1407,19 @@ Writes the configured value into `*out`. Returns `0` on success,
 `-1` if either pointer is null.
 """
 cpp_doc = """
-Read the current historical `request_timeout_secs` setting.
+Read the current market-data `request_timeout_secs` setting.
 
 Returns the configured seconds (a stored `0` is floored to the
 `300`-second default at request time), or `0` on a null handle
 (matching the C ABI's `-1` failure mapping at the boundary).
 """
 py_doc = """
-Current historical ``request_timeout_secs`` setting. A stored ``0``
+Current market-data ``request_timeout_secs`` setting. A stored ``0``
 is floored to the ``300``-second default at request time rather than
 disabling the deadline.
 """
 ts_doc = """
-Current historical `request_timeout_secs` setting in seconds
+Current market-data `request_timeout_secs` setting in seconds
 (default `300n`). A stored `0n` is floored to the `300n`-second
 default at request time rather than disabling the deadline.
 """

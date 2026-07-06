@@ -3147,7 +3147,7 @@ paths:
 
   /v3/terminal/mdds/status:
     get:
-      operationId: terminalHistoricalStatus
+      operationId: terminalMarketDataStatus
       tags: [Terminal]
       summary: Market-data channel status (text/plain)
       description: |

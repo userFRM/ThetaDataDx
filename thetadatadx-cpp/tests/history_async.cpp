@@ -1,4 +1,4 @@
-// Async historical query surface tests.
+// Async market-data query surface tests.
 //
 // Every buffered historical / snapshot query carries an `<endpoint>_async`
 // companion returning a `std::future<std::vector<Row>>` so callers can run
@@ -79,10 +79,10 @@ TEST_CASE("async query methods return std::future of the sync row type",
     STATIC_REQUIRE(std::is_same_v<SyncRet, std::vector<thetadatadx::EodTick>>);
     STATIC_REQUIRE(std::is_same_v<AsyncRet, std::future<std::vector<thetadatadx::EodTick>>>);
 
-    // The companion is present on the unified client's `Historical` view as
+    // The companion is present on the unified client's `MarketData` view as
     // well, at the same shape — the generated surface is emitted onto both
-    // historical classes from one template.
-    using View = thetadatadx::Historical;
+    // market-data classes from one template.
+    using View = thetadatadx::MarketData;
     using ViewAsyncRet = decltype(std::declval<const View&>().stock_history_eod_async(
         std::declval<std::string>(),
         std::declval<std::string>(),
@@ -102,21 +102,21 @@ TEST_CASE("async query methods return std::future of the sync row type",
     // Shared-ownership safety. The `_async` companions capture a copy of the
     // object (`self = *this`), which co-owns the FFI handle, so the future
     // keeps the handle alive on its own. The natural-looking
-    // `client.market_data().foo_async(...)` — where the `Historical` view is a
+    // `client.market_data().foo_async(...)` — where the `MarketData` view is a
     // temporary — is therefore SOUND, not a use-after-free, so the call is
     // well-formed on both an lvalue and an rvalue object (no `&&`-deleted
     // overload). The runtime lifetime test below proves the handle outlives a
     // destroyed originating object.
     STATIC_REQUIRE(detail::async_callable_on_lvalue<View>);
     STATIC_REQUIRE(detail::async_callable_on_rvalue<View>);
-    // Same on the dedicated historical client.
+    // Same on the dedicated market-data client.
     STATIC_REQUIRE(detail::async_callable_on_lvalue<Hist>);
     STATIC_REQUIRE(detail::async_callable_on_rvalue<Hist>);
 }
 
 // ── Lifetime regression: a future may outlive the object it was launched from ──
 //
-// The real `MarketDataClient` / `Historical` can only be constructed by a live
+// The real `MarketDataClient` / `MarketData` can only be constructed by a live
 // `connect()` (private ctor + gRPC handshake), so a true destroy-mid-flight
 // against a live FFI handle is a `[live]` scenario (last test below). This
 // offline case proves the load-bearing mechanism the generated `_async`
@@ -192,8 +192,8 @@ TEST_CASE("async future outlives the destroyed originating object",
 // live `connect()`, so the end-to-end version is a `[live]` test; this offline
 // case proves the mechanism with no network, deterministically, under ASan.
 //
-// The hazard, modelled exactly: a pending `historical().<endpoint>_async`
-// future captures a copy of the `Historical` view, co-owning BOTH the handle
+// The hazard, modelled exactly: a pending `market_data().<endpoint>_async`
+// future captures a copy of the `MarketData` view, co-owning BOTH the handle
 // and the callback node. The view is the LAST owner of both, so dropping the
 // future destroys the view's members in REVERSE declaration order — and that
 // order is the whole bug. The view must declare `callback_` FIRST and `handle_`
@@ -243,7 +243,7 @@ struct HandleStub {
 
 // Mirrors the unified `Client`: co-owns the handle AND the callback node, in
 // the same reverse-destruct order (callback declared first → destroyed last).
-// `historical()` hands out a view that co-owns BOTH, exactly as the shipped
+// `market_data()` hands out a view that co-owns BOTH, exactly as the shipped
 // `Client::market_data()` does.
 struct ClientStub {
     // Declaration order mirrors `Client`: callback_ first so it is destroyed
@@ -252,7 +252,7 @@ struct ClientStub {
     std::shared_ptr<HandleStub> handle_;
 
     // The view the async future captures a copy of. Co-owns both members.
-    // Member order mirrors the shipped `Historical`/`Stream` views (and
+    // Member order mirrors the shipped `MarketData`/`Stream` views (and
     // `ClientStub` above): `callback_` declared FIRST so reverse-destruct
     // releases `handle_` first — its stop+join deleter runs while the node is
     // still alive. Flipping these two to handle-first is the regression this
@@ -272,7 +272,7 @@ struct ClientStub {
         }
     };
 
-    MarketDataViewStub historical() const {
+    MarketDataViewStub market_data() const {
         // Share BOTH, like the fix. Positional init follows the member
         // declaration order: callback_ first, then handle_.
         return MarketDataViewStub{callback_, handle_};
@@ -390,7 +390,7 @@ TEST_CASE("async query surfaces a typed error on future::get",
     REQUIRE_THROWS_AS(fut.get(), thetadatadx::ThetaDataError);
 }
 
-TEST_CASE("async query from a destroyed Historical view resolves safely",
+TEST_CASE("async query from a destroyed Market-data view resolves safely",
           "[history][async][live]") {
     const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
     if (creds_path.empty()) {

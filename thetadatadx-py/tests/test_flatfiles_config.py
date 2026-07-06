@@ -156,7 +156,7 @@ def test_flatfiles_field_setters_compose_into_consistent_config() -> None:
 
 
 def test_flatfiles_setter_state_survives_interleaved_calls() -> None:
-    """Interleaved flatfile setter and historical tuning setter calls
+    """Interleaved flatfile setter and market-data tuning setter calls
     must not interfere with each other. Mirrors the TS / C++ contract.
     """
     mod = _import_module()

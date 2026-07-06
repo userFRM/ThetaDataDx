@@ -18,13 +18,13 @@ def test_production_reads_back_prod_on_both_channels():
     assert cfg.streaming_environment == "PROD"
 
 
-def test_stage_selects_historical_staging_and_leaves_streaming_on_prod():
+def test_stage_selects_market_data_staging_and_leaves_streaming_on_prod():
     cfg = client.Config.stage()
     assert cfg.market_data_environment == "STAGE"
     assert cfg.streaming_environment == "PROD"
 
 
-def test_dev_selects_streaming_dev_and_leaves_historical_on_prod():
+def test_dev_selects_streaming_dev_and_leaves_market_data_on_prod():
     cfg = client.Config.dev()
     assert cfg.market_data_environment == "PROD"
     assert cfg.streaming_environment == "DEV"

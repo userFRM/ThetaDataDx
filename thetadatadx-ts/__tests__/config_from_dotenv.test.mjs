@@ -1,7 +1,7 @@
 // Config.fromDotenv — TypeScript binding smoke test.
 //
 // Sources the staging selection from a `.env` file and confirms the
-// resulting config points the historical channel at the staging cluster,
+// resulting config points the market-data channel at the staging cluster,
 // distinct from the production host a prod / api-key-only `.env` yields.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';

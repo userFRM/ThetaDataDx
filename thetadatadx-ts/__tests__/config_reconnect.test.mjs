@@ -108,10 +108,10 @@ describe('Config.setReconnectStableWindowSecs', () => {
 });
 
 describe('Pool-sizing setter state survives interleaved reconnect setter calls', () => {
-  it('reconnect setters do not interfere with historical tuning getters', () => {
+  it('reconnect setters do not interfere with market-data tuning getters', () => {
     // The reconnect setters expose no getters, so the contract
     // we can verify is: after interleaving reconnect setter
-    // calls with historical tuning setter calls, the historical
+    // calls with market-data tuning setter calls, the market-data
     // tuning getters still observe the values that were last
     // written.
     const cfg = Config.production();

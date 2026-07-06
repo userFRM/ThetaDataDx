@@ -4,7 +4,7 @@
 
 # thetadatadx-server
 
-Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v3/*` route surface, backed by Rust gRPC (historical) and TCP (streaming) connections to ThetaData's upstream servers.
+Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v3/*` route surface, backed by Rust gRPC (market-data) and TCP (streaming) connections to ThetaData's upstream servers.
 
 Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
@@ -33,7 +33,7 @@ thetadatadx-server --creds creds.txt
 # With a TOML config file
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD --config config.toml
 
-# With a specific streaming region (the historical region is selected the same
+# With a specific streaming region (the market-data region is selected the same
 # way with --market-data-region)
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD --streaming-region dev
 ```
@@ -51,7 +51,7 @@ The server starts:
 | `--password` | | ThetaData password (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file (email line 1, password line 2) |
 | `--config` | | Path to TOML config file |
-| `--market-data-region` | `production` | Historical region: `production` or `stage` |
+| `--market-data-region` | `production` | Market-data region: `production` or `stage` |
 | `--streaming-region` | `production` | Streaming region: `production` or `dev` |
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
@@ -178,7 +178,7 @@ External apps (Python, Excel, browsers)
     |
 thetadatadx-server (Rust binary)
     |
-    |--- ThetaDataDx (historical + streaming)
+    |--- ThetaDataDx (market-data + streaming)
     |    historical data + real-time streaming
     |
 ThetaData upstream servers (NJ datacenter)

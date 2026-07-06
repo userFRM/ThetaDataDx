@@ -153,12 +153,12 @@ pub(crate) async fn login(
     }
     let bundle = bundle.ok_or_else(|| Error::Auth {
         kind: AuthErrorKind::ServerError,
-        message: "historical auth did not return METADATA bundle".into(),
+        message: "market-data auth did not return METADATA bundle".into(),
     })?;
     if !session_token_seen {
         return Err(Error::Auth {
             kind: AuthErrorKind::ServerError,
-            message: "historical auth did not return SESSION_TOKEN".into(),
+            message: "market-data auth did not return SESSION_TOKEN".into(),
         });
     }
     Ok(bundle)
@@ -206,7 +206,7 @@ pub(crate) async fn connect_and_login<'a>(
                 last_err = Some(Error::Io(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     format!(
-                        "historical connect/login to {}:{} timed out after {}s",
+                        "market-data connect/login to {}:{} timed out after {}s",
                         host.host,
                         host.port,
                         connect_timeout.as_secs()

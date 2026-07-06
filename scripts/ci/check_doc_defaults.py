@@ -217,7 +217,7 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
     canon["reconnect.max_elapsed_secs"] = _duration_secs(ral["max_elapsed"])
     canon["reconnect.stable_window_secs"] = _duration_secs(ral["stable_window"])
 
-    # RetryPolicy::default — MDDS historical retry ladder.
+    # RetryPolicy::default — MDDS market-data retry ladder.
     rp = _struct_literal_fields(
         _block_after(
             _read(CONFIG_DIR / "retry.rs", root), "impl Default for RetryPolicy"

@@ -487,7 +487,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
 }
 
 /// Emit the C header declarations for every `thetadatadx_<endpoint>_stream` symbol
-/// into `thetadatadx-cpp/include/historical_stream.h.inc`. The `ThetaDataDxTickChunkCallback`
+/// into `thetadatadx-cpp/include/market_data_stream.h.inc`. The `ThetaDataDxTickChunkCallback`
 /// typedef itself is hand-declared in `thetadatadx.h` (it is not endpoint-keyed);
 /// these are just the per-endpoint `extern` prototypes the C++ wrapper and the
 /// nm-based completeness gate consume.

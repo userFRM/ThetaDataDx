@@ -1,6 +1,6 @@
-// Historical endpoint round-trip smoke tests.
+// Market-data endpoint round-trip smoke tests.
 //
-// EOD is the cheapest historical endpoint to exercise — one row per
+// EOD is the cheapest market-data endpoint to exercise — one row per
 // trading day, decoded into a `ThetaDataDxEodTick` array. A real historical
 // call needs a live server; the live half guards the symbol decode, the
 // typed array wrapper, and the FFI-error -> exception path.

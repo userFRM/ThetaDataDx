@@ -1,4 +1,4 @@
-//! Credentials, config, and historical-client lifecycle: `thetadatadx_credentials_*`,
+//! Credentials, config, and market-data-client lifecycle: `thetadatadx_credentials_*`,
 //! `thetadatadx_config_*`, `thetadatadx_market_data_connect` / `thetadatadx_market_data_free`.
 
 use std::os::raw::c_char;
@@ -186,7 +186,7 @@ pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
     })
 }
 
-/// Create a historical-staging config (historical staging cluster + auth marker;
+/// Create a market-data-staging config (market-data staging cluster + auth marker;
 /// streaming stays on production). Unstable.
 #[no_mangle]
 pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
@@ -199,7 +199,7 @@ pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
 
 /// Select the market-data environment on a config handle in place.
 ///
-/// `kind` is `0` for production or `1` for staging. The historical and
+/// `kind` is `0` for production or `1` for staging. The market-data and
 /// streaming channels are selected independently, so this leaves the
 /// streaming channel untouched. Returns `0` on success. Returns `-1` with
 /// `thetadatadx_last_error` set when `config` is null or when `kind` is
@@ -325,7 +325,7 @@ pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig)
 ///
 /// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
 /// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
-/// historical and streaming environments are selected independently: the
+/// market-data and streaming environments are selected independently: the
 /// `production` / `stage` / `dev` presets (and the `THETADATA_MARKET_DATA_TYPE`
 /// dotenv key) set the market-data channel, and this is the readback of
 /// that selection. Returns null if `config` is null (the diagnostic is
@@ -774,7 +774,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
 // validated `*const c_char`, the getter returns an owned `*mut c_char` the
 // caller frees with `thetadatadx_string_free`.
 
-// `DirectConfig` historical endpoint overrides (`market_data_host` string
+// `DirectConfig` market-data endpoint overrides (`market_data_host` string
 // via `set_market_data_host`, `market_data_port` `u16`) are the generated
 // `string` / scalar accessors in config_surface.toml.
 
@@ -873,7 +873,7 @@ pub unsafe extern "C" fn thetadatadx_market_data_free(client: *mut ThetaDataDxMa
 
 #[cfg(test)]
 mod pool_sizing_tests {
-    //! Offline tests for the historical pool-sizing setter.
+    //! Offline tests for the market-data pool-sizing setter.
     //!
     //! Each test allocates a fresh `ThetaDataDxConfig` via `thetadatadx_config_production`,
     //! calls the setter under test, then reads the underlying Rust
@@ -946,7 +946,7 @@ mod pool_sizing_tests {
     }
 
     #[test]
-    fn historical_request_timeout_secs_round_trips() {
+    fn market_data_request_timeout_secs_round_trips() {
         let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by thetadatadx_config_production.
@@ -1150,7 +1150,7 @@ mod reconnect_setter_tests {
     #[test]
     fn reconnect_setters_compose_with_pool_sizing_setters() {
         // Cross-binding interleaved-survival contract: reconnect setter
-        // calls and historical tuning setter calls on the same
+        // calls and market-data tuning setter calls on the same
         // `ThetaDataDxConfig` must land in `inner` independently and
         // persist. Mirrors the Python
         // `test_reconnect_setter_state_survives_interleaved_calls`,
@@ -1161,7 +1161,7 @@ mod reconnect_setter_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            // Apply a historical tuning knob.
+            // Apply a market-data tuning knob.
             super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 8 * 1024 * 1024);
 
             // Apply reconnect knobs.
@@ -1170,7 +1170,7 @@ mod reconnect_setter_tests {
             super::thetadatadx_config_set_reconnect_max_rate_limited_attempts(cfg, 3);
             super::thetadatadx_config_set_reconnect_stable_window_secs(cfg, 60);
 
-            // Historical tuning mutations survived the reconnect setter sequence.
+            // Market-data tuning mutations survived the reconnect setter sequence.
             let mdds = &(*cfg).inner.market_data;
             assert_eq!(mdds.warn_on_buffered_threshold_bytes, 8 * 1024 * 1024);
 
@@ -1770,7 +1770,7 @@ mod auth_metrics_setter_tests {
         // channels are selected independently: the stage preset moves the
         // market-data channel to staging while streaming stays on
         // production, the dev preset moves the streaming channel to dev
-        // while historical stays on production, and production keeps both.
+        // while market-data stays on production, and production keeps both.
         let staged = super::thetadatadx_config_stage();
         let prod = super::thetadatadx_config_production();
         let dev = super::thetadatadx_config_dev();
@@ -1809,7 +1809,7 @@ mod auth_metrics_setter_tests {
     #[test]
     fn with_channel_setters_compose_both_environments() {
         // The two channel selectors compose to any combination, including
-        // historical-staging + streaming-dev, mirroring the Rust builder.
+        // market-data-staging + streaming-dev, mirroring the Rust builder.
         let cfg = super::thetadatadx_config_production();
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
@@ -1953,7 +1953,7 @@ mod auth_metrics_setter_tests {
 mod resilience_knob_tests {
     //! Round-trip coverage for the connection-resilience knobs across
     //! the C ABI: every setter/getter pair added for the reconnect
-    //! engine, the streaming transport, the historical retry envelope, and
+    //! engine, the streaming transport, the market-data retry envelope, and
     //! the flatfile jitter toggle.
 
     #[test]

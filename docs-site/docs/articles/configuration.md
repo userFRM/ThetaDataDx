@@ -14,15 +14,15 @@ The SDK has two independent clients, and each has its own environment:
 - The market-data client runs in **production** or **staging**. The market-data environment also sets the authentication marker, so staging authenticates against the staging cluster.
 - The streaming client runs in **production** or **dev**. The dev environment replays a past trading day in a loop at full speed, so you can develop while markets are closed.
 
-The two are chosen independently. There is no streaming staging cluster and no historical dev cluster, so a config can be historical-staging with streaming-production, historical-production with streaming-dev, and so on.
+The two are chosen independently. There is no streaming staging cluster and no market-data dev cluster, so a config can be market-data-staging with streaming-production, market-data-production with streaming-dev, and so on.
 
-| Preset | Historical | Streaming |
+| Preset | Market data | Streaming |
 |---|---|---|
 | `production()` (default) | production | production |
 | `stage()` | staging | production |
 | `dev()` | production | dev |
 
-`stage()` selects historical staging and leaves streaming on production; `dev()` selects streaming dev and leaves historical on production. To move both at once, select each channel:
+`stage()` selects market-data staging and leaves streaming on production; `dev()` selects streaming dev and leaves market-data on production. To move both at once, select each channel:
 
 ```rust
 use thetadatadx::config::{DirectConfig, MarketDataEnvironment, StreamingEnvironment};
@@ -93,7 +93,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 | Group | Fields | What they control |
 |---|---|---|
 | Request deadlines | `timeout_ms` per request (builder / kwarg) | Hard per-call deadline; expiry raises a timeout error and frees the slot. |
-| Retries | `retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter`, `retry_max_elapsed_secs` | Backoff schedule for transient historical-request faults. |
+| Retries | `retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter`, `retry_max_elapsed_secs` | Backoff schedule for transient market-data-request faults. |
 | Streaming reconnect | `reconnect_policy`, `reconnect_max_attempts`, `reconnect_wait_ms`, `reconnect_wait_max_ms`, `reconnect_jitter`, `reconnect_stable_window_secs`, … | Automatic streaming reconnection. See [Reconnection & Monitoring](/streaming/reliability). |
 | Streaming latency | `flush_mode` (`"batched"` default / `"immediate"`), `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Write-path flush behavior and event-buffer capacity. |
 | Flat files | `flatfiles_max_attempts`, `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`, `flatfiles_jitter` | Retry budget for bulk downloads. |
@@ -102,7 +102,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 
 Every field above is available on all four language surfaces under the naming convention shown earlier; unknown values fail at configuration time, not at first request.
 
-Historical request concurrency is not in this table because it isn't configurable: it is set by your subscription tier. See [Concurrent Requests](/articles/concurrent-requests).
+Market-data request concurrency is not in this table because it isn't configurable: it is set by your subscription tier. See [Concurrent Requests](/articles/concurrent-requests).
 
 ## Config file (Rust)
 

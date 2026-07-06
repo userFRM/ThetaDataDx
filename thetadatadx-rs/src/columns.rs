@@ -37,7 +37,7 @@ pub struct ColumnPresence {
     /// so a linear scan in [`Self::contains`] beats a hashed set.
     names: Vec<Box<str>>,
     /// The response's `symbol` (root) header value, when the wire carried
-    /// one constant across every row. Option + index historical endpoints
+    /// one constant across every row. Option + index market-data endpoints
     /// send a `symbol` column constant across the response (the queried
     /// underlying); single-symbol stock snapshots do too. It is not a
     /// tick-struct field (the flat POD ticks hold no per-row `String`), so it
@@ -303,7 +303,7 @@ pub trait WireColumns {
 /// A decoded historical response: the tick rows plus the set of columns the
 /// response's wire actually carried.
 ///
-/// The buffered (`.await`) return of every historical endpoint. It derefs to
+/// The buffered (`.await`) return of every market-data endpoint. It derefs to
 /// `[T]`, so it reads like the `Vec<T>` it replaced — `.len()`, `.iter()`,
 /// indexing, `for row in &ticks`, `ticks.first()` all work — while carrying
 /// the [`ColumnPresence`] the DataFrame terminals need. Use `to_arrow` /

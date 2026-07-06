@@ -428,7 +428,7 @@ impl Config {
         guard.market_data.warn_on_buffered_threshold_bytes
     }
 
-    /// Set the default per-request deadline (in seconds) for historical
+    /// Set the default per-request deadline (in seconds) for market-data
     /// queries. Bounds every request that did not call
     /// ``with_deadline(...)``, so a live-but-silent stream resolves to a
     /// timeout instead of blocking forever. ``0`` no longer disables the
@@ -445,7 +445,7 @@ impl Config {
         guard.market_data.request_timeout_secs = secs;
     }
 
-    /// Current historical ``request_timeout_secs`` setting. A stored ``0``
+    /// Current market-data ``request_timeout_secs`` setting. A stored ``0``
     /// is floored to the ``300``-second default at request time rather than
     /// disabling the deadline.
     #[getter]

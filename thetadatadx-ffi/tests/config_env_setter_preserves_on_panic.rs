@@ -27,13 +27,13 @@ use thetadatadx_ffi::{
 
 /// Read `thetadatadx_config_get_market_data_host` into an owned String, freeing
 /// the heap-owned C string the getter returns.
-fn read_historical_host(config: *const thetadatadx_ffi::ThetaDataDxConfig) -> String {
+fn read_market_data_host(config: *const thetadatadx_ffi::ThetaDataDxConfig) -> String {
     // SAFETY: callers pass a live, non-null config handle; the getter returns a
     // heap-owned NUL-terminated C string that must be freed with
     // `thetadatadx_string_free` after copying.
     unsafe {
         let ptr = thetadatadx_config_get_market_data_host(config);
-        assert!(!ptr.is_null(), "historical host getter returned null");
+        assert!(!ptr.is_null(), "market-data host getter returned null");
         let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
         thetadatadx_string_free(ptr);
         s
@@ -41,7 +41,7 @@ fn read_historical_host(config: *const thetadatadx_ffi::ThetaDataDxConfig) -> St
 }
 
 #[test]
-fn historical_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
+fn market_data_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     // production() takes no pointer and returns a non-null owned config handle.
     let config = thetadatadx_config_production();
     assert!(!config.is_null());
@@ -51,7 +51,7 @@ fn historical_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     // outlives this call and is a NUL-terminated C string from CString.
     let rc = unsafe { thetadatadx_config_set_market_data_host(config, custom.as_ptr()) };
     assert_eq!(rc, 0, "setting the custom host should succeed");
-    assert_eq!(read_historical_host(config), "custom.example.test");
+    assert_eq!(read_market_data_host(config), "custom.example.test");
 
     // Raw-set a flat-file connect timeout of 0, which the consuming builder's
     // `validate()` rejects (CONNECT_TIMEOUT_SECS range) -> `with_*` panics.
@@ -70,7 +70,7 @@ fn historical_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
 
     // ...AND must NOT have wiped the config: the custom host survives.
     assert_eq!(
-        read_historical_host(config),
+        read_market_data_host(config),
         "custom.example.test",
         "the env setter wiped the custom host on the caught-panic path (config-wipe regression)",
     );
@@ -102,7 +102,7 @@ fn streaming_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     assert_eq!(rc, -1);
 
     assert_eq!(
-        read_historical_host(config),
+        read_market_data_host(config),
         "custom.example.test",
         "the streaming env setter wiped the config on the caught-panic path",
     );

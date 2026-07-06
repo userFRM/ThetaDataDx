@@ -1,6 +1,6 @@
-//! Historical (gRPC) sub-configuration.
+//! Market-data (gRPC) sub-configuration.
 //!
-//! Holds the per-channel gRPC tuning for the historical transport:
+//! Holds the per-channel gRPC tuning for the market-data transport:
 //! message-size ceiling, keepalive cadence, HTTP/2 flow-control
 //! windows, connect/request deadlines, and the buffered-response warn
 //! threshold.
@@ -13,7 +13,7 @@
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
 
-/// Default per-request historical deadline in seconds (5 min).
+/// Default per-request market-data deadline in seconds (5 min).
 ///
 /// The floor the effective-deadline resolver applies when a caller leaves the
 /// per-request deadline unset AND the configured `request_timeout_secs` is `0`:
@@ -28,7 +28,7 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct MarketDataConfig {
-    /// Historical hostname (v3 path).
+    /// Market-data hostname (v3 path).
     ///
     /// Set through [`DirectConfig::set_market_data_host`] so the write is
     /// recorded as an explicit override that survives environment
@@ -41,7 +41,7 @@ pub struct MarketDataConfig {
     /// [`DirectConfig::market_data_host`]: crate::config::DirectConfig::market_data_host
     pub(crate) host: String,
 
-    /// Historical port (443 for TLS in production).
+    /// Market-data port (443 for TLS in production).
     pub port: u16,
 
     /// Whether to use TLS for the market-data connection.
@@ -68,7 +68,7 @@ pub struct MarketDataConfig {
 
     /// gRPC flow control: initial stream window size in KB.
     ///
-    /// Sets the per-stream HTTP/2 flow-control window on every historical
+    /// Sets the per-stream HTTP/2 flow-control window on every market-data
     /// channel. Default 64 KB matches the HTTP/2 spec default;
     /// validation clamps to `[64, 1024]`.
     pub window_size_kb: usize,
@@ -89,7 +89,7 @@ pub struct MarketDataConfig {
     /// cadence.
     pub connect_timeout_secs: u64,
 
-    /// Default per-request deadline for historical (gRPC) queries, in
+    /// Default per-request deadline for market-data (gRPC) queries, in
     /// seconds.
     ///
     /// A server that holds the HTTP/2 stream open while sending no
@@ -100,7 +100,7 @@ pub struct MarketDataConfig {
     /// stream resolves to `Error::Timeout` instead of blocking forever.
     ///
     /// Configuring `0` here does **not** disable the guard: the effective-
-    /// deadline resolver every historical request routes through floors a `0`
+    /// deadline resolver every market-data request routes through floors a `0`
     /// to the production default (`300s`) so a deadline-less request can never
     /// hang the client forever, regardless of whether the config was validated.
     /// Opt a single request out with the per-call escape hatch instead.
@@ -146,14 +146,14 @@ impl MarketDataConfig {
     /// commits the channel to a buffer far beyond any legitimate response, and
     /// the MB→byte conversion (`mb * 1024 * 1024`) overflows `usize` for the
     /// largest inputs. The production default is 4 MB; 64 MB leaves generous
-    /// headroom for the largest bulk historical chunk while keeping the budget
+    /// headroom for the largest bulk market-data chunk while keeping the budget
     /// bounded. This is the single source of truth both the byte-denominated
     /// [`crate::config::DirectConfig::validate`] check and the
     /// `[grpc] max_message_size_mb` TOML ceiling read, so the two spellings
     /// cannot drift.
     pub(crate) const MAX_MESSAGE_SIZE_MB: usize = 64;
 
-    /// Historical hostname.
+    /// Market-data hostname.
     ///
     /// Read accessor for the crate-private [`Self::host`] field. The host is
     /// written through [`DirectConfig::set_market_data_host`] so a

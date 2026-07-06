@@ -70,7 +70,7 @@ client = Client(email="you@example.com", password="your_password")
 client = Client(Credentials.from_file("creds.txt"), Config.production())
 ```
 
-Every historical method returns a typed list — iterate it, index it, or convert it to a dataframe:
+Every market-data method returns a typed list — iterate it, index it, or convert it to a dataframe:
 
 ```python
 eod = client.market_data.stock_history_eod("AAPL", "20240101", "20240301")
@@ -107,7 +107,7 @@ con.sql("SELECT AVG(close) FROM eod").show()
 
 List endpoints (`stock_list_symbols`, `option_list_expirations`, …) return a `StringList` with the same terminals; the single column is named by the endpoint (`symbol`, `expiration`, …). Empty results still convert to a zero-row frame with the full typed schema.
 
-For multi-day backfills, stream the response instead of buffering it. Every historical builder exposes `.stream(handler)` / `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals; the handler is called once per chunk with a typed list, and the previous chunk is freed before the next is fetched, so peak memory stays flat regardless of total size:
+For multi-day backfills, stream the response instead of buffering it. Every market-data builder exposes `.stream(handler)` / `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals; the handler is called once per chunk with a typed list, and the previous chunk is freed before the next is fetched, so peak memory stays flat regardless of total size:
 
 ```python
 def on_chunk(ticks):

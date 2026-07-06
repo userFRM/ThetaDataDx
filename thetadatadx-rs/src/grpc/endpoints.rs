@@ -1,4 +1,4 @@
-//! Endpoint methods for MDDS historical queries.
+//! Endpoint methods for MDDS market-data queries.
 //!
 //! The hand-written `stock_list_symbols` helper here is the
 //! foundation example. The full RPC surface is emitted into

@@ -15,13 +15,13 @@ test('production() reads back PROD on both channels', () => {
   assert.equal(cfg.streamingEnvironment, 'PROD');
 });
 
-test('stage() selects historical STAGE and leaves streaming on PROD', () => {
+test('stage() selects market-data STAGE and leaves streaming on PROD', () => {
   const cfg = Config.stage();
   assert.equal(cfg.marketDataEnvironment, 'STAGE');
   assert.equal(cfg.streamingEnvironment, 'PROD');
 });
 
-test('dev() selects streaming DEV and leaves historical on PROD', () => {
+test('dev() selects streaming DEV and leaves market-data on PROD', () => {
   const cfg = Config.dev();
   assert.equal(cfg.marketDataEnvironment, 'PROD');
   assert.equal(cfg.streamingEnvironment, 'DEV');

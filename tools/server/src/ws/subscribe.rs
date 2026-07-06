@@ -270,7 +270,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         // 20260230 (Feb 30) or 20260431 (Apr 31). Run the canonical
         // `thetadatadx::time::is_valid_yyyymmdd` validator alongside so the WS
         // subscribe path enforces the same calendar discipline the
-        // REST validator does on the historical endpoints.
+        // REST validator does on the market-data endpoints.
         // Both checks must pass: the bounds gate is the cheap precheck
         // (single comparison), the calendar gate catches the bad-day-of-
         // month classes the bounds check cannot see.

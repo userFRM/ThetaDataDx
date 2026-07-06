@@ -49,10 +49,10 @@ use crate::{Client, Config, Credentials};
 /// streaming connection that would conflict with a parallel streaming process.
 ///
 /// The block-list approach (vs. the inverted `AsyncClient`
-/// allowlist) keeps the historical / FLATFILES surface — which is
+/// allowlist) keeps the market-data / FLATFILES surface — which is
 /// 50+ generated `*_builder` factories plus per-endpoint sync and
 /// async terminals — accessible without listing each one. Adding a
-/// new historical endpoint to `Client` is automatically
+/// new market-data endpoint to `Client` is automatically
 /// available on `MarketDataClient` with zero edit here.
 ///
 /// Drift guard: the compile-time assertion below pins the generator-emitted
@@ -127,7 +127,7 @@ const _: () = {
             found,
             "PYTHON_UNIFIED_FPSS_METHODS contains a name not in \
              `mdds_client::FPSS_TOUCHING_METHODS` — extend the \
-             block-list (and the offline-coverage test) so the historical \
+             block-list (and the offline-coverage test) so the market-data \
              surface stays streaming-free."
         );
         i += 1;
@@ -139,7 +139,7 @@ const _: () = {
 /// Opens ONLY the market-data channel, no streaming TLS connection.
 /// Authenticates once against Nexus at construction time. Use when a
 /// parallel streaming process is already running in the same environment
-/// and you need to test historical / FLATFILES endpoints without the
+/// and you need to test market-data / FLATFILES endpoints without the
 /// bundled [`crate::Client`] also opening a streaming slot.
 ///
 /// ```python
@@ -212,7 +212,7 @@ impl MarketDataClient {
     ///
     /// Block-list applied first: every streaming-touching method raises
     /// `AttributeError` so a market-data-only handle cannot accidentally
-    /// race a parallel streaming process. Everything else (historical
+    /// race a parallel streaming process. Everything else (market-data
     /// endpoints, FLATFILES, snapshot / list / at-time builders,
     /// `flat_files` namespace) reaches the unified client transparently.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
@@ -224,11 +224,11 @@ impl MarketDataClient {
             )));
         }
         let bound = self.inner.bind(py);
-        // Historical endpoints (sync, `*_async`, `*_builder`) live on the
+        // Market-data endpoints (sync, `*_async`, `*_builder`) live on the
         // `client.market_data` `MarketDataView` surface; resolve there first
         // so `mdds.stock_history_eod(...)` keeps its flat call shape. The
         // FLATFILES surface (`flat_files`, `dump_*`) and the remaining
-        // historical-session accessors stay on `Client` and resolve through
+        // market-data-session accessors stay on `Client` and resolve through
         // the fallback.
         let market_data = bound.getattr("market_data")?;
         if let Ok(attr) = market_data.getattr(name) {
@@ -243,7 +243,7 @@ impl MarketDataClient {
         // streaming state at all is misleading. The market-data channel
         // is always connected by construction (the constructor errored
         // out otherwise).
-        "MarketDataClient(historical=connected)".to_string()
+        "MarketDataClient(connected)".to_string()
     }
 
     /// Deterministically close the market-data client.

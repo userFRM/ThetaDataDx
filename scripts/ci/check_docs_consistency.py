@@ -63,7 +63,7 @@ OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 FLATFILE_TYPES_RS = ROOT / "thetadatadx-rs/src/flatfiles/types.rs"
 
 # The MCP server source is the single source of truth for the tool surface a
-# connected `tools/list` returns: the registry historical endpoints (one tool
+# connected `tools/list` returns: the registry market-data endpoints (one tool
 # per endpoint), the offline utilities (`OFFLINE_TOOL_NAMES` in `main.rs`), and
 # the flat-file tools advertised by `push_flatfile_tool_definitions` in
 # `flatfile_tools.rs`. The gate parses the non-registry tool names from these
@@ -150,11 +150,11 @@ SERVER_ONLY_OPERATION_IDS = {
     # Terminal system routes, mirrored 1:1 from the JVM terminal: an
     # unauthenticated shutdown plus the two plain-text channel-health probes.
     # The route paths carry the vendor's codenames verbatim; the operationIds
-    # describe the channel (streaming / historical) to keep generated client
+    # describe the channel (streaming / market-data) to keep generated client
     # method names free of the transport codename.
     "terminalShutdown",
     "terminalStreamingStatus",
-    "terminalHistoricalStatus",
+    "terminalMarketDataStatus",
     # Path-segment / renamed `/v3` aliases mounted at the server level for
     # endpoints the registry already exposes under a query-form or shorter
     # path. Each dispatches to the same registry endpoint as its sibling but
@@ -249,7 +249,7 @@ def check_static_docs() -> None:
     expect_contains(ROOT / "README.md", "Documentation site (GitHub Pages)")
     expect_contains(
         ROOT / "README.md",
-        "MCP server exposing every historical endpoint to AI clients",
+        "MCP server exposing every market-data endpoint to AI clients",
     )
 
     expect_contains(
@@ -258,12 +258,12 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated historical endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.",
+        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.",
     )
 
     expect_contains(
         DOCS_SITE / "mcp.md",
-        "Every generated historical endpoint plus `ping`.",
+        "Every generated market-data endpoint plus `ping`.",
     )
     # Version strings in getting-started docs must match the canonical
     # workspace version; derive it from `thetadatadx-rs/Cargo.toml`
@@ -1115,7 +1115,7 @@ def check_mcp_tool_inventory() -> None:
     must appear by name in each MCP doc's tool-listing section. The flat-file
     tools are the surface that previously had no doc-gate coverage: a flat-file
     tool advertised by the server but missing from the listing trips this check.
-    The README also lists every registry historical endpoint by name in its tool
+    The README also lists every registry market-data endpoint by name in its tool
     tables, so the full inventory is asserted against it; `mcp.md` defers the
     per-endpoint listing to the generated reference pages, so only the
     connection-only tools are pinned there.
@@ -1140,7 +1140,7 @@ def check_mcp_tool_inventory() -> None:
         fail(
             f"{readme.relative_to(ROOT)} {readme_heading!r} section does not list every "
             f"registry MCP tool by name: {missing_registry}. The README tool tables must "
-            f"cover the full historical surface the connected tools/list advertises."
+            f"cover the full market-data surface the connected tools/list advertises."
         )
 
 

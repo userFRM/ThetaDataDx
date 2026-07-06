@@ -249,7 +249,7 @@ impl Credentials {
 /// and Nexus, never streaming until a streaming method is called); the two
 /// factories differ only in the napi handle they wrap around the returned
 /// `Arc`.
-pub(crate) async fn connect_historical_from_file_core(
+pub(crate) async fn connect_market_data_from_file_core(
     path: String,
     cfg: config::DirectConfig,
 ) -> napi::Result<Arc<thetadatadx::Client>> {
@@ -310,7 +310,7 @@ pub struct ClientConnectOptions {
     /// password).
     pub credentials_file: Option<String>,
     /// Market-data environment selector (`"PROD"` / `"STAGE"`,
-    /// case-insensitive). Defaults to production. The historical and
+    /// case-insensitive). Defaults to production. The market-data and
     /// streaming channels are selected independently. For full host-level
     /// control, build a `Config` and use `Client.connect(creds, config)`.
     pub market_data_type: Option<String>,
@@ -387,7 +387,7 @@ impl ClientConnectOptions {
             return Err(config_option_err("no authentication field set"));
         };
 
-        // The historical and streaming channels are selected
+        // The market-data and streaming channels are selected
         // independently on top of the production defaults; either absent
         // keeps that channel on production. An unrecognized value is a
         // config error naming the valid set, never a silent fallback.
@@ -539,7 +539,7 @@ pub(crate) fn validate_optional_nonneg_i32(
 /// Run an endpoint round-trip off the runtime's execution thread and
 /// hand the result back as a `napi::Result`.
 ///
-/// Every generated historical endpoint method is an `async fn`: napi-rs
+/// Every generated market-data endpoint method is an `async fn`: napi-rs
 /// returns a JS Promise to the caller and polls the method's future on
 /// its own runtime, never on the V8 execution thread. The actual
 /// network round-trip is spawned onto [`runtime()`] — the same runtime
@@ -568,7 +568,7 @@ where
 
 /// Run an endpoint task whose failure is already a napi error.
 ///
-/// Historical stream callbacks use this path because JavaScript handler
+/// Market-data stream callbacks use this path because JavaScript handler
 /// exceptions must reject the returned Promise with the original napi error,
 /// not be converted through the core `thetadatadx::Error` hierarchy.
 pub(crate) async fn spawn_napi_task<F, T>(fut: F) -> napi::Result<T>
@@ -699,7 +699,7 @@ include!("_generated/enums_generated.rs");
 // ── Typed tick classes (generated from tick_schema.toml) ──
 //
 // Emits `#[napi(object)]` structs for every tick type plus
-// `{tick}_to_class_vec` factories. These back every historical endpoint
+// `{tick}_to_class_vec` factories. These back every market-data endpoint
 // return so `index.d.ts` surfaces concrete `Tick[]` types instead of `any`.
 
 include!("_generated/tick_classes.rs");
@@ -810,7 +810,7 @@ pub struct Client {
     /// The inner `thetadatadx::Client` is not `Clone` -- its streaming mutex
     /// and subscription-tier state forbid that -- so surfaces co-own a cheap
     /// `Arc<Client>` clone (surviving past a parent close, exactly as the C++
-    /// `Historical` / `Stream` views co-own the `shared_ptr`).
+    /// `MarketData` / `Stream` views co-own the `shared_ptr`).
     client: Mutex<Option<Arc<thetadatadx::Client>>>,
     /// Stored JS callback registered via `startStreaming(callback)`.
     /// `None` until the first registration; persisted across
@@ -837,12 +837,12 @@ pub struct Client {
     callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
 }
 
-/// User-facing historical-data sub-namespace returned by the
+/// User-facing market-data sub-namespace returned by the
 /// `client.market_data` getter.
 ///
 /// A lightweight handle that shares the underlying client connection;
 /// constructing it performs no auth round-trip and mutates no streaming
-/// state. Every historical endpoint method is generated onto this view
+/// state. Every market-data endpoint method is generated onto this view
 /// from a single declarative surface definition, so the surface stays a
 /// single generated source of truth.
 #[napi]
@@ -854,7 +854,7 @@ impl MarketDataView {
     /// The core client handle for the generated endpoint bodies.
     ///
     /// The view co-owns its `Arc<Client>`, so it stays usable even after the
-    /// parent `Client` closes — matching the C++ `Historical` view, which
+    /// parent `Client` closes — matching the C++ `MarketData` view, which
     /// co-owns the `shared_ptr`. Infallible; the `napi::Result` signature is
     /// shared with `MarketDataClient::client_handle` so the identical generated
     /// bodies compile against either receiver.
@@ -878,7 +878,7 @@ pub struct StreamView {
 
 #[napi]
 impl Client {
-    /// Historical-data sub-namespace: `client.market_data.stockHistoryEOD(...)`.
+    /// Market-data sub-namespace: `client.market_data.stockHistoryEOD(...)`.
     ///
     /// Returns a fresh [`MarketDataView`] that shares the underlying
     /// client connection. No auth round-trip, no streaming-state mutation.
@@ -905,7 +905,7 @@ impl Client {
 
     /// The live core client handle, or a "client is closed" error.
     ///
-    /// Every surface the client vends (`historical` / `stream` / `flatFiles`)
+    /// Every surface the client vends (`marketData` / `stream` / `flatFiles`)
     /// resolves the handle through here, so once `close()` has taken it the
     /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
     /// co-owns.
@@ -929,7 +929,7 @@ impl Client {
     /// Connect to ThetaData with a `Credentials` handle. Pass an
     /// optional `Config` (`dev` / `stage` / `production`, plus any
     /// tuned setters) to override the production-default endpoint.
-    /// Historical only; call `client.stream.startStreaming(...)` to
+    /// Market-data only; call `client.stream.startStreaming(...)` to
     /// begin streaming real-time data.
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
@@ -978,7 +978,7 @@ impl Client {
     /// method returns a `Promise<Client>`.
     #[napi(js_name = "connectFromFile")]
     pub async fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
-        let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
+        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
         Ok(Client {
             client: Mutex::new(Some(client)),
             callback: Arc::new(Mutex::new(None)),
@@ -999,7 +999,7 @@ impl Client {
     /// `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
     /// or `credentialsFile`. Passing none, or two different ones, rejects
     /// with a `ConfigError` before any network round-trip. `marketDataType`
-    /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
+    /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the market-data
     /// environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
     /// the streaming environment, independently. For a pre-built full
     /// `Config` (or a pre-built `Credentials` handle), use
@@ -1027,10 +1027,10 @@ impl Client {
     /// handle, and releases the registered callback back to V8. Taking the
     /// handle out of its slot and dropping it frees the market-data gRPC channel
     /// pool once no vended surface still co-owns it, and makes the client
-    /// UNUSABLE — every subsequent `historical` / `stream` / `flatFiles` access
+    /// UNUSABLE — every subsequent `marketData` / `stream` / `flatFiles` access
     /// rejects with "client is closed". Safe to call more than once (a second
     /// close finds an empty slot and is a no-op) and safe on a client that only
-    /// ran historical queries.
+    /// ran market-data queries.
     ///
     /// This is the recommended teardown. Prefer the `using` declaration
     /// (`using client = connect(...)`) so `close()` runs on scope exit through
@@ -1206,7 +1206,7 @@ impl StreamView {
 /// the Nexus session at connect time.
 ///
 /// The full historical / list / snapshot / at-time / flat-files surface
-/// is identical to the unified client, so `historicalClient.stockHistoryEOD(...)`
+/// is identical to the unified client, so `market_dataClient.stockHistoryEOD(...)`
 /// behaves exactly like `client.stockHistoryEOD(...)`. The streaming and
 /// subscription methods are simply not present: there is no
 /// `startStreaming` / `subscribe` on this class, so a market-data-only handle
@@ -1215,7 +1215,7 @@ impl StreamView {
 ///
 /// ```ts
 /// import { MarketDataClient } from "thetadatadx";
-/// const historical = await MarketDataClient.connectFromFile("creds.txt");
+/// const marketData = await MarketDataClient.connectFromFile("creds.txt");
 /// const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
 /// ```
 #[napi]
@@ -1256,7 +1256,7 @@ impl MarketDataClient {
     // called, which this class does not surface.
 
     /// Connect to ThetaData with a `Credentials` handle and open the
-    /// historical data channel. Historical only — this client never
+    /// historical data channel. Market-data only — this client never
     /// opens the streaming transport. Pass an optional `Config` to
     /// override the production-default endpoint. Use `StreamingClient` for
     /// real-time data.
@@ -1288,7 +1288,7 @@ impl MarketDataClient {
 
     /// Connect with a credentials file (line 1 = email, line 2 =
     /// password). Convenience wrapper over `Credentials.fromFile` +
-    /// `connect`. Historical only. Pass an optional
+    /// `connect`. Market-data only. Pass an optional
     /// `Config` to override the production-default endpoint.
     ///
     /// `async` for the same reason as [`MarketDataClient::connect`].
@@ -1297,7 +1297,7 @@ impl MarketDataClient {
         path: String,
         config: Option<&Config>,
     ) -> napi::Result<MarketDataClient> {
-        let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
+        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
         Ok(MarketDataClient {
             client: Mutex::new(Some(client)),
         })
@@ -1322,12 +1322,12 @@ impl MarketDataClient {
     }
 }
 
-// Generated historical endpoint methods. The codegen projects the same
+// Generated market-data endpoint methods. The codegen projects the same
 // per-endpoint method bodies onto both `Client` and
-// `MarketDataClient` (see `HISTORICAL_IMPL_CLASSES` in the TypeScript SDK
+// `MarketDataClient` (see `MARKET_DATA_IMPL_CLASSES` in the TypeScript SDK
 // emitter); both classes expose an `Arc<thetadatadx::Client>`
 // field named `client`, so the shared bodies compile against either.
-include!("_generated/historical_methods.rs");
+include!("_generated/market_data_methods.rs");
 
 // Generated streaming methods.
 include!("_generated/streaming_methods.rs");
@@ -1337,7 +1337,7 @@ include!("_generated/streaming_methods.rs");
 
 // SDK configuration class. Adds `Config` napi class with
 // `production()` / `dev()` / `stage()` factories plus the full setter
-// surface for historical pool sizing, retry policy, reconnect policy,
+// surface for market-data pool sizing, retry policy, reconnect policy,
 // and flat-file backoff.
 mod config_class;
 pub use config_class::Config;
@@ -1548,7 +1548,7 @@ mod connect_options_tests {
             ..empty()
         };
         let (_creds, cfg) = opts.resolve().expect("streamingType resolves");
-        // streamingType selects only the streaming channel; historical stays prod.
+        // streamingType selects only the streaming channel; market-data stays prod.
         assert_eq!(
             cfg.market_data_environment(),
             config::MarketDataEnvironment::Prod

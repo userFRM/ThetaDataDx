@@ -112,7 +112,7 @@ pub struct AppState {
 }
 
 struct Inner {
-    /// Unified client (historical via Deref to MarketDataClient, streaming via start_streaming).
+    /// Unified client (market-data via Deref to MarketDataClient, streaming via start_streaming).
     client: Client,
     /// Whether MDDS is connected (true after successful init).
     mdds_connected: AtomicBool,

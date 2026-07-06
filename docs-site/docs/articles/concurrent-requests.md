@@ -1,11 +1,11 @@
 ---
 title: Concurrent Requests
-description: How many historical requests run in parallel per subscription tier.
+description: How many market-data requests run in parallel per subscription tier.
 ---
 
 # Concurrent Requests
 
-Your requests are not rate-limited, but the number of **concurrent** historical requests is capped by your subscription tier. Concurrency is account-wide and set by your **highest** subscription tier across asset classes:
+Your requests are not rate-limited, but the number of **concurrent** market-data requests is capped by your subscription tier. Concurrency is account-wide and set by your **highest** subscription tier across asset classes:
 
 | Tier | Concurrent requests |
 |---|---:|

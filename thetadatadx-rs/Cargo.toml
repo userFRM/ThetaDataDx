@@ -4,7 +4,7 @@ version = "13.0.0-rc.18"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-description = "No-JVM ThetaData SDK — native Rust client for historical, streaming, and bulk flat-file market data"
+description = "No-JVM ThetaData SDK — native Rust client for market-data, streaming, and bulk flat-file market data"
 documentation = "https://docs.rs/thetadatadx"
 homepage.workspace = true
 repository.workspace = true
@@ -87,7 +87,7 @@ prost = "=0.14.4"
 # the same version as `prost` so the derive paths resolve.
 prost-types = "=0.14.4"
 
-# Historical-channel gRPC transport. `channel` is the client-side
+# Market-data-channel gRPC transport. `channel` is the client-side
 # transport only — no server, router, codegen, or TLS features (TLS
 # rides through the custom rustls connector in `src/grpc/channel.rs`
 # so the dependency graph keeps the single `ring` CryptoProvider).
@@ -327,7 +327,7 @@ harness = false
 required-features = ["__test-helpers"]
 
 [[bench]]
-name = "historical_streaming_memory"
+name = "market_data_streaming_memory"
 harness = false
 
 [[bench]]

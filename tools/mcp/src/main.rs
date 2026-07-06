@@ -335,7 +335,7 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 ///
 /// `ping` reports server status without touching an upstream server. When no
 /// client is connected the server advertises exactly this — the rest of the
-/// surface (registry historical endpoints, flat-file tools) requires a live
+/// surface (registry market-data endpoints, flat-file tools) requires a live
 /// connection and is withheld until one exists, so `tools/list` never offers a
 /// tool a `tools/call` would reject for lack of a client. The set must match
 /// the offline-mode tools the README and process banner promise.
@@ -1894,7 +1894,7 @@ mod tests {
     }
 
     /// Connected with every asset class subscribed, `tools/list` must advertise
-    /// the full surface: the offline tools plus the registry historical
+    /// the full surface: the offline tools plus the registry market-data
     /// endpoints and the flat-file tools that require a live client.
     #[test]
     fn connected_tools_list_advertises_the_full_surface() {
@@ -1907,7 +1907,7 @@ mod tests {
                 "connected tools/list must still advertise the offline tool `{offline}`"
             );
         }
-        // A flat-file tool and a registry historical endpoint are connection-only
+        // A flat-file tool and a registry market-data endpoint are connection-only
         // and must appear only in the connected surface.
         for online_only in [
             "thetadatadx_flatfile_option_trade_quote",

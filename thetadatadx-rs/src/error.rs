@@ -948,7 +948,7 @@ mod tests {
 
     #[test]
     fn config_invalid_kind_carried() {
-        let err = Error::config_invalid("historical.uri", "not a URI");
+        let err = Error::config_invalid("market_data.uri", "not a URI");
         assert!(matches!(
             err,
             Error::Config {
@@ -1062,7 +1062,7 @@ mod tests {
         .is_invalid_parameter());
         assert!(ConfigErrorKind::MissingField("auth.email".into()).is_invalid_parameter());
         assert!(ConfigErrorKind::InvalidValue {
-            field: "historical.uri".into(),
+            field: "market_data.uri".into(),
             message: "not a URI".into(),
         }
         .is_invalid_parameter());

@@ -2,7 +2,7 @@
 //
 // Pins the contract that `close()` RELEASES the core client handle (not just
 // stops streaming), so a closed client is unusable: every surface getter
-// (`historical` / `stream` / `flatFiles`) throws a clear "client is closed"
+// (`marketData` / `stream` / `flatFiles`) throws a clear "client is closed"
 // error, and a second close is a no-op. Also pins that the explicit-resource
 // disposers (`Symbol.dispose` / `Symbol.asyncDispose`) route through the real
 // `close()` and tolerate an already-closed client.
@@ -76,7 +76,7 @@ describe('close() releases the handle and makes the client unusable', () => {
     }
     const client = await mod.Client.connectFromFile(credsPath);
     client.close();
-    assert.throws(() => client.marketData, /closed/, 'historical must throw after close');
+    assert.throws(() => client.marketData, /closed/, 'marketData must throw after close');
     assert.throws(() => client.stream, /closed/, 'stream must throw after close');
     assert.throws(() => client.flatFiles, /closed/, 'flatFiles must throw after close');
     // Idempotent.
@@ -94,7 +94,7 @@ describe('close() releases the handle and makes the client unusable', () => {
     await assert.rejects(
       hist.stockHistoryEOD('AAPL', '20240101', '20240301'),
       /closed/,
-      'a historical call after close must reject with the closed error',
+      'a market-data call after close must reject with the closed error',
     );
     assert.doesNotThrow(() => hist.close());
   });

@@ -1,6 +1,6 @@
-"""Historical tuning setters on `Config`.
+"""Market-data tuning setters on `Config`.
 
-Locks the contract that the historical tuning properties exposed by
+Locks the contract that the market-data tuning properties exposed by
 ``Config`` (such as ``request_timeout_secs``) round-trip through the
 pyo3 binding to the underlying Rust ``MarketDataConfig`` correctly.
 

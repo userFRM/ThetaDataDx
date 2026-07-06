@@ -93,13 +93,13 @@ impl MarketDataClient {
     /// 2. Opens a gRPC channel (TLS) to the MDDS server.
     ///
     /// The FPSS (real-time streaming) connection is not established here;
-    /// this constructor covers only the MDDS historical-data channel.
+    /// this constructor covers only the MDDS market-data-data channel.
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
         // Belt-and-braces: run the config invariants here, the single funnel
-        // every historical connect path routes through (`Client::connect`,
+        // every market-data connect path routes through (`Client::connect`,
         // `connect_with_api_key`, the builder's `EnvSource::Config`, and this
         // constructor directly). The typed construction paths do not all run
         // `validate`, so a hand-built config could otherwise drive the

@@ -2,7 +2,7 @@
 Typed `<Tick>List` wrapper + chained DataFrame terminals — correctness tests.
 
 These tests exercise the public surface introduced in v8.0.3: every
-historical endpoint returns a `<TickName>List` / `StringList` wrapper,
+market-data endpoint returns a `<TickName>List` / `StringList` wrapper,
 and DataFrame conversion happens via chained terminals (`.to_list()`,
 `.to_arrow()`, `.to_pandas()`, `.to_polars()`) on the wrapper.
 

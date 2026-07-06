@@ -522,7 +522,7 @@ for (const Klass of [native.Client, native.MarketDataClient]) {
   }
   if (typeof Klass.prototype[Symbol.asyncDispose] !== 'function') {
     Klass.prototype[Symbol.asyncDispose] = async function asyncDispose() {
-      // `stream` exists only on the unified `Client`; the historical-only
+      // `stream` exists only on the unified `Client`; the market-data-only
       // client has no streaming surface, so `close()` alone is the teardown.
       // An already-closed client throws on the `stream` getter ("client is
       // closed"); treat that as nothing-to-drain so disposing a closed client

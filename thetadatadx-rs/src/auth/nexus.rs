@@ -93,7 +93,7 @@ struct AuthEnv {
 }
 
 impl AuthEnv {
-    /// Build the `authEnv` marker for the target HISTORICAL environment.
+    /// Build the `authEnv` marker for the target MARKET-DATA environment.
     ///
     /// The auth marker is driven by the market-data environment only;
     /// the streaming environment never reaches auth. Production carries no
@@ -238,7 +238,7 @@ impl std::fmt::Debug for AuthResponse {
 /// FREE=0, VALUE=1, STANDARD=2, PROFESSIONAL=3. Concurrency is account-wide,
 /// not per asset class: [`AuthUser::max_concurrent_requests`] takes the
 /// highest tier across asset classes and permits `2^tier` concurrent
-/// historical requests, matching the vendor's account-wide-by-highest-tier
+/// market-data requests, matching the vendor's account-wide-by-highest-tier
 /// rule.
 ///
 /// `Debug` is implemented manually so `email` never lands in panic
@@ -284,7 +284,7 @@ impl std::fmt::Debug for AuthUser {
 }
 
 impl AuthUser {
-    /// Compute the maximum concurrent historical requests based on subscription tier.
+    /// Compute the maximum concurrent market-data requests based on subscription tier.
     ///
     /// Returns `2^tier` where the tier is the highest across all asset classes:
     /// - FREE = 0 -> 1 concurrent request
@@ -459,7 +459,7 @@ fn malformed_success_body_message() -> &'static str {
 /// `environment` selects the target cluster carried on the request body.
 ///
 /// The returned `AuthResponse.session_id` is a UUID string that must be
-/// embedded in every historical request as `QueryInfo.auth_token.session_uuid`.
+/// embedded in every market-data request as `QueryInfo.auth_token.session_uuid`.
 ///
 /// Transient network errors (connection refused, timeout, DNS failure) are
 /// retried up to 3 times with 2-second delays. Auth failures (wrong password,
