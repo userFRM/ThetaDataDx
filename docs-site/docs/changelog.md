@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.0.0-rc.18] - 2026-07-06
+
 ### Changed
 
 - **The query client is renamed from `Historical` to `MarketData` across every binding.** The pull/query channel serves real-time snapshots as well as historical data, so naming it "historical" was a misnomer; it is now named for the market-data channel it opens, pairing cleanly with `StreamingClient`. This renames the standalone client (`HistoricalClient` becomes `MarketDataClient`), the unified client's sub-namespace accessor (`client.historical` becomes `client.market_data`, TypeScript `client.marketData`, Rust and C++ `client.market_data()`), the config section (`[historical]` becomes `[market_data]`) and its host/port overrides, the environment selector (`HistoricalEnvironment` becomes `MarketDataEnvironment`), the `THETADATA_HISTORICAL_*` environment variables (now `THETADATA_MARKET_DATA_*`), the C-ABI symbols (`thetadatadx_historical_*` and `thetadatadx_client_historical` become `thetadatadx_market_data_*` and `thetadatadx_client_market_data`), the C++ view class (`Historical` becomes `MarketData`), and the server `--historical-region` flag (now `--market-data-region`). The streaming client, the endpoint method names, and the wire protocol are unchanged.
