@@ -23,7 +23,7 @@ mod mdds_client;
 mod streaming_batches;
 
 // These imports look unused at source level — they are pulled in by
-// the `include!("_generated/historical_methods.rs")` and
+// the `include!("_generated/market_data_methods.rs")` and
 // `include!("_generated/streaming_methods.rs")` blocks below, which
 // expand inside this module and reference these names without their
 // own `use` declarations.
@@ -37,7 +37,7 @@ use errors::{config_err, to_py_err};
 /// `pyo3_async_runtimes::tokio::init_with_runtime(...)`. No second runtime
 /// is ever constructed, so the sync and async code paths share worker
 /// threads, connection pools, and the request semaphore on the underlying
-/// `HistoricalClient`.
+/// `MarketDataClient`.
 ///
 /// The runtime is process-global and built exactly once. The first client
 /// connected in the process seeds it from that client's `config.runtime`
@@ -300,7 +300,7 @@ impl Config {
         Self::from_direct(config::DirectConfig::dev())
     }
 
-    /// Historical-staging configuration (historical staging cluster + auth marker;
+    /// Market-data-staging configuration (market-data staging cluster + auth marker;
     /// streaming stays on production). Testing, unstable.
     #[staticmethod]
     fn stage() -> Self {
@@ -310,15 +310,15 @@ impl Config {
     /// Source the target environment from a ``.env``-format file.
     ///
     /// Starts from the production configuration and applies the cluster
-    /// keys carried by the file: ``THETADATA_HISTORICAL_TYPE`` (``PROD`` /
+    /// keys carried by the file: ``THETADATA_MARKET_DATA_TYPE`` (``PROD`` /
     /// ``STAGE``, case-insensitive) selects the environment, and the
-    /// optional ``THETADATA_HISTORICAL_HOST`` / ``THETADATA_STREAMING_HOST``
+    /// optional ``THETADATA_MARKET_DATA_HOST`` / ``THETADATA_STREAMING_HOST``
     /// keys override the hosts (an explicit host wins over the environment
     /// default).
     ///
     /// This reads the same file format and keys as
     /// :meth:`Credentials.from_dotenv`, so a single ``.env`` file can carry
-    /// both ``THETADATA_API_KEY`` and ``THETADATA_HISTORICAL_TYPE``.
+    /// both ``THETADATA_API_KEY`` and ``THETADATA_MARKET_DATA_TYPE``.
     #[staticmethod]
     fn from_dotenv(path: &str) -> PyResult<Self> {
         let inner = config::DirectConfig::from_dotenv(path).map_err(to_py_err)?;
@@ -466,23 +466,23 @@ impl Config {
     // ``streaming.host_selection`` enums are the generated ``enum`` /
     // ``option`` accessors in config_surface.toml.
 
-    /// Target historical environment carried by this configuration:
+    /// Target market-data environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"STAGE"`` for staging.
-    /// The historical and streaming channels are selected independently;
+    /// The market-data and streaming channels are selected independently;
     /// :meth:`Config.production` / :meth:`Config.stage` (and the
-    /// ``THETADATA_HISTORICAL_TYPE`` key on :meth:`Config.from_dotenv`) set the
-    /// historical channel, and this is the readback of that selection.
-    /// Mirrors the ``historical_type`` string the inline ``Client`` constructor
+    /// ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the
+    /// market-data channel, and this is the readback of that selection.
+    /// Mirrors the ``market_data_type`` string the inline ``Client`` constructor
     /// accepts.
     #[getter]
-    fn get_historical_environment(&self) -> &'static str {
+    fn get_market_data_environment(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical_environment().as_str()
+        guard.market_data_environment().as_str()
     }
 
     /// Target streaming environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"DEV"`` for the dev
-    /// cluster. The streaming and historical channels are selected
+    /// cluster. The streaming and market-data channels are selected
     /// independently; :meth:`Config.production` / :meth:`Config.dev` (and
     /// the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set
     /// the streaming channel, and this is the readback of that selection.
@@ -514,15 +514,15 @@ impl Config {
         guard.streaming.consumer_cpu
     }
 
-    // `historical_host` (string) is the generated `string` accessor in
+    // `market_data_host` (string) is the generated `string` accessor in
     // config_surface.toml.
 
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
-            "Config(historical={}:{}, streaming_hosts={})",
-            guard.historical_host(),
-            guard.historical.port,
+            "Config(market_data={}:{}, streaming_hosts={})",
+            guard.market_data_host(),
+            guard.market_data.port,
             guard.streaming_hosts().len()
         )
     }
@@ -541,7 +541,7 @@ include!("_generated/config_accessors.rs");
 // `tick_arrow.rs` is the schema-generated Arrow pipeline used by the
 // DataFrame adapter -- zero-copy handoff to pyarrow via the Arrow C
 // Data Interface. `tick_classes.rs` is the primary return path for
-// all historical endpoints -- matches the typed-struct approach used
+// all market-data endpoints -- matches the typed-struct approach used
 // by Rust core, TypeScript, and C++ FFI.
 
 include!("_generated/tick_classes.rs");
@@ -554,16 +554,16 @@ include!("_generated/utility_functions.rs");
 
 // ── Unified Client client ──
 
-/// Unified ThetaData client — single connection for both historical and streaming.
+/// Unified ThetaData client — single connection for both market-data and streaming.
 ///
-/// This is the recommended entry point. Connects historical (gRPC over
+/// This is the recommended entry point. Connects the market-data channel (gRPC over
 /// HTTP/2 + TLS) with a single authentication. Real-time streaming
 /// starts lazily via ``start_streaming(callback)``.
 ///
 /// Usage::
 ///
 ///     client = Client(creds, config)
-///     eod = client.historical.stock_history_eod("AAPL", "20240101", "20240301")
+///     eod = client.market_data.stock_history_eod("AAPL", "20240101", "20240301")
 ///
 ///     def on_event(event):
 ///         print(event.kind, event)
@@ -636,16 +636,16 @@ fn resolve_credentials(
 /// Resolve the environment selection into a [`config::DirectConfig`].
 ///
 /// A full `config` handle wins (its environments and hosts are taken
-/// verbatim). Otherwise the historical and streaming
+/// verbatim). Otherwise the market-data and streaming
 /// channels are selected independently on top of the production defaults:
-/// `historical_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
-/// historical channel and `streaming_type` (`"PROD"` / `"DEV"`,
+/// `market_data_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
+/// market-data channel and `streaming_type` (`"PROD"` / `"DEV"`,
 /// case-insensitive) the streaming channel. Either absent keeps that
 /// channel on production. An unrecognized value raises ``ValueError``
 /// naming the valid set, never a silent fallback.
 fn resolve_direct_config(
     config: Option<&Config>,
-    historical_type: Option<&str>,
+    market_data_type: Option<&str>,
     streaming_type: Option<&str>,
 ) -> PyResult<config::DirectConfig> {
     if let Some(cfg) = config {
@@ -655,13 +655,13 @@ fn resolve_direct_config(
         return Ok(guard.clone());
     }
     let mut direct = config::DirectConfig::production();
-    if let Some(raw) = historical_type {
-        let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
+    if let Some(raw) = market_data_type {
+        let environment = config::MarketDataEnvironment::parse(raw).ok_or_else(|| {
             config_err(format!(
-                "historical_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+                "market_data_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
             ))
         })?;
-        direct = direct.with_historical_environment(environment);
+        direct = direct.with_market_data_environment(environment);
     }
     if let Some(raw) = streaming_type {
         let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
@@ -676,12 +676,12 @@ fn resolve_direct_config(
 
 #[pyclass(frozen)]
 struct Client {
-    /// The underlying Rust unified client (Deref to HistoricalClient for historical).
+    /// The underlying Rust unified client (Deref to MarketDataClient for market-data access).
     ///
     /// Held as `Option` behind a `Mutex` so `close()` can DETERMINISTICALLY
     /// RELEASE the handle: closing takes the `Arc<Client>` out of the slot and
-    /// drops it, so the historical gRPC channel pool is freed once the last
-    /// co-owning surface (a `HistoricalView` / `StreamView` / builder /
+    /// drops it, so the market-data gRPC channel pool is freed once the last
+    /// co-owning surface (a `MarketDataView` / `StreamView` / builder /
     /// flat-files namespace vended before close) is also gone — matching the
     /// C++ wrapper, where `close()` resets the handle. A closed slot (`None`)
     /// makes every access via [`Client::client_arc`] raise "client is closed",
@@ -690,7 +690,7 @@ struct Client {
     /// The inner `thetadatadx::Client` is not `Clone` — its streaming mutex and
     /// subscription-tier state forbid it — so surfaces co-own a cheap
     /// `Arc<Client>` clone (surviving past a parent close, exactly as the C++
-    /// `Historical` / `Stream` views co-own the `shared_ptr`).
+    /// `MarketData` / `Stream` views co-own the `shared_ptr`).
     ///
     /// Deadlock-safe drop: the core `Client::Drop` runs the DETACHED streaming
     /// quiesce (never a GIL-reacquiring join), so dropping the taken `Arc` on
@@ -748,7 +748,7 @@ impl Client {
 
     /// The live core client handle, or a "client is closed" error.
     ///
-    /// Every surface the client vends (`historical` / `stream` / `flat_files`)
+    /// Every surface the client vends (`market_data` / `stream` / `flat_files`)
     /// resolves the handle through here, so once `close()` has taken it the
     /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
     /// co-owns.
@@ -765,16 +765,16 @@ impl Client {
     }
 }
 
-/// User-facing historical-data sub-namespace returned by
-/// `client.historical`.
+/// User-facing market-data sub-namespace returned by
+/// `client.market_data`.
 ///
 /// Holds a cheap `Arc` clone of the inner unified client; constructing it
 /// performs no auth round-trip and mutates no streaming state. Every
-/// historical endpoint method (sync, `*_async`, and `*_builder`) is
+/// market-data endpoint method (sync, `*_async`, and `*_builder`) is
 /// generated onto this view from `endpoint_surface.toml`, so the surface
 /// stays a single generated source of truth.
 #[pyclass(frozen)]
-struct HistoricalView {
+struct MarketDataView {
     client: std::sync::Arc<thetadatadx::Client>,
 }
 
@@ -843,7 +843,7 @@ impl Drop for CallbackReservation<'_> {
 impl Client {
     // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 
-    /// Connect to ThetaData (historical only -- streaming is NOT started).
+    /// Connect to ThetaData (market-data only -- streaming is NOT started).
     ///
     /// Authenticates once, opens gRPC channel. Call
     /// ``start_streaming(callback)`` to begin real-time streaming —
@@ -858,18 +858,18 @@ impl Client {
     ///
     /// The API key is a first-class, directly-passed argument:
     /// ``Client(api_key="td1_...")`` and ``Client(api_key="td1_...",
-    /// historical_type="STAGE")`` select the credential and the environment
+    /// market_data_type="STAGE")`` select the credential and the environment
     /// inline. Email + password is the parallel method:
     /// ``Client(email="user@example.com", password="secret")``. The
     /// lower-level typed path stays a clean superset:
-    /// ``Client(credentials=creds, config=cfg)`` (and the historical
+    /// ``Client(credentials=creds, config=cfg)`` (and the original
     /// positional ``Client(creds, config)``) still work.
     ///
     /// Exactly one authentication argument must be given — ``api_key``,
     /// the ``email`` + ``password`` pair, or ``credentials``. Passing
     /// none, or two different ones, raises ``ConfigError`` before any
-    /// network round-trip. ``historical_type`` (``"PROD"`` / ``"STAGE"``,
-    /// case-insensitive) selects the historical environment and
+    /// network round-trip. ``market_data_type`` (``"PROD"`` / ``"STAGE"``,
+    /// case-insensitive) selects the market-data environment and
     /// ``streaming_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
     /// streaming environment, independently; ``config`` supplies a full
     /// :class:`Config` whose environments and hosts win.
@@ -881,7 +881,7 @@ impl Client {
         api_key=None,
         email=None,
         password=None,
-        historical_type=None,
+        market_data_type=None,
         streaming_type=None,
     ))]
     #[allow(clippy::too_many_arguments)]
@@ -892,11 +892,11 @@ impl Client {
         api_key: Option<String>,
         email: Option<String>,
         password: Option<String>,
-        historical_type: Option<&str>,
+        market_data_type: Option<&str>,
         streaming_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = resolve_credentials(credentials, api_key, email, password)?;
-        let direct_config = resolve_direct_config(config, historical_type, streaming_type)?;
+        let direct_config = resolve_direct_config(config, market_data_type, streaming_type)?;
         Self::connect_blocking(py, creds, direct_config)
     }
 
@@ -911,21 +911,21 @@ impl Client {
     /// env-or-file convenience read a ``.env`` file with
     /// :meth:`from_dotenv` instead.
     ///
-    /// ``historical_type`` selects the historical environment (``"PROD"`` /
+    /// ``market_data_type`` selects the market-data environment (``"PROD"`` /
     /// ``"STAGE"``) and ``streaming_type`` the streaming environment (``"PROD"``
     /// / ``"DEV"``), independently; ``config`` supplies a full
     /// :class:`Config` whose environments and hosts win. The key is read
     /// once, immediately before the network round-trip.
     #[staticmethod]
-    #[pyo3(signature = (config=None, *, historical_type=None, streaming_type=None))]
+    #[pyo3(signature = (config=None, *, market_data_type=None, streaming_type=None))]
     fn from_env(
         py: Python<'_>,
         config: Option<&Config>,
-        historical_type: Option<&str>,
+        market_data_type: Option<&str>,
         streaming_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = auth::Credentials::from_env().map_err(to_py_err)?;
-        let direct_config = resolve_direct_config(config, historical_type, streaming_type)?;
+        let direct_config = resolve_direct_config(config, market_data_type, streaming_type)?;
         Self::connect_blocking(py, creds, direct_config)
     }
 
@@ -935,26 +935,26 @@ impl Client {
     /// ``THETADATA_API_KEY`` selects an API key; otherwise
     /// ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
     /// password credentials. When ``config`` is omitted the same file is
-    /// also read for ``THETADATA_HISTORICAL_TYPE`` and ``THETADATA_STREAMING_TYPE``,
+    /// also read for ``THETADATA_MARKET_DATA_TYPE`` and ``THETADATA_STREAMING_TYPE``,
     /// so one ``.env`` can carry both the credential and the
-    /// environments. An explicit ``config``, ``historical_type``, or
+    /// environments. An explicit ``config``, ``market_data_type``, or
     /// ``streaming_type`` overrides the file's environment selection.
     #[staticmethod]
-    #[pyo3(signature = (path, config=None, *, historical_type=None, streaming_type=None))]
+    #[pyo3(signature = (path, config=None, *, market_data_type=None, streaming_type=None))]
     fn from_dotenv(
         py: Python<'_>,
         path: &str,
         config: Option<&Config>,
-        historical_type: Option<&str>,
+        market_data_type: Option<&str>,
         streaming_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = auth::Credentials::from_dotenv(path).map_err(to_py_err)?;
-        // With no explicit config / historical_type / streaming_type, read both
+        // With no explicit config / market_data_type / streaming_type, read both
         // environment selectors from the same file; otherwise honour the
         // explicit override.
-        let direct_config = match (config, historical_type, streaming_type) {
+        let direct_config = match (config, market_data_type, streaming_type) {
             (None, None, None) => config::DirectConfig::from_dotenv(path).map_err(to_py_err)?,
-            _ => resolve_direct_config(config, historical_type, streaming_type)?,
+            _ => resolve_direct_config(config, market_data_type, streaming_type)?,
         };
         Self::connect_blocking(py, creds, direct_config)
     }
@@ -968,7 +968,7 @@ impl Client {
     /// environments reach a single-arg constructor shape via
     /// `Client.from_file("creds.txt", config=Config.dev())`.
     /// Parity with `AsyncClient.from_file()`,
-    /// `HistoricalClient.from_file()`, and `StreamingClient.from_file()` — every
+    /// `MarketDataClient.from_file()`, and `StreamingClient.from_file()` — every
     /// Python client exposes the same one-call file-construction shape.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
@@ -979,7 +979,7 @@ impl Client {
     }
 
     // No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
-    // Every historical endpoint returns `Py<<TickName>List>` (or
+    // Every market-data endpoint returns `Py<<TickName>List>` (or
     // `Py<StringList>` for list endpoints); chain `.to_polars()` /
     // `.to_pandas()` / `.to_arrow()` / `.to_list()` on the return
     // value for the Arrow-backed conversion. One code path, one SSOT,
@@ -999,18 +999,18 @@ impl Client {
         } else {
             "streaming=none"
         };
-        format!("Client(historical=connected, {streaming})")
+        format!("Client(market_data=connected, {streaming})")
     }
 
-    /// Historical-data sub-namespace: `client.historical.stock_eod(...)`.
+    /// Market-data sub-namespace: `client.market_data.stock_eod(...)`.
     ///
-    /// Returns a fresh [`HistoricalView`] over a cheap `Arc` clone of the
+    /// Returns a fresh [`MarketDataView`] over a cheap `Arc` clone of the
     /// inner client. No auth round-trip, no streaming-state mutation;
-    /// storing `hist = client.historical` is identical to calling
-    /// `client.historical.<endpoint>(...)` inline.
+    /// storing `hist = client.market_data` is identical to calling
+    /// `client.market_data.<endpoint>(...)` inline.
     #[getter]
-    fn historical(&self) -> PyResult<HistoricalView> {
-        Ok(HistoricalView {
+    fn market_data(&self) -> PyResult<MarketDataView> {
+        Ok(MarketDataView {
             client: self.client_arc()?,
         })
     }
@@ -1034,7 +1034,7 @@ impl Client {
     /// Stops streaming if it is live (idempotent), waits for the streaming
     /// consumer thread to finish firing the registered callback, and drops the
     /// stored callback reference. Safe to call more than once and safe on a
-    /// client that only ran historical queries — those cases are a fast no-op.
+    /// client that only ran market-data queries — those cases are a fast no-op.
     ///
     /// This is the recommended teardown. It runs on the calling thread with the
     /// GIL released around the wait, so the dispatcher can re-acquire the GIL
@@ -1110,7 +1110,7 @@ impl Client {
     ///
     /// Idempotent: the handle is taken out of its slot up front, so a second
     /// close finds `None` and returns immediately. Dropping the taken `Arc`
-    /// releases the historical gRPC channel pool once no vended surface still
+    /// releases the market-data gRPC channel pool once no vended surface still
     /// co-owns it, and runs the core `Client::Drop` (the DETACHED streaming
     /// quiesce, never a GIL-reacquiring join) — safe to drop here even with the
     /// GIL held.
@@ -1135,7 +1135,7 @@ impl Client {
             // that flag flips false the instant `stop_streaming()` runs, so a
             // `close()` after an explicit `stop` would skip the barrier and
             // return while the last callback is still firing. A quiesced or
-            // historical-only client leaves `prev_drained` empty, so `await_drain`
+            // market-data-only client leaves `prev_drained` empty, so `await_drain`
             // returns immediately -- the barrier is vacuously satisfied.
             let self_dispatch = client.stream().current_thread_is_dispatcher();
             client.close();
@@ -1397,7 +1397,7 @@ impl StreamView {
 // ── AsyncClient — async-only sibling ───────────────────────
 //
 // The underlying `Client` exposes both sync and `*_async`
-// historical methods. This thin wrapper holds a `Client`
+// market-data methods. This thin wrapper holds a `Client`
 // handle and proxies attribute access through `__getattr__`, but raises
 // on access to non-`async_` methods so users that opt into the async
 // surface do not accidentally call a blocking sync path.
@@ -1691,21 +1691,21 @@ impl AsyncClient {
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if !name.ends_with("_async") && !ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) {
             return Err(pyo3::exceptions::PyAttributeError::new_err(format!(
-                "AsyncClient surfaces only `*_async` historical methods plus \
+                "AsyncClient surfaces only `*_async` market-data methods plus \
                  streaming lifecycle helpers; `{name}` is not on the async surface. \
-                 Use `Client` for the synchronous historical methods."
+                 Use `Client` for the synchronous market-data methods."
             )));
         }
         let bound = self.inner.bind(py);
-        // The historical and streaming surfaces moved off `Client` onto the
-        // `client.historical` / `client.stream` sub-namespace views. Resolve
+        // The market-data and streaming surfaces moved off `Client` onto the
+        // `client.market_data` / `client.stream` sub-namespace views. Resolve
         // each proxied name against the surface that actually owns it so the
         // async façade keeps a flat call shape
         // (`await async_client.stock_history_eod_async(...)`,
         // `async_client.subscribe(...)`) over the restructured client.
         if name.ends_with("_async") {
-            let historical = bound.getattr("historical")?;
-            return Ok(historical.getattr(name)?.unbind());
+            let market_data = bound.getattr("market_data")?;
+            return Ok(market_data.getattr(name)?.unbind());
         }
         if ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) && !DIRECT_ON_CLIENT.contains(&name) {
             let stream = bound.getattr("stream")?;
@@ -1787,7 +1787,7 @@ use streaming_session::StreamingSession;
 // `start_streaming(cb)` plus the `StreamingSession` context manager is
 // the sole streaming surface on the bundled client.
 
-include!("_generated/historical_methods.rs");
+include!("_generated/market_data_methods.rs");
 
 // `decode_response_bytes(endpoint, chunks)` hook used by the external
 // parity bench harness. Generator-emitted from `endpoint_surface.toml`
@@ -1797,7 +1797,7 @@ include!("_generated/decode_bench.rs");
 
 // ── DataFrame adapter: Arrow columnar pipeline ──
 //
-// Every historical endpoint returns a typed `<TickName>List` (or
+// Every market-data endpoint returns a typed `<TickName>List` (or
 // `StringList` for list endpoints), generator-emitted from
 // `tick_schema.toml` + `endpoint_surface.toml`. Terminals live on the
 // wrapper: `ticks.to_list()`, `ticks.to_arrow()`, `ticks.to_pandas()`,
@@ -1809,7 +1809,7 @@ include!("_generated/decode_bench.rs");
 // lives in `tick_arrow.rs` + `tick_classes.rs`.
 //
 // Zero-copy path:
-//   Vec<tick::T>     -- Rust-side (historical endpoints)
+//   Vec<tick::T>     -- Rust-side (market-data endpoints)
 //     -> `<TickName>List` (decoder-owned Vec, no copy)
 //     -> RecordBatch  -- schema-generated arrow builders
 //     -> FFI_ArrowArrayStream  -- Arrow C Stream Interface export
@@ -1916,19 +1916,19 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Credentials>()?;
     m.add_class::<Config>()?;
     m.add_class::<Client>()?;
-    m.add_class::<HistoricalView>()?;
+    m.add_class::<MarketDataView>()?;
     m.add_class::<StreamView>()?;
     m.add_class::<streaming_batches::RecordBatchStream>()?;
     m.add_class::<AsyncClient>()?;
     m.add_class::<fpss_client::StreamingClient>()?;
-    m.add_class::<mdds_client::HistoricalClient>()?;
+    m.add_class::<mdds_client::MarketDataClient>()?;
     m.add_class::<StreamingSession>()?;
     fluent::register(m)?;
     m.add_class::<flatfile_methods::FlatFilesNamespace>()?;
     m.add_class::<flatfile_methods::FlatFileRowList>()?;
     register_fpss_event_classes(m)?;
     register_tick_classes(m)?;
-    register_generated_historical_builders(m)?;
+    register_generated_market_data_builders(m)?;
     coerce::register_string_enums(m)?;
     register_generated_util_submodule(m)?;
 
@@ -1939,7 +1939,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     m.add_function(wrap_pyfunction!(decode_response_bytes, m)?)?;
     m.add_function(wrap_pyfunction!(split_date_range, m)?)?;
-    // Introspection helper for the offline `HistoricalClient` block-list
+    // Introspection helper for the offline `MarketDataClient` block-list
     // coverage test. Mirrors `mdds_client::FPSS_TOUCHING_METHODS`.
     m.add_function(wrap_pyfunction!(mdds_client::blocked_fpss_methods, m)?)?;
     // Offline streaming-saturation bench hooks (no network). Drive the real

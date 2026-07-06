@@ -4,7 +4,7 @@
 //! Each batch crosses the C boundary as an Arrow IPC stream, the same
 //! columnar wire format the per-tick `thetadatadx_*_to_arrow_ipc` terminals
 //! use, so the C++ SDK decodes a streaming batch with arrow-cpp's IPC reader
-//! exactly as it already decodes a historical result.
+//! exactly as it already decodes a market-data result.
 
 use std::sync::Arc;
 

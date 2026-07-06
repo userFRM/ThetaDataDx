@@ -3,53 +3,53 @@
 //! The SDK drives two independent server channels, and each has its own
 //! environment set:
 //!
-//! * The historical channel runs in [`HistoricalEnvironment::Prod`] or
-//!   [`HistoricalEnvironment::Stage`]. The historical environment also drives
+//! * The market-data channel runs in [`MarketDataEnvironment::Prod`] or
+//!   [`MarketDataEnvironment::Stage`]. The market-data environment also drives
 //!   the auth wire marker (the `authEnv` object on the Nexus auth request):
 //!   staging carries the staging marker, production carries none.
 //! * The streaming channel runs in [`StreamingEnvironment::Prod`] or
 //!   [`StreamingEnvironment::Dev`]. The streaming environment selects only the
 //!   streaming hosts; it never affects auth.
 //!
-//! The two are chosen independently: a config can be historical-staging with
-//! streaming-production, historical-production with streaming-dev, and so on.
-//! There is no historical dev cluster and no streaming staging cluster; the
+//! The two are chosen independently: a config can be market-data-staging with
+//! streaming-production, market-data-production with streaming-dev, and so on.
+//! There is no market-data dev cluster and no streaming staging cluster; the
 //! enums encode exactly the environments each channel supports.
 //!
 //! The selectors are set by the [`DirectConfig`] presets:
 //! [`DirectConfig::production`] selects production on both channels;
-//! [`DirectConfig::stage`] selects historical-staging while streaming stays on
-//! production; [`DirectConfig::dev`] selects streaming-dev while historical
+//! [`DirectConfig::stage`] selects market-data-staging while streaming stays on
+//! production; [`DirectConfig::dev`] selects streaming-dev while market-data
 //! stays on production. They can also be chosen directly with
-//! [`DirectConfig::with_historical_environment`] /
+//! [`DirectConfig::with_market_data_environment`] /
 //! [`DirectConfig::with_streaming_environment`], or via the
-//! `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`) and `THETADATA_STREAMING_TYPE`
+//! `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`) and `THETADATA_STREAMING_TYPE`
 //! (`PROD` / `DEV`) environment variables.
 //!
 //! [`DirectConfig`]: crate::config::DirectConfig
 //! [`DirectConfig::production`]: crate::config::DirectConfig::production
 //! [`DirectConfig::stage`]: crate::config::DirectConfig::stage
 //! [`DirectConfig::dev`]: crate::config::DirectConfig::dev
-//! [`DirectConfig::with_historical_environment`]: crate::config::DirectConfig::with_historical_environment
+//! [`DirectConfig::with_market_data_environment`]: crate::config::DirectConfig::with_market_data_environment
 //! [`DirectConfig::with_streaming_environment`]: crate::config::DirectConfig::with_streaming_environment
 
-/// Which `ThetaData` historical environment the SDK targets.
+/// Which `ThetaData` market-data environment the SDK targets.
 ///
-/// The historical channel runs in production or staging only. This value also
+/// The market-data channel runs in production or staging only. This value also
 /// drives the auth wire marker the Nexus auth request carries: staging carries
 /// the staging `authEnv`, production carries none. Defaults to
-/// [`HistoricalEnvironment::Prod`].
+/// [`MarketDataEnvironment::Prod`].
 ///
 /// Selected with [`DirectConfig::stage`](crate::config::DirectConfig::stage),
-/// the [`with_historical_environment`](crate::config::DirectConfig::with_historical_environment)
-/// builder, or `THETADATA_HISTORICAL_TYPE=STAGE`.
+/// the [`with_market_data_environment`](crate::config::DirectConfig::with_market_data_environment)
+/// builder, or `THETADATA_MARKET_DATA_TYPE=STAGE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
-pub enum HistoricalEnvironment {
-    /// Production historical cluster — the standard live `ThetaData` cluster.
+pub enum MarketDataEnvironment {
+    /// Production market-data cluster — the standard live `ThetaData` cluster.
     #[default]
     Prod,
-    /// Staging historical cluster, used for validating against pre-release
+    /// Staging market-data cluster, used for validating against pre-release
     /// server changes. Less stable than production and subject to frequent
     /// reboots. Authenticates with the staging marker.
     Stage,
@@ -74,47 +74,47 @@ pub enum StreamingEnvironment {
     /// Dev streaming cluster, which replays a random historical trading day in
     /// an infinite loop at maximum speed for development and testing when
     /// markets are closed. It is a streaming-only offering; selecting it does
-    /// not change the historical channel or the auth marker.
+    /// not change the market-data channel or the auth marker.
     Dev,
 }
 
-impl HistoricalEnvironment {
+impl MarketDataEnvironment {
     /// Stable string label, used for diagnostics and as the selector readback.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
-            HistoricalEnvironment::Prod => "PROD",
-            HistoricalEnvironment::Stage => "STAGE",
+            MarketDataEnvironment::Prod => "PROD",
+            MarketDataEnvironment::Stage => "STAGE",
         }
     }
 
     /// Parse the stable string label (case-insensitive, surrounding whitespace
     /// ignored). `"PROD"` maps to [`Self::Prod`] and `"STAGE"` to
     /// [`Self::Stage`]; any other input (including `"DEV"`, which the
-    /// historical channel does not support) returns `None`. The round-trip
-    /// inverse of [`Self::as_str`] and the parser behind `THETADATA_HISTORICAL_TYPE`.
+    /// market-data channel does not support) returns `None`. The round-trip
+    /// inverse of [`Self::as_str`] and the parser behind `THETADATA_MARKET_DATA_TYPE`.
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_uppercase().as_str() {
-            "PROD" => Some(HistoricalEnvironment::Prod),
-            "STAGE" => Some(HistoricalEnvironment::Stage),
+            "PROD" => Some(MarketDataEnvironment::Prod),
+            "STAGE" => Some(MarketDataEnvironment::Stage),
             _ => None,
         }
     }
 
-    /// Historical (gRPC) host for this environment's cluster.
+    /// Market-data (gRPC) host for this environment's cluster.
     ///
-    /// Every cluster serves historical over TLS on port 443; only the host
-    /// differs, so this is the single place that maps the historical
+    /// Every cluster serves market-data over TLS on port 443; only the host
+    /// differs, so this is the single place that maps the market-data
     /// environment to its host.
     #[must_use]
     pub(crate) fn host(self) -> &'static str {
         match self {
-            // Production keeps the canonical historical default in
-            // `HistoricalConfig::production_defaults`; the literal here mirrors
+            // Production keeps the canonical market-data default in
+            // `MarketDataConfig::production_defaults`; the literal here mirrors
             // it so the two never drift (a unit test asserts the equality).
-            HistoricalEnvironment::Prod => "mdds-01.thetadata.us",
-            HistoricalEnvironment::Stage => "mdds-stage.thetadata.us",
+            MarketDataEnvironment::Prod => "mdds-01.thetadata.us",
+            MarketDataEnvironment::Stage => "mdds-stage.thetadata.us",
         }
     }
 }
@@ -165,14 +165,14 @@ impl StreamingEnvironment {
     }
 }
 
-impl std::str::FromStr for HistoricalEnvironment {
+impl std::str::FromStr for MarketDataEnvironment {
     type Err = crate::error::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s).ok_or_else(|| {
             crate::error::Error::config_invalid(
-                "historical environment",
-                format!("historical environment must be one of \"PROD\", \"STAGE\"; got {s:?}"),
+                "market-data environment",
+                format!("market-data environment must be one of \"PROD\", \"STAGE\"; got {s:?}"),
             )
         })
     }
@@ -198,23 +198,23 @@ mod tests {
     #[test]
     fn defaults_are_prod() {
         assert_eq!(
-            HistoricalEnvironment::default(),
-            HistoricalEnvironment::Prod
+            MarketDataEnvironment::default(),
+            MarketDataEnvironment::Prod
         );
         assert_eq!(StreamingEnvironment::default(), StreamingEnvironment::Prod);
     }
 
     #[test]
     fn labels_round_trip_case_insensitively() {
-        for env in [HistoricalEnvironment::Prod, HistoricalEnvironment::Stage] {
-            assert_eq!(HistoricalEnvironment::parse(env.as_str()), Some(env));
+        for env in [MarketDataEnvironment::Prod, MarketDataEnvironment::Stage] {
+            assert_eq!(MarketDataEnvironment::parse(env.as_str()), Some(env));
         }
         for env in [StreamingEnvironment::Prod, StreamingEnvironment::Dev] {
             assert_eq!(StreamingEnvironment::parse(env.as_str()), Some(env));
         }
         assert_eq!(
-            HistoricalEnvironment::parse("  stage  "),
-            Some(HistoricalEnvironment::Stage)
+            MarketDataEnvironment::parse("  stage  "),
+            Some(MarketDataEnvironment::Stage)
         );
         assert_eq!(
             StreamingEnvironment::parse("DeV"),
@@ -225,25 +225,25 @@ mod tests {
     #[test]
     fn each_channel_rejects_the_other_channels_env() {
         use std::str::FromStr;
-        // The historical channel has no dev; the streaming channel has no
+        // The market-data channel has no dev; the streaming channel has no
         // stage. A cross-channel value must NOT silently fall back — it parses
         // to None and `from_str` yields a typed error naming the valid set.
-        assert_eq!(HistoricalEnvironment::parse("DEV"), None);
+        assert_eq!(MarketDataEnvironment::parse("DEV"), None);
         assert_eq!(StreamingEnvironment::parse("STAGE"), None);
-        assert!(HistoricalEnvironment::from_str("DEV").is_err());
+        assert!(MarketDataEnvironment::from_str("DEV").is_err());
         assert!(StreamingEnvironment::from_str("STAGE").is_err());
-        assert!(HistoricalEnvironment::from_str("bogus").is_err());
+        assert!(MarketDataEnvironment::from_str("bogus").is_err());
         assert!(StreamingEnvironment::from_str("").is_err());
     }
 
     #[test]
     fn prod_cluster_matches_canonical_defaults() {
-        use crate::config::{HistoricalConfig, StreamingConfig};
+        use crate::config::{MarketDataConfig, StreamingConfig};
         // The Prod literals must mirror the canonical defaults so the two never
         // drift.
         assert_eq!(
-            HistoricalEnvironment::Prod.host(),
-            HistoricalConfig::production_defaults().host
+            MarketDataEnvironment::Prod.host(),
+            MarketDataConfig::production_defaults().host
         );
         assert_eq!(
             StreamingEnvironment::Prod.hosts(),
@@ -252,9 +252,9 @@ mod tests {
     }
 
     #[test]
-    fn stage_historical_uses_staging_host() {
+    fn stage_market_data_uses_staging_host() {
         assert_eq!(
-            HistoricalEnvironment::Stage.host(),
+            MarketDataEnvironment::Stage.host(),
             "mdds-stage.thetadata.us"
         );
     }

@@ -5,7 +5,7 @@
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_list_symbols_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
     ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn thetadatadx_stock_list_symbols_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -225,7 +225,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -287,7 +287,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -349,7 +349,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -425,7 +425,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -487,7 +487,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -549,7 +549,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -611,7 +611,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -673,7 +673,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -756,7 +756,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -839,7 +839,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_list_symbols_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
     ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
@@ -880,7 +880,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_symbols_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     request_type: *const c_char
 ,
     symbol: *const c_char
@@ -942,7 +942,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_list_expirations_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -990,7 +990,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_expirations_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1045,7 +1045,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     request_type: *const c_char
 ,
     date: *const c_char
@@ -1114,7 +1114,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1183,7 +1183,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1252,7 +1252,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1321,7 +1321,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1390,7 +1390,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1459,7 +1459,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1528,7 +1528,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1597,7 +1597,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1666,7 +1666,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1735,7 +1735,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1804,7 +1804,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1887,7 +1887,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -1956,7 +1956,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2025,7 +2025,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2094,7 +2094,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2163,7 +2163,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2232,7 +2232,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2315,7 +2315,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2384,7 +2384,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2453,7 +2453,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2522,7 +2522,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2591,7 +2591,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2660,7 +2660,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2729,7 +2729,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2798,7 +2798,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2867,7 +2867,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -2936,7 +2936,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatility_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -3005,7 +3005,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -3095,7 +3095,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     expiration: *const c_char
@@ -3185,7 +3185,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_list_symbols_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
     ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
@@ -3226,7 +3226,7 @@ pub unsafe extern "C" fn thetadatadx_index_list_symbols_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_list_dates_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -3274,7 +3274,7 @@ pub unsafe extern "C" fn thetadatadx_index_list_dates_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -3336,7 +3336,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -3398,7 +3398,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -3460,7 +3460,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3536,7 +3536,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3612,7 +3612,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -3674,7 +3674,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     start_date: *const c_char
@@ -3757,7 +3757,7 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     options: *const ThetaDataDxEndpointRequestOptions,
     out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxCalendarDayArray {
@@ -3812,7 +3812,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -3874,7 +3874,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     year: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
@@ -3936,7 +3936,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
-    client: *const ThetaDataDxHistoricalClient,
+    client: *const ThetaDataDxMarketDataClient,
     symbol: *const c_char
 ,
     start_date: *const c_char

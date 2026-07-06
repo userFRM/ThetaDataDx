@@ -1,7 +1,7 @@
 // Config.fromDotenv — TypeScript binding smoke test.
 //
 // Sources the staging selection from a `.env` file and confirms the
-// resulting config points the historical channel at the staging cluster,
+// resulting config points the market-data channel at the staging cluster,
 // distinct from the production host a prod / api-key-only `.env` yields.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,26 +30,26 @@ function withDotenv(name, body, fn) {
 
 describe('Config.fromDotenv', () => {
   it('selects the staging environment from a .env file', () => {
-    withDotenv('stage.env', '# select staging\nTHETADATA_HISTORICAL_TYPE=STAGE\n', (path) => {
+    withDotenv('stage.env', '# select staging\nTHETADATA_MARKET_DATA_TYPE=STAGE\n', (path) => {
       const cfg = mod.Config.fromDotenv(path);
       assert.ok(cfg, 'fromDotenv should return a Config handle');
-      assert.equal(cfg.historicalHost, 'mdds-stage.thetadata.us');
+      assert.equal(cfg.marketDataHost, 'mdds-stage.thetadata.us');
     });
   });
 
   it('keeps the production host when the .env carries only an API key', () => {
     withDotenv('apikey.env', 'THETADATA_API_KEY=td_example_key\n', (path) => {
       const cfg = mod.Config.fromDotenv(path);
-      assert.equal(cfg.historicalHost, 'mdds-01.thetadata.us');
+      assert.equal(cfg.marketDataHost, 'mdds-01.thetadata.us');
     });
   });
 
   it('yields a different host for a stage .env than for a prod .env', () => {
-    withDotenv('prod.env', 'THETADATA_HISTORICAL_TYPE=PROD\n', (prodPath) => {
-      withDotenv('stage2.env', 'THETADATA_HISTORICAL_TYPE=STAGE\n', (stagePath) => {
+    withDotenv('prod.env', 'THETADATA_MARKET_DATA_TYPE=PROD\n', (prodPath) => {
+      withDotenv('stage2.env', 'THETADATA_MARKET_DATA_TYPE=STAGE\n', (stagePath) => {
         const prod = mod.Config.fromDotenv(prodPath);
         const stage = mod.Config.fromDotenv(stagePath);
-        assert.notEqual(prod.historicalHost, stage.historicalHost);
+        assert.notEqual(prod.marketDataHost, stage.marketDataHost);
       });
     });
   });

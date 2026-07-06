@@ -15,7 +15,7 @@
 
 /* eslint-disable */
 
-import type { Client, HistoricalClient, StreamView, StreamEvent, ContractRef } from './index';
+import type { Client, MarketDataClient, StreamView, StreamEvent, ContractRef } from './index';
 
 export * from './index';
 
@@ -151,17 +151,17 @@ declare module './index' {
     [Symbol.asyncDispose](): Promise<void>;
   }
 
-  interface HistoricalClient {
+  interface MarketDataClient {
     /**
      * TC39 explicit resource management: `using client = await
-     * HistoricalClient.connect(...)` calls this on scope exit. Runs
-     * {@link HistoricalClient.close}. The historical-only surface has no
+     * MarketDataClient.connect(...)` calls this on scope exit. Runs
+     * {@link MarketDataClient.close}. The market-data-only surface has no
      * streaming to drain, so the sync and async disposers are equivalent.
      */
     [Symbol.dispose](): void;
 
-    /** Async counterpart of {@link HistoricalClient[Symbol.dispose]}; no
-     * streaming drain on the historical-only surface. */
+    /** Async counterpart of {@link MarketDataClient[Symbol.dispose]}; no
+     * streaming drain on the market-data-only surface. */
     [Symbol.asyncDispose](): Promise<void>;
   }
 

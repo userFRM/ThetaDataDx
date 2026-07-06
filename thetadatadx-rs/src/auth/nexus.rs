@@ -47,7 +47,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 use super::Credentials;
-use crate::config::HistoricalEnvironment;
+use crate::config::MarketDataEnvironment;
 use crate::error::Error;
 use crate::util::random_id::validate_uuid_format;
 
@@ -93,19 +93,19 @@ struct AuthEnv {
 }
 
 impl AuthEnv {
-    /// Build the `authEnv` marker for the target HISTORICAL environment.
+    /// Build the `authEnv` marker for the target MARKET-DATA environment.
     ///
-    /// The auth marker is driven by the historical environment only;
+    /// The auth marker is driven by the market-data environment only;
     /// the streaming environment never reaches auth. Production carries no
     /// marker: the server treats an absent `authEnv` as `PROD`, so omitting it
     /// keeps the production request body byte-identical to the long-validated
-    /// shape. Only the staging historical environment serializes an explicit
+    /// shape. Only the staging market-data environment serializes an explicit
     /// marker. A streaming-dev session therefore authenticates byte-identically
-    /// to production, since its historical environment is production.
-    fn for_environment(env: HistoricalEnvironment) -> Option<Self> {
+    /// to production, since its market-data environment is production.
+    fn for_environment(env: MarketDataEnvironment) -> Option<Self> {
         match env {
-            HistoricalEnvironment::Prod => None,
-            HistoricalEnvironment::Stage => Some(Self {
+            MarketDataEnvironment::Prod => None,
+            MarketDataEnvironment::Stage => Some(Self {
                 env_type: EnvType::Stage,
             }),
         }
@@ -143,7 +143,7 @@ impl<'a> AuthRequest<'a> {
     /// `{"apiKey": ...}`; an email + password serializes as
     /// `{"email": ..., "password": ...}`. The staging environment adds
     /// `"authEnv": {"envType": "STAGE"}`; production omits it.
-    fn from_credentials(creds: &'a Credentials, environment: HistoricalEnvironment) -> Self {
+    fn from_credentials(creds: &'a Credentials, environment: MarketDataEnvironment) -> Self {
         let auth_env = AuthEnv::for_environment(environment);
         if let Some(key) = creds.api_key_secret() {
             Self {
@@ -185,13 +185,13 @@ fn auth_request_body_bytes(body: &AuthRequest<'_>) -> Result<bytes::Bytes, Error
 /// credential, returning the on-the-wire JSON.
 ///
 /// Test-only seam so callers outside this module (notably the config-layer
-/// tests) can assert the auth wire body a given [`HistoricalEnvironment`] produces —
+/// tests) can assert the auth wire body a given [`MarketDataEnvironment`] produces —
 /// in particular that a dev config's body is byte-identical to production's
 /// — without `AuthRequest` leaving this module's private surface. The
 /// credential is irrelevant to the `authEnv` marker under test, so a fixed
 /// email/password pair is used.
 #[cfg(test)]
-pub(crate) fn auth_request_json_for_test(environment: HistoricalEnvironment) -> serde_json::Value {
+pub(crate) fn auth_request_json_for_test(environment: MarketDataEnvironment) -> serde_json::Value {
     let creds = Credentials::new("user@example.com", "hunter2");
     serde_json::to_value(AuthRequest::from_credentials(&creds, environment))
         .expect("auth request serializes")
@@ -238,7 +238,7 @@ impl std::fmt::Debug for AuthResponse {
 /// FREE=0, VALUE=1, STANDARD=2, PROFESSIONAL=3. Concurrency is account-wide,
 /// not per asset class: [`AuthUser::max_concurrent_requests`] takes the
 /// highest tier across asset classes and permits `2^tier` concurrent
-/// historical requests, matching the vendor's account-wide-by-highest-tier
+/// market-data requests, matching the vendor's account-wide-by-highest-tier
 /// rule.
 ///
 /// `Debug` is implemented manually so `email` never lands in panic
@@ -284,7 +284,7 @@ impl std::fmt::Debug for AuthUser {
 }
 
 impl AuthUser {
-    /// Compute the maximum concurrent historical requests based on subscription tier.
+    /// Compute the maximum concurrent market-data requests based on subscription tier.
     ///
     /// Returns `2^tier` where the tier is the highest across all asset classes:
     /// - FREE = 0 -> 1 concurrent request
@@ -379,7 +379,7 @@ fn is_transient_network_error(err: &reqwest::Error) -> bool {
 #[cfg(feature = "__internal")]
 pub async fn authenticate(
     creds: &Credentials,
-    environment: HistoricalEnvironment,
+    environment: MarketDataEnvironment,
 ) -> Result<AuthResponse, Error> {
     authenticate_at(NEXUS_AUTH_URL, creds, environment).await
 }
@@ -459,7 +459,7 @@ fn malformed_success_body_message() -> &'static str {
 /// `environment` selects the target cluster carried on the request body.
 ///
 /// The returned `AuthResponse.session_id` is a UUID string that must be
-/// embedded in every historical request as `QueryInfo.auth_token.session_uuid`.
+/// embedded in every market-data request as `QueryInfo.auth_token.session_uuid`.
 ///
 /// Transient network errors (connection refused, timeout, DNS failure) are
 /// retried up to 3 times with 2-second delays. Auth failures (wrong password,
@@ -481,7 +481,7 @@ fn malformed_success_body_message() -> &'static str {
 pub async fn authenticate_at(
     url: &str,
     creds: &Credentials,
-    environment: HistoricalEnvironment,
+    environment: MarketDataEnvironment,
 ) -> Result<AuthResponse, Error> {
     metrics::counter!("thetadatadx.auth.requests").increment(1);
     let auth_start = std::time::Instant::now();
@@ -641,7 +641,7 @@ mod tests {
     #[test]
     fn auth_request_serializes_email_password() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["email"], "user@example.com");
         assert_eq!(json["password"], "hunter2");
@@ -656,7 +656,7 @@ mod tests {
     #[test]
     fn auth_request_serializes_api_key_only() {
         let creds = Credentials::api_key("secret-key-xyz");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["apiKey"], "secret-key-xyz");
         assert!(
@@ -675,7 +675,7 @@ mod tests {
     #[test]
     fn auth_request_api_key_with_email_stays_api_key_only() {
         let creds = Credentials::api_key_with_email("user@example.com", "secret-key-xyz");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["apiKey"], "secret-key-xyz");
         assert!(json.get("email").is_none());
@@ -688,7 +688,7 @@ mod tests {
     #[test]
     fn auth_request_omits_auth_env_for_prod() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert!(
             json.get("authEnv").is_none(),
@@ -702,16 +702,16 @@ mod tests {
     #[test]
     fn auth_request_serializes_auth_env_stage() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Stage);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Stage);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["authEnv"], serde_json::json!({ "envType": "STAGE" }));
     }
 
-    /// The auth marker is total over the historical environment, and only
+    /// The auth marker is total over the market-data environment, and only
     /// staging carries one: the streaming environment (including streaming
     /// dev) never reaches auth, so it cannot produce an `authEnv`. The
     /// "streaming-dev authenticates as production" invariant is therefore
-    /// structural here — a dev config's historical environment is production,
+    /// structural here — a dev config's market-data environment is production,
     /// which omits the marker — and is pinned at the config layer where
     /// `DirectConfig::dev()` exists. This locks the production body as the
     /// only no-marker shape across both credential forms.
@@ -723,12 +723,12 @@ mod tests {
         ] {
             let prod: serde_json::Value = serde_json::to_value(AuthRequest::from_credentials(
                 &creds,
-                HistoricalEnvironment::Prod,
+                MarketDataEnvironment::Prod,
             ))
             .unwrap();
             let stage: serde_json::Value = serde_json::to_value(AuthRequest::from_credentials(
                 &creds,
-                HistoricalEnvironment::Stage,
+                MarketDataEnvironment::Stage,
             ))
             .unwrap();
             assert!(
@@ -749,7 +749,7 @@ mod tests {
     #[test]
     fn auth_request_full_body_shape_prod() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(
             json,
@@ -765,7 +765,7 @@ mod tests {
     #[test]
     fn auth_request_full_body_shape_stage() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Stage);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Stage);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(
             json,
@@ -780,7 +780,7 @@ mod tests {
     #[test]
     fn auth_request_body_bytes_match_wire_json() {
         let creds = Credentials::api_key("secret-key-xyz");
-        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Stage);
+        let body = AuthRequest::from_credentials(&creds, MarketDataEnvironment::Stage);
         let bytes = auth_request_body_bytes(&body).unwrap();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(

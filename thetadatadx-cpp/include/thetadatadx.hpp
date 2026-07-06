@@ -337,7 +337,7 @@ public:
 
 // Owns the wire-column presence a decode produced; defined with the Arrow
 // terminals in `tick_arrow_ipc.hpp.inc` (below, after the tick types).
-// Forward-declared here so the historical endpoint methods can take an
+// Forward-declared here so the market-data endpoint methods can take an
 // optional `ColumnPresence*` out-param that surfaces the response's projected
 // column set.
 class ColumnPresence;
@@ -665,9 +665,9 @@ struct ConfigDeleter {
     void operator()(ThetaDataDxConfig* p) const { if (p) thetadatadx_config_free(p); }
 };
 
-/// `unique_ptr` deleter that releases a `ThetaDataDxHistoricalClient*` via `thetadatadx_historical_free`.
-struct HistoricalClientDeleter {
-    void operator()(ThetaDataDxHistoricalClient* p) const { if (p) thetadatadx_historical_free(p); }
+/// `unique_ptr` deleter that releases a `ThetaDataDxMarketDataClient*` via `thetadatadx_market_data_free`.
+struct MarketDataClientDeleter {
+    void operator()(ThetaDataDxMarketDataClient* p) const { if (p) thetadatadx_market_data_free(p); }
 };
 
 /// `unique_ptr` deleter that releases a `ThetaDataDxStreamHandle*` via `thetadatadx_streaming_free`.
@@ -748,7 +748,7 @@ private:
 
 /// RAII holder for a client configuration handle (`ThetaDataDxConfig*`), freed
 /// automatically on destruction. Built from a named preset (`production` /
-/// `dev` / `stage`) and tuned through the reconnect, streaming, retry, historical, and
+/// `dev` / `stage`) and tuned through the reconnect, streaming, retry, market-data, and
 /// metrics setters below.
 class Config {
 public:
@@ -761,22 +761,22 @@ public:
      *  @return An owning `Config` holder seeded with dev defaults. */
     static Config dev();
 
-    /** Build the historical-staging configuration (historical staging cluster +
+    /** Build the market-data-staging configuration (market-data staging cluster +
      *  auth marker; streaming stays on production). Testing, unstable.
      *  @return An owning `Config` holder seeded with stage defaults. */
     static Config stage();
 
     /** Source a configuration from a `.env`-format file.
      *  Starts from the production configuration and applies the cluster
-     *  keys carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`)
-     *  selects the historical environment and `THETADATA_STREAMING_TYPE`
+     *  keys carried by the file: `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`)
+     *  selects the market-data environment and `THETADATA_STREAMING_TYPE`
      *  (`PROD` / `DEV`) selects the streaming environment (both
      *  case-insensitive, selected independently), and the optional
-     *  `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
+     *  `THETADATA_MARKET_DATA_HOST` / `THETADATA_STREAMING_HOST` keys
      *  override the hosts (an explicit host wins over the environment
      *  default). This reads the same file format and keys as
      *  `Credentials::from_dotenv`, so one `.env` can carry
-     *  `THETADATA_API_KEY`, `THETADATA_HISTORICAL_TYPE`, and `THETADATA_STREAMING_TYPE`.
+     *  `THETADATA_API_KEY`, `THETADATA_MARKET_DATA_TYPE`, and `THETADATA_STREAMING_TYPE`.
      *  @param path Path to the `.env` file.
      *  @return An owning `Config` holder.
      *  @throws thetadatadx::ThetaDataError if the file is unreadable. */
@@ -848,21 +848,21 @@ public:
     // `auth.nexus_url` / `auth.client_type` string accessors are generated
     // into config_accessors.hpp.inc from config_surface.toml.
 
-    /** Target historical environment carried by this configuration:
+    /** Target market-data environment carried by this configuration:
      *  `"PROD"` for the production cluster or `"STAGE"` for staging. The
-     *  historical and streaming environments are selected independently;
-     *  the production / stage / dev presets (and the `THETADATA_HISTORICAL_TYPE`
-     *  dotenv key) set the historical channel, and this is the readback of
+     *  market-data and streaming environments are selected independently;
+     *  the production / stage / dev presets (and the `THETADATA_MARKET_DATA_TYPE`
+     *  dotenv key) set the market-data channel, and this is the readback of
      *  that selection. Returns an empty string if the FFI getter returns
      *  null (null handle). */
-    std::string get_historical_environment() const {
-        detail::FfiString s(thetadatadx_config_get_historical_environment(handle_.get()));
+    std::string get_market_data_environment() const {
+        detail::FfiString s(thetadatadx_config_get_market_data_environment(handle_.get()));
         return s.str();
     }
 
     /** Target streaming environment carried by this configuration:
      *  `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
-     *  The streaming and historical environments are selected
+     *  The streaming and market-data environments are selected
      *  independently; the production / stage / dev presets (and the
      *  `THETADATA_STREAMING_TYPE` dotenv key) set the streaming channel, and
      *  this is the readback of that selection. Returns an empty string if
@@ -890,7 +890,7 @@ public:
         return core;
     }
 
-    // `historical_host` (string) is generated into config_accessors.hpp.inc.
+    // `market_data_host` (string) is generated into config_accessors.hpp.inc.
 
     /** Get the raw handle. */
     ThetaDataDxConfig* get() const { return handle_.get(); }
@@ -900,45 +900,45 @@ private:
     std::unique_ptr<ThetaDataDxConfig, ConfigDeleter> handle_;
 };
 
-// ── HistoricalClient ──
+// ── MarketDataClient ──
 
-/// RAII wrapper around a historical gRPC client handle
-/// (`ThetaDataDxHistoricalClient*`), freed automatically on destruction. The recommended
-/// entry point for pure-historical access; the generated historical query
-/// methods are mixed in from `historical.hpp.inc`.
-class HistoricalClient {
+/// RAII wrapper around a market-data gRPC client handle
+/// (`ThetaDataDxMarketDataClient*`), freed automatically on destruction. The recommended
+/// entry point for pure-market-data access; the generated market-data query
+/// methods are mixed in from `market_data.hpp.inc`.
+class MarketDataClient {
 public:
-    /** Connect a historical client to ThetaData servers.
+    /** Connect a market-data client to ThetaData servers.
      *  @param creds Authenticated credentials.
      *  @param config Client configuration.
-     *  @return A connected, owning `HistoricalClient`.
+     *  @return A connected, owning `MarketDataClient`.
      *  @throws thetadatadx::ThetaDataError (or a typed leaf) on connection or
      *          authentication failure. */
-    static HistoricalClient connect(const Credentials& creds, const Config& config);
+    static MarketDataClient connect(const Credentials& creds, const Config& config);
 
-    /** Connect a historical client, loading credentials from a
+    /** Connect a market-data client, loading credentials from a
      *  file. One-call equivalent of `Credentials::from_file(path)`
      *  followed by `connect`.
      *  @param path File whose first line is the email and second line
      *         the password.
      *  @param config Client configuration; defaults to the production
      *         preset.
-     *  @return A connected, owning `HistoricalClient`.
+     *  @return A connected, owning `MarketDataClient`.
      *  @throws thetadatadx::ThetaDataError (or a typed leaf) on an unreadable
      *          credentials file or a connection / authentication failure. */
-    static HistoricalClient from_file(const std::string& path, const Config& config = Config::production());
+    static MarketDataClient from_file(const std::string& path, const Config& config = Config::production());
 
-    /** Deterministically close the historical client.
+    /** Deterministically close the market-data client.
      *
      *  Releases the gRPC channel pool by dropping the underlying handle. The
-     *  historical-only surface never opens streaming, so there is no consumer
+     *  market-data-only surface never opens streaming, so there is no consumer
      *  to drain; this is the explicit form of the RAII teardown the destructor
-     *  performs, provided so the historical surface matches the unified
+     *  performs, provided so the market-data surface matches the unified
      *  `Client` lifecycle. Idempotent: a second call is a no-op and the
      *  destructor after `close` frees nothing. */
     void close() { handle_.reset(); }
 
-    #include "historical.hpp.inc"
+    #include "market_data.hpp.inc"
 
 private:
     // Hold the FFI handle by `shared_ptr` (with the single-free deleter)
@@ -947,17 +947,17 @@ private:
     // lifetime: the handle is freed exactly once, when the last owner (this
     // client or any in-flight future) drops. A copy therefore shares the one
     // handle rather than double-freeing it.
-    explicit HistoricalClient(ThetaDataDxHistoricalClient* h)
-        : handle_(h, HistoricalClientDeleter{}) {}
+    explicit MarketDataClient(ThetaDataDxMarketDataClient* h)
+        : handle_(h, MarketDataClientDeleter{}) {}
 
-    /// Resolve the historical sub-handle the generated buffered query
+    /// Resolve the market-data sub-handle the generated buffered query
     /// definitions call into. On the standalone client this is the owned
-    /// handle directly; the unified client's `Historical` view derives it
-    /// from `thetadatadx_client_historical`. Naming the accessor uniformly lets
+    /// handle directly; the unified client's `MarketData` view derives it
+    /// from `thetadatadx_client_market_data`. Naming the accessor uniformly lets
     /// the generator emit one definition body for both classes.
-    const ThetaDataDxHistoricalClient* historical_handle() const { return handle_.get(); }
+    const ThetaDataDxMarketDataClient* market_data_handle() const { return handle_.get(); }
 
-    std::shared_ptr<ThetaDataDxHistoricalClient> handle_;
+    std::shared_ptr<ThetaDataDxMarketDataClient> handle_;
 };
 
 // ── streaming event types (re-exported from thetadatadx.h) ──
@@ -1377,7 +1377,7 @@ public:
     // Convenience accessors cover exactly the datasets the flat-file
     // distribution serves — option trade_quote / open_interest / eod,
     // stock trade_quote / eod. Other request types are
-    // reachable via the historical surface, not as flat files.
+    // reachable via the market-data surface, not as flat files.
     FlatFileRowList option_trade_quote(const std::string& date) const {
         return request("OPTION", "TRADE_QUOTE", date);
     }
@@ -1424,21 +1424,21 @@ struct UnifiedDeleter {
 };
 
 /// Shared callback indirection between a `Client` and the views it hands
-/// out. Defined in full below; forward-declared here so the `Historical`
+/// out. Defined in full below; forward-declared here so the `MarketData`
 /// view can co-own it by `shared_ptr` alongside the handle.
 struct CallbackState;
 
-/// Historical-data sub-namespace returned by `Client::historical()`.
+/// Market-data sub-namespace returned by `Client::market_data()`.
 ///
 /// Shares the parent `Client`'s `ThetaDataDxClient` handle (by `shared_ptr`)
-/// and derives the historical sub-handle (`thetadatadx_client_historical`) on
+/// and derives the market-data sub-handle (`thetadatadx_client_market_data`) on
 /// each call, so constructing it performs no auth round-trip and opens no
-/// second connection. Exposes the full buffered historical query surface
-/// (mixed in from `historical.hpp.inc`) and the server-stream companions
-/// (`historical_stream.hpp.inc`) generated identically with the standalone
-/// `HistoricalClient`. The view co-owns the handle, so it (and any
+/// second connection. Exposes the full buffered market-data query surface
+/// (mixed in from `market_data.hpp.inc`) and the server-stream companions
+/// (`market_data_stream.hpp.inc`) generated identically with the standalone
+/// `MarketDataClient`. The view co-owns the handle, so it (and any
 /// `<endpoint>_async` future that captured a copy of it) keeps the handle
-/// alive on its own — a future launched from a `client.historical()` view
+/// alive on its own — a future launched from a `client.market_data()` view
 /// stays sound even after that view and its parent `Client` are gone.
 ///
 /// On a unified `Client` the view ALSO co-owns the parent's `CallbackState`
@@ -1449,32 +1449,32 @@ struct CallbackState;
 /// node the streaming consumer fires through alive until that deferred free
 /// actually stops streaming, closing the use-after-free a handle-only
 /// co-ownership would leave on a `Client` that is streaming when destroyed.
-/// On the standalone `HistoricalClient` (no streaming) the member is an
+/// On the standalone `MarketDataClient` (no streaming) the member is an
 /// empty `shared_ptr`, carried but never dereferenced.
-class Historical {
+class MarketData {
 public:
-    /// Generated buffered historical query declarations
+    /// Generated buffered market-data query declarations
     /// (`stock_history_eod`, `option_snapshot_quote`, …).
-    #include "historical.hpp.inc"
+    #include "market_data.hpp.inc"
 
-    /// Generated server-stream historical method declarations
+    /// Generated server-stream market-data method declarations
     /// (`<endpoint>_stream`) plus the shared `stream_chunk_shim`
-    /// trampoline. Each drains a large historical result chunk-by-chunk,
+    /// trampoline. Each drains a large market-data result chunk-by-chunk,
     /// bounding peak memory to a single chunk.
-    #include "historical_stream.hpp.inc"
+    #include "market_data_stream.hpp.inc"
 
 private:
     friend class Client;
-    explicit Historical(std::shared_ptr<ThetaDataDxClient> h,
+    explicit MarketData(std::shared_ptr<ThetaDataDxClient> h,
                         std::shared_ptr<CallbackState> callback)
         : callback_(std::move(callback)), handle_(std::move(h)) {}
 
-    /// Resolve the historical sub-handle the generated query definitions
+    /// Resolve the market-data sub-handle the generated query definitions
     /// call into. Derives it from the unified handle via
-    /// `thetadatadx_client_historical`; throws on the (unexpected) null result so
+    /// `thetadatadx_client_market_data`; throws on the (unexpected) null result so
     /// the failure surfaces as a typed error rather than a null deref.
-    const ThetaDataDxHistoricalClient* historical_handle() const {
-        const ThetaDataDxHistoricalClient* hist = thetadatadx_client_historical(handle_.get());
+    const ThetaDataDxMarketDataClient* market_data_handle() const {
+        const ThetaDataDxMarketDataClient* hist = thetadatadx_client_market_data(handle_.get());
         if (hist == nullptr) {
             detail::throw_last_ffi_error();
         }
@@ -1495,7 +1495,7 @@ private:
     // unified deleter runs); this reference keeps the registered callback
     // node alive until that deferred free runs, so the streaming consumer
     // never fires through freed callback storage. Empty on the standalone
-    // `HistoricalClient`, which has no streaming and never reads it.
+    // `MarketDataClient`, which has no streaming and never reads it.
     std::shared_ptr<CallbackState> callback_;
     // Co-owns the unified handle (shared with the parent `Client` and any
     // in-flight async future that captured a copy of this view), so the
@@ -1886,7 +1886,7 @@ public:
     /// Bulk-unsubscribe an initializer list of `Subscription` values.
     inline void unsubscribe_many(std::initializer_list<class FluentSubscription> subs) const;
 
-    /// Stop streaming. Historical access remains available. Pair with
+    /// Stop streaming. Market-data access remains available. Pair with
     /// `await_drain()` if you need to confirm the consumer thread has
     /// finished firing the registered callback before dropping any
     /// captured state.
@@ -2114,16 +2114,16 @@ private:
 class ClientBuilder;
 
 /// RAII wrapper around a unified client handle (`ThetaDataDxClient*`).
-/// The unified handle owns both the historical (gRPC) and
-/// streaming sub-clients. Historical queries are reached through
-/// `client.historical()` (the `Historical` view) and the real-time
+/// The unified handle owns both the market-data (gRPC) and
+/// streaming sub-clients. Market-data queries are reached through
+/// `client.market_data()` (the `MarketData` view) and the real-time
 /// streaming surface through `client.stream()` (the `Stream` view); the
 /// FLATFILES surface stays on the client directly via `flat_files()`. For
-/// pure-historical gRPC use, `HistoricalClient` remains the recommended
+/// pure-market-data gRPC use, `MarketDataClient` remains the recommended
 /// entry point.
 class Client {
 public:
-    /// Connect a unified client (historical + streaming through one
+    /// Connect a unified client (market-data + streaming through one
     /// handle).
     /// @param creds Authenticated credentials.
     /// @param config Client configuration.
@@ -2253,9 +2253,9 @@ public:
     /// cannot outlive its client.
     FlatFiles flat_files() const& { return FlatFiles(handle_.get()); }
 
-    /// Historical-data sub-namespace: `client.historical().stock_history_eod(...)`.
+    /// Market-data sub-namespace: `client.market_data().stock_history_eod(...)`.
     ///
-    /// Returns a `Historical` view that SHARES this client's handle AND
+    /// Returns a `MarketData` view that SHARES this client's handle AND
     /// callback state (both by `shared_ptr`), exactly as `stream()` shares
     /// the same pair. No auth round-trip, no second connection. Because the
     /// view co-owns both, an `<endpoint>_async` future launched from it stays
@@ -2265,7 +2265,7 @@ public:
     /// keeps the callback node that stop drains alive until then, so a client
     /// destroyed mid-future while streaming never frees the node the consumer
     /// is still firing through.
-    Historical historical() const { return Historical(handle_, callback_); }
+    MarketData market_data() const { return MarketData(handle_, callback_); }
 
     /// Real-time-streaming sub-namespace: `client.stream().subscribe(...)`,
     /// `client.stream().set_callback(cb)`, …
@@ -2295,7 +2295,7 @@ public:
      *
      *  Idempotent: a second call is a no-op, and the destructor after `close`
      *  frees nothing (the handle is already released). Safe on a client that
-     *  only ran historical queries — the drain barrier is vacuous there.
+     *  only ran market-data queries — the drain barrier is vacuous there.
      *
      *  On drain timeout the retired handle and callback state are handed to a
      *  reclaimer that releases them only once the consumer is confirmed
@@ -2379,7 +2379,7 @@ private:
     // handle reference: it must also hold a `callback_` reference, so the
     // deferred free's drain barrier always sees a live node. The `Stream`
     // view and the move-assign / `set_callback` reclaimers each co-own both.
-    // So does the `Historical` view: a stored `historical().<endpoint>_async`
+    // So does the `MarketData` view: a stored `market_data().<endpoint>_async`
     // future captures a copy of it, and a future that outlives `~Client`
     // becomes the last handle holder — co-owning the callback state keeps the
     // node alive until that future-deferred free stops streaming.
@@ -2518,30 +2518,30 @@ public:
         return std::move(*this);
     }
 
-    /// Select the historical environment by its binding label
-    /// (`"PROD"` or `"STAGE"`, case-insensitive). The historical and
+    /// Select the market-data environment by its binding label
+    /// (`"PROD"` or `"STAGE"`, case-insensitive). The market-data and
     /// streaming channels are chosen independently, so this composes with a
-    /// streaming selection — `.streaming_environment(..).historical_environment(..)`
-    /// keeps both. For example, to target historical staging and streaming dev
+    /// streaming selection — `.streaming_environment(..).market_data_environment(..)`
+    /// keeps both. For example, to target market-data staging and streaming dev
     /// in one builder (the explicit form of the `.stage().dev()` shorthand):
     ///
     /// ```cpp
     /// auto client = thetadatadx::Client::builder()
-    ///                   .historical_environment("STAGE")
+    ///                   .market_data_environment("STAGE")
     ///                   .streaming_environment("DEV")
     ///                   .connect();
     /// ```
-    ClientBuilder& historical_environment(const std::string& environment) & {
-        set_historical_environment(environment);
+    ClientBuilder& market_data_environment(const std::string& environment) & {
+        set_market_data_environment(environment);
         return *this;
     }
-    ClientBuilder&& historical_environment(const std::string& environment) && {
-        set_historical_environment(environment);
+    ClientBuilder&& market_data_environment(const std::string& environment) && {
+        set_market_data_environment(environment);
         return std::move(*this);
     }
 
     /// Select the streaming environment by its binding label
-    /// (`"PROD"` or `"DEV"`, case-insensitive). Composes with a historical
+    /// (`"PROD"` or `"DEV"`, case-insensitive). Composes with a market-data
     /// selection.
     ClientBuilder& streaming_environment(const std::string& environment) & {
         set_streaming_environment(environment);
@@ -2552,18 +2552,18 @@ public:
         return std::move(*this);
     }
 
-    /// Target the historical staging cluster (streaming stays on
-    /// production). Shorthand for `historical_environment("STAGE")`.
+    /// Target the market-data staging cluster (streaming stays on
+    /// production). Shorthand for `market_data_environment("STAGE")`.
     ClientBuilder& stage() & {
-        select_historical(HistoricalKind::Stage);
+        select_market_data(MarketDataKind::Stage);
         return *this;
     }
     ClientBuilder&& stage() && {
-        select_historical(HistoricalKind::Stage);
+        select_market_data(MarketDataKind::Stage);
         return std::move(*this);
     }
 
-    /// Target the streaming dev-replay cluster (historical stays on
+    /// Target the streaming dev-replay cluster (market-data stays on
     /// production). Shorthand for `streaming_environment("DEV")`.
     ClientBuilder& dev() & {
         select_streaming(StreamingKind::Dev);
@@ -2576,12 +2576,12 @@ public:
 
     /// Target production on both channels (the default).
     ClientBuilder& production() & {
-        select_historical(HistoricalKind::Production);
+        select_market_data(MarketDataKind::Production);
         select_streaming(StreamingKind::Production);
         return *this;
     }
     ClientBuilder&& production() && {
-        select_historical(HistoricalKind::Production);
+        select_market_data(MarketDataKind::Production);
         select_streaming(StreamingKind::Production);
         return std::move(*this);
     }
@@ -2589,7 +2589,7 @@ public:
     /// Use a fully built `Config` verbatim. The config and the per-channel
     /// environment setters resolve in call order, last one wins: this config
     /// replaces an earlier `stage()` / `dev()` / `production()` /
-    /// `historical_environment(..)` / `streaming_environment(..)` selection,
+    /// `market_data_environment(..)` / `streaming_environment(..)` selection,
     /// and a later such preset setter replaces this config.
     ClientBuilder& config(Config cfg) & {
         set_config(std::move(cfg));
@@ -2603,7 +2603,7 @@ public:
     /// Source both the credential and the target environment from a
     /// `.env`-format file. Reuses `Credentials::from_dotenv` and
     /// `Config::from_dotenv`, so one file can carry both
-    /// `THETADATA_API_KEY` and `THETADATA_HISTORICAL_TYPE`.
+    /// `THETADATA_API_KEY` and `THETADATA_MARKET_DATA_TYPE`.
     ClientBuilder& from_dotenv(const std::string& path) & {
         set_auth(AuthKind::Dotenv, path, std::string(),
                  "api_key_from_dotenv / from_dotenv");
@@ -2679,13 +2679,13 @@ private:
     /// preset setters resolve in call order, last one wins on the kind:
     /// a later `config()` / `from_dotenv()` replaces a preset selection,
     /// and a later preset setter (`stage()` / `dev()` /
-    /// `historical_environment(..)` / `streaming_environment(..)`) replaces
+    /// `market_data_environment(..)` / `streaming_environment(..)`) replaces
     /// a `config()` / `from_dotenv()` source.
     enum class EnvKind { Preset, Config, Dotenv };
 
-    /// Per-channel preset selections, mirroring the independent historical
+    /// Per-channel preset selections, mirroring the independent market-data
     /// and streaming channels. Both default to production.
-    enum class HistoricalKind { Production, Stage };
+    enum class MarketDataKind { Production, Stage };
     enum class StreamingKind { Production, Dev };
 
     /// Record an auth source, rejecting a second different one. Re-stating
@@ -2719,17 +2719,17 @@ private:
         config_ = std::make_shared<Config>(std::move(cfg));
     }
 
-    /// Select the historical channel by its string label
+    /// Select the market-data channel by its string label
     /// (`"PROD"` / `"STAGE"`), rejecting anything else as a
     /// client-construction config error. The streaming channel is left
     /// untouched.
-    void set_historical_environment(const std::string& environment) {
-        select_historical(parse_historical_kind(environment));
+    void set_market_data_environment(const std::string& environment) {
+        select_market_data(parse_market_data_kind(environment));
     }
 
     /// Select the streaming channel by its string label
     /// (`"PROD"` / `"DEV"`), rejecting anything else as a
-    /// client-construction config error. The historical channel is left
+    /// client-construction config error. The market-data channel is left
     /// untouched.
     void set_streaming_environment(const std::string& environment) {
         select_streaming(parse_streaming_kind(environment));
@@ -2744,17 +2744,17 @@ private:
         config_.reset();
     }
 
-    /// Record a historical-channel preset selection, switching the source
+    /// Record a market-data-channel preset selection, switching the source
     /// to the preset mode and clearing any prior verbatim-config or `.env`
     /// override while preserving the streaming-channel selection.
-    void select_historical(HistoricalKind kind) {
+    void select_market_data(MarketDataKind kind) {
         switch_to_preset();
-        historical_ = kind;
+        market_data_ = kind;
     }
 
     /// Record a streaming-channel preset selection, switching the source to
     /// the preset mode and clearing any prior verbatim-config or `.env`
-    /// override while preserving the historical-channel selection.
+    /// override while preserving the market-data-channel selection.
     void select_streaming(StreamingKind kind) {
         switch_to_preset();
         streaming_ = kind;
@@ -2762,7 +2762,7 @@ private:
 
     /// Switch to the preset environment source, clearing any prior
     /// verbatim-config or `.env` override. The per-channel selections are
-    /// preserved so `.stage().dev()` composes to historical-staging +
+    /// preserved so `.stage().dev()` composes to market-data-staging +
     /// streaming-dev.
     void switch_to_preset() {
         env_kind_ = EnvKind::Preset;
@@ -2784,17 +2784,17 @@ private:
         return normalized;
     }
 
-    /// Parse a historical channel label (`"PROD"` / `"STAGE"`).
-    static HistoricalKind parse_historical_kind(const std::string& environment) {
+    /// Parse a market-data channel label (`"PROD"` / `"STAGE"`).
+    static MarketDataKind parse_market_data_kind(const std::string& environment) {
         const std::string normalized = normalize_label(environment);
         if (normalized == "PROD") {
-            return HistoricalKind::Production;
+            return MarketDataKind::Production;
         }
         if (normalized == "STAGE") {
-            return HistoricalKind::Stage;
+            return MarketDataKind::Stage;
         }
         detail::throw_config_error(
-            "historical environment must be PROD or STAGE; got \"" + environment + "\"");
+            "market-data environment must be PROD or STAGE; got \"" + environment + "\"");
     }
 
     /// Parse a streaming channel label (`"PROD"` / `"DEV"`).
@@ -2902,13 +2902,13 @@ private:
             default: {
                 // Compose the two independently-selected channels on top of
                 // the production defaults, mirroring the Rust builder: the
-                // historical and streaming environments are applied in turn,
-                // so any combination (including historical-staging +
+                // market-data and streaming environments are applied in turn,
+                // so any combination (including market-data-staging +
                 // streaming-dev) is reachable. A channel left on production
                 // is a no-op.
                 Config cfg = Config::production();
-                if (historical_ == HistoricalKind::Stage) {
-                    if (thetadatadx_config_with_historical_environment(cfg.get(), 1) != 0) {
+                if (market_data_ == MarketDataKind::Stage) {
+                    if (thetadatadx_config_with_market_data_environment(cfg.get(), 1) != 0) {
                         detail::throw_last_ffi_error();
                     }
                 }
@@ -2928,7 +2928,7 @@ private:
     std::shared_ptr<Credentials> prebuilt_;
 
     EnvKind env_kind_ = EnvKind::Preset;
-    HistoricalKind historical_ = HistoricalKind::Production;
+    MarketDataKind market_data_ = MarketDataKind::Production;
     StreamingKind streaming_ = StreamingKind::Production;
     std::string env_path_;
     std::shared_ptr<Config> config_;

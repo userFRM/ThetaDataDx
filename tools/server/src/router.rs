@@ -110,7 +110,7 @@ pub fn build(state: AppState) -> Router {
     // replaces. The terminal serves exactly three unauthenticated GET routes
     // under `/v3/terminal/`: `shutdown` (kills the process, returns the plain
     // text `OK`), plus one-word channel-health probes for the FPSS (streaming)
-    // and MDDS (historical) transports. The transport codenames are the vendor
+    // and MDDS (market-data) transports. The transport codenames are the vendor
     // terminal's own public wire paths, not client-facing prose. Bodies are the
     // terminal's bare `text/plain` shape so operator tooling that scrapes the
     // terminal's mgmt surface works unchanged.
@@ -122,7 +122,7 @@ pub fn build(state: AppState) -> Router {
         )
         .route(
             "/v3/terminal/mdds/status",
-            get(handler::terminal_historical_status),
+            get(handler::terminal_market_data_status),
         );
 
     // Flat-file routes — whole-universe daily blobs over

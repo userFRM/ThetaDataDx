@@ -133,8 +133,8 @@ describe('Config.setFlatfilesReadTimeoutSecs', () => {
   });
 });
 
-describe('FlatFiles setter state survives interleaved historical tuning calls', () => {
-  it('FlatFiles setter mutations land independently of historical tuning mutations', () => {
+describe('FlatFiles setter state survives interleaved market-data tuning calls', () => {
+  it('FlatFiles setter mutations land independently of market-data tuning mutations', () => {
     const cfg = Config.production();
     cfg.setFlatfilesMaxAttempts(7);
     cfg.setFlatfilesInitialBackoffSecs(3n);

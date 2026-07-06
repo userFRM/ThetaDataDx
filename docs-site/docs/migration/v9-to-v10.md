@@ -157,21 +157,21 @@ the standalone `StreamingClient` (`fpss_client.streaming_async()`) opens
 no historical-channel / Nexus surface — useful for asyncio apps coexisting with the
 JVM terminal's historical-channel process.
 
-## Standalone `StreamingClient` / `HistoricalClient` Python pyclasses
+## Standalone `StreamingClient` / `MarketDataClient` Python pyclasses
 
 v10 ships standalone Python pyclasses for the streaming-only and
 historical-channel-only surfaces, mirroring the C ABI `thetadatadx_streaming_*` / `thetadatadx_client_*`
 split and the C++ `thetadatadx::StreamingClient` / `thetadatadx::Client` shape:
 
 ```python
-from thetadatadx import StreamingClient, HistoricalClient, Credentials, Config
+from thetadatadx import StreamingClient, MarketDataClient, Credentials, Config
 
 # Real-time stream only — no historical-channel gRPC, no Nexus auth.
 fpss = StreamingClient(Credentials.from_file("creds.txt"), Config.production())
 
 # Historical / FLATFILES only — no streaming TLS slot. Every streaming-touching
 # method raises `AttributeError`.
-mdds = HistoricalClient(Credentials.from_file("creds.txt"), Config.production())
+mdds = MarketDataClient(Credentials.from_file("creds.txt"), Config.production())
 ```
 
 The bundled `Client` keeps its current behaviour — the
@@ -197,7 +197,7 @@ its own PR.
 
 - The `inhouse-grpc` feature flag is gone — the in-house transport
   is the only path on v10.
-- `HistoricalClient::stub` was removed; internal call sites now reach the
+- `MarketDataClient::stub` was removed; internal call sites now reach the
   generated stubs through `proto::beta_theta_terminal::*` directly.
 - `GrpcStatusKind::from_code()` renamed to
   `GrpcStatusKind::from_u32()` to match the wire type. The enum

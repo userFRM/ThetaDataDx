@@ -12,7 +12,7 @@
 //! Each batch crosses the C ABI as an Arrow IPC stream byte buffer — the
 //! same columnar exit the per-tick `thetadatadx_*_to_arrow_ipc` terminals
 //! use, so a C++ caller decodes it with arrow-cpp's IPC reader exactly as it
-//! already does for historical results. The fixed schema is available up
+//! already does for market-data results. The fixed schema is available up
 //! front as a schema-only IPC buffer so the C++ `arrow::RecordBatchReader`
 //! subclass can report `schema()` before the first batch arrives.
 //!

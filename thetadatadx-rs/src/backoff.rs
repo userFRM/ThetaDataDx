@@ -1,6 +1,6 @@
 //! Shared backoff and jitter primitives for every retry surface in the
-//! SDK: the streaming reconnect driver, the historical-channel retry
-//! policy, the historical-channel transport reconnect, and the flatfile
+//! SDK: the streaming reconnect driver, the market-data-channel retry
+//! policy, the market-data-channel transport reconnect, and the flatfile
 //! retry loop.
 //!
 //! # Why one module

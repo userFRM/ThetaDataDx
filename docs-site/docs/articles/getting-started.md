@@ -16,10 +16,10 @@ ThetaDataDx connects directly to ThetaData's servers — nothing to install and 
 ```toml
 # Cargo.toml
 [dependencies]
-thetadatadx = "13.0.0-rc.17"
+thetadatadx = "13.0.0-rc.18"
 ```
 
-The historical client is async; call it from your application's async runtime.
+The market-data client is async; call it from your application's async runtime.
 
 </template>
 
@@ -162,7 +162,7 @@ client = Client.from_env()
 client = Client.from_dotenv(".env")
 
 # Email and password inline, staging environment.
-client = Client(email="you@example.com", password="your-password", historical_type="STAGE")
+client = Client(email="you@example.com", password="your-password", market_data_type="STAGE")
 ```
 
 </template>
@@ -178,7 +178,7 @@ const fromDotenv = await Client.connectWith({ apiKeyFromDotenv: '.env' });
 const withLogin = await Client.connectWith({
   email: 'you@example.com',
   password: 'your-password',
-  historicalType: 'STAGE',
+  marketDataType: 'STAGE',
 });
 ```
 
@@ -581,7 +581,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
     // Pass your API key directly. Add .stage() before .connect() for staging.
     let client = Client::builder().api_key("your_api_key").connect().await?;
 
-    let rows = client.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
+    let rows = client.market_data().stock_history_eod("AAPL", "20250303", "20250306").await?;
     for t in &rows {
         println!("{}: open={} close={} volume={}", t.date, t.open, t.close, t.volume);
     }
@@ -596,10 +596,10 @@ async fn run() -> Result<(), thetadatadx::Error> {
 ```python
 from thetadatadx import Client
 
-# Pass your API key directly. Use historical_type="STAGE" to target staging.
+# Pass your API key directly. Use market_data_type="STAGE" to target staging.
 client = Client(api_key="your_api_key")
 
-rows = client.historical.stock_history_eod("AAPL", "20250303", "20250306")
+rows = client.market_data.stock_history_eod("AAPL", "20250303", "20250306")
 for t in rows:
     print(t.date, t.open, t.close, t.volume)
 ```
@@ -611,10 +611,10 @@ for t in rows:
 ```typescript
 import { Client } from 'thetadatadx';
 
-// Pass your API key directly. Add historicalType: 'STAGE' to target staging.
+// Pass your API key directly. Add marketDataType: 'STAGE' to target staging.
 const client = await Client.connectWith({ apiKey: 'your_api_key' });
 
-const rows = await client.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
+const rows = await client.marketData.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
   console.log(t.date, t.open, t.close, t.volume);
 }
@@ -634,7 +634,7 @@ int main() {
         .api_key("your_api_key")
         .connect();
 
-    auto rows = client.historical().stock_history_eod("AAPL", "20250303", "20250306");
+    auto rows = client.market_data().stock_history_eod("AAPL", "20250303", "20250306");
     for (const auto& t : rows) {
         std::cout << t.date << ": open=" << t.open
                   << " close=" << t.close << " volume=" << t.volume << "\n";
@@ -665,6 +665,6 @@ Every endpoint follows this shape. Browse the [API Reference](/reference/) — e
 ## Good to knows
 
 - **Dates are `YYYYMMDD` strings** in the SDKs (`"20250303"`); the HTTP server also accepts ISO `YYYY-MM-DD`. Timestamps come back as milliseconds since midnight Eastern Time — see [Symbology & Contract Identity](/articles/symbology).
-- **Connect once, reuse the client.** One client multiplexes any number of historical requests and an optional [streaming](/streaming/) session; per-request connections waste the authentication round trip.
-- **Markets closed?** Connect with `Config.dev()` / `DirectConfig::dev()` to stream a replayed historical session, and prefer historical endpoints over snapshots on weekends.
-- **Targeting staging or dev?** The historical and streaming environments are selected independently. Pick the historical staging cluster with `DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage)` (or the `Config.stage()` / `DirectConfig::stage()` preset), the `THETADATA_HISTORICAL_TYPE=STAGE` environment variable, or a `.env` file. Pick the streaming dev-replay cluster with `with_streaming_environment(StreamingEnvironment::Dev)` (or the `dev()` preset) or `THETADATA_STREAMING_TYPE=DEV`. The historical environment also sets the authentication marker; the streaming environment does not. All paths work with either credential type, and one `.env` file can hold `THETADATA_API_KEY`, `THETADATA_HISTORICAL_TYPE`, and `THETADATA_STREAMING_TYPE` together. See [Configuration](/articles/configuration).
+- **Connect once, reuse the client.** One client multiplexes any number of market-data requests and an optional [streaming](/streaming/) session; per-request connections waste the authentication round trip.
+- **Markets closed?** Connect with `Config.dev()` / `DirectConfig::dev()` to stream a replayed market-data session, and prefer market-data endpoints over snapshots on weekends.
+- **Targeting staging or dev?** The market-data and streaming environments are selected independently. Pick the market-data staging cluster with `DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage)` (or the `Config.stage()` / `DirectConfig::stage()` preset), the `THETADATA_MARKET_DATA_TYPE=STAGE` environment variable, or a `.env` file. Pick the streaming dev-replay cluster with `with_streaming_environment(StreamingEnvironment::Dev)` (or the `dev()` preset) or `THETADATA_STREAMING_TYPE=DEV`. The market-data environment also sets the authentication marker; the streaming environment does not. All paths work with either credential type, and one `.env` file can hold `THETADATA_API_KEY`, `THETADATA_MARKET_DATA_TYPE`, and `THETADATA_STREAMING_TYPE` together. See [Configuration](/articles/configuration).

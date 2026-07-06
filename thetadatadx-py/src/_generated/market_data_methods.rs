@@ -25,7 +25,7 @@ impl StockListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().stock_list_symbols();
+            let call = client.market_data().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -43,7 +43,7 @@ impl StockListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().stock_list_symbols();
+            let call = client.market_data().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -97,7 +97,7 @@ impl StockListDatesBuilder {
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -117,7 +117,7 @@ impl StockListDatesBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -186,7 +186,7 @@ impl StockSnapshotOhlcBuilder {
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.market_data().stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -210,7 +210,7 @@ impl StockSnapshotOhlcBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.market_data().stock_snapshot_ohlc(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -281,7 +281,7 @@ impl StockSnapshotTradeBuilder {
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_trade(&refs);
+            let mut request = client.market_data().stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -305,7 +305,7 @@ impl StockSnapshotTradeBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_trade(&refs);
+            let mut request = client.market_data().stock_snapshot_trade(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -376,7 +376,7 @@ impl StockSnapshotQuoteBuilder {
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_quote(&refs);
+            let mut request = client.market_data().stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -400,7 +400,7 @@ impl StockSnapshotQuoteBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_quote(&refs);
+            let mut request = client.market_data().stock_snapshot_quote(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -471,7 +471,7 @@ impl StockSnapshotMarketValueBuilder {
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.market_data().stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -495,7 +495,7 @@ impl StockSnapshotMarketValueBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.market_data().stock_snapshot_market_value(&refs);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -560,7 +560,7 @@ impl StockHistoryEodBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -577,7 +577,7 @@ impl StockHistoryEodBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -602,7 +602,7 @@ impl StockHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -648,7 +648,7 @@ impl StockHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -657,7 +657,7 @@ impl StockHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -805,7 +805,7 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -848,7 +848,7 @@ impl StockHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -899,7 +899,7 @@ impl StockHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -971,7 +971,7 @@ impl StockHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1001,7 +1001,7 @@ impl StockHistoryOhlcBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -1139,7 +1139,7 @@ impl StockHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1178,7 +1178,7 @@ impl StockHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1225,7 +1225,7 @@ impl StockHistoryTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1293,7 +1293,7 @@ impl StockHistoryTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1320,7 +1320,7 @@ impl StockHistoryTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -1469,7 +1469,7 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1512,7 +1512,7 @@ impl StockHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1563,7 +1563,7 @@ impl StockHistoryQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1635,7 +1635,7 @@ impl StockHistoryQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1665,7 +1665,7 @@ impl StockHistoryQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -1812,7 +1812,7 @@ impl StockHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1855,7 +1855,7 @@ impl StockHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1906,7 +1906,7 @@ impl StockHistoryTradeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -1978,7 +1978,7 @@ impl StockHistoryTradeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -2008,7 +2008,7 @@ impl StockHistoryTradeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -2133,7 +2133,7 @@ impl StockAtTimeTradeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2155,7 +2155,7 @@ impl StockAtTimeTradeBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2185,7 +2185,7 @@ impl StockAtTimeTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2236,7 +2236,7 @@ impl StockAtTimeTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2248,7 +2248,7 @@ impl StockAtTimeTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -2373,7 +2373,7 @@ impl StockAtTimeQuoteBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2395,7 +2395,7 @@ impl StockAtTimeQuoteBuilder {
         let venue = self.venue.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2425,7 +2425,7 @@ impl StockAtTimeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2476,7 +2476,7 @@ impl StockAtTimeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
             }
@@ -2488,7 +2488,7 @@ impl StockAtTimeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -2564,7 +2564,7 @@ impl OptionListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().option_list_symbols();
+            let call = client.market_data().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2582,7 +2582,7 @@ impl OptionListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_symbols();
+            let call = client.market_data().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2649,7 +2649,7 @@ impl OptionListDatesBuilder {
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().option_list_dates(&request_type, &symbol, &expiration);
+            let call = client.market_data().option_list_dates(&request_type, &symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2670,7 +2670,7 @@ impl OptionListDatesBuilder {
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_dates(&request_type, &symbol, &expiration);
+            let call = client.market_data().option_list_dates(&request_type, &symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2717,7 +2717,7 @@ impl OptionListExpirationsBuilder {
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().option_list_expirations(&symbol);
+            let call = client.market_data().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2736,7 +2736,7 @@ impl OptionListExpirationsBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_expirations(&symbol);
+            let call = client.market_data().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2791,7 +2791,7 @@ impl OptionListStrikesBuilder {
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().option_list_strikes(&symbol, &expiration);
+            let call = client.market_data().option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2811,7 +2811,7 @@ impl OptionListStrikesBuilder {
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_strikes(&symbol, &expiration);
+            let call = client.market_data().option_list_strikes(&symbol, &expiration);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2885,7 +2885,7 @@ impl OptionListContractsBuilder {
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            let mut request = client.market_data().option_list_contracts(&request_type, &date);
             if let Some(value) = &symbol {
                 request = request.symbol(value.as_str());
             }
@@ -2909,7 +2909,7 @@ impl OptionListContractsBuilder {
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            let mut request = client.market_data().option_list_contracts(&request_type, &date);
             if let Some(value) = &symbol {
                 request = request.symbol(value.as_str());
             }
@@ -2941,7 +2941,7 @@ impl OptionListContractsBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            let mut request = client.market_data().option_list_contracts(&request_type, &date);
             if let Some(value) = &symbol {
                 request = request.symbol(value.as_str());
             }
@@ -2994,7 +2994,7 @@ impl OptionListContractsBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            let mut request = client.market_data().option_list_contracts(&request_type, &date);
             if let Some(value) = &symbol {
                 request = request.symbol(value.as_str());
             }
@@ -3009,7 +3009,7 @@ impl OptionListContractsBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -3145,7 +3145,7 @@ impl OptionSnapshotOhlcBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_ohlc(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3181,7 +3181,7 @@ impl OptionSnapshotOhlcBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_ohlc(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3284,7 +3284,7 @@ impl OptionSnapshotTradeBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_trade(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3316,7 +3316,7 @@ impl OptionSnapshotTradeBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_trade(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3424,7 +3424,7 @@ impl OptionSnapshotQuoteBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3460,7 +3460,7 @@ impl OptionSnapshotQuoteBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3572,7 +3572,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_open_interest(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3608,7 +3608,7 @@ impl OptionSnapshotOpenInterestBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_open_interest(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3718,7 +3718,7 @@ impl OptionSnapshotMarketValueBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_market_value(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_market_value(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3754,7 +3754,7 @@ impl OptionSnapshotMarketValueBuilder {
         let min_time = self.min_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_market_value(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_market_value(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3917,7 +3917,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -3977,7 +3977,7 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4157,7 +4157,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4217,7 +4217,7 @@ impl OptionSnapshotGreeksAllBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4397,7 +4397,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4457,7 +4457,7 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4637,7 +4637,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4697,7 +4697,7 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4877,7 +4877,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -4937,7 +4937,7 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
         let use_market_value = self.use_market_value;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5076,7 +5076,7 @@ impl OptionHistoryEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5110,7 +5110,7 @@ impl OptionHistoryEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5152,7 +5152,7 @@ impl OptionHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5215,7 +5215,7 @@ impl OptionHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5236,7 +5236,7 @@ impl OptionHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -5409,7 +5409,7 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
+            let mut request = client.market_data().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5461,7 +5461,7 @@ impl OptionHistoryOhlcBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
+            let mut request = client.market_data().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5521,7 +5521,7 @@ impl OptionHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
+            let mut request = client.market_data().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5602,7 +5602,7 @@ impl OptionHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, &expiration);
+            let mut request = client.market_data().option_history_ohlc(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5638,7 +5638,7 @@ impl OptionHistoryOhlcBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -5811,7 +5811,7 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5863,7 +5863,7 @@ impl OptionHistoryTradeBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -5923,7 +5923,7 @@ impl OptionHistoryTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6004,7 +6004,7 @@ impl OptionHistoryTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6040,7 +6040,7 @@ impl OptionHistoryTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -6221,7 +6221,7 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6277,7 +6277,7 @@ impl OptionHistoryQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6341,7 +6341,7 @@ impl OptionHistoryQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6426,7 +6426,7 @@ impl OptionHistoryQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6465,7 +6465,7 @@ impl OptionHistoryQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -6647,7 +6647,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6703,7 +6703,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6767,7 +6767,7 @@ impl OptionHistoryTradeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6852,7 +6852,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_quote(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -6891,7 +6891,7 @@ impl OptionHistoryTradeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -7045,7 +7045,7 @@ impl OptionHistoryOpenInterestBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
+            let mut request = client.market_data().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7089,7 +7089,7 @@ impl OptionHistoryOpenInterestBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
+            let mut request = client.market_data().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7141,7 +7141,7 @@ impl OptionHistoryOpenInterestBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
+            let mut request = client.market_data().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7214,7 +7214,7 @@ impl OptionHistoryOpenInterestBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, &expiration);
+            let mut request = client.market_data().option_history_open_interest(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7244,7 +7244,7 @@ impl OptionHistoryOpenInterestBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -7433,7 +7433,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7487,7 +7487,7 @@ impl OptionHistoryGreeksEodBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7549,7 +7549,7 @@ impl OptionHistoryGreeksEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7632,7 +7632,7 @@ impl OptionHistoryGreeksEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7668,7 +7668,7 @@ impl OptionHistoryGreeksEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -7876,7 +7876,7 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -7944,7 +7944,7 @@ impl OptionHistoryGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8020,7 +8020,7 @@ impl OptionHistoryGreeksAllBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8117,7 +8117,7 @@ impl OptionHistoryGreeksAllBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8165,7 +8165,7 @@ impl OptionHistoryGreeksAllBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -8372,7 +8372,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8440,7 +8440,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8516,7 +8516,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8613,7 +8613,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8661,7 +8661,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -8869,7 +8869,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -8937,7 +8937,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9013,7 +9013,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9110,7 +9110,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9158,7 +9158,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -9365,7 +9365,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9433,7 +9433,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9509,7 +9509,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9606,7 +9606,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9654,7 +9654,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -9862,7 +9862,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -9930,7 +9930,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10006,7 +10006,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10103,7 +10103,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10151,7 +10151,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -10358,7 +10358,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10426,7 +10426,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10502,7 +10502,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10599,7 +10599,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10647,7 +10647,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -10855,7 +10855,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10923,7 +10923,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -10999,7 +10999,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11096,7 +11096,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11144,7 +11144,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -11351,7 +11351,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11419,7 +11419,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11495,7 +11495,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11592,7 +11592,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11640,7 +11640,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -11847,7 +11847,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11915,7 +11915,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -11991,7 +11991,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12088,7 +12088,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12136,7 +12136,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -12342,7 +12342,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12410,7 +12410,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12486,7 +12486,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12583,7 +12583,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12631,7 +12631,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -12786,7 +12786,7 @@ impl OptionAtTimeTradeBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12821,7 +12821,7 @@ impl OptionAtTimeTradeBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12864,7 +12864,7 @@ impl OptionAtTimeTradeBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12928,7 +12928,7 @@ impl OptionAtTimeTradeBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -12949,7 +12949,7 @@ impl OptionAtTimeTradeBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -13102,7 +13102,7 @@ impl OptionAtTimeQuoteBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -13137,7 +13137,7 @@ impl OptionAtTimeQuoteBuilder {
         let strike_range = self.strike_range;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -13180,7 +13180,7 @@ impl OptionAtTimeQuoteBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -13244,7 +13244,7 @@ impl OptionAtTimeQuoteBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
             }
@@ -13265,7 +13265,7 @@ impl OptionAtTimeQuoteBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -13341,7 +13341,7 @@ impl IndexListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().index_list_symbols();
+            let call = client.market_data().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -13359,7 +13359,7 @@ impl IndexListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().index_list_symbols();
+            let call = client.market_data().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -13405,7 +13405,7 @@ impl IndexListDatesBuilder {
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.historical().index_list_dates(&symbol);
+            let call = client.market_data().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -13424,7 +13424,7 @@ impl IndexListDatesBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.historical().index_list_dates(&symbol);
+            let call = client.market_data().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -13480,7 +13480,7 @@ impl IndexSnapshotOhlcBuilder {
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -13500,7 +13500,7 @@ impl IndexSnapshotOhlcBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -13556,7 +13556,7 @@ impl IndexSnapshotPriceBuilder {
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_price(&refs);
+            let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -13576,7 +13576,7 @@ impl IndexSnapshotPriceBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_price(&refs);
+            let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -13632,7 +13632,7 @@ impl IndexSnapshotMarketValueBuilder {
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_market_value(&refs);
+            let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -13652,7 +13652,7 @@ impl IndexSnapshotMarketValueBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_market_value(&refs);
+            let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = &min_time {
                 request = request.min_time(value.as_str());
             }
@@ -13714,7 +13714,7 @@ impl IndexHistoryEodBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13731,7 +13731,7 @@ impl IndexHistoryEodBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13756,7 +13756,7 @@ impl IndexHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13802,7 +13802,7 @@ impl IndexHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -13811,7 +13811,7 @@ impl IndexHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -13942,7 +13942,7 @@ impl IndexHistoryOhlcBuilder {
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -13971,7 +13971,7 @@ impl IndexHistoryOhlcBuilder {
         let end_time = self.end_time.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14008,7 +14008,7 @@ impl IndexHistoryOhlcBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14066,7 +14066,7 @@ impl IndexHistoryOhlcBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
             }
@@ -14084,7 +14084,7 @@ impl IndexHistoryOhlcBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -14224,7 +14224,7 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -14263,7 +14263,7 @@ impl IndexHistoryPriceBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -14310,7 +14310,7 @@ impl IndexHistoryPriceBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -14378,7 +14378,7 @@ impl IndexHistoryPriceBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = &date {
                 request = request.date(value.as_str());
             }
@@ -14405,7 +14405,7 @@ impl IndexHistoryPriceBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -14514,7 +14514,7 @@ impl IndexAtTimePriceBuilder {
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14532,7 +14532,7 @@ impl IndexAtTimePriceBuilder {
         let time_of_day = self.time_of_day.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14558,7 +14558,7 @@ impl IndexAtTimePriceBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14605,7 +14605,7 @@ impl IndexAtTimePriceBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
+            let mut request = client.market_data().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14614,7 +14614,7 @@ impl IndexAtTimePriceBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -14692,7 +14692,7 @@ impl CalendarOpenTodayBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().calendar_open_today();
+            let mut request = client.market_data().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14706,7 +14706,7 @@ impl CalendarOpenTodayBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().calendar_open_today();
+            let mut request = client.market_data().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14752,7 +14752,7 @@ impl CalendarOnDateBuilder {
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().calendar_on_date(&date);
+            let mut request = client.market_data().calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14767,7 +14767,7 @@ impl CalendarOnDateBuilder {
         let date = self.date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().calendar_on_date(&date);
+            let mut request = client.market_data().calendar_on_date(&date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14813,7 +14813,7 @@ impl CalendarYearBuilder {
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().calendar_year(&year);
+            let mut request = client.market_data().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14828,7 +14828,7 @@ impl CalendarYearBuilder {
         let year = self.year.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().calendar_year(&year);
+            let mut request = client.market_data().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14891,7 +14891,7 @@ impl InterestRateHistoryEodBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14908,7 +14908,7 @@ impl InterestRateHistoryEodBuilder {
         let end_date = self.end_date.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14933,7 +14933,7 @@ impl InterestRateHistoryEodBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let stream_result = run_blocking(py, async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14979,7 +14979,7 @@ impl InterestRateHistoryEodBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -14988,7 +14988,7 @@ impl InterestRateHistoryEodBuilder {
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
                 // pool thread, never a shared async worker driving other
-                // in-flight historical calls. The handler Py<PyAny> is
+                // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
@@ -15039,7 +15039,7 @@ impl InterestRateHistoryEodBuilder {
     }
 }
 
-fn register_generated_historical_builders(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn register_generated_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StockListSymbolsBuilder>()?;
     m.add_class::<StockListDatesBuilder>()?;
     m.add_class::<StockSnapshotOhlcBuilder>()?;
@@ -15104,7 +15104,7 @@ fn register_generated_historical_builders(m: &Bound<'_, PyModule>) -> PyResult<(
 }
 
 #[pymethods]
-impl HistoricalView {
+impl MarketDataView {
     /// List all available stock ticker symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
@@ -15115,7 +15115,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().stock_list_symbols();
+            let call = self.client.market_data().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15144,7 +15144,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().stock_list_symbols();
+            let call = client.market_data().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15184,7 +15184,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().stock_list_dates(request_type.as_str(), symbol.as_str());
+            let call = self.client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15215,7 +15215,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().stock_list_dates(request_type.as_str(), symbol.as_str());
+            let call = client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -15266,7 +15266,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.client.historical().stock_snapshot_ohlc(&refs);
+        let mut request = self.client.market_data().stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -15306,7 +15306,7 @@ impl HistoricalView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.market_data().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -15358,7 +15358,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.client.historical().stock_snapshot_trade(&refs);
+        let mut request = self.client.market_data().stock_snapshot_trade(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -15397,7 +15397,7 @@ impl HistoricalView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_trade(&refs);
+            let mut request = client.market_data().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -15449,7 +15449,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.client.historical().stock_snapshot_quote(&refs);
+        let mut request = self.client.market_data().stock_snapshot_quote(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -15488,7 +15488,7 @@ impl HistoricalView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_quote(&refs);
+            let mut request = client.market_data().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -15540,7 +15540,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.client.historical().stock_snapshot_market_value(&refs);
+        let mut request = self.client.market_data().stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -15579,7 +15579,7 @@ impl HistoricalView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.market_data().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -15625,7 +15625,7 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.client.historical().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.market_data().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -15652,7 +15652,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().stock_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -15707,7 +15707,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.client.historical().stock_history_ohlc(symbol.as_str());
+        let mut request = self.client.market_data().stock_history_ohlc(symbol.as_str());
         if let Some(value) = date {
             request = request.date(value.as_str());
         }
@@ -15768,7 +15768,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_ohlc(symbol.as_str());
+            let mut request = client.market_data().stock_history_ohlc(symbol.as_str());
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -15844,7 +15844,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.client.historical().stock_history_trade(symbol.as_str());
+        let mut request = self.client.market_data().stock_history_trade(symbol.as_str());
         if let Some(value) = date {
             request = request.date(value.as_str());
         }
@@ -15899,7 +15899,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade(symbol.as_str());
+            let mut request = client.market_data().stock_history_trade(symbol.as_str());
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -15975,7 +15975,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.client.historical().stock_history_quote(symbol.as_str());
+        let mut request = self.client.market_data().stock_history_quote(symbol.as_str());
         if let Some(value) = date {
             request = request.date(value.as_str());
         }
@@ -16037,7 +16037,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_quote(symbol.as_str());
+            let mut request = client.market_data().stock_history_quote(symbol.as_str());
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -16115,7 +16115,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.client.historical().stock_history_trade_quote(symbol.as_str());
+        let mut request = self.client.market_data().stock_history_trade_quote(symbol.as_str());
         if let Some(value) = date {
             request = request.date(value.as_str());
         }
@@ -16175,7 +16175,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_history_trade_quote(symbol.as_str());
+            let mut request = client.market_data().stock_history_trade_quote(symbol.as_str());
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -16252,7 +16252,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.client.historical().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.market_data().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -16293,7 +16293,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_trade(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -16352,7 +16352,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.client.historical().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.market_data().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = venue {
             request = request.venue(value.as_str());
         }
@@ -16393,7 +16393,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_quote(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -16439,7 +16439,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().option_list_symbols();
+            let call = self.client.market_data().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16468,7 +16468,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_symbols();
+            let call = client.market_data().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16514,7 +16514,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
+            let call = self.client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16551,7 +16551,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
+            let call = client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16597,7 +16597,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().option_list_expirations(symbol.as_str());
+            let call = self.client.market_data().option_list_expirations(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16628,7 +16628,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_expirations(symbol.as_str());
+            let call = client.market_data().option_list_expirations(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16671,7 +16671,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().option_list_strikes(symbol.as_str(), expiration.as_str());
+            let call = self.client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16703,7 +16703,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().option_list_strikes(symbol.as_str(), expiration.as_str());
+            let call = client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -16752,7 +16752,7 @@ impl HistoricalView {
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OptionContractList>> {
-        let mut request = self.client.historical().option_list_contracts(request_type.as_str(), date.as_str());
+        let mut request = self.client.market_data().option_list_contracts(request_type.as_str(), date.as_str());
         if let Some(value) = symbol {
             request = request.symbol(value.as_str());
         }
@@ -16790,7 +16790,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_list_contracts(request_type.as_str(), date.as_str());
+            let mut request = client.market_data().option_list_contracts(request_type.as_str(), date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
             }
@@ -16846,7 +16846,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -16896,7 +16896,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_ohlc(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16964,7 +16964,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_trade(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_trade(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17011,7 +17011,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_trade(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_trade(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17076,7 +17076,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_quote(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_quote(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17127,7 +17127,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_quote(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_quote(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17197,7 +17197,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17249,7 +17249,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_open_interest(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17317,7 +17317,7 @@ impl HistoricalView {
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17367,7 +17367,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_market_value(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17446,7 +17446,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17525,7 +17525,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17627,7 +17627,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17705,7 +17705,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_all(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17807,7 +17807,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -17885,7 +17885,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_first_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17987,7 +17987,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18065,7 +18065,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_second_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18167,7 +18167,7 @@ impl HistoricalView {
         use_market_value: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18245,7 +18245,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_third_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18341,7 +18341,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.client.historical().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.market_data().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18392,7 +18392,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18469,7 +18469,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_ohlc(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18540,7 +18540,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_ohlc(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_ohlc(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18633,7 +18633,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.client.historical().option_history_trade(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_trade(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18704,7 +18704,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_trade(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18798,7 +18798,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.client.historical().option_history_quote(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_quote(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -18873,7 +18873,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_quote(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_quote(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18972,7 +18972,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeQuoteTickList>> {
-        let mut request = self.client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_trade_quote(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19048,7 +19048,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_quote(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_trade_quote(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19140,7 +19140,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OpenInterestTickList>> {
-        let mut request = self.client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_open_interest(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19200,7 +19200,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_open_interest(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_open_interest(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19287,7 +19287,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksEodTickList>> {
-        let mut request = self.client.historical().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.market_data().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19360,7 +19360,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19464,7 +19464,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksAllTickList>> {
-        let mut request = self.client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_greeks_all(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19554,7 +19554,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_all(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_all(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19669,7 +19669,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksAllTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19758,7 +19758,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -19874,7 +19874,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksFirstOrderTickList>> {
-        let mut request = self.client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_greeks_first_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -19964,7 +19964,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_first_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_first_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20079,7 +20079,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20168,7 +20168,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20284,7 +20284,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksSecondOrderTickList>> {
-        let mut request = self.client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_greeks_second_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20374,7 +20374,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_second_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_second_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20489,7 +20489,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20578,7 +20578,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20694,7 +20694,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<GreeksThirdOrderTickList>> {
-        let mut request = self.client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_greeks_third_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20784,7 +20784,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_third_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_third_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -20899,7 +20899,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -20988,7 +20988,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -21103,7 +21103,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<IvTickList>> {
-        let mut request = self.client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -21192,7 +21192,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -21306,7 +21306,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
-        let mut request = self.client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+        let mut request = self.client.market_data().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -21394,7 +21394,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -21499,7 +21499,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeTickList>> {
-        let mut request = self.client.historical().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.market_data().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -21551,7 +21551,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_trade(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -21624,7 +21624,7 @@ impl HistoricalView {
         strike_range: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<QuoteTickList>> {
-        let mut request = self.client.historical().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.market_data().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(value) = strike {
             request = request.strike(value.as_str());
         }
@@ -21674,7 +21674,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_quote(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -21734,7 +21734,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().index_list_symbols();
+            let call = self.client.market_data().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -21763,7 +21763,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().index_list_symbols();
+            let call = client.market_data().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -21802,7 +21802,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.historical().index_list_dates(symbol.as_str());
+            let call = self.client.market_data().index_list_dates(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -21832,7 +21832,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.historical().index_list_dates(symbol.as_str());
+            let call = client.market_data().index_list_dates(symbol.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -21875,7 +21875,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.client.historical().index_snapshot_ohlc(&refs);
+        let mut request = self.client.market_data().index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
@@ -21906,7 +21906,7 @@ impl HistoricalView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -21949,7 +21949,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PriceTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.client.historical().index_snapshot_price(&refs);
+        let mut request = self.client.market_data().index_snapshot_price(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
@@ -21980,7 +21980,7 @@ impl HistoricalView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_price(&refs);
+            let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -22023,7 +22023,7 @@ impl HistoricalView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-        let mut request = self.client.historical().index_snapshot_market_value(&refs);
+        let mut request = self.client.market_data().index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
             request = request.min_time(value.as_str());
         }
@@ -22054,7 +22054,7 @@ impl HistoricalView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_market_value(&refs);
+            let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -22096,7 +22096,7 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<EodTickList>> {
-        let mut request = self.client.historical().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.market_data().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22123,7 +22123,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -22175,7 +22175,7 @@ impl HistoricalView {
         end_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OhlcTickList>> {
-        let mut request = self.client.historical().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.market_data().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(value) = interval {
             request = request.interval(value.as_str());
         }
@@ -22221,7 +22221,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_ohlc(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -22287,7 +22287,7 @@ impl HistoricalView {
         end_date: Option<PyDateArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<PriceTickList>> {
-        let mut request = self.client.historical().index_history_price(symbol.as_str());
+        let mut request = self.client.market_data().index_history_price(symbol.as_str());
         if let Some(value) = date {
             request = request.date(value.as_str());
         }
@@ -22344,7 +22344,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_history_price(symbol.as_str());
+            let mut request = client.market_data().index_history_price(symbol.as_str());
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -22408,7 +22408,7 @@ impl HistoricalView {
         time_of_day: PyTimeArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<IndexPriceAtTimeTickList>> {
-        let mut request = self.client.historical().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+        let mut request = self.client.market_data().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22437,7 +22437,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().index_at_time_price(symbol.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -22480,7 +22480,7 @@ impl HistoricalView {
         py: Python<'_>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().calendar_open_today();
+        let mut request = self.client.market_data().calendar_open_today();
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22506,7 +22506,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().calendar_open_today();
+            let mut request = client.market_data().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -22543,7 +22543,7 @@ impl HistoricalView {
         date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().calendar_on_date(date.as_str());
+        let mut request = self.client.market_data().calendar_on_date(date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22571,7 +22571,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().calendar_on_date(date.as_str());
+            let mut request = client.market_data().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -22610,7 +22610,7 @@ impl HistoricalView {
         year: PyStringArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<pyo3::types::PyList>> {
-        let mut request = self.client.historical().calendar_year(year.as_str());
+        let mut request = self.client.market_data().calendar_year(year.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22638,7 +22638,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().calendar_year(year.as_str());
+            let mut request = client.market_data().calendar_year(year.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -22680,7 +22680,7 @@ impl HistoricalView {
         end_date: PyDateArg,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<InterestRateTickList>> {
-        let mut request = self.client.historical().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+        let mut request = self.client.market_data().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -22711,7 +22711,7 @@ impl HistoricalView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().interest_rate_history_eod(symbol.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }

@@ -5,7 +5,7 @@
  * Used by both the C++ wrapper and any other C-compatible language.
  *
  * Memory model:
- * - Opaque handles (ThetaDataDxCredentials*, ThetaDataDxHistoricalClient*, ThetaDataDxConfig*) are heap-allocated
+ * - Opaque handles (ThetaDataDxCredentials*, ThetaDataDxMarketDataClient*, ThetaDataDxConfig*) are heap-allocated
  *   by the library and MUST be freed with the corresponding thetadatadx_*_free function.
  * - Tick data is returned as fixed-layout struct arrays. Each array type has a
  *   corresponding thetadatadx_*_array_free function that MUST be called.
@@ -37,7 +37,7 @@ extern "C" {
 
 /* ── Opaque handle types ── */
 typedef struct ThetaDataDxCredentials ThetaDataDxCredentials;
-typedef struct ThetaDataDxHistoricalClient ThetaDataDxHistoricalClient;
+typedef struct ThetaDataDxMarketDataClient ThetaDataDxMarketDataClient;
 typedef struct ThetaDataDxConfig ThetaDataDxConfig;
 typedef struct ThetaDataDxStreamHandle ThetaDataDxStreamHandle;
 typedef struct ThetaDataDxClient ThetaDataDxClient;
@@ -1140,25 +1140,25 @@ ThetaDataDxConfig* thetadatadx_config_production(void);
  *          thetadatadx_config_free. */
 ThetaDataDxConfig* thetadatadx_config_dev(void);
 
-/** Create a historical-staging config (historical staging cluster + auth marker;
+/** Create a market-data-staging config (market-data staging cluster + auth marker;
  *  streaming stays on production). Testing, unstable.
  *  @return Heap-owned ThetaDataDxConfig the caller must release with
  *          thetadatadx_config_free. */
 ThetaDataDxConfig* thetadatadx_config_stage(void);
 
-/** Select the historical environment on a config handle in place:
- *  kind 0 = production, kind 1 = staging. The historical and streaming
+/** Select the market-data environment on a config handle in place:
+ *  kind 0 = production, kind 1 = staging. The market-data and streaming
  *  channels are selected independently, so this leaves the streaming
  *  channel untouched.
  *  @param config Config handle to mutate.
  *  @param kind 0 for PROD, 1 for STAGE.
  *  @return 0 on success, or -1 on error (config is null, or kind is
  *          outside {0, 1}); check thetadatadx_last_error(). */
-int32_t thetadatadx_config_with_historical_environment(ThetaDataDxConfig* config, int32_t kind);
+int32_t thetadatadx_config_with_market_data_environment(ThetaDataDxConfig* config, int32_t kind);
 
 /** Select the streaming environment on a config handle in place:
- *  kind 0 = production, kind 1 = dev. The streaming and historical
- *  channels are selected independently, so this leaves the historical
+ *  kind 0 = production, kind 1 = dev. The streaming and market-data
+ *  channels are selected independently, so this leaves the market-data
  *  channel and the auth marker untouched.
  *  @param config Config handle to mutate.
  *  @param kind 0 for PROD, 1 for DEV.
@@ -1168,12 +1168,12 @@ int32_t thetadatadx_config_with_streaming_environment(ThetaDataDxConfig* config,
 
 /** Source a config from a .env-format file. Starts from the production
  *  configuration and applies the cluster keys carried by the file:
- *  THETADATA_HISTORICAL_TYPE (PROD / STAGE, case-insensitive) selects the
- *  environment, and the optional THETADATA_HISTORICAL_HOST /
+ *  THETADATA_MARKET_DATA_TYPE (PROD / STAGE, case-insensitive) selects the
+ *  environment, and the optional THETADATA_MARKET_DATA_HOST /
  *  THETADATA_STREAMING_HOST keys override the hosts (an explicit host wins
  *  over the environment default). Reads the same file format and keys as
  *  thetadatadx_credentials_from_dotenv, so one .env can carry both
- *  THETADATA_API_KEY and THETADATA_HISTORICAL_TYPE.
+ *  THETADATA_API_KEY and THETADATA_MARKET_DATA_TYPE.
  *  @param path Path to the .env file.
  *  @return Heap-owned ThetaDataDxConfig the caller must release with
  *          thetadatadx_config_free, or NULL on error
@@ -1640,7 +1640,7 @@ int32_t thetadatadx_config_get_streaming_host_shuffle_seed(const ThetaDataDxConf
                                               uint64_t* out_seed);
 
 /**
- * Set the wall-clock envelope (seconds) for one historical-channel
+ * Set the wall-clock envelope (seconds) for one market-data-channel
  * retry sequence, measured from the first attempt. 0 disables the
  * envelope (attempt budget only). Default 300.
  * @param config Config handle to mutate; no-op when NULL.
@@ -1706,7 +1706,7 @@ int32_t thetadatadx_config_get_worker_threads(const ThetaDataDxConfig* config, b
 /* ── RetryPolicy field setters/getters ── */
 
 /**
- * Set the initial backoff delay (ms) for the historical-channel retry policy.
+ * Set the initial backoff delay (ms) for the market-data-channel retry policy.
  * Default 250. Subsequent retries double from here, capped at
  * thetadatadx_config_set_retry_max_delay_ms.
  * @param config Config handle to mutate; no-op when NULL.
@@ -1715,7 +1715,7 @@ int32_t thetadatadx_config_get_worker_threads(const ThetaDataDxConfig* config, b
 void thetadatadx_config_set_retry_initial_delay_ms(ThetaDataDxConfig* config, uint64_t ms);
 
 /**
- * Read the historical-channel retry initial-delay setting (ms).
+ * Read the market-data-channel retry initial-delay setting (ms).
  * @param config Config handle to read.
  * @param out_ms Receives the initial delay in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
@@ -1723,7 +1723,7 @@ void thetadatadx_config_set_retry_initial_delay_ms(ThetaDataDxConfig* config, ui
 int32_t thetadatadx_config_get_retry_initial_delay_ms(const ThetaDataDxConfig* config, uint64_t* out_ms);
 
 /**
- * Set the upper-bound backoff delay (ms) for the historical-channel retry policy.
+ * Set the upper-bound backoff delay (ms) for the market-data-channel retry policy.
  * Default 30_000 (30 s).
  * @param config Config handle to mutate; no-op when NULL.
  * @param ms Upper-bound backoff delay in milliseconds.
@@ -1731,7 +1731,7 @@ int32_t thetadatadx_config_get_retry_initial_delay_ms(const ThetaDataDxConfig* c
 void thetadatadx_config_set_retry_max_delay_ms(ThetaDataDxConfig* config, uint64_t ms);
 
 /**
- * Read the historical-channel retry max-delay setting (ms).
+ * Read the market-data-channel retry max-delay setting (ms).
  * @param config Config handle to read.
  * @param out_ms Receives the max delay in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.
@@ -1739,7 +1739,7 @@ void thetadatadx_config_set_retry_max_delay_ms(ThetaDataDxConfig* config, uint64
 int32_t thetadatadx_config_get_retry_max_delay_ms(const ThetaDataDxConfig* config, uint64_t* out_ms);
 
 /**
- * Set the total attempt budget for the historical-channel retry policy. 1 disables
+ * Set the total attempt budget for the market-data-channel retry policy. 1 disables
  * retry (single call only); higher values permit retries up to
  * max_attempts - 1 after the initial call. Default 20.
  * @param config Config handle to mutate; no-op when NULL.
@@ -1748,7 +1748,7 @@ int32_t thetadatadx_config_get_retry_max_delay_ms(const ThetaDataDxConfig* confi
 void thetadatadx_config_set_retry_max_attempts(ThetaDataDxConfig* config, uint32_t n);
 
 /**
- * Read the historical-channel retry max-attempts setting.
+ * Read the market-data-channel retry max-attempts setting.
  * @param config Config handle to read.
  * @param out_n Receives the attempt budget on success.
  * @return 0 on success, -1 if either pointer is null.
@@ -1756,7 +1756,7 @@ void thetadatadx_config_set_retry_max_attempts(ThetaDataDxConfig* config, uint32
 int32_t thetadatadx_config_get_retry_max_attempts(const ThetaDataDxConfig* config, uint32_t* out_n);
 
 /**
- * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+ * Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
  * true. false gives the deterministic backoff schedule
  * min(max_delay, initial * 2^attempt), useful for tests.
  * @param config Config handle to mutate; no-op when NULL.
@@ -1765,7 +1765,7 @@ int32_t thetadatadx_config_get_retry_max_attempts(const ThetaDataDxConfig* confi
 void thetadatadx_config_set_retry_jitter(ThetaDataDxConfig* config, bool jitter);
 
 /**
- * Read the historical-channel retry jitter setting.
+ * Read the market-data-channel retry jitter setting.
  * @param config Config handle to read.
  * @param out_jitter Receives the jitter flag on success.
  * @return 0 on success, -1 if either pointer is null.
@@ -1946,21 +1946,21 @@ int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
 int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
 
 /**
- * Read the historical environment carried by the config: "PROD"
- * for the production cluster or "STAGE" for staging. The historical and
+ * Read the market-data environment carried by the config: "PROD"
+ * for the production cluster or "STAGE" for staging. The market-data and
  * streaming environments are selected independently; the production /
- * stage / dev presets (and the THETADATA_HISTORICAL_TYPE dotenv key) set the
- * historical channel, and this is the readback of that selection.
+ * stage / dev presets (and the THETADATA_MARKET_DATA_TYPE dotenv key) set the
+ * market-data channel, and this is the readback of that selection.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null.
  */
-char* thetadatadx_config_get_historical_environment(const ThetaDataDxConfig* config);
+char* thetadatadx_config_get_market_data_environment(const ThetaDataDxConfig* config);
 
 /**
  * Read the streaming environment carried by the config: "PROD" for
  * the production cluster or "DEV" for the dev cluster. The streaming and
- * historical environments are selected independently; the production /
+ * market-data environments are selected independently; the production /
  * stage / dev presets (and the THETADATA_STREAMING_TYPE dotenv key) set the
  * streaming channel, and this is the readback of that selection.
  * @param config Config handle to read.
@@ -1997,37 +1997,37 @@ int32_t thetadatadx_config_get_consumer_cpu(const ThetaDataDxConfig* config, int
 /* ── Decode pool sizing ── */
 
 /**
- * Set the historical gRPC host.
+ * Set the market-data gRPC host.
  * @param config Config handle to mutate.
  * @param host Non-null, NUL-terminated, valid-UTF-8 C string.
  * @return 0 on success, -1 if config is null or host is null / not valid
  *         UTF-8.
  */
-int32_t thetadatadx_config_set_historical_host(ThetaDataDxConfig* config, const char* host);
+int32_t thetadatadx_config_set_market_data_host(ThetaDataDxConfig* config, const char* host);
 
 /**
- * Read the configured historical gRPC host.
+ * Read the configured market-data gRPC host.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null or the value contains
  *         an interior NUL.
  */
-char* thetadatadx_config_get_historical_host(const ThetaDataDxConfig* config);
+char* thetadatadx_config_get_market_data_host(const ThetaDataDxConfig* config);
 
 /**
- * Set the historical gRPC port.
+ * Set the market-data gRPC port.
  * @param config Config handle to mutate; no-op when NULL.
  * @param port The gRPC port.
  */
-void thetadatadx_config_set_historical_port(ThetaDataDxConfig* config, uint16_t port);
+void thetadatadx_config_set_market_data_port(ThetaDataDxConfig* config, uint16_t port);
 
 /**
- * Read the configured historical gRPC port.
+ * Read the configured market-data gRPC port.
  * @param config Config handle to read.
  * @param out_port Receives the gRPC port on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_historical_port(const ThetaDataDxConfig* config, uint16_t* out_port);
+int32_t thetadatadx_config_get_market_data_port(const ThetaDataDxConfig* config, uint16_t* out_port);
 
 /**
  * Set the warn_on_buffered_threshold_bytes ceiling on a config.
@@ -2050,7 +2050,7 @@ void thetadatadx_config_set_warn_on_buffered_threshold_bytes(ThetaDataDxConfig* 
 int32_t thetadatadx_config_get_warn_on_buffered_threshold_bytes(const ThetaDataDxConfig* config, size_t* out_n);
 
 /**
- * Set the default per-request deadline (seconds) for historical queries.
+ * Set the default per-request deadline (seconds) for market-data queries.
  *
  * Bounds every request that did not set its own deadline, so a
  * live-but-silent stream resolves to a timeout instead of blocking
@@ -2061,37 +2061,37 @@ int32_t thetadatadx_config_get_warn_on_buffered_threshold_bytes(const ThetaDataD
 void thetadatadx_config_set_request_timeout_secs(ThetaDataDxConfig* config, uint64_t secs);
 
 /**
- * Read the current historical request_timeout_secs setting.
+ * Read the current market-data request_timeout_secs setting.
  * @param config Config handle to read.
  * @param out Receives the configured seconds on success (a stored 0 is floored to the 300-second default at request time).
  * @return 0 on success, -1 if either pointer is null.
  */
 int32_t thetadatadx_config_get_request_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
-/* ── HistoricalClient ── */
+/* ── MarketDataClient ── */
 
-/** Connect a historical client to ThetaData servers.
+/** Connect a market-data client to ThetaData servers.
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          thetadatadx_historical_free, or NULL on connection/auth failure
+ *          thetadatadx_market_data_free, or NULL on connection/auth failure
  *          (check thetadatadx_last_error()). */
-ThetaDataDxHistoricalClient* thetadatadx_historical_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
+ThetaDataDxMarketDataClient* thetadatadx_market_data_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
 
-/** Connect a historical client, reading credentials from a file
+/** Connect a market-data client, reading credentials from a file
  *  (line 1 = email, line 2 = password). One-call equivalent of
- *  thetadatadx_credentials_from_file + thetadatadx_historical_connect.
+ *  thetadatadx_credentials_from_file + thetadatadx_market_data_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          thetadatadx_historical_free, or NULL on argument or connection/auth
+ *          thetadatadx_market_data_free, or NULL on argument or connection/auth
  *          failure (check thetadatadx_last_error()). */
-ThetaDataDxHistoricalClient* thetadatadx_historical_connect_from_file(const char* path, const ThetaDataDxConfig* config);
+ThetaDataDxMarketDataClient* thetadatadx_market_data_connect_from_file(const char* path, const ThetaDataDxConfig* config);
 
-/** Release a historical client handle.
- *  @param client Handle from a thetadatadx_historical_connect* call; no-op when
+/** Release a market-data client handle.
+ *  @param client Handle from a thetadatadx_market_data_connect* call; no-op when
  *                NULL. Call exactly once. */
-void thetadatadx_historical_free(ThetaDataDxHistoricalClient* client);
+void thetadatadx_market_data_free(ThetaDataDxMarketDataClient* client);
 
 /* ── String free ── */
 
@@ -2104,7 +2104,7 @@ void thetadatadx_string_free(char* s);
 #include "endpoint_with_options.h.inc"
 
 /** User callback signature for the thetadatadx_<endpoint>_stream server-stream entry
- *  points. Invoked once per decoded chunk drained from a historical result.
+ *  points. Invoked once per decoded chunk drained from a market-data result.
  *
  *  `rows` points at the first element of a contiguous run of `len` tick
  *  structs -- the SAME layout the matching thetadatadx_<endpoint>_with_options array
@@ -2126,7 +2126,7 @@ void thetadatadx_string_free(char* s);
 typedef void (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, void* ctx);
 
 /* Generated server-stream endpoint declarations. */
-#include "historical_stream.h.inc"
+#include "market_data_stream.h.inc"
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Cross-language utility helpers — conditions / exchange / sequences   */
@@ -2472,10 +2472,10 @@ int thetadatadx_streaming_await_drain(const ThetaDataDxStreamHandle* h, uint64_t
 void thetadatadx_streaming_free(ThetaDataDxStreamHandle* h);
 
 /* ======================================================================= */
-/*  Unified client -- historical + streaming through one handle            */
+/*  Unified client -- market-data + streaming through one handle            */
 /* ======================================================================= */
 
-/** Connect to ThetaData (historical only -- real-time streaming is NOT started).
+/** Connect to ThetaData (market-data only -- real-time streaming is NOT started).
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A unified handle the caller must release with thetadatadx_client_free, or
@@ -2612,13 +2612,13 @@ ThetaDataDxSubscriptionArray* thetadatadx_client_active_subscriptions(const Thet
  *          thetadatadx_subscription_array_free, or NULL on error. */
 ThetaDataDxSubscriptionArray* thetadatadx_client_active_full_subscriptions(const ThetaDataDxClient* handle);
 
-/** Borrow the historical client from a unified handle.
+/** Borrow the market-data client from a unified handle.
  *  @param handle The unified handle.
- *  @return A borrowed historical client pointer owned by the unified handle;
+ *  @return A borrowed market-data client pointer owned by the unified handle;
  *          do NOT free it. */
-const ThetaDataDxHistoricalClient* thetadatadx_client_historical(const ThetaDataDxClient* handle);
+const ThetaDataDxMarketDataClient* thetadatadx_client_market_data(const ThetaDataDxClient* handle);
 
-/** Stop streaming on the unified client. Historical remains available.
+/** Stop streaming on the unified client. Market-data remains available.
  *  Returns asynchronously: in-flight events continue draining through the
  *  registered callback until the shutdown signal is observed.
  *  @param handle The unified handle.
@@ -2711,7 +2711,7 @@ void thetadatadx_client_free(ThetaDataDxClient* handle);
 
 /* ── FLATFILES surface ────────────────────────────────────────────────
  *
- * Whole-universe daily snapshots over the legacy historical-channel
+ * Whole-universe daily snapshots over the legacy market-data-channel
  * port. The schema is determined at runtime by (sec_type, req_type),
  * so the typed decoder returns an opaque row-list handle that you
  * serialise to Arrow IPC bytes when you want columnar output.

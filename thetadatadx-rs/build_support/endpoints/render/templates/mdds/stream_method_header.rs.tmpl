@@ -3,7 +3,7 @@
     ///
     /// On expiry the in-flight gRPC stream is cancelled and the
     /// `stream(...)` call resolves to `Err(Error::Timeout)`. The
-    /// underlying `HistoricalClient` is unaffected; subsequent calls on
+    /// underlying `MarketDataClient` is unaffected; subsequent calls on
     /// the same handle succeed. `Duration::ZERO` opts the call out of any
     /// bound, including the configured `request_timeout_secs` default; the
     /// explicit zero is carried through verbatim and resolved by

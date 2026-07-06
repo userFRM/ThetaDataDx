@@ -1,6 +1,6 @@
-// Historical endpoint round-trip smoke tests.
+// Market-data endpoint round-trip smoke tests.
 //
-// EOD is the cheapest historical endpoint to exercise — one row per
+// EOD is the cheapest market-data endpoint to exercise — one row per
 // trading day, decoded into a `ThetaDataDxEodTick` array. A real historical
 // call needs a live server; the live half guards the symbol decode, the
 // typed array wrapper, and the FFI-error -> exception path.
@@ -29,7 +29,7 @@ TEST_CASE("stock_history_eod returns a non-empty vector for a known active symbo
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();
-    auto client = thetadatadx::HistoricalClient::connect(creds, config);
+    auto client = thetadatadx::MarketDataClient::connect(creds, config);
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240131");
     REQUIRE_FALSE(eod.empty());
     // First decoded tick must carry a plausible YYYYMMDD date —

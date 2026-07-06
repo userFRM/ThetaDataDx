@@ -52,23 +52,23 @@ const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
 /// flow-control windows and keepalive cadence. The short channel
 /// constructors use [`ChannelTuning::default`] (the HTTP/2 spec
 /// windows, 30 s / 10 s keepalive — the values production config
-/// defaults to); `HistoricalClient::connect` threads the operator's
+/// defaults to); `MarketDataClient::connect` threads the operator's
 /// configured values through [`Channel::connect_tls_tuned`] /
 /// [`Channel::connect_h2c_tuned`].
 #[derive(Debug, Clone, Copy)]
 pub struct ChannelTuning {
     /// Initial per-stream flow-control window, in bytes. Mirrors
-    /// `HistoricalConfig::window_size_kb`.
+    /// `MarketDataConfig::window_size_kb`.
     pub initial_stream_window_size: u32,
     /// Initial connection-level flow-control window, in bytes.
-    /// Mirrors `HistoricalConfig::connection_window_size_kb`.
+    /// Mirrors `MarketDataConfig::connection_window_size_kb`.
     pub initial_connection_window_size: u32,
     /// Interval between HTTP/2 keepalive PING frames. Mirrors
-    /// `HistoricalConfig::keepalive_secs`.
+    /// `MarketDataConfig::keepalive_secs`.
     pub keepalive_interval: Duration,
     /// How long to wait for a keepalive PING acknowledgement before
     /// declaring the connection dead. Mirrors
-    /// `HistoricalConfig::keepalive_timeout_secs`.
+    /// `MarketDataConfig::keepalive_timeout_secs`.
     pub keepalive_timeout: Duration,
 }
 
@@ -553,7 +553,7 @@ impl Channel {
     /// [`ChannelError::DeadlineExceeded`].
     ///
     /// Reachable only under `__test-helpers` — production deadlines are
-    /// handled at the `HistoricalClient` layer via `tokio::time::timeout`
+    /// handled at the `MarketDataClient` layer via `tokio::time::timeout`
     /// around the streaming consumer.
     #[cfg(feature = "__test-helpers")]
     pub async fn server_streaming_with_deadline<Req, Resp>(

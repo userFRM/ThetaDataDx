@@ -2045,7 +2045,7 @@ pub struct InterestRateTickWithColumns {
 }
 
 #[napi]
-impl HistoricalView {
+impl MarketDataView {
     /// List all available stock ticker symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
@@ -2061,7 +2061,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().stock_list_symbols();
+            let call = client.market_data().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2091,7 +2091,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -2130,7 +2130,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.market_data().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2164,7 +2164,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.market_data().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2210,7 +2210,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_trade(&refs);
+            let mut request = client.market_data().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2244,7 +2244,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_trade(&refs);
+            let mut request = client.market_data().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2290,7 +2290,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_quote(&refs);
+            let mut request = client.market_data().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2324,7 +2324,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_quote(&refs);
+            let mut request = client.market_data().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2370,7 +2370,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.market_data().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2404,7 +2404,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.market_data().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -2445,7 +2445,7 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -2476,7 +2476,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -2528,7 +2528,7 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -2574,7 +2574,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -2629,7 +2629,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -2705,7 +2705,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -2769,7 +2769,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -2820,7 +2820,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -2892,7 +2892,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -2957,7 +2957,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -3012,7 +3012,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -3088,7 +3088,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -3154,7 +3154,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -3209,7 +3209,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -3285,7 +3285,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -3353,7 +3353,7 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -3390,7 +3390,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -3448,7 +3448,7 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -3498,7 +3498,7 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -3535,7 +3535,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -3593,7 +3593,7 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -3626,7 +3626,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_symbols();
+            let call = client.market_data().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -3663,7 +3663,7 @@ impl HistoricalView {
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
+            let call = client.market_data().option_list_dates(&request_type, &symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -3693,7 +3693,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_expirations(&symbol);
+            let call = client.market_data().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -3725,7 +3725,7 @@ impl HistoricalView {
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_strikes(&symbol, expiration.as_str());
+            let call = client.market_data().option_list_strikes(&symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -3762,7 +3762,7 @@ impl HistoricalView {
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            let mut request = client.market_data().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
             }
@@ -3799,7 +3799,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            let mut request = client.market_data().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
             }
@@ -3857,7 +3857,7 @@ impl HistoricalView {
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            let mut request = client.market_data().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
             }
@@ -3905,7 +3905,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -3951,7 +3951,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4008,7 +4008,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4050,7 +4050,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4105,7 +4105,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4151,7 +4151,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4210,7 +4210,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4256,7 +4256,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4313,7 +4313,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4359,7 +4359,7 @@ impl HistoricalView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4427,7 +4427,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4497,7 +4497,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4582,7 +4582,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4652,7 +4652,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4737,7 +4737,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4807,7 +4807,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4892,7 +4892,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -4962,7 +4962,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5047,7 +5047,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5117,7 +5117,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5198,7 +5198,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5247,7 +5247,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5317,7 +5317,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5380,7 +5380,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5445,7 +5445,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5531,7 +5531,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5609,7 +5609,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5674,7 +5674,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5760,7 +5760,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5839,7 +5839,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5908,7 +5908,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -5998,7 +5998,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6081,7 +6081,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6150,7 +6150,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6240,7 +6240,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6316,7 +6316,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6373,7 +6373,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6451,7 +6451,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6527,7 +6527,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6596,7 +6596,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6686,7 +6686,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6771,7 +6771,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6852,7 +6852,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -6954,7 +6954,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7050,7 +7050,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7131,7 +7131,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7233,7 +7233,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7330,7 +7330,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7411,7 +7411,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7513,7 +7513,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7609,7 +7609,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7690,7 +7690,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7792,7 +7792,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7889,7 +7889,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -7970,7 +7970,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8072,7 +8072,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8168,7 +8168,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8249,7 +8249,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8351,7 +8351,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8448,7 +8448,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8529,7 +8529,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8631,7 +8631,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8727,7 +8727,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8808,7 +8808,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -8910,7 +8910,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9006,7 +9006,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9087,7 +9087,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9189,7 +9189,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9284,7 +9284,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9365,7 +9365,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9467,7 +9467,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9556,7 +9556,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9607,7 +9607,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9679,7 +9679,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9739,7 +9739,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9790,7 +9790,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9862,7 +9862,7 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -9904,7 +9904,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().index_list_symbols();
+            let call = client.market_data().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -9933,7 +9933,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().index_list_dates(&symbol);
+            let call = client.market_data().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -9966,7 +9966,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -9996,7 +9996,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -10034,7 +10034,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_price(&refs);
+            let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -10064,7 +10064,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_price(&refs);
+            let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -10102,7 +10102,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_market_value(&refs);
+            let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -10132,7 +10132,7 @@ impl HistoricalView {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_market_value(&refs);
+            let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -10170,7 +10170,7 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10201,7 +10201,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10253,7 +10253,7 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10298,7 +10298,7 @@ impl HistoricalView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -10341,7 +10341,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -10405,7 +10405,7 @@ impl HistoricalView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -10459,7 +10459,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -10510,7 +10510,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -10582,7 +10582,7 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -10638,7 +10638,7 @@ impl HistoricalView {
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10671,7 +10671,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10725,7 +10725,7 @@ impl HistoricalView {
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10757,7 +10757,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_open_today();
+            let mut request = client.market_data().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10780,7 +10780,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_open_today();
+            let mut request = client.market_data().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10815,7 +10815,7 @@ impl HistoricalView {
         let client = self.client_handle()?;
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_on_date(date.as_str());
+            let mut request = client.market_data().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10840,7 +10840,7 @@ impl HistoricalView {
         let client = self.client_handle()?;
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_on_date(date.as_str());
+            let mut request = client.market_data().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10874,7 +10874,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_year(&year);
+            let mut request = client.market_data().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10898,7 +10898,7 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_year(&year);
+            let mut request = client.market_data().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10937,7 +10937,7 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10968,7 +10968,7 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11020,7 +11020,7 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11037,7 +11037,7 @@ impl HistoricalView {
 
 }
 #[napi]
-impl HistoricalClient {
+impl MarketDataClient {
     /// List all available stock ticker symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for stocks. This endpoint is updated overnight.
@@ -11053,7 +11053,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().stock_list_symbols();
+            let call = client.market_data().stock_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -11083,7 +11083,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().stock_list_dates(&request_type, &symbol);
+            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -11122,7 +11122,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.market_data().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11156,7 +11156,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            let mut request = client.market_data().stock_snapshot_ohlc(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11202,7 +11202,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_trade(&refs);
+            let mut request = client.market_data().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11236,7 +11236,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_trade(&refs);
+            let mut request = client.market_data().stock_snapshot_trade(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11282,7 +11282,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_quote(&refs);
+            let mut request = client.market_data().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11316,7 +11316,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_quote(&refs);
+            let mut request = client.market_data().stock_snapshot_quote(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11362,7 +11362,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.market_data().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11396,7 +11396,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            let mut request = client.market_data().stock_snapshot_market_value(&refs);
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -11437,7 +11437,7 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11468,7 +11468,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11520,7 +11520,7 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11566,7 +11566,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -11621,7 +11621,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -11697,7 +11697,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol);
+            let mut request = client.market_data().stock_history_ohlc(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -11761,7 +11761,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -11812,7 +11812,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -11884,7 +11884,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol);
+            let mut request = client.market_data().stock_history_trade(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -11949,7 +11949,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -12004,7 +12004,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -12080,7 +12080,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol);
+            let mut request = client.market_data().stock_history_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -12146,7 +12146,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -12201,7 +12201,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -12277,7 +12277,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            let mut request = client.market_data().stock_history_trade_quote(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -12345,7 +12345,7 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -12382,7 +12382,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -12440,7 +12440,7 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -12490,7 +12490,7 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -12527,7 +12527,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -12585,7 +12585,7 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
             }
@@ -12618,7 +12618,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_symbols();
+            let call = client.market_data().option_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12655,7 +12655,7 @@ impl HistoricalClient {
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
+            let call = client.market_data().option_list_dates(&request_type, &symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12685,7 +12685,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_expirations(&symbol);
+            let call = client.market_data().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12717,7 +12717,7 @@ impl HistoricalClient {
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = client.historical().option_list_strikes(&symbol, expiration.as_str());
+            let call = client.market_data().option_list_strikes(&symbol, expiration.as_str());
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -12754,7 +12754,7 @@ impl HistoricalClient {
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            let mut request = client.market_data().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
             }
@@ -12791,7 +12791,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            let mut request = client.market_data().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
             }
@@ -12849,7 +12849,7 @@ impl HistoricalClient {
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            let mut request = client.market_data().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
             }
@@ -12897,7 +12897,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -12943,7 +12943,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13000,7 +13000,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13042,7 +13042,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13097,7 +13097,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13143,7 +13143,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13202,7 +13202,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13248,7 +13248,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13305,7 +13305,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13351,7 +13351,7 @@ impl HistoricalClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_market_value(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13419,7 +13419,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13489,7 +13489,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13574,7 +13574,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13644,7 +13644,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13729,7 +13729,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13799,7 +13799,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13884,7 +13884,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -13954,7 +13954,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14039,7 +14039,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14109,7 +14109,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let use_market_value = options.use_market_value;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14190,7 +14190,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14239,7 +14239,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14309,7 +14309,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14372,7 +14372,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14437,7 +14437,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14523,7 +14523,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14601,7 +14601,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14666,7 +14666,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14752,7 +14752,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14831,7 +14831,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14900,7 +14900,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -14990,7 +14990,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15073,7 +15073,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15142,7 +15142,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15232,7 +15232,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15308,7 +15308,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15365,7 +15365,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15443,7 +15443,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15519,7 +15519,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15588,7 +15588,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15678,7 +15678,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15763,7 +15763,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15844,7 +15844,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -15946,7 +15946,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16042,7 +16042,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16123,7 +16123,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16225,7 +16225,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16322,7 +16322,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16403,7 +16403,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16505,7 +16505,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16601,7 +16601,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16682,7 +16682,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16784,7 +16784,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16881,7 +16881,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -16962,7 +16962,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17064,7 +17064,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17160,7 +17160,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17241,7 +17241,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17343,7 +17343,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17440,7 +17440,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17521,7 +17521,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17623,7 +17623,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17719,7 +17719,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17800,7 +17800,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17902,7 +17902,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -17998,7 +17998,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18079,7 +18079,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18181,7 +18181,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18276,7 +18276,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18357,7 +18357,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18459,7 +18459,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
+            let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18548,7 +18548,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18599,7 +18599,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18671,7 +18671,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18731,7 +18731,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18782,7 +18782,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18854,7 +18854,7 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
@@ -18896,7 +18896,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().index_list_symbols();
+            let call = client.market_data().index_list_symbols();
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -18925,7 +18925,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.historical().index_list_dates(&symbol);
+            let call = client.market_data().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
                 match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
@@ -18958,7 +18958,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -18988,7 +18988,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            let mut request = client.market_data().index_snapshot_ohlc(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -19026,7 +19026,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_price(&refs);
+            let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -19056,7 +19056,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_price(&refs);
+            let mut request = client.market_data().index_snapshot_price(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -19094,7 +19094,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_market_value(&refs);
+            let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -19124,7 +19124,7 @@ impl HistoricalClient {
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
             let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
-            let mut request = client.historical().index_snapshot_market_value(&refs);
+            let mut request = client.market_data().index_snapshot_market_value(&refs);
             if let Some(value) = min_time {
                 request = request.min_time(value.as_str());
             }
@@ -19162,7 +19162,7 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19193,7 +19193,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19245,7 +19245,7 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19290,7 +19290,7 @@ impl HistoricalClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -19333,7 +19333,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -19397,7 +19397,7 @@ impl HistoricalClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -19451,7 +19451,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -19502,7 +19502,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -19574,7 +19574,7 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol);
+            let mut request = client.market_data().index_history_price(&symbol);
             if let Some(value) = date {
                 request = request.date(value.as_str());
             }
@@ -19630,7 +19630,7 @@ impl HistoricalClient {
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19663,7 +19663,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19717,7 +19717,7 @@ impl HistoricalClient {
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            let mut request = client.market_data().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19749,7 +19749,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_open_today();
+            let mut request = client.market_data().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19772,7 +19772,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_open_today();
+            let mut request = client.market_data().calendar_open_today();
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19807,7 +19807,7 @@ impl HistoricalClient {
         let client = self.client_handle()?;
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_on_date(date.as_str());
+            let mut request = client.market_data().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19832,7 +19832,7 @@ impl HistoricalClient {
         let client = self.client_handle()?;
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_on_date(date.as_str());
+            let mut request = client.market_data().calendar_on_date(date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19866,7 +19866,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_year(&year);
+            let mut request = client.market_data().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19890,7 +19890,7 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().calendar_year(&year);
+            let mut request = client.market_data().calendar_year(&year);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19929,7 +19929,7 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19960,7 +19960,7 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -20012,7 +20012,7 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            let mut request = client.market_data().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }

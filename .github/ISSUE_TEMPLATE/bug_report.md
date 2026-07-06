@@ -21,7 +21,7 @@ A clear and concise description of the bug.
 
 ## Endpoint / Method Affected
 
-Which API endpoint or client method is involved? (e.g., `client.historical.stock_history_eod`, `client.stream.subscribe(Contract.stock("AAPL").quote())`)
+Which API endpoint or client method is involved? (e.g., `client.market_data.stock_history_eod`, `client.stream.subscribe(Contract.stock("AAPL").quote())`)
 
 ## Steps to Reproduce
 

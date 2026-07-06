@@ -35,7 +35,7 @@ pub(crate) const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// through a closed sum of the two supported pyclasses rather than
 /// duck-typed Python attribute lookup. The fluent `__getattr__` proxy
 /// for non-lifecycle attributes still goes through PyAny — `subscribe`
-/// and the historical surface live on `Client` only, so the
+/// and the market-data surface live on `Client` only, so the
 /// proxy carries that asymmetry rather than enumerating it here.
 pub(crate) enum StreamableHandle {
     Unified(Py<crate::Client>),
@@ -108,7 +108,7 @@ pub(crate) struct StreamingSession {
     /// transports the session knows how to drive, so the lifecycle path
     /// compiles only against pyclasses that actually implement it. The
     /// non-lifecycle `__getattr__` proxy still erases the type for
-    /// downstream attribute lookup (e.g. `subscribe` / historical
+    /// downstream attribute lookup (e.g. `subscribe` / market_data
     /// methods).
     pub(crate) client: StreamableHandle,
     pub(crate) callback: Option<Py<PyAny>>,
@@ -263,7 +263,7 @@ impl crate::Client {
         )
     }
 
-    /// Current historical session UUID. Reads through the shared session
+    /// Current market-data session UUID. Reads through the shared session
     /// token so the returned value reflects any mid-session refresh.
     ///
     /// Backs the `session_uuid` entry on `AsyncClient`'s

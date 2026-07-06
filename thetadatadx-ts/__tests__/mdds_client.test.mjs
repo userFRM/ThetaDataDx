@@ -1,13 +1,13 @@
-// Standalone `HistoricalClient` structural contract (offline — no connect).
+// Standalone `MarketDataClient` structural contract (offline — no connect).
 //
-// `HistoricalClient` is the historical-only napi handle: the same MDDS/Nexus
+// `MarketDataClient` is the market-data-only napi handle: the same MDDS/Nexus
 // surface as the unified `Client`, with no streaming methods
-// reachable. It mirrors the Python `HistoricalClient`
+// reachable. It mirrors the Python `MarketDataClient`
 // (`thetadatadx-py/src/mdds_client.rs`), the C++ `thetadatadx::Client`, and the C
 // ABI `thetadatadx_client_*` entry points. These assertions pin the split
 // structurally against `index.d.ts` and the loaded addon so a generator
 // or lib.rs change that leaks an FPSS method onto the MDDS surface — or
-// drops the historical surface from it — fails here without live
+// drops the market-data surface from it — fails here without live
 // credentials.
 
 import { describe, it } from 'node:test';
@@ -27,13 +27,13 @@ try {
   process.exit(1);
 }
 
-// The `HistoricalClient` class body as declared in `index.d.ts`.
-const mddsBlock = dts.match(/export declare class HistoricalClient \{[\s\S]*?\n\}/);
-// The unified client's historical surface lives on the `client.historical`
-// `HistoricalView` view, and its streaming surface on the `client.stream`
+// The `MarketDataClient` class body as declared in `index.d.ts`.
+const mddsBlock = dts.match(/export declare class MarketDataClient \{[\s\S]*?\n\}/);
+// The unified client's market-data surface lives on the `client.marketData`
+// `MarketDataView` view, and its streaming surface on the `client.stream`
 // `StreamView` view.
-const historicalViewBlock = dts.match(
-  /export declare class HistoricalView \{[\s\S]*?\n\}/
+const marketDataViewBlock = dts.match(
+  /export declare class MarketDataView \{[\s\S]*?\n\}/
 );
 const streamViewBlock = dts.match(
   /export declare class StreamView \{[\s\S]*?\n\}/
@@ -50,26 +50,26 @@ function methodNames(block) {
   );
 }
 
-describe('HistoricalClient native addon surface', () => {
-  it('exports the HistoricalClient class with the creds-first connect factories', () => {
-    assert.ok(mod.HistoricalClient, 'HistoricalClient should be exported');
+describe('MarketDataClient native addon surface', () => {
+  it('exports the MarketDataClient class with the creds-first connect factories', () => {
+    assert.ok(mod.MarketDataClient, 'MarketDataClient should be exported');
     for (const factory of ['connect', 'connectFromFile']) {
       assert.equal(
-        typeof mod.HistoricalClient[factory],
+        typeof mod.MarketDataClient[factory],
         'function',
-        `HistoricalClient.${factory} should be a static factory`
+        `MarketDataClient.${factory} should be a static factory`
       );
     }
   });
 
-  it('declares the HistoricalClient class in index.d.ts', () => {
-    assert.ok(mddsBlock, 'HistoricalClient class missing from index.d.ts');
-    assert.ok(historicalViewBlock, 'HistoricalView class missing from index.d.ts');
+  it('declares the MarketDataClient class in index.d.ts', () => {
+    assert.ok(mddsBlock, 'MarketDataClient class missing from index.d.ts');
+    assert.ok(marketDataViewBlock, 'MarketDataView class missing from index.d.ts');
     assert.ok(streamViewBlock, 'StreamView class missing from index.d.ts');
   });
 });
 
-describe('HistoricalClient carries the historical surface', () => {
+describe('MarketDataClient carries the market-data surface', () => {
   it('exposes the buffered data-fetch families', () => {
     const methods = methodNames(mddsBlock[0]);
     for (const expected of [
@@ -82,7 +82,7 @@ describe('HistoricalClient carries the historical surface', () => {
     ]) {
       assert.ok(
         methods.has(expected),
-        `HistoricalClient must expose historical method ${expected}`
+        `MarketDataClient must expose market-data method ${expected}`
       );
     }
   });
@@ -91,46 +91,46 @@ describe('HistoricalClient carries the historical surface', () => {
     const methods = methodNames(mddsBlock[0]);
     assert.ok(
       methods.has('stockHistoryEODStream'),
-      'HistoricalClient must expose the stream companion stockHistoryEODStream'
+      'MarketDataClient must expose the stream companion stockHistoryEODStream'
     );
   });
 
-  it('matches the unified client on the historical surface (lockstep)', () => {
+  it('matches the unified client on the market-data surface (lockstep)', () => {
     const mdds = methodNames(mddsBlock[0]);
-    const historical = methodNames(historicalViewBlock[0]);
+    const marketData = methodNames(marketDataViewBlock[0]);
     // The `connect` / `connectFromFile` static factories are lifecycle
     // constructors that live only on the standalone client; the
-    // `HistoricalView` is reached through `client.historical` and has no
+    // `MarketDataView` is reached through `client.marketData` and has no
     // constructor of its own. The flat-files surface is a hand-written
     // client-level member that lives on the unified `Client` itself, not on
-    // its `client.historical` view, so it is mirrored onto `HistoricalClient`
+    // its `client.marketData` view, so it is mirrored onto `MarketDataClient`
     // directly and pinned against the unified `Client` in its own block
     // above. `close` is a client-lifecycle method (deterministic teardown)
-    // that lives on the standalone `HistoricalClient` but not on the
-    // `client.historical` sub-view — you close the owning `Client`, not its
+    // that lives on the standalone `MarketDataClient` but not on the
+    // `client.marketData` sub-view — you close the owning `Client`, not its
     // view — so it is likewise excluded. Exclude all so this comparison pins
     // the generated data-fetch surface.
     const LIFECYCLE = new Set(['connect', 'connectFromFile', 'flatFileToPath', 'close']);
     // Every data-fetch method the MDDS-only client exposes must also exist
-    // on the unified client's `client.historical` view — the historical
+    // on the unified client's `client.marketData` view — the market-data
     // surface is generated identically onto both, so the MDDS set is a
-    // strict subset of the `HistoricalView` set.
+    // strict subset of the `MarketDataView` set.
     for (const name of mdds) {
       if (LIFECYCLE.has(name)) continue;
       assert.ok(
-        historical.has(name),
-        `HistoricalClient method ${name} is missing from HistoricalView — the two historical surfaces have drifted`
+        marketData.has(name),
+        `MarketDataClient method ${name} is missing from MarketDataView — the two market-data surfaces have drifted`
       );
     }
   });
 });
 
-describe('HistoricalClient exposes the flat-files surface its contract promises', () => {
+describe('MarketDataClient exposes the flat-files surface its contract promises', () => {
   // The class docstring states the historical / list / snapshot / at-time /
   // flat-files surface is identical to the unified client. The flat-file
   // entry points must therefore be reachable here, matching the unified
-  // `Client` and the Python `HistoricalClient`, which delegates to its
-  // wrapped client. A historical-only handle opens the same data channel,
+  // `Client` and the Python `MarketDataClient`, which delegates to its
+  // wrapped client. A market-data-only handle opens the same data channel,
   // so the namespace and the to-path writer are client-agnostic.
   const FLATFILE_GETTER = 'flatFiles';
   const FLATFILE_METHOD = 'flatFileToPath';
@@ -139,7 +139,7 @@ describe('HistoricalClient exposes the flat-files surface its contract promises'
     assert.match(
       mddsBlock[0],
       /get flatFiles\(\): FlatFilesNamespace/,
-      'HistoricalClient must declare the flatFiles getter in index.d.ts'
+      'MarketDataClient must declare the flatFiles getter in index.d.ts'
     );
   });
 
@@ -147,22 +147,22 @@ describe('HistoricalClient exposes the flat-files surface its contract promises'
     const methods = methodNames(mddsBlock[0]);
     assert.ok(
       methods.has(FLATFILE_METHOD),
-      'HistoricalClient must declare flatFileToPath in index.d.ts'
+      'MarketDataClient must declare flatFileToPath in index.d.ts'
     );
   });
 
   it('exposes both flat-file members on the loaded addon prototype', () => {
-    const proto = mod.HistoricalClient.prototype;
+    const proto = mod.MarketDataClient.prototype;
     const descriptor = Object.getOwnPropertyDescriptor(proto, FLATFILE_GETTER);
     assert.equal(
       typeof descriptor?.get,
       'function',
-      'HistoricalClient.flatFiles must be an accessor on the prototype'
+      'MarketDataClient.flatFiles must be an accessor on the prototype'
     );
     assert.equal(
       typeof proto[FLATFILE_METHOD],
       'function',
-      'HistoricalClient.flatFileToPath must be a method on the prototype'
+      'MarketDataClient.flatFileToPath must be a method on the prototype'
     );
   });
 
@@ -180,11 +180,11 @@ describe('HistoricalClient exposes the flat-files surface its contract promises'
   });
 });
 
-describe('HistoricalClient never exposes the FPSS / streaming surface', () => {
+describe('MarketDataClient never exposes the FPSS / streaming surface', () => {
   // The streaming, subscription, lifecycle, and ring-telemetry methods
   // live only on the unified client. An MDDS-only handle that surfaced
   // any of these could open or observe an FPSS slot, defeating the split.
-  // This is the TypeScript parity of the Python `HistoricalClient` block-list
+  // This is the TypeScript parity of the Python `MarketDataClient` block-list
   // (`FPSS_TOUCHING_METHODS` in `thetadatadx-py/src/mdds_client.rs`).
   const FPSS_TOUCHING = [
     'startStreaming',
@@ -213,7 +213,7 @@ describe('HistoricalClient never exposes the FPSS / streaming surface', () => {
     for (const banned of FPSS_TOUCHING) {
       assert.ok(
         !methods.has(banned),
-        `HistoricalClient must NOT expose the FPSS-touching method ${banned}`
+        `MarketDataClient must NOT expose the FPSS-touching method ${banned}`
       );
     }
   });

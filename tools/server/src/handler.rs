@@ -298,7 +298,7 @@ fn build_endpoint_args(
     //
     // Params declared in `ep.params` dispatch on the registry
     // `ParamType` — the param NAME alone cannot pick the right cap
-    // (`symbol` is a single 16-byte ticker on historical endpoints but
+    // (`symbol` is a single 16-byte ticker on market-data endpoints but
     // a 512-byte comma-separated list on the snapshot endpoints).
     // Params outside the registry metadata (`format`, unknown keys)
     // fall back to the name-based table, whose generic 64-byte cap
@@ -629,7 +629,7 @@ pub async fn generic_with_overrides(
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    let output = match invoke_endpoint(state.client().historical(), ep.name, &args).await {
+    let output = match invoke_endpoint(state.client().market_data(), ep.name, &args).await {
         Ok(output) => output,
         Err(error) => return endpoint_error_response(ep, error),
     };
@@ -758,9 +758,9 @@ pub async fn terminal_streaming_status(State(state): State<AppState>) -> Respons
         .into_response()
 }
 
-/// GET /v3/terminal/mdds/status -- MDDS (historical) channel health as the
+/// GET /v3/terminal/mdds/status -- MDDS (market-data) channel health as the
 /// terminal's one-word `text/plain` body (`CONNECTED` / `DISCONNECTED`).
-pub async fn terminal_historical_status(State(state): State<AppState>) -> Response {
+pub async fn terminal_market_data_status(State(state): State<AppState>) -> Response {
     (
         StatusCode::OK,
         [(axum::http::header::CONTENT_TYPE, TEXT_PLAIN_CONTENT_TYPE)],
@@ -839,11 +839,11 @@ mod tests {
     }
 
     /// Single-ticker endpoints keep the tight 16-byte cap — the typed
-    /// dispatch must not loosen the historical surface.
+    /// dispatch must not loosen the market-data surface.
     #[test]
-    fn build_endpoint_args_keeps_single_symbol_cap_on_historical_endpoints() {
+    fn build_endpoint_args_keeps_single_symbol_cap_on_market_data_endpoints() {
         let ep = thetadatadx::find("stock_history_eod")
-            .expect("historical endpoint must exist in the registry");
+            .expect("market-data endpoint must exist in the registry");
         let mut params: HashMap<String, String> = HashMap::new();
         params.insert(
             "symbol".to_string(),

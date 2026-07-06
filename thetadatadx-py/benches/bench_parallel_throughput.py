@@ -1,10 +1,10 @@
 """GIL vs nogil parallel throughput.
 
-Measures historical-endpoint throughput while a CPU-bound Python thread
+Measures market-data-endpoint throughput while a CPU-bound Python thread
 hammers the interpreter. Under the GIL the CPU thread time-slices with
-the dispatcher thread, so the historical thread sees ~half the
+the dispatcher thread, so the market-data thread sees ~half the
 throughput. Under free-threaded Python (`python3.14t`) the two threads
-run on separate cores in parallel and the historical thread sees
+run on separate cores in parallel and the market-data thread sees
 near-baseline throughput.
 
 The bench does not need live FPSS credentials. It exercises a pure-Rust
@@ -107,13 +107,13 @@ def _default_workload() -> Callable[[], int]:
             t0 = time.perf_counter()
             while time.perf_counter() - t0 < duration:
                 # Trip into the Rust Mutex inside `Config` via the
-                # `historical_host` property getter. Each access acquires the
+                # `market_data_host` property getter. Each access acquires the
                 # std::sync::Mutex on `inner` then drops it. The
                 # Mutex-protected DirectConfig snapshot is read under
                 # the lock, then the GIL is reacquired only to wrap the
                 # returned String in a Py object — so a CPU peer thread
                 # can preempt the lock-holding thread between calls.
-                _ = config.historical_host
+                _ = config.market_data_host
                 n += 1
             return n
 

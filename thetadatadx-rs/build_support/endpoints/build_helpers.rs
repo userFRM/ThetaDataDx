@@ -1,7 +1,7 @@
 //! Helpers consumed only by the build-script render path
 //! (`render::build_out` + `render::mdds`).
 //!
-//! The in-house Rust `HistoricalClient` extension impl emitter is the sole
+//! The in-house Rust `MarketDataClient` extension impl emitter is the sole
 //! consumer here, so these helpers never enter the bin's compile unit.
 //! The bin's per-language SDK projection emitters (Python / TypeScript /
 //! C++ / FFI / validators) keep their own analogues under

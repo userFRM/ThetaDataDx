@@ -544,7 +544,7 @@ impl StreamBatchBuilder {
         self.sec_type.append_value(contract.sec_type as i32);
         // Option columns: expiration / strike / right carry a value only
         // for option contracts, null otherwise. Strike is reported in
-        // dollars to match the historical tick Arrow schema.
+        // dollars to match the market-data tick Arrow schema.
         match contract.expiration {
             Some(exp) => self.expiration.append_value(exp),
             None => self.expiration.append_null(),

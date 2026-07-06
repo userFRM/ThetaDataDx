@@ -234,13 +234,13 @@ def test_streaming_dispatcher_holds_a_weak_client_ref() -> None:
 
 def test_base_clients_expose_close_and_context_managers() -> None:
     """Offline surface pin: the base clients carry the deterministic
-    teardown surface. `Client` / `HistoricalClient` are sync + async
+    teardown surface. `Client` / `MarketDataClient` are sync + async
     context managers with `close()`; `AsyncClient` is an async-only
     context manager with `close()`. Asserted without credentials so a
     regression that drops any of these fails even offline.
     """
     mod = _import_module()
-    for name in ("Client", "HistoricalClient"):
+    for name in ("Client", "MarketDataClient"):
         cls = getattr(mod, name)
         for attr in ("close", "__enter__", "__exit__", "__aenter__", "__aexit__"):
             assert hasattr(cls, attr), f"{name} must expose {attr}"
@@ -260,7 +260,7 @@ def test_context_manager_closes_cleanly(client) -> None:
     """
     with client as bound:
         assert bound is client
-        # A historical query still works inside the block (channel open).
+        # A market-data query still works inside the block (channel open).
         assert bound.stream.is_streaming() is False
     # After the block the client is closed; a second close is idempotent
     # and must not raise.
@@ -428,12 +428,12 @@ def test_closed_unified_session_subscribe_raises_closed_error(client) -> None:
 
 def test_close_makes_client_unusable(client) -> None:
     """After `close()` every surface accessor raises a clear closed error, so a
-    subsequent historical or streaming call cannot reach the network. Live-gated
+    subsequent market-data or streaming call cannot reach the network. Live-gated
     because the constructor needs a real handshake.
     """
     client.close()
     with pytest.raises(RuntimeError, match="closed"):
-        _ = client.historical
+        _ = client.market_data
     with pytest.raises(RuntimeError, match="closed"):
         _ = client.stream
     with pytest.raises(RuntimeError, match="closed"):
@@ -448,7 +448,7 @@ def test_close_releases_via_context_manager(client) -> None:
     surface accessor raises the closed error. Live-gated.
     """
     with client as bound:
-        assert bound.historical is not None
+        assert bound.market_data is not None
     with pytest.raises(RuntimeError, match="closed"):
         _ = client.stream
 

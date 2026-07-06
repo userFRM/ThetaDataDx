@@ -1,4 +1,4 @@
-//! Generated endpoint method bodies for [`HistoricalClient`].
+//! Generated endpoint method bodies for [`MarketDataClient`].
 //!
 //! This module is the `include!` site for three build-time artifacts:
 //!
@@ -29,7 +29,7 @@ use crate::tdbe::types::tick::{
     TradeGreeksSecondOrderTick, TradeGreeksThirdOrderTick, TradeQuoteTick, TradeTick,
 };
 
-use super::client::HistoricalClient;
+use super::client::MarketDataClient;
 use super::wire_semantics::{
     normalize_date, normalize_expiration, wire_right_opt, wire_strike_opt,
 };

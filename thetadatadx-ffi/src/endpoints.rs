@@ -1,4 +1,4 @@
-//! Options-aware historical endpoint wrappers emitted by the generator.
+//! Options-aware market-data endpoint wrappers emitted by the generator.
 //!
 //! The generated `endpoint_request_options.rs` declares `ThetaDataDxEndpointRequestOptions`
 //! and the private helper `apply_endpoint_request_options`. The generated
@@ -18,8 +18,8 @@ use crate::types::{
     ThetaDataDxCalendarDayArray, ThetaDataDxColumnPresence, ThetaDataDxEodTickArray,
     ThetaDataDxGreeksAllTickArray, ThetaDataDxGreeksEodTickArray,
     ThetaDataDxGreeksFirstOrderTickArray, ThetaDataDxGreeksSecondOrderTickArray,
-    ThetaDataDxGreeksThirdOrderTickArray, ThetaDataDxHistoricalClient,
-    ThetaDataDxIndexPriceAtTimeTickArray, ThetaDataDxInterestRateTickArray, ThetaDataDxIvTickArray,
+    ThetaDataDxGreeksThirdOrderTickArray, ThetaDataDxIndexPriceAtTimeTickArray,
+    ThetaDataDxInterestRateTickArray, ThetaDataDxIvTickArray, ThetaDataDxMarketDataClient,
     ThetaDataDxMarketValueTickArray, ThetaDataDxOhlcTickArray, ThetaDataDxOpenInterestTickArray,
     ThetaDataDxOptionContractArray, ThetaDataDxPriceTickArray, ThetaDataDxQuoteTickArray,
     ThetaDataDxStringArray, ThetaDataDxTradeGreeksAllTickArray,
@@ -28,10 +28,10 @@ use crate::types::{
     ThetaDataDxTradeQuoteTickArray, ThetaDataDxTradeTickArray,
 };
 
-// ── Historical server-stream callback C ABI ──
+// ── Market-data server-stream callback C ABI ──
 
 /// User callback signature for the `thetadatadx_<endpoint>_stream` entry points:
-/// invoked once per decoded gRPC chunk drained from a historical result.
+/// invoked once per decoded gRPC chunk drained from a market-data result.
 ///
 /// `rows` points at the first element of a contiguous run of `len` tick
 /// structs — the SAME `#[repr(C)]` layout the matching

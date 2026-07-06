@@ -289,7 +289,7 @@ pub(super) struct GeneratedParam {
     pub(super) param_type: String,
     pub(super) required: bool,
     pub(super) binding: String,
-    /// In-house Rust client (`HistoricalClient`) arg-name override sourced
+    /// In-house Rust client (`MarketDataClient`) arg-name override sourced
     /// from `endpoint_surface.toml`. Only the build-script render path
     /// honors this — the per-language SDK projection emitters drive
     /// their arg names from `sdk_method_arg_name` instead. The
@@ -332,7 +332,7 @@ pub(super) struct GeneratedEndpoint {
     /// REST path on the upstream service. Only the build-script
     /// registry emitter reads this — the bin's per-language SDK
     /// projection emitters drive their routing via the gRPC method
-    /// name on `HistoricalClient`. Underscore-prefixed so the bin compile
+    /// name on `MarketDataClient`. Underscore-prefixed so the bin compile
     /// unit (which sees this struct via `#[path]`) does not flag it
     /// as unread.
     pub(super) _rest_path: String,

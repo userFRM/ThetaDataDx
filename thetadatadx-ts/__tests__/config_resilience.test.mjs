@@ -1,7 +1,7 @@
 // Connection-resilience knobs on `Config` — TypeScript binding parity
 // with Python / C++ / FFI. Pins defaults and setter/getter round-trips
 // for the reconnect cadence ladder, jitter, budgets + wall-clock
-// envelope, replay pacing, the streaming transport knobs, the historical
+// envelope, replay pacing, the streaming transport knobs, the market-data
 // retry envelope, the flatfile jitter toggle, and the custom reconnect
 // callback registration.
 import { test } from "node:test";

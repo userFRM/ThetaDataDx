@@ -206,7 +206,7 @@ pub async fn __bench_flood_events_batched(
     Ok(drops as f64)
 }
 
-/// Project a synthetic `Trade` core event into the historical `TradeTick`
+/// Project a synthetic `Trade` core event into the market-data `TradeTick`
 /// row shape the Arrow builder consumes (stock trade: sentinel option
 /// fields, matching the Python Arrow lever's `trade_event_to_tick`).
 #[inline]

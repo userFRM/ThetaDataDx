@@ -2,11 +2,11 @@
 //
 // `StreamingClient` is the streaming-only napi handle over
 // `thetadatadx::fpss::StreamingClient`: the FPSS TLS transport with no MDDS /
-// Nexus historical surface. It mirrors the Python `StreamingClient`
+// Nexus market-data surface. It mirrors the Python `StreamingClient`
 // (`thetadatadx-py/src/fpss_client.rs`), the C++ `thetadatadx::StreamingClient`, and the
 // C ABI `thetadatadx_fpss_*` entry points. These assertions pin the split
 // structurally against `index.d.ts` and the loaded addon so a change that
-// drops the streaming surface — or leaks a historical method onto it —
+// drops the streaming surface — or leaks a market-data method onto it —
 // fails here without live credentials.
 
 import { describe, it } from 'node:test';
@@ -115,10 +115,10 @@ describe('StreamingClient carries the full streaming surface', () => {
   });
 });
 
-describe('StreamingClient never exposes the MDDS / historical surface', () => {
+describe('StreamingClient never exposes the MDDS / market-data surface', () => {
   // FPSS-only: no historical / list / snapshot / at-time / calendar
   // method may appear. An FPSS client that surfaced these would imply an
-  // MDDS channel it never opens. This is the inverse of the HistoricalClient
+  // MDDS channel it never opens. This is the inverse of the MarketDataClient
   // FPSS-free guard — together they pin the two standalone surfaces apart.
   it('declares no historical data-fetch families', () => {
     const familyRe =
@@ -130,7 +130,7 @@ describe('StreamingClient never exposes the MDDS / historical surface', () => {
     assert.deepEqual(
       leaked,
       [],
-      `StreamingClient must not expose historical methods; found: ${leaked.join(', ')}`
+      `StreamingClient must not expose market-data methods; found: ${leaked.join(', ')}`
     );
   });
 });

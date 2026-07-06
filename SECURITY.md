@@ -41,7 +41,7 @@ provides no privileged access.
   never appear in debug output or log lines
 - Authentication request bodies do **not** derive `Debug` — prevents accidental password
   exposure in error traces
-- **Session UUIDs** (bearer tokens for historical requests) are logged at `debug!` level only,
+- **Session UUIDs** (bearer tokens for market-data requests) are logged at `debug!` level only,
   redacted to first 8 characters. They never appear at `info!` or higher.
 - Credentials are not persisted to disk by the library (the `creds.txt` file is
   user-managed and excluded from version control via `.gitignore`)
@@ -51,7 +51,7 @@ provides no privileged access.
 All network operations enforce timeouts to prevent indefinite hangs:
 
 - **Nexus auth HTTP**: 10s request timeout, 5s connect timeout
-- **Historical channel**: connect timeout + keepalive from `DirectConfig`
+- **Market-data channel**: connect timeout + keepalive from `DirectConfig`
 - **Streaming TLS**: connect timeout wraps both TCP and TLS handshake
 - **Streaming reads**: a 10s read timeout matching the official terminal behavior
 
@@ -59,12 +59,12 @@ All network operations enforce timeouts to prevent indefinite hangs:
 
 All network connections use a **unified TLS stack** (`rustls` with ring backend):
 
-- **Historical channel**: TLS with certificate validation
+- **Market-data channel**: TLS with certificate validation
 - **Streaming channel**: TLS with certificate validation and pinning
 - **Nexus auth (HTTP)**: TLS with certificate validation
 
 Root certificates come from `webpki-roots` (Mozilla's CA bundle). Certificate
-validation is enforced on historical and Nexus (HTTP) connections. Streaming
+validation is enforced on market-data and Nexus (HTTP) connections. Streaming
 uses a pinned verifier: it accepts only the configured streaming hostnames and the expected
 leaf `SubjectPublicKeyInfo` SHA-256 pin, while still verifying the TLS handshake
 signature.
@@ -77,7 +77,7 @@ official terminal), so passwords longer than 127 bytes authenticate correctly
 
 ### Concurrent Request Limiting
 
-The SDK caps the number of in-flight historical requests with an internal semaphore. The cap
+The SDK caps the number of in-flight market-data requests with an internal semaphore. The cap
 is derived automatically from the account's subscription tier at connect time and is not
 user-configurable. This respects the server-side per-tier concurrency limit and prevents
 runaway request storms from overwhelming the upstream server or triggering server-side rate

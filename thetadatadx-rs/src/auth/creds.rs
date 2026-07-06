@@ -7,7 +7,7 @@
 //! - **API key** — a single secret string supplied inline or sourced
 //!   from the `THETADATA_API_KEY` environment variable.
 //!
-//! Both methods are accepted by the historical channel (the
+//! Both methods are accepted by the market-data channel (the
 //! authentication endpoint) and the streaming channel (the login
 //! handshake); they are mutually exclusive on a single `Credentials`.
 //!
@@ -89,7 +89,7 @@ impl std::fmt::Debug for AuthMethod {
 /// A `Credentials` carries exactly one authentication method — email +
 /// password or an API key — selected at construction time. Both methods
 /// are used by both channels:
-/// - **Historical channel**: the credential is exchanged with the
+/// - **Market-data channel**: the credential is exchanged with the
 ///   authentication endpoint to obtain a session UUID.
 /// - **Streaming channel**: the credential is sent in the login
 ///   handshake.

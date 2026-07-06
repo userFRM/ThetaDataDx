@@ -25,7 +25,7 @@ use crate::proto;
 /// Default per-frame decode ceiling for the `_unchecked`-style entry
 /// points that have no configured channel ceiling to thread through.
 /// Matches the gRPC decoder default (4 MiB) and the production
-/// `HistoricalConfig::max_message_size` default.
+/// `MarketDataConfig::max_message_size` default.
 #[cfg(feature = "__internal")]
 pub(crate) const DEFAULT_MAX_MESSAGE_SIZE: usize = 4 * 1024 * 1024;
 

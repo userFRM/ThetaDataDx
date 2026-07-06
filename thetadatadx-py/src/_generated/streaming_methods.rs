@@ -351,7 +351,7 @@ impl StreamView {
         Ok(())
     }
 
-    /// Stop streaming while keeping the historical client usable.
+    /// Stop streaming while keeping the market-data client usable.
     ///
     /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {

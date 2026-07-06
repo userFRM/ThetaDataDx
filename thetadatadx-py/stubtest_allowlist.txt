@@ -5,7 +5,7 @@
 # `Subscription` / `SecType` types, the typed FPSS event payload
 # classes, streaming context managers, the FlatFiles namespace, the
 # typed exception hierarchy. Generator-emitted classes (100+
-# historical builders, 50+ typed `<Tick>List` / `<Tick>ListIter`
+# market-data builders, 50+ typed `<Tick>List` / `<Tick>ListIter`
 # wrappers, every enum produced by
 # `coerce::register_string_enums`, etc.) are exposed via the
 # module-level `__getattr__` fallback to `Any` because a hand-typed
@@ -45,7 +45,7 @@ thetadatadx\.Credentials\.__new__
 # `Client.__new__` is intentionally NOT allowlisted — the .pyi carries a
 # precise `__new__` stub mirroring the runtime `#[pyo3(signature = ...)]`,
 # so stubtest validates the constructor parameter list and a renamed /
-# removed `api_key` / `email` / `password` / `historical_type` kwarg is caught.
+# removed `api_key` / `email` / `password` / `market_data_type` kwarg is caught.
 # Only the documented-`__init__`-vs-real-`__new__` swap is suppressed.
 thetadatadx\.Client\.__init__
 thetadatadx\.AsyncClient\.__init__
@@ -54,13 +54,13 @@ thetadatadx\.AsyncClient\.__getattr__
 # `Client.__getattr__` is intentionally NOT stubbed —
 # every public method on the unified client is hand-listed in the
 # .pyi so stubtest catches drift on the load-bearing pyclass (C6
-# closure). Generator-emitted historical builders reach the module
+# closure). Generator-emitted market-data builders reach the module
 # via the module-level `__getattr__` instead.
 thetadatadx\.StreamingClient\.__init__
 thetadatadx\.StreamingClient\.__new__
-thetadatadx\.HistoricalClient\.__init__
-thetadatadx\.HistoricalClient\.__new__
-thetadatadx\.HistoricalClient\.__getattr__
+thetadatadx\.MarketDataClient\.__init__
+thetadatadx\.MarketDataClient\.__new__
+thetadatadx\.MarketDataClient\.__getattr__
 thetadatadx\.StreamingSession\.__getattr__
 
 # `__exit__` / `__aexit__` on pyo3 context managers carry default

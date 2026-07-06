@@ -42,7 +42,7 @@ pub(super) fn render_python_tick_arrow(schema: &Schema) -> String {
     out.push_str("// over through the PyCapsule protocol (`_import_from_c_capsule`), with an\n");
     out.push_str("// address-based `_import_from_c` fallback for pyarrow < 14.\n");
     out.push_str("//\n");
-    out.push_str("// Every historical endpoint hands its decoder-owned `Vec<tick::T>`\n");
+    out.push_str("// Every market-data endpoint hands its decoder-owned `Vec<tick::T>`\n");
     out.push_str("// straight to the typed `<TickName>List` wrapper (see `tick_classes.rs`);\n");
     out.push_str("// the wrapper's `.to_arrow()` / `.to_pandas()` / `.to_polars()` terminals\n");
     out.push_str("// call into `slice_arrow::<tick>_slice_to_arrow_table` below.\n");
@@ -92,7 +92,7 @@ fn render_record_batch_to_pyarrow_helper() -> String {
 // One `<tick>_slice_to_arrow_table(py, &[tick::T])` emitter per tick
 // type, plus an `ArrowBuilder` trait so the Python-side dispatcher can
 // invoke them polymorphically. The slice path is the primary fast
-// route used by historical endpoints: the Rust decoder already owns a
+// route used by market-data endpoints: the Rust decoder already owns a
 // `Vec<tick::T>`, so feeding the column builders directly avoids the
 // pyclass-list round-trip that peaks RSS at `2 × n_rows` equivalents
 // of tick data.
@@ -105,7 +105,7 @@ fn render_record_batch_to_pyarrow_helper() -> String {
 fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     let mut out = String::new();
     // Slice-based Arrow fast path: the fluent builder `.arrow()` /
-    // `.pandas()` / `.polars()` terminals in `historical_methods.rs`
+    // `.pandas()` / `.polars()` terminals in `market_data_methods.rs`
     // call these converters directly on the decoder-owned
     // `Vec<tick::T>`, skipping the pyclass-list double-buffer. See
     // `build_support/endpoints/render/python.rs::python_slice_arrow_converter`
@@ -122,13 +122,13 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     // (the full readers fetch a fixed schema from `arrow_schema_for_qualname`).
     out.push_str("    use arrow::datatypes::{DataType, Field, Schema};\n");
     out.push_str("    use std::sync::Arc;\n\n");
-    // The fluent-builder Arrow terminals in `historical_methods.rs`
+    // The fluent-builder Arrow terminals in `market_data_methods.rs`
     // dispatch on endpoint return type (via
     // `build_support/endpoints/helpers.rs::python_slice_arrow_converter`)
     // directly to the free helper functions below. No intermediate
     // trait is needed — keeping the surface to the free functions
     // means no unused-trait lint and the call sites stay visible in
-    // the generated `historical_methods.rs` diff.
+    // the generated `market_data_methods.rs` diff.
 
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
@@ -356,7 +356,7 @@ fn render_python_slice_public_helper(type_name: &str) -> String {
     .unwrap();
     writeln!(
         out,
-        "/// Primary fast path for historical endpoints — avoids the"
+        "/// Primary fast path for market-data endpoints — avoids the"
     )
     .unwrap();
     writeln!(

@@ -335,7 +335,7 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 ///
 /// `ping` reports server status without touching an upstream server. When no
 /// client is connected the server advertises exactly this — the rest of the
-/// surface (registry historical endpoints, flat-file tools) requires a live
+/// surface (registry market-data endpoints, flat-file tools) requires a live
 /// connection and is withheld until one exists, so `tools/list` never offers a
 /// tool a `tools/call` would reject for lack of a client. The set must match
 /// the offline-mode tools the README and process banner promise.
@@ -415,7 +415,7 @@ impl SubscriptionAccess {
     /// is accessible when its Nexus tier decoded to a known value (FREE..=PRO);
     /// an omitted or unrecognized tier reads as no access.
     fn from_client(client: &Client) -> Self {
-        let hist = client.historical();
+        let hist = client.market_data();
         Self {
             stock: hist.stock_tier().is_some(),
             option: hist.options_tier().is_some(),
@@ -485,7 +485,7 @@ fn tool_definitions_for(access: Option<SubscriptionAccess>) -> Vec<Value> {
 fn tool_definitions() -> Vec<Value> {
     let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
 
-    // Registry-driven: every HistoricalClient endpoint
+    // Registry-driven: every MarketDataClient endpoint
     for ep in ENDPOINTS {
         let mut props = sonic_rs::Object::new();
         let mut required = Vec::new();
@@ -1227,7 +1227,7 @@ async fn execute_tool(
     })?;
 
     let converted_args = param!(convert_endpoint_args(args));
-    let output = match endpoint::invoke_endpoint(client.historical(), name, &converted_args).await {
+    let output = match endpoint::invoke_endpoint(client.market_data(), name, &converted_args).await {
         Ok(output) => output,
         Err(EndpointError::InvalidParams(message)) => {
             return Err(ToolError::InvalidParams(message));
@@ -1894,7 +1894,7 @@ mod tests {
     }
 
     /// Connected with every asset class subscribed, `tools/list` must advertise
-    /// the full surface: the offline tools plus the registry historical
+    /// the full surface: the offline tools plus the registry market-data
     /// endpoints and the flat-file tools that require a live client.
     #[test]
     fn connected_tools_list_advertises_the_full_surface() {
@@ -1907,7 +1907,7 @@ mod tests {
                 "connected tools/list must still advertise the offline tool `{offline}`"
             );
         }
-        // A flat-file tool and a registry historical endpoint are connection-only
+        // A flat-file tool and a registry market-data endpoint are connection-only
         // and must appear only in the connected surface.
         for online_only in [
             "thetadatadx_flatfile_option_trade_quote",

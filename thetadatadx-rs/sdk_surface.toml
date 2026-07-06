@@ -60,7 +60,7 @@ targets = ["python_unified", "typescript_napi", "cpp_fpss"]
 [[methods]]
 name = "stop_streaming"
 kind = "stop_streaming"
-doc = """Stop streaming while keeping the historical client usable.
+doc = """Stop streaming while keeping the market-data client usable.
 
 Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen."""
 targets = ["python_unified", "typescript_napi"]
@@ -181,7 +181,7 @@ config_variant = "stage"
 [[methods]]
 name = "config_from_dotenv"
 kind = "config_from_dotenv"
-doc = "Source a configuration from a .env-format file. THETADATA_HISTORICAL_TYPE (PROD/STAGE) selects the environment; THETADATA_HISTORICAL_HOST / THETADATA_STREAMING_HOST override the hosts. The same .env can also carry THETADATA_API_KEY for the credential. Throws on failure."
+doc = "Source a configuration from a .env-format file. THETADATA_MARKET_DATA_TYPE (PROD/STAGE) selects the environment; THETADATA_MARKET_DATA_HOST / THETADATA_STREAMING_HOST override the hosts. The same .env can also carry THETADATA_API_KEY for the credential. Throws on failure."
 targets = ["cpp_lifecycle"]
 params = [{ name = "path", type = "string", doc = "Path to the .env file." }]
 
@@ -198,7 +198,7 @@ params = [
 [[methods]]
 name = "mdds_client_from_file"
 kind = "client_connect_from_file"
-doc = "Connect the historical client, loading credentials from a file. Throws on failure."
+doc = "Connect the market-data client, loading credentials from a file. Throws on failure."
 targets = ["cpp_lifecycle"]
 params = [{ name = "path", type = "string", doc = "Path to the credentials file." }]
 

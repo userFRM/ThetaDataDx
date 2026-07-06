@@ -3,12 +3,12 @@
 // `using` / `await using` invoke on scope exit.
 //
 // Pins that:
-//   * `Client` and `HistoricalClient` expose `close()` (napi-generated) and
+//   * `Client` and `MarketDataClient` expose `close()` (napi-generated) and
 //     the two disposer symbols (patched on at require time);
 //   * the sync disposer routes through `close()`;
 //   * the async disposer on the unified client pairs `stopStreaming()` with
 //     `awaitDrain(5000)` and warns (never throws) on drain timeout;
-//   * the async disposer on the historical-only surface (no `.stream`) falls
+//   * the async disposer on the market-data-only surface (no `.stream`) falls
 //     back to `close()`.
 //
 // Runs without a live FPSS handshake: the disposer bodies read `this.stream`
@@ -45,11 +45,11 @@ describe('base-client lifecycle surface', () => {
     );
   });
 
-  it('HistoricalClient exposes close() and both disposer symbols', () => {
-    assert.equal(typeof mod.HistoricalClient, 'function');
-    assert.equal(typeof mod.HistoricalClient.prototype.close, 'function');
-    assert.equal(typeof mod.HistoricalClient.prototype[Symbol.dispose], 'function');
-    assert.equal(typeof mod.HistoricalClient.prototype[Symbol.asyncDispose], 'function');
+  it('MarketDataClient exposes close() and both disposer symbols', () => {
+    assert.equal(typeof mod.MarketDataClient, 'function');
+    assert.equal(typeof mod.MarketDataClient.prototype.close, 'function');
+    assert.equal(typeof mod.MarketDataClient.prototype[Symbol.dispose], 'function');
+    assert.equal(typeof mod.MarketDataClient.prototype[Symbol.asyncDispose], 'function');
   });
 
   it('[Symbol.dispose] routes through close()', () => {
@@ -100,10 +100,10 @@ describe('base-client lifecycle surface', () => {
 
   it('[Symbol.asyncDispose] falls back to close() with no streaming surface', async () => {
     let closed = 0;
-    // Historical-only shape: no `.stream`. The async disposer must not throw
+    // Market-data-only shape: no `.stream`. The async disposer must not throw
     // reaching for `stopStreaming`; it closes instead.
     const fake = { stream: undefined, close() { closed += 1; } };
-    await mod.HistoricalClient.prototype[Symbol.asyncDispose].call(fake);
-    assert.equal(closed, 1, 'historical async dispose must call close() exactly once');
+    await mod.MarketDataClient.prototype[Symbol.asyncDispose].call(fake);
+    assert.equal(closed, 1, 'market-data async dispose must call close() exactly once');
   });
 });

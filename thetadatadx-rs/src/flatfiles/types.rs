@@ -103,7 +103,7 @@ impl fmt::Display for ReqType {
 /// The flat-file service publishes a fixed matrix of daily snapshot
 /// datasets — option `trade_quote` / `open_interest` / `eod` and stock
 /// `trade_quote` / `eod`. Every other request type
-/// (per-tick quotes, trades, OHLC bars) is served by the historical
+/// (per-tick quotes, trades, OHLC bars) is served by the market-data
 /// endpoints, not as a flat file. Sending an unserved pair yields a server
 /// `INVALID_PARAMS:Invalid request type` rejection; this predicate lets
 /// the request entry points reject the pair locally, before any network
@@ -324,7 +324,7 @@ impl fmt::Display for FlatFilesUnavailableReason {
             Self::AuthRejected { reason_code } => {
                 write!(
                     f,
-                    "historical auth rejected (RemoveReason ord={reason_code})"
+                    "market-data auth rejected (RemoveReason ord={reason_code})"
                 )
             }
             Self::RequestRejected { server_message } => {

@@ -71,7 +71,7 @@ impl Config {
         }
     }
 
-    /// Historical-staging config (historical staging cluster + auth marker; streaming
+    /// Market-data-staging config (market-data staging cluster + auth marker; streaming
     /// stays on production). Unstable testing servers.
     #[napi(factory)]
     pub fn stage() -> Self {
@@ -83,15 +83,15 @@ impl Config {
     /// Source the target environment from a `.env`-format file.
     ///
     /// Starts from the production config and applies the cluster keys
-    /// carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
+    /// carried by the file: `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`,
     /// case-insensitive) selects the environment, and the optional
-    /// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
+    /// `THETADATA_MARKET_DATA_HOST` / `THETADATA_STREAMING_HOST` keys
     /// override the hosts (an explicit host wins over the environment
     /// default).
     ///
     /// Reads the same file format and keys as `Credentials.fromDotenv`, so
     /// a single `.env` file can carry both `THETADATA_API_KEY` and
-    /// `THETADATA_HISTORICAL_TYPE`.
+    /// `THETADATA_MARKET_DATA_TYPE`.
     #[napi(factory, js_name = "fromDotenv")]
     pub fn from_dotenv(path: String) -> napi::Result<Self> {
         let inner = config::DirectConfig::from_dotenv(&path).map_err(crate::to_napi_err)?;
@@ -308,7 +308,7 @@ impl Config {
 
     // `retry.initial_delay` / `retry.max_delay` (ms) getters, the
     // `auth.nexus_url` / `auth.client_type` string accessors, and the
-    // `historical_host` string accessor are generated from
+    // `market_data_host` string accessor are generated from
     // config_surface.toml (the `ms` / `string` carve-out kinds).
 
     // `metrics.port` (`Option<number>` exporter port), the
@@ -316,25 +316,25 @@ impl Config {
     // `streamingHostSelection` enums are the generated `enum` / `option`
     // accessors from config_surface.toml.
 
-    /// Target historical environment carried by this configuration:
+    /// Target market-data environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
-    /// historical and streaming channels are selected independently;
+    /// market-data and streaming channels are selected independently;
     /// `Config.production()` / `Config.stage()` (and the
-    /// `THETADATA_HISTORICAL_TYPE` key on `Config.fromDotenv`) set the historical
+    /// `THETADATA_MARKET_DATA_TYPE` key on `Config.fromDotenv`) set the market-data
     /// channel, and this is the readback of that selection. Mirrors the
-    /// `historicalType` string the inline `Client.connectWith` factory accepts.
-    #[napi(getter, js_name = "historicalEnvironment")]
-    pub fn historical_environment(&self) -> napi::Result<&'static str> {
+    /// `marketDataType` string the inline `Client.connectWith` factory accepts.
+    #[napi(getter, js_name = "marketDataEnvironment")]
+    pub fn market_data_environment(&self) -> napi::Result<&'static str> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.historical_environment().as_str())
+        Ok(guard.market_data_environment().as_str())
     }
 
     /// Target streaming environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
-    /// The streaming and historical channels are selected independently;
+    /// The streaming and market-data channels are selected independently;
     /// `Config.production()` / `Config.dev()` (and the
     /// `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming
     /// channel, and this is the readback of that selection. Mirrors the

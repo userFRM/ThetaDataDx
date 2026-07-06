@@ -1,6 +1,6 @@
 ---
 title: Request Sizing
-description: How to split large historical requests.
+description: How to split large market-data requests.
 ---
 
 # Request Sizing

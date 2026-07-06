@@ -2,9 +2,9 @@
 # SDK for ThetaData market data: Rust, Python, TypeScript, C++, plus a local HTTP/WebSocket server and an MCP server.
 # One line per page: path — summary. All paths are relative to the docs site root.
 
-/ — ThetaDataDx: Every ThetaData endpoint, historical, streaming, and bulk, over REST, four native SDKs, or an MCP server for AI.
+/ — ThetaDataDx: Every ThetaData endpoint, market-data, streaming, and bulk, over REST, four native SDKs, or an MCP server for AI.
 /articles/ai-llms — Building with AI / LLMs: Machine-readable entry points for coding assistants and LLM agents.
-/articles/concurrent-requests — Concurrent Requests: How many historical requests run in parallel per subscription tier.
+/articles/concurrent-requests — Concurrent Requests: How many market-data requests run in parallel per subscription tier.
 /articles/conditions — Trade & Quote Conditions: Condition code mapping for the condition fields on trade and quote rows.
 /articles/configuration — Configuration: Environments, retries, timeouts, and the streaming knobs.
 /articles/data-issues — Data Issues?: A short checklist before filing a data problem.
@@ -13,12 +13,12 @@
 /articles/flat-files — Flat Files: Whole-universe daily archives — every contract for a date in one call.
 /articles/getting-started — Getting Started: Install the SDK, save your credentials, and make your first request in Rust, Python, TypeScript, or C++.
 /articles/option-greeks — Option Greeks: The model behind the Greeks endpoints, with input conventions.
-/articles/request-sizing — Request Sizing: How to split large historical requests.
+/articles/request-sizing — Request Sizing: How to split large market-data requests.
 /articles/subscriptions — Subscriptions: Minimum ThetaData subscription tier for every endpoint.
 /articles/symbology — Symbology & Contract Identity: How symbols, option contracts, dates, prices, and timestamps are written across the SDK surface.
 /articles/terminology — Terminology: The dozen terms the rest of this documentation assumes.
 /changelog — Changelog
-/mcp — MCP Server: Give any Model Context Protocol client live access to every historical endpoint.
+/mcp — MCP Server: Give any Model Context Protocol client live access to every market-data endpoint.
 /migration/v11-to-v12 — Migrating from v11 to v12
 /migration/v12-to-v13 — Migrating from v12 to v13
 /migration/v9-to-v10 — Migrating from v9 to v10

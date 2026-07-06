@@ -34,7 +34,7 @@ use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{set_error, set_error_from};
-use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxHistoricalClient};
+use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxMarketDataClient};
 use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
 /// Lock a `Mutex`, recovering the guard through poisoning rather than
@@ -117,7 +117,7 @@ impl FfiCallback {
 
 // ── Unified + FPSS handles ──
 
-/// Opaque unified client handle — wraps both historical and streaming.
+/// Opaque unified client handle — wraps both market-data and streaming.
 pub struct ThetaDataDxClient {
     pub(crate) inner: thetadatadx::Client,
     /// Callback registered via `thetadatadx_client_set_callback`. `None` until
@@ -450,13 +450,13 @@ pub unsafe extern "C" fn thetadatadx_subscription_array_free(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Unified client — historical + streaming through one handle
+//  Unified client — market-data + streaming through one handle
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Connect to `ThetaData` (historical only — FPSS streaming is NOT started).
+/// Connect to `ThetaData` (market-data only — FPSS streaming is NOT started).
 ///
 /// Authenticates once, opens gRPC channel. Call `thetadatadx_client_set_callback()`
-/// later to start FPSS. Historical endpoints are available immediately.
+/// later to start FPSS. Market-data endpoints are available immediately.
 ///
 /// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
 #[no_mangle]
@@ -1124,24 +1124,24 @@ pub unsafe extern "C" fn thetadatadx_client_active_full_subscriptions(
     })
 }
 
-/// Borrow the historical client from a unified handle.
+/// Borrow the market-data client from a unified handle.
 ///
-/// Returns a `*const ThetaDataDxHistoricalClient` that can be passed to all `thetadatadx_stock_*`,
+/// Returns a `*const ThetaDataDxMarketDataClient` that can be passed to all `thetadatadx_stock_*`,
 /// `thetadatadx_option_*`, `thetadatadx_index_*`, `thetadatadx_calendar_*`, and `thetadatadx_interest_rate_*`
-/// functions. This avoids a second `thetadatadx_historical_connect()` call and reuses
+/// functions. This avoids a second `thetadatadx_market_data_connect()` call and reuses
 /// the same authenticated session.
 ///
-/// The returned pointer is **NOT owned** -- do NOT call `thetadatadx_historical_free`
+/// The returned pointer is **NOT owned** -- do NOT call `thetadatadx_market_data_free`
 /// on it. It is valid as long as the `ThetaDataDxClient` handle is alive.
 ///
 /// # Safety
 ///
-/// This cast is sound because `ThetaDataDxHistoricalClient` is `#[repr(transparent)]` over
-/// `HistoricalClient`, and `Client` Derefs to `&HistoricalClient`.
+/// This cast is sound because `ThetaDataDxMarketDataClient` is `#[repr(transparent)]` over
+/// `MarketDataClient`, and `Client` Derefs to `&MarketDataClient`.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_client_historical(
+pub unsafe extern "C" fn thetadatadx_client_market_data(
     handle: *const ThetaDataDxClient,
-) -> *const ThetaDataDxHistoricalClient {
+) -> *const ThetaDataDxMarketDataClient {
     ffi_boundary!(std::ptr::null(), {
         if handle.is_null() {
             set_error("unified handle is null");
@@ -1149,14 +1149,14 @@ pub unsafe extern "C" fn thetadatadx_client_historical(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        // ThetaDataDxHistoricalClient is #[repr(transparent)] over HistoricalClient, so this cast is safe.
-        let mdds_ref: &thetadatadx::mdds::HistoricalClient = handle.inner.historical();
-        std::ptr::from_ref::<thetadatadx::mdds::HistoricalClient>(mdds_ref)
-            .cast::<ThetaDataDxHistoricalClient>()
+        // ThetaDataDxMarketDataClient is #[repr(transparent)] over MarketDataClient, so this cast is safe.
+        let mdds_ref: &thetadatadx::mdds::MarketDataClient = handle.inner.market_data();
+        std::ptr::from_ref::<thetadatadx::mdds::MarketDataClient>(mdds_ref)
+            .cast::<ThetaDataDxMarketDataClient>()
     })
 }
 
-/// Stop streaming on the unified client. Historical remains available.
+/// Stop streaming on the unified client. Market-data remains available.
 ///
 /// Initiates teardown of the FPSS event-dispatch consumer thread and the
 /// underlying TLS reader, but returns immediately after the streaming
@@ -1479,7 +1479,7 @@ pub unsafe extern "C" fn thetadatadx_client_free(handle: *mut ThetaDataDxClient)
         //       consumer is still firing past the budget, ops must
         //       see this surfaced so they can investigate.
         //   (b) no prior session was ever live — `prev_drained` is
-        //       `None` (e.g. a unified handle that only ran historical
+        //       `None` (e.g. a unified handle that only ran market-data
         //       endpoints; nothing to wait on). This is the normal
         //       free-without-streaming flow and must NOT be flagged.
         //

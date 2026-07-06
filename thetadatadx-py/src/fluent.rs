@@ -322,7 +322,7 @@ impl PySubscription {
 }
 
 /// Strike argument accepted by `Contract.option`: a number (int or
-/// float, dollars) or a string (dollars; the historical-endpoint
+/// float, dollars) or a string (dollars; the market-data-endpoint
 /// wildcard `"*"` is NOT valid here — streaming contracts address one
 /// strike). Converted to the canonical string form the core builder
 /// parses.

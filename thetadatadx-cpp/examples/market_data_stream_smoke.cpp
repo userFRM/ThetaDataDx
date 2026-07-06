@@ -1,4 +1,4 @@
-// historical_stream_smoke.cpp -- live proof for the C++ server-stream surface.
+// market_data_stream_smoke.cpp -- live proof for the C++ server-stream surface.
 //
 // Streams one large historical pull (option_history_trade, all strikes of a
 // single underlying on one trading day) through the chunk callback, then runs
@@ -7,7 +7,7 @@
 // count and the peak single-chunk row count to show that peak memory tracks a
 // single chunk rather than the whole result.
 //
-//   usage: historical_stream_smoke [creds.txt] [symbol] [expiration] [date]
+//   usage: market_data_stream_smoke [creds.txt] [symbol] [expiration] [date]
 //   defaults:                       creds.txt   QQQ      *            20250303
 
 #include <chrono>
@@ -57,8 +57,8 @@ int main(int argc, char** argv) {
         std::size_t peak_chunk_rows = 0;
         const auto t0 = std::chrono::steady_clock::now();
 
-        client.historical().option_history_trade_stream(
-            symbol, expiration, date,
+        client.market_data().option_history_trade_stream(
+            symbol, expiration,
             [&](thetadatadx::Span<const thetadatadx::TradeTick> chunk) {
                 ++chunk_count;
                 if (chunk.size() > peak_chunk_rows) {
@@ -79,9 +79,9 @@ int main(int argc, char** argv) {
 
         // ── Buffered pull (ground truth) ──
         const auto t2 = std::chrono::steady_clock::now();
-        thetadatadx::HistoricalClient hist = thetadatadx::HistoricalClient::connect(creds, config);
+        thetadatadx::MarketDataClient hist = thetadatadx::MarketDataClient::connect(creds, config);
         std::vector<thetadatadx::TradeTick> buffered = hist.option_history_trade(
-            symbol, expiration, date, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
+            symbol, expiration, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
         const auto t3 = std::chrono::steady_clock::now();
         const auto buffered_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();

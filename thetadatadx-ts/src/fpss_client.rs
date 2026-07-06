@@ -1,13 +1,13 @@
 //! Standalone TypeScript (napi-rs) `StreamingClient` — streaming only.
 //!
-//! Opens ONLY the streaming TLS transport, no historical channel, no Nexus HTTP
-//! authentication, no historical / Treasury / Calendar surface. Mirrors
+//! Opens ONLY the streaming TLS transport, no market-data channel, no Nexus HTTP
+//! authentication, no market-data / Treasury / Calendar surface. Mirrors
 //! the Python `StreamingClient` (`thetadatadx-py/src/fpss_client.rs`), the C++
 //! `thetadatadx::StreamingClient` (`thetadatadx-cpp/include/thetadatadx.hpp`), and the standalone
 //! C ABI entry points (`thetadatadx_client_*` in `thetadatadx-ffi/src/streaming.rs`), letting a
 //! Node.js caller run a streaming-only session alongside an externally
-//! managed historical process without the bundled
-//! [`crate::Client`] preempting the parallel historical work at the
+//! managed market-data process without the bundled
+//! [`crate::Client`] preempting the parallel market-data work at the
 //! Nexus session layer.
 //!
 //! # Why a hand-written module
@@ -28,7 +28,7 @@
 //! This client does NOT issue a Nexus authentication. The streaming service speaks its own
 //! protocol-level `CREDENTIALS` handshake on the TLS connection itself; no
 //! separate Nexus session is acquired. Run the bundled
-//! [`crate::Client`] when you need the historical surface and Nexus
+//! [`crate::Client`] when you need the market-data surface and Nexus
 //! session machinery side by side.
 //!
 //! # Lifecycle
@@ -379,7 +379,7 @@ type DrainedFlags = Arc<Mutex<Vec<Arc<AtomicBool>>>>;
 /// Standalone streaming-only client.
 ///
 /// Opens ONLY the streaming TLS transport, no historical data channel, no
-/// Nexus HTTP authentication. Use when a parallel historical process is
+/// Nexus HTTP authentication. Use when a parallel market-data process is
 /// already running in the same environment and you need to stream
 /// without the bundled `Client` taking over the Nexus session
 /// at connect time.
@@ -917,7 +917,7 @@ impl StreamingClient {
     // connection is deferred to the first `startStreaming` call, matching
     // the C ABI's deferred-connect contract (`thetadatadx_client_connect` allocates
     // the handle, `thetadatadx_client_set_callback` opens the network) so the same
-    // observable behaviour applies across every binding. No historical channel is
+    // observable behaviour applies across every binding. No market-data channel is
     // opened and no Nexus request is issued by any factory.
 
     /// Allocate a standalone streaming handle with a `Credentials` handle.

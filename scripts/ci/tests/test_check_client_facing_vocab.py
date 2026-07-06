@@ -131,7 +131,7 @@ def test_exempt_only_tokens_clean() -> None:
         _write(
             root,
             "README.md",
-            "Historical host mdds-01.thetadata.us, staging mdds-stage.thetadata.us.\n"
+            "Market-data host mdds-01.thetadata.us, staging mdds-stage.thetadata.us.\n"
             "Scrape thetadatadx.fpss.dropped.\n"
             "<!-- @generated from fpss_event_schema.toml -->\n"
             '#include "fpss_event_structs.h.inc"\n',

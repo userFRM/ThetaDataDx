@@ -32,7 +32,7 @@ use super::model::{GeneratedEndpoint, GeneratedParam};
 
 /// Shared per-tick decoder-name map keyed by wire-collection plural
 /// (e.g. `"GreeksAllTicks"`). Only the `parser` name is shared between
-/// the build script (which emits the `HistoricalClient` direct path) and the
+/// the build script (which emits the `MarketDataClient` direct path) and the
 /// bin (which emits the Python decode-bench dispatch arms). Per-language
 /// type names (`ffi_*`, `cpp_*`, `python_*`, `ts_*`, the in-house Rust
 /// `direct` name) live in tree-local render maps in

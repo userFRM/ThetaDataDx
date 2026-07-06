@@ -1,4 +1,4 @@
-//! Rust emitters for the MDDS gRPC `HistoricalClient` surface.
+//! Rust emitters for the MDDS gRPC `MarketDataClient` surface.
 //!
 //! Emits per-endpoint `list_endpoint!`, `parsed_endpoint!`, and streaming
 //! builder macro invocations into the `OUT_DIR`. Shared naming/type helpers
@@ -80,7 +80,7 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
 }
 
 /// Single source of truth for the `.await` vs `.stream(handler)`
-/// guidance attached to every parsed historical builder. Composed here
+/// guidance attached to every parsed market-data builder. Composed here
 /// so every `option_history_*` / `stock_history_*` / `index_history_*`
 /// / `interest_rate_history_*` builder advertises the same matrix in
 /// rustdoc.
@@ -101,13 +101,13 @@ Streaming yields chunks via `handler(&[Tick])`, capping per-request\n\
 RSS at ~150 MiB regardless of response size.\n\
 \n\
 When the buffered path returns a response whose estimated size\n\
-exceeds [`crate::config::HistoricalConfig::warn_on_buffered_threshold_bytes`]\n\
+exceeds [`crate::config::MarketDataConfig::warn_on_buffered_threshold_bytes`]\n\
 (default 100 MiB), a single `tracing::warn!` event fires with\n\
 `endpoint`, `row_count`, and `bytes_est` fields.\n\
 \n\
 ";
 
-/// Emits a `parsed_endpoint!` macro invocation for a typed historical
+/// Emits a `parsed_endpoint!` macro invocation for a typed market-data
 /// endpoint, rendering its builder, signature, query fields, parser, per-tick
 /// stream item type, and optional setters.
 pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
@@ -120,7 +120,7 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
     )
     .unwrap();
     // Surface the `.await` vs `.stream(handler)` decision matrix in
-    // rustdoc on every historical builder. Same copy on every
+    // rustdoc on every market-data builder. Same copy on every
     // endpoint so `cargo doc` readers do not have to hunt for it —
     // placed AFTER the per-endpoint description so the endpoint's
     // own prose stays at the top of the rustdoc panel.
@@ -215,7 +215,7 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
 
 /// Emits the hand-shaped streaming builder for a subscription endpoint: the
 /// builder struct, its optional setters, the deadline-and-retry stream method,
-/// and the `HistoricalClient` constructor that returns it.
+/// and the `MarketDataClient` constructor that returns it.
 pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &GeneratedEndpoint) {
     let method_params = endpoint
         .params
@@ -233,12 +233,12 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
 
     writeln!(
         out,
-        "/// Builder for the [`HistoricalClient::{}`] streaming endpoint.",
+        "/// Builder for the [`MarketDataClient::{}`] streaming endpoint.",
         endpoint.name
     )
     .unwrap();
     writeln!(out, "pub struct {builder_name}<'a> {{").unwrap();
-    out.push_str("    client: &'a HistoricalClient,\n");
+    out.push_str("    client: &'a MarketDataClient,\n");
     for param in &method_params {
         writeln!(
             out,
@@ -310,7 +310,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     // the whole retry loop so the caller's budget covers every attempt.
     out.push_str("        let deadline = crate::mdds::macros::effective_deadline(\n");
     out.push_str("            deadline,\n");
-    out.push_str("            client.config().historical.request_timeout_secs,\n");
+    out.push_str("            client.config().market_data.request_timeout_secs,\n");
     out.push_str("        );\n");
     writeln!(
         out,
@@ -436,7 +436,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     out.push_str("        }).await\n");
     out.push_str(include_str!("templates/mdds/metrics_result_block.rs.tmpl"));
 
-    writeln!(out, "impl HistoricalClient {{").unwrap();
+    writeln!(out, "impl MarketDataClient {{").unwrap();
     writeln!(
         out,
         "    /// Open a `{builder_name}` for the `{}` streaming endpoint.",

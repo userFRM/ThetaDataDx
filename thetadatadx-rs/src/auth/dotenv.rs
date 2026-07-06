@@ -5,7 +5,7 @@
 //! ([`crate::config::DirectConfig::from_dotenv`]). One file can therefore
 //! carry both the credential keys (`THETADATA_API_KEY`, or
 //! `THETADATA_EMAIL` + `THETADATA_PASSWORD`) and the environment selector
-//! (`THETADATA_HISTORICAL_TYPE`, plus the documented host overrides); the
+//! (`THETADATA_MARKET_DATA_TYPE`, plus the documented host overrides); the
 //! credential reader picks up the secret keys and the configuration reader
 //! picks up the cluster keys, from the same parse.
 //!
@@ -130,14 +130,14 @@ mod tests {
     #[test]
     fn lookup_treats_quoted_whitespace_host_as_absent() {
         // Both single- and double-quoted blanks resolve to absent.
-        let dq = parse("THETADATA_HISTORICAL_HOST=\"   \"\n");
+        let dq = parse("THETADATA_MARKET_DATA_HOST=\"   \"\n");
         assert_eq!(
-            lookup(&dq, "THETADATA_HISTORICAL_HOST"),
+            lookup(&dq, "THETADATA_MARKET_DATA_HOST"),
             None,
             "a quoted all-whitespace host must be ignored, not used as a blank override"
         );
-        let sq = parse("THETADATA_HISTORICAL_HOST='\t '\n");
-        assert_eq!(lookup(&sq, "THETADATA_HISTORICAL_HOST"), None);
+        let sq = parse("THETADATA_MARKET_DATA_HOST='\t '\n");
+        assert_eq!(lookup(&sq, "THETADATA_MARKET_DATA_HOST"), None);
     }
 
     /// A non-blank quoted value is still returned verbatim (the opaque-secret

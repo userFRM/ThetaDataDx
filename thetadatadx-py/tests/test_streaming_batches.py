@@ -44,8 +44,8 @@ def test_batches_entry_present_on_stream_view() -> None:
     assert hasattr(td.StreamView, "start_streaming")
 
 
-def test_batches_is_blocked_on_the_historical_client() -> None:
-    """`batches` is an FPSS-touching method, so the MDDS-only historical
+def test_batches_is_blocked_on_the_market_data_client() -> None:
+    """`batches` is an FPSS-touching method, so the MDDS-only market-data
     client must refuse it (it is on the block-list)."""
     assert "batches" in td._blocked_fpss_methods()
 

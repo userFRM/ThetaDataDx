@@ -43,8 +43,8 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 >
 > ```bash
 > pip install --pre thetadatadx          # Python (pinned: pip install thetadatadx==13.0.0rc17)
-> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.17)
-> cargo add thetadatadx@13.0.0-rc.17     # Rust
+> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.18)
+> cargo add thetadatadx@13.0.0-rc.18     # Rust
 > ```
 
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
@@ -65,11 +65,11 @@ C++ ships as a header plus a small implementation file over a prebuilt library (
 ```python
 from thetadatadx import Client
 
-# Pass your API key directly. Use historical_type="STAGE" to target staging.
+# Pass your API key directly. Use market_data_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", date="20240315")
+greeks = client.market_data.option_history_greeks_first_order("SPY", "20260619", date="20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -130,7 +130,7 @@ with client.streaming(on_event) as session:
 import { Contract, Client } from 'thetadatadx';
 
 async function main() {
-  // Pass your API key directly. Add historicalType: "STAGE" to target staging.
+  // Pass your API key directly. Add marketDataType: "STAGE" to target staging.
   const client = await Client.connectWith({ apiKey: 'td1_...' });
 
   await client.stream.startStreaming((event) => {
@@ -188,7 +188,7 @@ int main() {
         .api_key("td1_...")
         .connect();
 
-    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
+    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f gamma=%+.4f\n",
                     t.strike, t.right, t.delta, t.gamma);
@@ -200,7 +200,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.17"
+thetadatadx = "13.0.0-rc.18"
 ```
 
 ```rust
@@ -211,7 +211,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
     let client = Client::builder().api_key("td1_...").connect().await?;
 
     let greeks = client
-        .historical()
+        .market_data()
         .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
         .await?;
 
@@ -226,7 +226,7 @@ Call the async function from your application's runtime.
 
 ## DataFrames
 
-Every historical result is a typed list that converts directly to a dataframe:
+Every market-data result is a typed list that converts directly to a dataframe:
 no row-by-row iteration:
 
 ```python
@@ -241,7 +241,7 @@ instead of buffering it. See [Request sizing](https://userfrm.github.io/ThetaDat
 
 ## Streaming
 
-One connection, one authentication. Historical queries work immediately; the
+One connection, one authentication. Market-data queries work immediately; the
 streaming transport connects on the first subscription. Subscribe specific
 contracts with the fluent `Contract` API, or take a whole-market feed: every
 option trade across the universe, no per-contract setup. The full-trade feed
@@ -315,7 +315,7 @@ common `ThetaDataError` base.
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` (npm) | MCP server exposing every historical endpoint to AI clients |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` (npm) | MCP server exposing every market-data endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation

@@ -353,7 +353,7 @@ fn sanitize_param_name(param_name: &str) -> String {
 /// Type-driven dispatch is the only correct routing for params whose
 /// meaning depends on the endpoint: the snapshot endpoints declare a
 /// comma-separated list under the param NAME `symbol` (registry type
-/// `Symbols`, 512-byte cap), while the historical endpoints declare a
+/// `Symbols`, 512-byte cap), while the market-data endpoints declare a
 /// single ticker under the same name (registry type `Symbol`, 16-byte
 /// cap). Name-based dispatch cannot tell the two apart and rejected
 /// every multi-symbol snapshot list past 16 bytes.

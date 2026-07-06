@@ -1,11 +1,11 @@
 ---
 title: MCP Server
-description: Give any Model Context Protocol client live access to every historical endpoint.
+description: Give any Model Context Protocol client live access to every market-data endpoint.
 ---
 
 # MCP Server
 
-`thetadatadx-mcp` is a Model Context Protocol server over stdio: any MCP-capable client (Claude Desktop, Cursor, and others) gets a tool per historical endpoint, speaking JSON-RPC 2.0.
+`thetadatadx-mcp` is a Model Context Protocol server over stdio: any MCP-capable client (Claude Desktop, Cursor, and others) gets a tool per market-data endpoint, speaking JSON-RPC 2.0.
 
 ## Configure your client
 
@@ -58,7 +58,7 @@ Keep credentials in environment variables or a secrets manager — not in config
 
 ## Tools
 
-Every generated historical endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
+Every generated market-data endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
 
 Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools, so the model never sees a tool it cannot call. FREE-tier classes stay listed because FREE grants delayed data. The account-agnostic tools (`ping`, the trading calendar, the generic flat-file request) are always offered, and each tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
 
@@ -71,7 +71,7 @@ When credentials are present the connected surface also carries six flat-file to
 - `thetadatadx_flatfile_stock_trade_quote`: stock trade-quote flat file.
 - `thetadatadx_flatfile_stock_eod`: stock end-of-day flat file.
 
-Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools and the historical endpoints need a live connection.
+Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools and the market-data endpoints need a live connection.
 
 ## Option queries from a model
 

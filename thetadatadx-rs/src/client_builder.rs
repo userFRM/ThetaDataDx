@@ -37,7 +37,7 @@ use zeroize::Zeroizing;
 
 use crate::auth::Credentials;
 use crate::client::Client;
-use crate::config::{DirectConfig, HistoricalEnvironment, StreamingEnvironment};
+use crate::config::{DirectConfig, MarketDataEnvironment, StreamingEnvironment};
 use crate::error::Error;
 
 /// How the builder will source the authentication credential.
@@ -127,10 +127,10 @@ enum EnvSource {
     /// No environment selected — default to [`DirectConfig::production`].
     Default,
     /// Select per-channel environments on top of [`DirectConfig::production`].
-    /// Either channel may be left unset (production); the historical and
+    /// Either channel may be left unset (production); the market-data and
     /// streaming channels are chosen independently.
     Environment {
-        historical: Option<HistoricalEnvironment>,
+        market_data: Option<MarketDataEnvironment>,
         streaming: Option<StreamingEnvironment>,
     },
     /// Use a caller-supplied [`DirectConfig`] verbatim. The config and
@@ -149,12 +149,12 @@ impl EnvSource {
         match self {
             EnvSource::Default => DirectConfig::try_production(),
             EnvSource::Environment {
-                historical,
+                market_data,
                 streaming,
             } => {
                 let mut config = DirectConfig::try_production()?;
-                if let Some(env) = historical {
-                    config = config.with_historical_environment(env);
+                if let Some(env) = market_data {
+                    config = config.with_market_data_environment(env);
                 }
                 if let Some(env) = streaming {
                     config = config.with_streaming_environment(env);
@@ -168,22 +168,22 @@ impl EnvSource {
 
     /// Fold a per-channel selection into the current source, preserving any
     /// already-selected channel so `.stage().dev()` composes to
-    /// historical-staging + streaming-dev. A `Config` / `DotenvFile` source is
+    /// market-data-staging + streaming-dev. A `Config` / `DotenvFile` source is
     /// replaced (last-setter-wins on the kind), matching the prior behavior.
     fn with_channel(
         self,
-        historical: Option<HistoricalEnvironment>,
+        market_data: Option<MarketDataEnvironment>,
         streaming: Option<StreamingEnvironment>,
     ) -> Self {
         let (prev_h, prev_s) = match self {
             EnvSource::Environment {
-                historical,
+                market_data,
                 streaming,
-            } => (historical, streaming),
+            } => (market_data, streaming),
             _ => (None, None),
         };
         EnvSource::Environment {
-            historical: historical.or(prev_h),
+            market_data: market_data.or(prev_h),
             streaming: streaming.or(prev_s),
         }
     }
@@ -260,7 +260,7 @@ impl ClientBuilder {
     /// The file uses the common `.env` grammar; `THETADATA_API_KEY`
     /// selects an API key, otherwise `THETADATA_EMAIL` +
     /// `THETADATA_PASSWORD` build email + password credentials. The same
-    /// file can carry `THETADATA_HISTORICAL_TYPE` for [`Self::from_dotenv`].
+    /// file can carry `THETADATA_MARKET_DATA_TYPE` for [`Self::from_dotenv`].
     pub fn api_key_from_dotenv(self, path: impl Into<PathBuf>) -> Self {
         self.set_auth(AuthSource::DotenvFile { path: path.into() })
     }
@@ -291,33 +291,33 @@ impl ClientBuilder {
 
     // ─── Environment setters (optional, default production) ───────────
 
-    /// Select the historical [`HistoricalEnvironment`]. Equivalent to
-    /// the `THETADATA_HISTORICAL_TYPE` env var and to
-    /// [`DirectConfig::with_historical_environment`]. Composes with a streaming
-    /// selection — `.streaming_environment(..).historical_environment(..)`
+    /// Select the market-data [`MarketDataEnvironment`]. Equivalent to
+    /// the `THETADATA_MARKET_DATA_TYPE` env var and to
+    /// [`DirectConfig::with_market_data_environment`]. Composes with a streaming
+    /// selection — `.streaming_environment(..).market_data_environment(..)`
     /// keeps both.
-    pub fn historical_environment(mut self, environment: HistoricalEnvironment) -> Self {
+    pub fn market_data_environment(mut self, environment: MarketDataEnvironment) -> Self {
         self.env = self.env.with_channel(Some(environment), None);
         self
     }
 
     /// Select the streaming [`StreamingEnvironment`]. Equivalent to the
     /// `THETADATA_STREAMING_TYPE` env var and to
-    /// [`DirectConfig::with_streaming_environment`]. Composes with a historical
+    /// [`DirectConfig::with_streaming_environment`]. Composes with a market-data
     /// selection.
     pub fn streaming_environment(mut self, environment: StreamingEnvironment) -> Self {
         self.env = self.env.with_channel(None, Some(environment));
         self
     }
 
-    /// Target the historical staging cluster (streaming stays on production).
-    /// Shorthand for `.historical_environment(HistoricalEnvironment::Stage)`;
+    /// Target the market-data staging cluster (streaming stays on production).
+    /// Shorthand for `.market_data_environment(MarketDataEnvironment::Stage)`;
     /// matches [`DirectConfig::stage`].
     pub fn stage(self) -> Self {
-        self.historical_environment(HistoricalEnvironment::Stage)
+        self.market_data_environment(MarketDataEnvironment::Stage)
     }
 
-    /// Target the streaming dev-replay cluster (historical stays on
+    /// Target the streaming dev-replay cluster (market-data stays on
     /// production). Shorthand for
     /// `.streaming_environment(StreamingEnvironment::Dev)`; matches
     /// [`DirectConfig::dev`].
@@ -326,9 +326,9 @@ impl ClientBuilder {
     }
 
     /// Target production on both channels (the default). Shorthand for
-    /// selecting [`HistoricalEnvironment::Prod`] + [`StreamingEnvironment::Prod`].
+    /// selecting [`MarketDataEnvironment::Prod`] + [`StreamingEnvironment::Prod`].
     pub fn production(self) -> Self {
-        self.historical_environment(HistoricalEnvironment::Prod)
+        self.market_data_environment(MarketDataEnvironment::Prod)
             .streaming_environment(StreamingEnvironment::Prod)
     }
 
@@ -336,9 +336,9 @@ impl ClientBuilder {
     ///
     /// The config and the environment setters resolve in call order, last
     /// one wins: this config replaces an earlier
-    /// [`Self::historical_environment`] / [`Self::streaming_environment`] /
+    /// [`Self::market_data_environment`] / [`Self::streaming_environment`] /
     /// [`Self::stage`] selection, and a later environment-setter call
-    /// (`historical_environment` / `streaming_environment` / `stage` / `dev` /
+    /// (`market_data_environment` / `streaming_environment` / `stage` / `dev` /
     /// `production`) replaces this config.
     pub fn config(mut self, config: DirectConfig) -> Self {
         self.env = EnvSource::Config {
@@ -349,7 +349,7 @@ impl ClientBuilder {
 
     /// Source the target environment from a `.env`-format file.
     ///
-    /// Reads `THETADATA_HISTORICAL_TYPE` (and the optional host overrides) via
+    /// Reads `THETADATA_MARKET_DATA_TYPE` (and the optional host overrides) via
     /// [`DirectConfig::from_dotenv`]. The same file can carry
     /// `THETADATA_API_KEY` for [`Self::api_key_from_dotenv`], so a single
     /// `.env` can drive both the credential and the environment.
@@ -485,7 +485,10 @@ mod tests {
         let (creds, config) = resolve(ClientBuilder::new().api_key("  td1_example  ")).unwrap();
         assert!(creds.is_api_key());
         assert_eq!(creds.api_key_secret(), Some("td1_example"));
-        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
+        assert_eq!(
+            config.market_data_environment(),
+            MarketDataEnvironment::Prod
+        );
         assert_eq!(config.streaming_environment(), StreamingEnvironment::Prod);
     }
 
@@ -499,14 +502,14 @@ mod tests {
     }
 
     #[test]
-    fn stage_selects_historical_staging_only() {
+    fn stage_selects_market_data_staging_only() {
         let (_, config) = resolve(ClientBuilder::new().api_key("k").stage()).unwrap();
         assert_eq!(
-            config.historical_environment(),
-            HistoricalEnvironment::Stage
+            config.market_data_environment(),
+            MarketDataEnvironment::Stage
         );
-        assert_eq!(config.historical_host(), "mdds-stage.thetadata.us");
-        // Streaming stays on production — `stage()` is historical-only.
+        assert_eq!(config.market_data_host(), "mdds-stage.thetadata.us");
+        // Streaming stays on production — `stage()` is market-data-only.
         assert_eq!(config.streaming_environment(), StreamingEnvironment::Prod);
     }
 
@@ -514,18 +517,21 @@ mod tests {
     fn dev_selects_streaming_dev_only() {
         let (_, config) = resolve(ClientBuilder::new().api_key("k").dev()).unwrap();
         assert_eq!(config.streaming_environment(), StreamingEnvironment::Dev);
-        // Historical stays on production — `dev()` is streaming-only.
-        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
+        // Market-data stays on production — `dev()` is streaming-only.
+        assert_eq!(
+            config.market_data_environment(),
+            MarketDataEnvironment::Prod
+        );
     }
 
     #[test]
     fn per_channel_selectors_compose() {
-        // `.stage().dev()` selects historical-staging AND streaming-dev — the
+        // `.stage().dev()` selects market-data-staging AND streaming-dev — the
         // two channels are independent and both selections survive.
         let (_, config) = resolve(ClientBuilder::new().api_key("k").stage().dev()).unwrap();
         assert_eq!(
-            config.historical_environment(),
-            HistoricalEnvironment::Stage
+            config.market_data_environment(),
+            MarketDataEnvironment::Stage
         );
         assert_eq!(config.streaming_environment(), StreamingEnvironment::Dev);
     }
@@ -535,11 +541,14 @@ mod tests {
         let (_, config) = resolve(
             ClientBuilder::new()
                 .api_key("k")
-                .historical_environment(HistoricalEnvironment::Prod)
+                .market_data_environment(MarketDataEnvironment::Prod)
                 .streaming_environment(StreamingEnvironment::Prod),
         )
         .unwrap();
-        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
+        assert_eq!(
+            config.market_data_environment(),
+            MarketDataEnvironment::Prod
+        );
         assert_eq!(config.streaming_environment(), StreamingEnvironment::Prod);
     }
 
@@ -554,7 +563,10 @@ mod tests {
                 .config(DirectConfig::production()),
         )
         .unwrap();
-        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
+        assert_eq!(
+            config.market_data_environment(),
+            MarketDataEnvironment::Prod
+        );
     }
 
     #[test]

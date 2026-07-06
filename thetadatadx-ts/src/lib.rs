@@ -244,12 +244,12 @@ impl Credentials {
 /// returning the shared client handle.
 ///
 /// Shared by the `connectFromFile` factory on both the unified [`Client`]
-/// and the historical-only [`HistoricalClient`]: the connect core is
-/// identical (`thetadatadx::Client::connect` opens the historical channel
+/// and the market-data-only [`MarketDataClient`]: the connect core is
+/// identical (`thetadatadx::Client::connect` opens the market-data channel
 /// and Nexus, never streaming until a streaming method is called); the two
 /// factories differ only in the napi handle they wrap around the returned
 /// `Arc`.
-pub(crate) async fn connect_historical_from_file_core(
+pub(crate) async fn connect_market_data_from_file_core(
     path: String,
     cfg: config::DirectConfig,
 ) -> napi::Result<Arc<thetadatadx::Client>> {
@@ -277,7 +277,7 @@ pub(crate) fn config_or_production(config: Option<&Config>) -> config::DirectCon
 
 /// Build a napi `Error` tagged as a `ConfigError` for a malformed
 /// client-construction option (conflicting or absent auth fields, an
-/// unparseable `historicalType`). Matches the `[ConfigError]` prefix the JS
+/// unparseable `marketDataType`). Matches the `[ConfigError]` prefix the JS
 /// shim re-throws as a typed `ConfigError`, so the failure surfaces the
 /// same branded class the other bindings raise.
 fn config_option_err(message: impl AsRef<str>) -> napi::Error {
@@ -309,14 +309,14 @@ pub struct ClientConnectOptions {
     /// Path to a two-line `creds.txt` file (line 1 = email, line 2 =
     /// password).
     pub credentials_file: Option<String>,
-    /// Historical environment selector (`"PROD"` / `"STAGE"`,
-    /// case-insensitive). Defaults to production. The historical and
+    /// Market-data environment selector (`"PROD"` / `"STAGE"`,
+    /// case-insensitive). Defaults to production. The market-data and
     /// streaming channels are selected independently. For full host-level
     /// control, build a `Config` and use `Client.connect(creds, config)`.
-    pub historical_type: Option<String>,
+    pub market_data_type: Option<String>,
     /// Streaming environment selector (`"PROD"` / `"DEV"`,
     /// case-insensitive). Defaults to production. Selected independently of
-    /// the historical channel.
+    /// the market-data channel.
     pub streaming_type: Option<String>,
 }
 
@@ -331,7 +331,7 @@ impl ClientConnectOptions {
             email,
             password,
             credentials_file,
-            historical_type,
+            market_data_type,
             streaming_type,
         } = self;
 
@@ -387,18 +387,18 @@ impl ClientConnectOptions {
             return Err(config_option_err("no authentication field set"));
         };
 
-        // The historical and streaming channels are selected
+        // The market-data and streaming channels are selected
         // independently on top of the production defaults; either absent
         // keeps that channel on production. An unrecognized value is a
         // config error naming the valid set, never a silent fallback.
         let mut cfg = config::DirectConfig::production();
-        if let Some(raw) = historical_type.as_deref() {
-            let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
+        if let Some(raw) = market_data_type.as_deref() {
+            let environment = config::MarketDataEnvironment::parse(raw).ok_or_else(|| {
                 config_option_err(format!(
-                    "historicalType must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+                    "marketDataType must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
                 ))
             })?;
-            cfg = cfg.with_historical_environment(environment);
+            cfg = cfg.with_market_data_environment(environment);
         }
         if let Some(raw) = streaming_type.as_deref() {
             let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
@@ -539,7 +539,7 @@ pub(crate) fn validate_optional_nonneg_i32(
 /// Run an endpoint round-trip off the runtime's execution thread and
 /// hand the result back as a `napi::Result`.
 ///
-/// Every generated historical endpoint method is an `async fn`: napi-rs
+/// Every generated market-data endpoint method is an `async fn`: napi-rs
 /// returns a JS Promise to the caller and polls the method's future on
 /// its own runtime, never on the V8 execution thread. The actual
 /// network round-trip is spawned onto [`runtime()`] — the same runtime
@@ -568,7 +568,7 @@ where
 
 /// Run an endpoint task whose failure is already a napi error.
 ///
-/// Historical stream callbacks use this path because JavaScript handler
+/// Market-data stream callbacks use this path because JavaScript handler
 /// exceptions must reject the returned Promise with the original napi error,
 /// not be converted through the core `thetadatadx::Error` hierarchy.
 pub(crate) async fn spawn_napi_task<F, T>(fut: F) -> napi::Result<T>
@@ -699,7 +699,7 @@ include!("_generated/enums_generated.rs");
 // ── Typed tick classes (generated from tick_schema.toml) ──
 //
 // Emits `#[napi(object)]` structs for every tick type plus
-// `{tick}_to_class_vec` factories. These back every historical endpoint
+// `{tick}_to_class_vec` factories. These back every market-data endpoint
 // return so `index.d.ts` surfaces concrete `Tick[]` types instead of `any`.
 
 include!("_generated/tick_classes.rs");
@@ -800,8 +800,8 @@ pub(crate) type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
 pub struct Client {
     /// Held as `Option` behind a `Mutex` so `close()` can DETERMINISTICALLY
     /// RELEASE the handle: closing takes the `Arc<Client>` out of the slot and
-    /// drops it, freeing the historical gRPC channel pool once the last
-    /// co-owning surface (a `HistoricalView` / `StreamView` vended before
+    /// drops it, freeing the market-data gRPC channel pool once the last
+    /// co-owning surface (a `MarketDataView` / `StreamView` vended before
     /// close) is also gone — matching the C++ wrapper, where `close()` resets
     /// the handle. A closed slot (`None`) makes every access via
     /// [`Client::client_handle`] reject with "client is closed", so the client
@@ -810,7 +810,7 @@ pub struct Client {
     /// The inner `thetadatadx::Client` is not `Clone` -- its streaming mutex
     /// and subscription-tier state forbid that -- so surfaces co-own a cheap
     /// `Arc<Client>` clone (surviving past a parent close, exactly as the C++
-    /// `Historical` / `Stream` views co-own the `shared_ptr`).
+    /// `MarketData` / `Stream` views co-own the `shared_ptr`).
     client: Mutex<Option<Arc<thetadatadx::Client>>>,
     /// Stored JS callback registered via `startStreaming(callback)`.
     /// `None` until the first registration; persisted across
@@ -837,26 +837,26 @@ pub struct Client {
     callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
 }
 
-/// User-facing historical-data sub-namespace returned by the
-/// `client.historical` getter.
+/// User-facing market-data sub-namespace returned by the
+/// `client.marketData` getter.
 ///
 /// A lightweight handle that shares the underlying client connection;
 /// constructing it performs no auth round-trip and mutates no streaming
-/// state. Every historical endpoint method is generated onto this view
+/// state. Every market-data endpoint method is generated onto this view
 /// from a single declarative surface definition, so the surface stays a
 /// single generated source of truth.
 #[napi]
-pub struct HistoricalView {
+pub struct MarketDataView {
     client: Arc<thetadatadx::Client>,
 }
 
-impl HistoricalView {
+impl MarketDataView {
     /// The core client handle for the generated endpoint bodies.
     ///
     /// The view co-owns its `Arc<Client>`, so it stays usable even after the
-    /// parent `Client` closes — matching the C++ `Historical` view, which
+    /// parent `Client` closes — matching the C++ `MarketData` view, which
     /// co-owns the `shared_ptr`. Infallible; the `napi::Result` signature is
-    /// shared with `HistoricalClient::client_handle` so the identical generated
+    /// shared with `MarketDataClient::client_handle` so the identical generated
     /// bodies compile against either receiver.
     pub(crate) fn client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>> {
         Ok(Arc::clone(&self.client))
@@ -878,13 +878,13 @@ pub struct StreamView {
 
 #[napi]
 impl Client {
-    /// Historical-data sub-namespace: `client.historical.stockHistoryEOD(...)`.
+    /// Market-data sub-namespace: `client.marketData.stockHistoryEOD(...)`.
     ///
-    /// Returns a fresh [`HistoricalView`] that shares the underlying
+    /// Returns a fresh [`MarketDataView`] that shares the underlying
     /// client connection. No auth round-trip, no streaming-state mutation.
     #[napi(getter)]
-    pub fn historical(&self) -> napi::Result<HistoricalView> {
-        Ok(HistoricalView {
+    pub fn market_data(&self) -> napi::Result<MarketDataView> {
+        Ok(MarketDataView {
             client: self.client_handle()?,
         })
     }
@@ -905,7 +905,7 @@ impl Client {
 
     /// The live core client handle, or a "client is closed" error.
     ///
-    /// Every surface the client vends (`historical` / `stream` / `flatFiles`)
+    /// Every surface the client vends (`marketData` / `stream` / `flatFiles`)
     /// resolves the handle through here, so once `close()` has taken it the
     /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
     /// co-owns.
@@ -929,7 +929,7 @@ impl Client {
     /// Connect to ThetaData with a `Credentials` handle. Pass an
     /// optional `Config` (`dev` / `stage` / `production`, plus any
     /// tuned setters) to override the production-default endpoint.
-    /// Historical only; call `client.stream.startStreaming(...)` to
+    /// Market-data only; call `client.stream.startStreaming(...)` to
     /// begin streaming real-time data.
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
@@ -978,7 +978,7 @@ impl Client {
     /// method returns a `Promise<Client>`.
     #[napi(js_name = "connectFromFile")]
     pub async fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
-        let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
+        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
         Ok(Client {
             client: Mutex::new(Some(client)),
             callback: Arc::new(Mutex::new(None)),
@@ -990,7 +990,7 @@ impl Client {
     /// field.
     ///
     /// ```js
-    /// const staged = await Client.connectWith({ apiKey: "td1_...", historicalType: "STAGE" });
+    /// const staged = await Client.connectWith({ apiKey: "td1_...", marketDataType: "STAGE" });
     /// const withLogin = await Client.connectWith({ email: "u@e.com", password: "secret" });
     /// const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
     /// ```
@@ -998,8 +998,8 @@ impl Client {
     /// Exactly one authentication field must be set: `apiKey`,
     /// `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
     /// or `credentialsFile`. Passing none, or two different ones, rejects
-    /// with a `ConfigError` before any network round-trip. `historicalType`
-    /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
+    /// with a `ConfigError` before any network round-trip. `marketDataType`
+    /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the market-data
     /// environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
     /// the streaming environment, independently. For a pre-built full
     /// `Config` (or a pre-built `Credentials` handle), use
@@ -1025,12 +1025,12 @@ impl Client {
     ///
     /// Stops streaming if it is live (idempotent), RELEASES the core client
     /// handle, and releases the registered callback back to V8. Taking the
-    /// handle out of its slot and dropping it frees the historical gRPC channel
+    /// handle out of its slot and dropping it frees the market-data gRPC channel
     /// pool once no vended surface still co-owns it, and makes the client
-    /// UNUSABLE — every subsequent `historical` / `stream` / `flatFiles` access
+    /// UNUSABLE — every subsequent `marketData` / `stream` / `flatFiles` access
     /// rejects with "client is closed". Safe to call more than once (a second
     /// close finds an empty slot and is a no-op) and safe on a client that only
-    /// ran historical queries.
+    /// ran market-data queries.
     ///
     /// This is the recommended teardown. Prefer the `using` declaration
     /// (`using client = connect(...)`) so `close()` runs on scope exit through
@@ -1195,44 +1195,44 @@ impl StreamView {
     }
 }
 
-// ── Standalone HistoricalClient (historical-only) ──
+// ── Standalone MarketDataClient (market-data-only) ──
 
-/// Standalone historical-only client.
+/// Standalone market-data-only client.
 ///
 /// Opens ONLY the historical data channel and the Nexus authentication
 /// flow — no real-time streaming connection or streaming state machine.
-/// This lets a caller run a historical-only session alongside a parallel
+/// This lets a caller run a market-data-only session alongside a parallel
 /// streaming process without the unified `Client` taking over
 /// the Nexus session at connect time.
 ///
 /// The full historical / list / snapshot / at-time / flat-files surface
-/// is identical to the unified client, so `historicalClient.stockHistoryEOD(...)`
-/// behaves exactly like `client.stockHistoryEOD(...)`. The streaming and
+/// is identical to the unified client, so `marketDataClient.stockHistoryEOD(...)`
+/// behaves exactly like `client.marketData.stockHistoryEOD(...)`. The streaming and
 /// subscription methods are simply not present: there is no
-/// `startStreaming` / `subscribe` on this class, so a historical-only handle
+/// `startStreaming` / `subscribe` on this class, so a market-data-only handle
 /// cannot open a streaming slot. Use `StreamingClient` for streaming, or the
 /// unified `Client` when you need both surfaces.
 ///
 /// ```ts
-/// import { HistoricalClient } from "thetadatadx";
-/// const historical = await HistoricalClient.connectFromFile("creds.txt");
-/// const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
+/// import { MarketDataClient } from "thetadatadx";
+/// const marketData = await MarketDataClient.connectFromFile("creds.txt");
+/// const eod = await marketData.stockHistoryEOD("AAPL", "20240101", "20240301");
 /// ```
 #[napi]
-pub struct HistoricalClient {
+pub struct MarketDataClient {
     /// Held as `Option` behind a `Mutex` (like the unified `Client`) so
     /// `close()` DETERMINISTICALLY RELEASES the handle: closing takes the
-    /// `Arc<Client>` out and drops it, freeing the historical gRPC channel pool,
+    /// `Arc<Client>` out and drops it, freeing the market-data gRPC channel pool,
     /// and makes the client UNUSABLE — the generated endpoint bodies resolve the
-    /// handle through [`HistoricalClient::client_handle`], which rejects with
+    /// handle through [`MarketDataClient::client_handle`], which rejects with
     /// "client is closed" once the slot is empty. A second close is a no-op.
     client: Mutex<Option<Arc<thetadatadx::Client>>>,
 }
 
-impl HistoricalClient {
+impl MarketDataClient {
     /// The live core client handle for the generated endpoint bodies, or a
     /// "client is closed" error. Shares its signature with
-    /// [`HistoricalView::client_handle`] so the identical generated bodies
+    /// [`MarketDataView::client_handle`] so the identical generated bodies
     /// compile against either receiver.
     pub(crate) fn client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>> {
         self.client
@@ -1248,15 +1248,15 @@ impl HistoricalClient {
 }
 
 #[napi]
-impl HistoricalClient {
+impl MarketDataClient {
     // Lifecycle: intentionally hand-written (language-specific constructor
     // semantics), mirroring the unified `Client` factories. The
     // connect core is identical — `thetadatadx::Client::connect`
-    // opens the historical channel + Nexus and never opens streaming until a streaming method is
+    // opens the market-data channel + Nexus and never opens streaming until a streaming method is
     // called, which this class does not surface.
 
     /// Connect to ThetaData with a `Credentials` handle and open the
-    /// historical data channel. Historical only — this client never
+    /// historical data channel. Market-data only — this client never
     /// opens the streaming transport. Pass an optional `Config` to
     /// override the production-default endpoint. Use `StreamingClient` for
     /// real-time data.
@@ -1266,13 +1266,13 @@ impl HistoricalClient {
     ///
     /// `async` for the same reason as [`Client::connect`]: the channel open
     /// plus authentication handshake run off the libuv thread and the
-    /// method returns a `Promise<HistoricalClient>`, so the Node event loop
+    /// method returns a `Promise<MarketDataClient>`, so the Node event loop
     /// is never frozen for the handshake.
     #[napi]
     pub async fn connect(
         creds: &Credentials,
         config: Option<&Config>,
-    ) -> napi::Result<HistoricalClient> {
+    ) -> napi::Result<MarketDataClient> {
         let cfg = config_or_production(config);
         let rt = runtime_from_config(&cfg.runtime)?;
         let creds = creds.inner.clone();
@@ -1281,53 +1281,53 @@ impl HistoricalClient {
             .await
             .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
-        Ok(HistoricalClient {
+        Ok(MarketDataClient {
             client: Mutex::new(Some(Arc::new(client))),
         })
     }
 
     /// Connect with a credentials file (line 1 = email, line 2 =
     /// password). Convenience wrapper over `Credentials.fromFile` +
-    /// `connect`. Historical only. Pass an optional
+    /// `connect`. Market-data only. Pass an optional
     /// `Config` to override the production-default endpoint.
     ///
-    /// `async` for the same reason as [`HistoricalClient::connect`].
+    /// `async` for the same reason as [`MarketDataClient::connect`].
     #[napi(js_name = "connectFromFile")]
     pub async fn connect_from_file(
         path: String,
         config: Option<&Config>,
-    ) -> napi::Result<HistoricalClient> {
-        let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
-        Ok(HistoricalClient {
+    ) -> napi::Result<MarketDataClient> {
+        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
+        Ok(MarketDataClient {
             client: Mutex::new(Some(client)),
         })
     }
 
-    /// Deterministically close the historical client.
+    /// Deterministically close the market-data client.
     ///
-    /// The historical-only surface never opens streaming, so there is no
+    /// The market-data-only surface never opens streaming, so there is no
     /// dispatcher to drain; closing takes the core client handle out of its slot
     /// and drops it, RELEASING the gRPC channel pool once no vended surface still
     /// co-owns it and making the client UNUSABLE (every endpoint call rejects
     /// with "client is closed"). Matches the unified `Client` lifecycle across
     /// every binding. Idempotent — a second close finds an empty slot. Prefer the
-    /// `using` declaration (`using c = await HistoricalClient.connect(...)`) so
+    /// `using` declaration (`using c = await MarketDataClient.connect(...)`) so
     /// `close()` runs on scope exit through `[Symbol.dispose]`.
     #[napi]
     pub fn close(&self) {
         // Take the handle out of its slot and drop it (idempotent). Dropping the
         // last co-owning `Arc` frees the channel pool and runs the detached core
-        // `Drop`. A historical-only client has no streaming dispatcher to stop.
+        // `Drop`. A market-data-only client has no streaming dispatcher to stop.
         let _ = self.client.lock().unwrap_or_else(|e| e.into_inner()).take();
     }
 }
 
-// Generated historical endpoint methods. The codegen projects the same
+// Generated market-data endpoint methods. The codegen projects the same
 // per-endpoint method bodies onto both `Client` and
-// `HistoricalClient` (see `HISTORICAL_IMPL_CLASSES` in the TypeScript SDK
+// `MarketDataClient` (see `MARKET_DATA_IMPL_CLASSES` in the TypeScript SDK
 // emitter); both classes expose an `Arc<thetadatadx::Client>`
 // field named `client`, so the shared bodies compile against either.
-include!("_generated/historical_methods.rs");
+include!("_generated/market_data_methods.rs");
 
 // Generated streaming methods.
 include!("_generated/streaming_methods.rs");
@@ -1337,7 +1337,7 @@ include!("_generated/streaming_methods.rs");
 
 // SDK configuration class. Adds `Config` napi class with
 // `production()` / `dev()` / `stage()` factories plus the full setter
-// surface for historical pool sizing, retry policy, reconnect policy,
+// surface for market-data pool sizing, retry policy, reconnect policy,
 // and flat-file backoff.
 mod config_class;
 pub use config_class::Config;
@@ -1365,7 +1365,7 @@ pub use fluent::{ContractRef, SecType, Subscription};
 // Standalone streaming-only client. Adds the `StreamingClient` napi class
 // over `thetadatadx::fpss::StreamingClient` (the streaming primitive), mirroring the
 // Python `StreamingClient` and the C++ `thetadatadx::StreamingClient`. It opens only the streaming
-// TLS transport, no historical channel or Nexus, and drives its own dispatcher thread,
+// TLS transport, no market-data channel or Nexus, and drives its own dispatcher thread,
 // routing events through the same `TsfnCallback` mechanism as the unified
 // client's streaming surface.
 mod fpss_client;
@@ -1494,7 +1494,7 @@ mod connect_options_tests {
             email: None,
             password: None,
             credentials_file: None,
-            historical_type: None,
+            market_data_type: None,
             streaming_type: None,
         }
     }
@@ -1509,8 +1509,8 @@ mod connect_options_tests {
         assert!(creds.is_api_key());
         assert_eq!(creds.api_key_secret(), Some("td1_example"));
         assert_eq!(
-            cfg.historical_environment(),
-            config::HistoricalEnvironment::Prod
+            cfg.market_data_environment(),
+            config::MarketDataEnvironment::Prod
         );
         assert_eq!(
             cfg.streaming_environment(),
@@ -1523,16 +1523,16 @@ mod connect_options_tests {
         let opts = ClientConnectOptions {
             email: Some("You@Example.COM".to_string()),
             password: Some("hunter2".to_string()),
-            historical_type: Some("STAGE".to_string()),
+            market_data_type: Some("STAGE".to_string()),
             ..empty()
         };
         let (creds, cfg) = opts.resolve().expect("email/password resolves");
         assert!(!creds.is_api_key());
         assert_eq!(creds.email(), Some("you@example.com"));
-        // historicalType selects only the historical channel; streaming stays prod.
+        // marketDataType selects only the market-data channel; streaming stays prod.
         assert_eq!(
-            cfg.historical_environment(),
-            config::HistoricalEnvironment::Stage
+            cfg.market_data_environment(),
+            config::MarketDataEnvironment::Stage
         );
         assert_eq!(
             cfg.streaming_environment(),
@@ -1548,10 +1548,10 @@ mod connect_options_tests {
             ..empty()
         };
         let (_creds, cfg) = opts.resolve().expect("streamingType resolves");
-        // streamingType selects only the streaming channel; historical stays prod.
+        // streamingType selects only the streaming channel; market-data stays prod.
         assert_eq!(
-            cfg.historical_environment(),
-            config::HistoricalEnvironment::Prod
+            cfg.market_data_environment(),
+            config::MarketDataEnvironment::Prod
         );
         assert_eq!(
             cfg.streaming_environment(),
@@ -1586,17 +1586,17 @@ mod connect_options_tests {
     }
 
     #[test]
-    fn bad_historical_type_is_an_error() {
+    fn bad_market_data_type_is_an_error() {
         let opts = ClientConnectOptions {
             api_key: Some("k".to_string()),
-            historical_type: Some("nope".to_string()),
+            market_data_type: Some("nope".to_string()),
             ..empty()
         };
         let msg = match opts.resolve() {
-            Ok(_) => panic!("expected an historicalType parse error"),
+            Ok(_) => panic!("expected an marketDataType parse error"),
             Err(e) => e.reason.clone(),
         };
-        assert!(msg.contains("historicalType"), "got: {msg}");
+        assert!(msg.contains("marketDataType"), "got: {msg}");
     }
 
     #[test]

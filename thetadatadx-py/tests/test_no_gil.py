@@ -1,7 +1,7 @@
-"""GIL-release verification on the historical-endpoint hot path.
+"""GIL-release verification on the market-data-endpoint hot path.
 
 Pattern from the Kairos streaming reference: spawn a CPU-bound peer
-thread, then run a series of historical queries serially. If the
+thread, then run a series of market-data queries serially. If the
 binding holds the GIL across `block_on`, the CPU thread starves the
 dispatcher and elapsed-time grows linearly with the iteration count.
 If the binding wraps every `block_on` in `Python::detach`, the two
@@ -282,7 +282,7 @@ def _busy_cpu(stop: threading.Event) -> None:
     not os.getenv("THETADATADX_TEST_CREDS"),
     reason="needs THETADATADX_TEST_CREDS (production gRPC credentials file)",
 )
-def test_historical_releases_gil() -> None:
+def test_market_data_releases_gil() -> None:
     """Live GIL-drop probe — must overhead < 1.5x on a healthy SDK."""
     import thetadatadx as td
 
@@ -303,7 +303,7 @@ def test_historical_releases_gil() -> None:
             # returns the most recent quote regardless of intraday
             # state, so we exercise the network path without
             # depending on a specific session being open.
-            client.historical.stock_snapshot_quote("AAPL")
+            client.market_data.stock_snapshot_quote("AAPL")
 
     # Baseline
     t0 = time.perf_counter()

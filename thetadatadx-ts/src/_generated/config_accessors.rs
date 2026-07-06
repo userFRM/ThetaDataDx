@@ -321,7 +321,7 @@ impl Config {
     }
 
     /// Set the wall-clock envelope (seconds) for one
-    /// historical-channel retry sequence, measured from the first
+    /// market-data-channel retry sequence, measured from the first
     /// attempt. `0n` disables the envelope (attempt budget only).
     /// Default `300n`.
     #[napi(js_name = "setRetryMaxElapsedSecs")]
@@ -369,7 +369,7 @@ impl Config {
         Ok(guard.flatfiles.jitter)
     }
 
-    /// Set the initial backoff delay (ms) for the historical-channel retry policy.
+    /// Set the initial backoff delay (ms) for the market-data-channel retry policy.
     /// Default `250n`. Subsequent retries double from here, capped at
     /// `retryMaxDelayMs`.
     #[napi(js_name = "setRetryInitialDelayMs")]
@@ -383,7 +383,7 @@ impl Config {
         Ok(())
     }
 
-    /// Set the upper-bound backoff delay (ms) for the historical retry
+    /// Set the upper-bound backoff delay (ms) for the market-data retry
     /// policy. Default `30_000n` (30 s).
     #[napi(js_name = "setRetryMaxDelayMs")]
     pub fn set_retry_max_delay_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
@@ -396,7 +396,7 @@ impl Config {
         Ok(())
     }
 
-    /// Set the total attempt budget for the historical-channel retry policy. `1`
+    /// Set the total attempt budget for the market-data-channel retry policy. `1`
     /// disables retry; higher values permit retries up to
     /// `maxAttempts - 1` after the initial call. Default `20`.
     #[napi(js_name = "setRetryMaxAttempts")]
@@ -420,7 +420,7 @@ impl Config {
         Ok(guard.retry.max_attempts)
     }
 
-    /// Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+    /// Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
     /// `true`. `false` gives the deterministic backoff schedule
     /// `min(max_delay, initial * 2^attempt)`, useful for tests that
     /// need to assert exact timings.
@@ -581,32 +581,32 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.flatfiles.read_timeout_secs))
     }
 
-    /// Override the historical data port. Companion to `setHistoricalHost` —
+    /// Override the market-data gRPC port. Companion to `setMarketDataHost` —
     /// same test-only rationale. Rejects values outside the `0..=65535`
     /// port range.
-    #[napi(js_name = "setHistoricalPort")]
-    pub fn set_historical_port(&self, port: u32) -> napi::Result<()> {
+    #[napi(js_name = "setMarketDataPort")]
+    pub fn set_market_data_port(&self, port: u32) -> napi::Result<()> {
         let value = u16::try_from(port).map_err(|_| {
             crate::invalid_parameter_err(format!(
-                "setHistoricalPort: port must be in the u16 range 0..=65535; got {port}"
+                "setMarketDataPort: port must be in the u16 range 0..=65535; got {port}"
             ))
         })?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.historical.port = value;
+        guard.market_data.port = value;
         Ok(())
     }
 
-    /// Current historical gRPC port.
-    #[napi(getter, js_name = "historicalPort")]
-    pub fn historical_port(&self) -> napi::Result<u32> {
+    /// Current market-data gRPC port.
+    #[napi(getter, js_name = "marketDataPort")]
+    pub fn market_data_port(&self) -> napi::Result<u32> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(u32::from(guard.historical.port))
+        Ok(u32::from(guard.market_data.port))
     }
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
@@ -627,7 +627,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.historical.warn_on_buffered_threshold_bytes = value;
+        guard.market_data.warn_on_buffered_threshold_bytes = value;
         Ok(())
     }
 
@@ -639,10 +639,10 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.historical.warn_on_buffered_threshold_bytes as u64))
+        Ok(napi::bindgen_prelude::BigInt::from(guard.market_data.warn_on_buffered_threshold_bytes as u64))
     }
 
-    /// Set the default per-request deadline (seconds) for historical
+    /// Set the default per-request deadline (seconds) for market-data
     /// queries. Bounds every request that did not set its own deadline,
     /// so a live-but-silent stream resolves to a timeout instead of
     /// blocking forever. `0n` no longer disables the default; it is floored
@@ -656,11 +656,11 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.historical.request_timeout_secs = value;
+        guard.market_data.request_timeout_secs = value;
         Ok(())
     }
 
-    /// Current historical `request_timeout_secs` setting in seconds
+    /// Current market-data `request_timeout_secs` setting in seconds
     /// (default `300n`). A stored `0n` is floored to the `300n`-second
     /// default at request time rather than disabling the deadline.
     #[napi(getter, js_name = "requestTimeoutSecs")]
@@ -669,7 +669,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.historical.request_timeout_secs))
+        Ok(napi::bindgen_prelude::BigInt::from(guard.market_data.request_timeout_secs))
     }
 
     /// Current `retry.initial_delay` value (ms, returned as BigInt).
@@ -898,25 +898,25 @@ impl Config {
         Ok(guard.auth.client_type.clone())
     }
 
-    /// Override the historical gRPC host. Companion to `setHistoricalPort`.
-    #[napi(js_name = "setHistoricalHost")]
-    pub fn set_historical_host(&self, host: String) -> napi::Result<()> {
+    /// Override the market-data gRPC host. Companion to `setMarketDataPort`.
+    #[napi(js_name = "setMarketDataHost")]
+    pub fn set_market_data_host(&self, host: String) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.set_historical_host(host);
+        guard.set_market_data_host(host);
         Ok(())
     }
 
-    /// Current historical gRPC host.
-    #[napi(getter, js_name = "historicalHost")]
-    pub fn historical_host(&self) -> napi::Result<String> {
+    /// Current market-data gRPC host.
+    #[napi(getter, js_name = "marketDataHost")]
+    pub fn market_data_host(&self) -> napi::Result<String> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.historical_host().to_string())
+        Ok(guard.market_data_host().to_string())
     }
 
     /// Set the streaming write-flush policy.

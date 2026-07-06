@@ -221,7 +221,7 @@ impl RecordBatchStream {
 /// zero-copy, over the Arrow C Data Interface.
 ///
 /// Imports the batch through `pyarrow.RecordBatchReader._import_from_c` (the
-/// same version-neutral C Stream Interface path the historical `to_arrow`
+/// same version-neutral C Stream Interface path the market-data `to_arrow`
 /// terminal uses) and pulls the single batch back out with
 /// `read_next_batch`, so the result is a `pyarrow.RecordBatch` rather than a
 /// `Table`.

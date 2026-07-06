@@ -6,7 +6,7 @@ Pins the Python surface for the reconnect cadence ladder
 the jitter mode, the wall-clock envelope and per-class budgets, the
 subscription-replay pacing knobs, the streaming transport knobs (timeouts,
 ping cadence, ring size, read slice, keepalive schedule,
-host selection + shuffle seed), the historical-channel retry envelope,
+host selection + shuffle seed), the market-data-channel retry envelope,
 the flatfile jitter toggle, and the custom reconnect callback
 registration. The reconnect-engine semantics themselves are exercised
 in the Rust unit tests; this file pins only that the Python surface
@@ -145,7 +145,7 @@ def test_streaming_host_shuffle_seed_round_trips_none_sentinel():
     assert cfg.streaming_host_shuffle_seed is None
 
 
-# ─── Historical retry envelope + flatfile jitter ────────────────────
+# ─── Market-data retry envelope + flatfile jitter ────────────────────
 
 
 def test_retry_envelope_defaults_and_round_trip():

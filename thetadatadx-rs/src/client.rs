@@ -15,8 +15,8 @@
 //!         DirectConfig::production(),
 //!     ).await?;
 //!
-//!     // Historical -- works immediately, via the `historical` surface
-//!     let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+//!     // Market-data -- works immediately, via the `market-data` surface
+//!     let eod = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //!     // Streaming -- connects lazily on first subscribe, via `stream`
 //!     use thetadatadx::streaming::{Contract, StreamData, StreamEvent};
@@ -42,7 +42,7 @@ use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::fpss::protocol::{Contract, FullSubscriptionKind, Subscription, SubscriptionKind};
 use crate::fpss::{StreamEvent, StreamingClient};
-use crate::mdds::HistoricalClient;
+use crate::mdds::MarketDataClient;
 use crate::tdbe::types::enums::SecType;
 
 /// Snapshot of the streaming side of the unified client.
@@ -129,18 +129,18 @@ pub enum ConnectionStatus {
 /// Unified `ThetaData` client.
 ///
 /// Authenticates once at connect time. Historical data is
-/// available immediately via the [`historical`](Self::historical)
+/// available immediately via the [`market_data`](Self::market_data)
 /// surface. Streaming connects lazily on the first
 /// [`start_streaming`](StreamSurface::start_streaming) on the
 /// [`stream`](Self::stream) surface.
 ///
 /// The data surfaces are sub-namespace accessors:
-/// `client.historical().<query>(..)` exposes the same method set as the
-/// standalone historical client; `client.stream().<op>(..)` exposes the
+/// `client.market_data().<query>(..)` exposes the same method set as the
+/// standalone market-data client; `client.stream().<op>(..)` exposes the
 /// streaming lifecycle. The FLATFILES bulk-download methods stay on the
 /// client directly.
 pub struct Client {
-    historical: HistoricalClient,
+    market_data: MarketDataClient,
     creds: Credentials,
     /// FLATFILES retry tuning. Snapshot of
     /// [`crate::config::DirectConfig::flatfiles`] taken at connect time
@@ -612,7 +612,7 @@ impl Client {
         // the metrics port and installs the process-global recorder (which has
         // no uninstall), so running it against a config that the downstream
         // funnel would reject leaves a port bound with no live client. Idempotent
-        // with the re-check inside `HistoricalClient::connect`.
+        // with the re-check inside `MarketDataClient::connect`.
         let config = config.validate()?;
         // Start the Prometheus exporter BEFORE opening the gRPC channel
         // so the first `thetadatadx.grpc.requests` counter hit is already
@@ -620,9 +620,9 @@ impl Client {
         // is `None` (the default).
         crate::observability::try_install_exporter(&config)?;
         let flatfiles_config = config.flatfiles.clone();
-        let historical = HistoricalClient::connect(creds, config).await?;
+        let market_data = MarketDataClient::connect(creds, config).await?;
         Ok(Self {
-            historical,
+            market_data,
             creds: creds.clone(),
             flatfiles_config,
             streaming: Arc::new(StreamingState::new()),
@@ -867,7 +867,7 @@ impl Client {
         // mismatch and refuses to resurrect the slot to `Live`.
         let gen_at_entry = self.streaming.stop_generation.load(Ordering::Acquire);
 
-        let config = self.historical.config();
+        let config = self.market_data.config();
         let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
             .ring_size(config.streaming.ring_size)
             .flush_mode(config.streaming.flush_mode)
@@ -1383,7 +1383,7 @@ impl Client {
     /// session's drain flag into the internal slot, even if the flag
     /// has not yet flipped. Returns `false` on a fresh handle that has
     /// never started streaming, or on a unified handle that has only
-    /// served historical endpoints.
+    /// served market-data endpoints.
     ///
     /// FFI free paths use this to disambiguate the two `false` returns
     /// from `await_drain` (timeout vs. nothing-to-wait-on); only the
@@ -1594,7 +1594,7 @@ impl Client {
         self.with_streaming(|s| Ok(s.active_full_subscriptions()))
     }
 
-    /// Shut down the streaming connection. Historical remains available.
+    /// Shut down the streaming connection. Market-data remains available.
     ///
     /// Idempotent: calling on an `Idle` or `Stopped` slot is a no-op,
     /// repeated calls during the drain race are safe (only the first
@@ -1739,7 +1739,7 @@ impl Client {
         per_contract: &[(SubscriptionKind, Contract)],
         full_type: &[(SubscriptionKind, SecType)],
     ) -> Result<(), Error> {
-        let reconnect = &self.historical.config().reconnect;
+        let reconnect = &self.market_data.config().reconnect;
         let pacing = ReplayPacing {
             burst_size: reconnect.replay_burst_size,
             pace_ms: reconnect.replay_pace_ms,
@@ -1826,12 +1826,12 @@ impl Client {
     /// refreshed mid-session. Reads through the token so callers always
     /// see the current value.
     pub async fn session_uuid(&self) -> String {
-        self.historical.session_uuid().await
+        self.market_data.session_uuid().await
     }
 
     /// Access the config.
     pub fn config(&self) -> &DirectConfig {
-        self.historical.config()
+        self.market_data.config()
     }
 
     /// Get subscription tier information captured at authentication time.
@@ -1843,10 +1843,10 @@ impl Client {
     /// indices tier.
     pub fn subscription_info(&self) -> SubscriptionInfo {
         SubscriptionInfo {
-            stock: tier_label(self.historical.stock_tier()),
-            options: tier_label(self.historical.options_tier()),
-            indices: tier_label(self.historical.indices_tier()),
-            interest_rate: tier_label(self.historical.interest_rate_tier()),
+            stock: tier_label(self.market_data.stock_tier()),
+            options: tier_label(self.market_data.options_tier()),
+            indices: tier_label(self.market_data.indices_tier()),
+            interest_rate: tier_label(self.market_data.interest_rate_tier()),
         }
     }
 
@@ -2070,23 +2070,23 @@ impl Client {
     ///
     /// Borrowed view over the unified client's already-open MDDS
     /// channel. Exposes the exact same method set as the standalone
-    /// historical client, so `client.historical().stock_history_eod(..)`
-    /// and a standalone `HistoricalClient::stock_history_eod(..)` are one
+    /// market-data client, so `client.market_data().stock_history_eod(..)`
+    /// and a standalone `MarketDataClient::stock_history_eod(..)` are one
     /// surface.
     ///
     /// ```rust,no_run
     /// # use thetadatadx::Client;
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// let eod = client
-    ///     .historical()
+    ///     .market_data()
     ///     .stock_history_eod("AAPL", "20240101", "20240301")
     ///     .await?;
     /// # let _ = eod;
     /// # Ok(()) }
     /// ```
     #[must_use]
-    pub fn historical(&self) -> &HistoricalClient {
-        &self.historical
+    pub fn market_data(&self) -> &MarketDataClient {
+        &self.market_data
     }
 
     /// Deterministically tear the client down.
@@ -2099,7 +2099,7 @@ impl Client {
     /// dispatcher synchronously so a subsequent request or reconnect sees a
     /// truthfully-stopped session.
     ///
-    /// The historical gRPC channel pool is released when the last client handle
+    /// The market-data gRPC channel pool is released when the last client handle
     /// is dropped: it is an `Arc`-backed set of idle HTTP/2 connections with no
     /// worker thread to join, so its release is RAII, not an explicit signal.
     /// The bindings drop their owning handle on `close()` / context-manager
@@ -2505,7 +2505,7 @@ impl StreamSurface<'_> {
         self.0.active_full_subscriptions()
     }
 
-    /// Shut down the streaming connection. Historical remains available.
+    /// Shut down the streaming connection. Market-data remains available.
     ///
     /// Idempotent. Returns once the slot has swapped to stopped and the
     /// shutdown signal is raised; pair with [`Self::await_drain`] for
@@ -3174,7 +3174,7 @@ mod tests {
     /// never-started (and already-stopped) streaming state: the slot walks to
     /// `Stopped`, stays there, and each call bumps the stop generation without
     /// panicking or blocking. This is the base-client `close()` contract —
-    /// calling it twice, or on a client that only ran historical queries, is a
+    /// calling it twice, or on a client that only ran market-data queries, is a
     /// no-op teardown.
     #[test]
     fn quiesce_is_idempotent_on_a_never_started_state() {

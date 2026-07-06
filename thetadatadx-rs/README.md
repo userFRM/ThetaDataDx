@@ -27,13 +27,13 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.17"
+thetadatadx = "13.0.0-rc.18"
 ```
 
 Opt into DataFrame ergonomics with the `polars` or `arrow` feature:
 
 ```toml
-thetadatadx = { version = "13.0.0-rc.17", features = ["polars"] }
+thetadatadx = { version = "13.0.0-rc.18", features = ["polars"] }
 ```
 
 ## Quick start
@@ -50,7 +50,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
 
     // EOD Greeks for a SPY option chain across Q1 2024.
     let chain = client
-        .historical()
+        .market_data()
         .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
         .await?;
 
@@ -92,7 +92,7 @@ let client = Client::connect(&creds, DirectConfig::production()).await?;
 
 ## Streaming
 
-One authentication, one connection. Historical queries work immediately; the streaming transport opens on the first `start_streaming(callback)` call. Subscribe specific contracts with the fluent `Contract` API, or take a whole-market feed:
+One authentication, one connection. Market-data queries work immediately; the streaming transport opens on the first `start_streaming(callback)` call. Subscribe specific contracts with the fluent `Contract` API, or take a whole-market feed:
 
 ```rust
 use thetadatadx::streaming::{StreamData, StreamEvent};
@@ -162,7 +162,7 @@ On an involuntary disconnect the client recovers on its own — exponential back
 
 ### Streaming-only — `StreamingClient`
 
-For workloads that never touch history, `StreamingClient` connects to the streaming servers alone — no Nexus session, no historical surface. Drive it as an iterator, or with the explicit drain primitives:
+For workloads that never touch history, `StreamingClient` connects to the streaming servers alone — no Nexus session, no market-data surface. Drive it as an iterator, or with the explicit drain primitives:
 
 ```rust
 use thetadatadx::auth::Credentials;
@@ -205,7 +205,7 @@ let path = thetadatadx::flatfile_request(
 With the `polars` or `arrow` feature enabled, any history result converts to a dataframe over the Arrow C Data Interface — zero-copy, no row-by-row iteration:
 
 ```rust
-let df = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?.to_polars()?;
+let df = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?.to_polars()?;
 ```
 
 ## Errors

@@ -16,7 +16,7 @@
 //!                                                                     |
 //!                                  +----------------------------------+
 //!                                  |
-//!             Historical channel:  session UUID attached to every request
+//!             Market-data channel:  session UUID attached to every request
 //!             Streaming channel:   the credential is sent in the login handshake
 //! ```
 
@@ -28,7 +28,7 @@ pub(crate) mod session;
 pub use creds::Credentials;
 
 // `authenticate` and the associated response types are session-internal:
-// they support the `HistoricalClient` auth handshake and the CLI's explicit
+// they support the `MarketDataClient` auth handshake and the CLI's explicit
 // re-auth path. Both require `__internal` to be enabled; external crates
 // working through `Client` never need to call `authenticate`
 // directly — the client handles re-auth internally.

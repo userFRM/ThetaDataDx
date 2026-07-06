@@ -1,13 +1,13 @@
 //! Async bridge helpers mirroring [`run_blocking`] for the sync path.
 //!
 //! Called by every generator-emitted `*_async` method in
-//! [`historical_methods.rs`] and every `*_async` builder terminal. The
+//! [`market_data_methods.rs`] and every `*_async` builder terminal. The
 //! module is utility code (hand-written, same category as `run_blocking`
 //! at the top of [`lib.rs`]) — it is explicitly NOT generator output, so
 //! edits here do not cross the SSOT boundary at `endpoint_surface.toml`.
 //!
 //! [`run_blocking`]: crate::run_blocking
-//! [`historical_methods.rs`]: ../../../../thetadatadx-py/src/_generated/historical_methods.rs
+//! [`market_data_methods.rs`]: ../../../../thetadatadx-py/src/_generated/market_data_methods.rs
 //! [`lib.rs`]: ../../../../thetadatadx-py/src/lib.rs
 
 use std::future::Future;
@@ -22,7 +22,7 @@ use crate::errors::to_py_err;
 /// Python object.
 ///
 /// Every generator-emitted `*_async` endpoint method in
-/// `historical_methods.rs` calls this. The shape mirrors the sync
+/// `market_data_methods.rs` calls this. The shape mirrors the sync
 /// `run_blocking(py, fut)` helper so generator output stays symmetric
 /// across the sync + async paths — one `*_async` = one call to this
 /// helper, exactly as one sync = one call to `run_blocking`.
@@ -64,7 +64,7 @@ use crate::errors::to_py_err;
 /// produce typed pyclass wrappers via functions that need the GIL —
 /// they aren't plain `IntoPyObject` impls on `Vec<T>`. Refactoring
 /// every helper plus the 122 generator-emitted callsites in
-/// `historical_methods.rs` and the matching generator templates in
+/// `market_data_methods.rs` and the matching generator templates in
 /// `thetadatadx-rs/build_support/endpoints/render/python.rs` is a
 /// much larger change with the same final scheduling outcome.
 /// `spawn_blocking` resolves the contention with zero ripple to the
@@ -155,7 +155,7 @@ fn blocking_task_join_error(
 /// The generated `*_stream_async` terminals run each user handler on a
 /// `spawn_blocking` task (the handler holds the GIL, so keeping it off
 /// the async workers is what stops one slow handler from starving every
-/// other in-flight historical call). A panic inside that task must not
+/// other in-flight market-data call). A panic inside that task must not
 /// vanish: it is captured here as a `RuntimeError` carrying the panic
 /// payload and re-raised by the terminal's post-await converter. An
 /// already-captured handler `PyErr` is left in place — a panicked task

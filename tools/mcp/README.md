@@ -17,7 +17,7 @@ LLM (any MCP-compatible client)
 thetadatadx-mcp (long-running process)
     |  Single ThetaDataDx client, authenticated once at startup
     v
-ThetaData servers (historical + streaming)
+ThetaData servers (market-data + streaming)
 ```
 
 The server authenticates **once** at startup, keeps the `Client` client alive, and serves tool calls instantly with zero per-request auth overhead.
@@ -122,7 +122,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated historical endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.
+Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.
 
 ### Offline (1 total: `ping`)
 

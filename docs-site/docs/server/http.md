@@ -65,7 +65,7 @@ Mirrored 1:1 from the JVM terminal — unauthenticated `GET`, bare `text/plain` 
 |---|---|---|
 | `GET` | `/v3/terminal/shutdown` | Kills the server process; returns the plain text `OK`. |
 | `GET` | `/v3/terminal/fpss/status` | Streaming-channel health: `CONNECTED` / `DISCONNECTED`. |
-| `GET` | `/v3/terminal/mdds/status` | Historical-channel health: `CONNECTED` / `DISCONNECTED`. |
+| `GET` | `/v3/terminal/mdds/status` | Market-data-channel health: `CONNECTED` / `DISCONNECTED`. |
 
 ## Concurrency behavior
 

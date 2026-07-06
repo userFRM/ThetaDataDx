@@ -39,16 +39,16 @@ Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. 
 ## Quick start
 
 > [!TIP]
-> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then construct `Client(api_key="td1_...")`. The key can also come from the environment with `Client.from_env()` (reading `THETADATA_API_KEY`) or a `.env` file with `Client.from_dotenv(".env")`. Email and password is also supported: `Client(email="you@example.com", password="your_password")` inline, or a `creds.txt` file (email on line 1, password on line 2) via `Credentials.from_file`. Target staging with `historical_type="STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and pass both to `Client(...)`.
+> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then construct `Client(api_key="td1_...")`. The key can also come from the environment with `Client.from_env()` (reading `THETADATA_API_KEY`) or a `.env` file with `Client.from_dotenv(".env")`. Email and password is also supported: `Client(email="you@example.com", password="your_password")` inline, or a `creds.txt` file (email on line 1, password on line 2) via `Credentials.from_file`. Target staging with `market_data_type="STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and pass both to `Client(...)`.
 
 ```python
 from thetadatadx import Client
 
-# Pass your API key directly. Use historical_type="STAGE" to target staging.
+# Pass your API key directly. Use market_data_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", date="20240315")
+greeks = client.market_data.option_history_greeks_first_order("SPY", "20260619", date="20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -70,17 +70,17 @@ client = Client(email="you@example.com", password="your_password")
 client = Client(Credentials.from_file("creds.txt"), Config.production())
 ```
 
-Every historical method returns a typed list — iterate it, index it, or convert it to a dataframe:
+Every market-data method returns a typed list — iterate it, index it, or convert it to a dataframe:
 
 ```python
-eod = client.historical.stock_history_eod("AAPL", "20240101", "20240301")
+eod = client.market_data.stock_history_eod("AAPL", "20240101", "20240301")
 for tick in eod:
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
-bars = client.historical.stock_history_ohlc("AAPL", date="20240315", interval="1m")   # 1-minute bars
-exps = client.historical.option_list_expirations("SPY")
-strikes = client.historical.option_list_strikes("SPY", exps[0])
+bars = client.market_data.stock_history_ohlc("AAPL", date="20240315", interval="1m")   # 1-minute bars
+exps = client.market_data.option_list_expirations("SPY")
+strikes = client.market_data.option_list_strikes("SPY", exps[0])
 ```
 
 ## DataFrames
@@ -99,7 +99,7 @@ The `.to_arrow()` terminal hands the underlying Arrow buffers to pyarrow over th
 ```python
 import duckdb
 
-table = client.historical.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
+table = client.market_data.stock_history_eod("AAPL", "20240101", "20240301").to_arrow()
 con = duckdb.connect()
 con.register("eod", table)                 # zero-copy into DuckDB
 con.sql("SELECT AVG(close) FROM eod").show()
@@ -107,14 +107,14 @@ con.sql("SELECT AVG(close) FROM eod").show()
 
 List endpoints (`stock_list_symbols`, `option_list_expirations`, …) return a `StringList` with the same terminals; the single column is named by the endpoint (`symbol`, `expiration`, …). Empty results still convert to a zero-row frame with the full typed schema.
 
-For multi-day backfills, stream the response instead of buffering it. Every historical builder exposes `.stream(handler)` / `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals; the handler is called once per chunk with a typed list, and the previous chunk is freed before the next is fetched, so peak memory stays flat regardless of total size:
+For multi-day backfills, stream the response instead of buffering it. Every market-data builder exposes `.stream(handler)` / `.stream_async(handler)` alongside the buffered `.list()` / `.list_async()` terminals; the handler is called once per chunk with a typed list, and the previous chunk is freed before the next is fetched, so peak memory stays flat regardless of total size:
 
 ```python
 def on_chunk(ticks):
     for t in ticks:
         ...   # write to Parquet, push to a bus, accumulate stats
 
-(client.historical.option_history_quote_builder("QQQ", "20260516").date("20260516")
+(client.market_data.option_history_quote_builder("QQQ", "20260516").date("20260516")
     .interval("tick")
     .strike_range(5)
     .stream(on_chunk))

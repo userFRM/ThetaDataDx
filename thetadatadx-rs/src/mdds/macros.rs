@@ -12,11 +12,11 @@
 //! [`tokio::time::timeout`]. On expiry the future is dropped: the local
 //! `_permit` releases the request-semaphore slot, the tonic `Streaming` is
 //! dropped (RST_STREAM on the underlying H2 stream), and the call returns
-//! `Err(Error::Timeout { duration_ms })`. The `HistoricalClient` is unaffected;
+//! `Err(Error::Timeout { duration_ms })`. The `MarketDataClient` is unaffected;
 //! a subsequent call on the same handle succeeds.
 //!
 //! List endpoints additionally expose a parallel `<name>_with_deadline(...)`
-//! async method on `HistoricalClient`: the existing `pub async fn <name>(...)`
+//! async method on `MarketDataClient`: the existing `pub async fn <name>(...)`
 //! signatures stay non-breaking, while the `_with_deadline` variant gives
 //! the same cancellation contract for the validator and registry dispatch.
 
@@ -41,13 +41,13 @@
 /// the first poll and time the call out instantly, the opposite of the
 /// documented contract. When the caller set nothing (`explicit == None`),
 /// fall back to the configured
-/// [`crate::config::HistoricalConfig::request_timeout_secs`] default so a
+/// [`crate::config::MarketDataConfig::request_timeout_secs`] default so a
 /// server holding the stream open without sending chunks cannot hang the
 /// request indefinitely.
 ///
 /// A configured default of `0` does NOT disable the fallback: it is floored to
 /// the production default here — the single
-/// point every historical request routes through — so the gRPC hang guard
+/// point every market-data request routes through — so the gRPC hang guard
 /// holds regardless of whether [`crate::config::DirectConfig::validate`] ran
 /// on the config (the connect paths and the SDK bindings pass unvalidated
 /// snapshots). The only way to run a request with no deadline is the explicit
@@ -518,7 +518,7 @@ pub(crate) fn should_warn_buffered_size(
 /// to the caller, so a long-running operator workload sees exactly
 /// one log line per offending request rather than a per-chunk
 /// torrent. Threshold of `0` disables the warn entirely (see
-/// [`crate::config::HistoricalConfig::warn_on_buffered_threshold_bytes`]).
+/// [`crate::config::MarketDataConfig::warn_on_buffered_threshold_bytes`]).
 pub(crate) fn warn_buffered_response_size(
     endpoint: &'static str,
     row_count: usize,
@@ -586,10 +586,10 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
 /// column from the response `DataTable`.
 ///
 /// Pattern: build request -> gRPC call -> collect stream -> extract text column.
-/// Emits two methods on `HistoricalClient`, matching the deadline contract
+/// Emits two methods on `MarketDataClient`, matching the deadline contract
 /// of the builder endpoints:
 /// - `pub async fn <name>(...)` — bounded by the configured
-///   [`crate::config::HistoricalConfig::request_timeout_secs`] default so a
+///   [`crate::config::MarketDataConfig::request_timeout_secs`] default so a
 ///   live-but-silent stream cannot hang the request forever.
 /// - `pub async fn <name>_with_deadline(..., deadline: Duration)` — same
 ///   call with an explicit per-call deadline. `Duration::ZERO` opts out of
@@ -620,7 +620,7 @@ macro_rules! list_endpoint {
             // the request is always bounded.
             let deadline = $crate::mdds::macros::effective_deadline(
                 None,
-                self.config().historical.request_timeout_secs,
+                self.config().market_data.request_timeout_secs,
             );
             list_endpoint_impl_body!(
                 self, deadline, $name, $grpc, $req,
@@ -645,7 +645,7 @@ macro_rules! list_endpoint {
         ) -> Result<Vec<String>, Error> {
             let deadline = $crate::mdds::macros::effective_deadline(
                 Some(deadline),
-                self.config().historical.request_timeout_secs,
+                self.config().market_data.request_timeout_secs,
             );
             list_endpoint_impl_body!(
                 self, deadline, $name, $grpc, $req,
@@ -670,11 +670,11 @@ macro_rules! list_endpoint_impl_body {
         $client:expr, $deadline:ident, $name:ident, $grpc:ident, $req:ident,
         $query:ident { $($field:ident : $val:expr),* $(,)? }, $col:literal
     ) => {{
-        // `&HistoricalClient` is `Copy`, so bind the receiver once and reuse
+        // `&MarketDataClient` is `Copy`, so bind the receiver once and reuse
         // it across the (possibly retried) request closure. Passing `self`
         // through a macro parameter is required: a `self` token synthesized
         // by the macro body cannot reach the caller's `self`.
-        let client: &HistoricalClient = $client;
+        let client: &MarketDataClient = $client;
         $crate::mdds::macros::run_with_optional_deadline($deadline, async move {
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
@@ -735,7 +735,7 @@ macro_rules! list_endpoint_impl_body {
 /// ```rust,ignore
 /// // `ignore` here because the macro example references a live
 /// // `client` value — there is no in-scope construction path for a
-/// // doc-test to spin up an authenticated `HistoricalClient` without
+/// // doc-test to spin up an authenticated `MarketDataClient` without
 /// // credentials.
 /// // Simple -- set the date and .await the builder directly
 /// let ticks = client.stock_history_ohlc("AAPL").date("20260401").await?;
@@ -764,9 +764,9 @@ macro_rules! parsed_endpoint {
         $(dates: $($date_arg:ident),+ ;)?
         optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
     ) => {
-        /// Builder for the [`HistoricalClient::$name`] endpoint.
+        /// Builder for the [`MarketDataClient::$name`] endpoint.
         pub struct $builder_name<'a> {
-            client: &'a HistoricalClient,
+            client: &'a MarketDataClient,
             $(pub(crate) $req_arg: req_field_type!($req_kind),)*
             $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
             pub(crate) deadline: Option<std::time::Duration>,
@@ -781,7 +781,7 @@ macro_rules! parsed_endpoint {
             ///
             /// On expiry the in-flight gRPC call is cancelled and the
             /// builder's future resolves to `Err(Error::Timeout)`. The
-            /// underlying `HistoricalClient` is unaffected; subsequent calls
+            /// underlying `MarketDataClient` is unaffected; subsequent calls
             /// on the same handle succeed.
             ///
             /// `Duration::ZERO` means "disable the deadline": it opts the
@@ -850,7 +850,7 @@ macro_rules! parsed_endpoint {
                 $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
-                    client.config().historical.request_timeout_secs,
+                    client.config().market_data.request_timeout_secs,
                 );
                 $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
                     tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
@@ -978,7 +978,7 @@ macro_rules! parsed_endpoint {
                 $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
-                    client.config().historical.request_timeout_secs,
+                    client.config().market_data.request_timeout_secs,
                 );
                 $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
                     tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
@@ -1084,7 +1084,7 @@ macro_rules! parsed_endpoint {
                 $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
-                    client.config().historical.request_timeout_secs,
+                    client.config().market_data.request_timeout_secs,
                 );
                 $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
                     tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
@@ -1208,7 +1208,7 @@ macro_rules! parsed_endpoint {
                 $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
-                    client.config().historical.request_timeout_secs,
+                    client.config().market_data.request_timeout_secs,
                 );
                 $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
                     tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
@@ -1400,11 +1400,11 @@ macro_rules! parsed_endpoint {
                         // length the caller is about to receive; `row_size`
                         // is the wire-shape lower bound (`size_of::<Item>`).
                         // Configurable via
-                        // `DirectConfig::historical.warn_on_buffered_threshold_bytes`;
+                        // `DirectConfig::market_data.warn_on_buffered_threshold_bytes`;
                         // set to 0 to disable.
                         let threshold = client
                             .config()
-                            .historical
+                            .market_data
                             .warn_on_buffered_threshold_bytes;
                         $crate::mdds::macros::warn_buffered_response_size(
                             stringify!($name),
@@ -1416,14 +1416,14 @@ macro_rules! parsed_endpoint {
                     };
                     let deadline = $crate::mdds::macros::effective_deadline(
                         deadline,
-                        client.config().historical.request_timeout_secs,
+                        client.config().market_data.request_timeout_secs,
                     );
                     $crate::mdds::macros::run_with_optional_deadline(deadline, inner).await
                 })
             }
         }
 
-        impl HistoricalClient {
+        impl MarketDataClient {
             $(#[$meta])*
             pub fn $name(&self, $($req_arg: req_param_type!($req_kind)),*) -> $builder_name<'_> {
                 $builder_name {
@@ -1570,7 +1570,7 @@ mod classify_error_tests {
     #[test]
     fn non_grpc_errors_are_terminal() {
         assert_eq!(
-            classify_error(&Error::config_invalid("historical.endpoint", "bad config")),
+            classify_error(&Error::config_invalid("market-data.endpoint", "bad config")),
             StatusClass::Terminal
         );
         assert_eq!(
@@ -1690,10 +1690,10 @@ mod effective_deadline_tests {
     }
 
     /// The production default seeds a positive per-request deadline, so
-    /// the historical request path is bounded out of the box.
+    /// the market-data request path is bounded out of the box.
     #[test]
     fn production_default_is_positive() {
-        let cfg = crate::config::HistoricalConfig::production_defaults();
+        let cfg = crate::config::MarketDataConfig::production_defaults();
         assert!(cfg.request_timeout_secs > 0);
         assert_eq!(
             effective_deadline(None, cfg.request_timeout_secs),
@@ -1746,14 +1746,14 @@ mod streaming_attempt_tests {
     use super::{classify_streaming_attempt, StreamingAttemptOutcome};
     use crate::auth::session::{SessionSnapshot, SessionToken};
     use crate::auth::Credentials;
-    use crate::config::HistoricalEnvironment;
+    use crate::config::MarketDataEnvironment;
     use crate::error::{Error, GrpcStatusKind};
 
     fn fake_token(uuid: &str) -> SessionToken {
         SessionToken::new(
             uuid.to_string(),
             "https://nexus.example.invalid/auth".to_string(),
-            HistoricalEnvironment::Prod,
+            MarketDataEnvironment::Prod,
             Credentials::new("user@example.com", "hunter2"),
         )
     }
@@ -1935,7 +1935,7 @@ mod refresh_retry_disabled_tests {
     use super::{run_streaming_retry_loop, run_unary_retry_loop};
     use crate::auth::session::SessionToken;
     use crate::auth::Credentials;
-    use crate::config::{HistoricalEnvironment, RetryPolicy};
+    use crate::config::{MarketDataEnvironment, RetryPolicy};
     use crate::error::{Error, GrpcStatusKind};
     use std::cell::RefCell;
 
@@ -1943,7 +1943,7 @@ mod refresh_retry_disabled_tests {
         SessionToken::new(
             uuid.to_string(),
             "https://nexus.example.invalid/auth".to_string(),
-            HistoricalEnvironment::Prod,
+            MarketDataEnvironment::Prod,
             Credentials::new("user@example.com", "hunter2"),
         )
     }
@@ -2568,7 +2568,7 @@ mod warn_buffered_tests {
     #[test]
     fn warn_helper_stays_silent_when_threshold_is_zero() {
         // Threshold = 0 is the documented "warn disabled" sentinel
-        // (see `HistoricalConfig::warn_on_buffered_threshold_bytes`). Even
+        // (see `MarketDataConfig::warn_on_buffered_threshold_bytes`). Even
         // a deliberately huge response must NOT emit a warn — the
         // operator explicitly opted out.
         let events = capture_warns(|| {

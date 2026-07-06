@@ -1,6 +1,6 @@
 //! Hand-written Python bindings for the FLATFILES surface.
 //!
-//! Unlike the historical / streaming surfaces, FLATFILES has only one
+//! Unlike the market-data / streaming surfaces, FLATFILES has only one
 //! Rust public entry point (`flatfile_request_decoded`) whose schema is
 //! determined at runtime by `(SecType, ReqType)`. Codegen via
 //! `endpoint_surface.toml` / `tick_schema.toml` does not apply — those
@@ -314,7 +314,7 @@ impl FlatFilesNamespace {
 // Adding a second `#[pymethods]` block on `Client` requires the
 // `multiple-pymethods` PyO3 feature, already enabled in
 // `thetadatadx-py/Cargo.toml` for the same reason the streaming /
-// historical includes use it.
+// market-data includes use it.
 
 #[pymethods]
 impl crate::Client {

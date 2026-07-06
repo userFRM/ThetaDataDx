@@ -22,9 +22,9 @@ def test_conflicting_auth_kwargs_raise_config_error():
         Client(api_key="td1_dummy", email="you@example.com", password="secret")
 
 
-def test_bad_historical_type_raises_config_error():
+def test_bad_market_data_type_raises_config_error():
     with pytest.raises(ConfigError):
-        Client(api_key="td1_dummy", historical_type="NOPE")
+        Client(api_key="td1_dummy", market_data_type="NOPE")
 
 
 def test_email_without_password_raises_config_error():
@@ -47,7 +47,7 @@ def test_constructor_accepts_api_key_kwarg_signature():
     # raise ConfigError — any failure must be a connection-class error,
     # proving the kwarg resolved cleanly.
     try:
-        Client(api_key="td1_dummy_key", historical_type="STAGE")
+        Client(api_key="td1_dummy_key", market_data_type="STAGE")
     except ConfigError as exc:  # pragma: no cover - would be a real bug
         pytest.fail(f"well-formed api_key kwargs raised ConfigError: {exc}")
     except Exception:
@@ -57,14 +57,14 @@ def test_constructor_accepts_api_key_kwarg_signature():
 
 def test_each_inline_auth_kwarg_is_accepted_by_name():
     # Pin every inline kwarg by NAME. If `api_key`, `email`, `password`, or
-    # `historical_type` were renamed or dropped, the matching call below would
+    # `market_data_type` were renamed or dropped, the matching call below would
     # raise `TypeError` (unexpected keyword argument) instead of the
     # ConfigError / connection-class outcome we assert — so this fails loud
     # on signature drift rather than silently passing.
     for kwargs in (
         {"api_key": "td1_dummy_key"},
         {"email": "you@example.com", "password": "secret"},
-        {"api_key": "td1_dummy_key", "historical_type": "STAGE"},
+        {"api_key": "td1_dummy_key", "market_data_type": "STAGE"},
     ):
         try:
             Client(**kwargs)

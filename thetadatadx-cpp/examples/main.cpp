@@ -1,6 +1,6 @@
 // Minimal end-to-end example for the C++ SDK.
 //
-// Connects an `HistoricalClient` from a `creds.txt` file and pulls end-of-day
+// Connects an `MarketDataClient` from a `creds.txt` file and pulls end-of-day
 // history for one symbol.
 
 #include <iostream>
@@ -12,7 +12,7 @@ int main() {
         // Load credentials from creds.txt (line 1 = email, line 2 = password)
         auto creds = thetadatadx::Credentials::from_file("creds.txt");
         auto config = thetadatadx::Config::production();
-        auto client = thetadatadx::HistoricalClient::connect(creds, config);
+        auto client = thetadatadx::MarketDataClient::connect(creds, config);
 
         // Fetch end-of-day data -- prices are already decoded to f64
         auto eod = client.stock_history_eod("AAPL", "20240101", "20240301");

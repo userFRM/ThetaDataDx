@@ -513,7 +513,7 @@ if (
 // (sync scope exit); `[Symbol.asyncDispose]` backs `await using client = ...`
 // and additionally awaits the streaming drain barrier so a callback closure is
 // safe to release, warning (never throwing) on timeout to match the session.
-for (const Klass of [native.Client, native.HistoricalClient]) {
+for (const Klass of [native.Client, native.MarketDataClient]) {
   if (!Klass) continue;
   if (typeof Klass.prototype[Symbol.dispose] !== 'function') {
     Klass.prototype[Symbol.dispose] = function dispose() {
@@ -522,7 +522,7 @@ for (const Klass of [native.Client, native.HistoricalClient]) {
   }
   if (typeof Klass.prototype[Symbol.asyncDispose] !== 'function') {
     Klass.prototype[Symbol.asyncDispose] = async function asyncDispose() {
-      // `stream` exists only on the unified `Client`; the historical-only
+      // `stream` exists only on the unified `Client`; the market-data-only
       // client has no streaming surface, so `close()` alone is the teardown.
       // An already-closed client throws on the `stream` getter ("client is
       // closed"); treat that as nothing-to-drain so disposing a closed client

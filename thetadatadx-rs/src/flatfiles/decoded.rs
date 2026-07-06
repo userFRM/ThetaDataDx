@@ -166,7 +166,7 @@ async fn pull_and_decode_to_file(
     // Step 2-3: decode + write. The decoder reads + parses the entire
     // blob synchronously and the writer hits the filesystem in tight
     // loops; do that on the blocking pool so we don't stall any other
-    // tokio task (FPSS streaming, MDDS historical) on the same runtime.
+    // tokio task (FPSS streaming, MDDS market-data) on the same runtime.
     let raw_for_decode = raw_path.to_path_buf();
     let final_for_decode = final_path.to_path_buf();
     tokio::task::spawn_blocking(move || {

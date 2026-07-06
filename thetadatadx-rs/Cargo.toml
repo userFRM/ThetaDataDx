@@ -1,10 +1,10 @@
 [package]
 name = "thetadatadx"
-version = "13.0.0-rc.17"
+version = "13.0.0-rc.18"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-description = "No-JVM ThetaData SDK — native Rust client for historical, streaming, and bulk flat-file market data"
+description = "No-JVM ThetaData SDK — native Rust client for market-data, streaming, and bulk flat-file market data"
 documentation = "https://docs.rs/thetadatadx"
 homepage.workspace = true
 repository.workspace = true
@@ -53,7 +53,7 @@ frames = ["polars", "arrow"]
 live-tests = []
 # Private, unstable feature gating a handful of `pub(crate)`-shape
 # constructors that exist solely so integration tests under `tests/`
-# can build a `HistoricalClient` against a mock REST server without paying
+# can build a `MarketDataClient` against a mock REST server without paying
 # for a real Nexus auth handshake. Double-underscore prefix marks it
 # as unsupported: callers outside this repository must not enable it,
 # and the API stability contract does not apply.
@@ -87,7 +87,7 @@ prost = "=0.14.4"
 # the same version as `prost` so the derive paths resolve.
 prost-types = "=0.14.4"
 
-# Historical-channel gRPC transport. `channel` is the client-side
+# Market-data-channel gRPC transport. `channel` is the client-side
 # transport only — no server, router, codegen, or TLS features (TLS
 # rides through the custom rustls connector in `src/grpc/channel.rs`
 # so the dependency graph keeps the single `ring` CryptoProvider).
@@ -327,7 +327,7 @@ harness = false
 required-features = ["__test-helpers"]
 
 [[bench]]
-name = "historical_streaming_memory"
+name = "market_data_streaming_memory"
 harness = false
 
 [[bench]]
@@ -422,7 +422,7 @@ required-features = ["__test-helpers"]
 
 # Pins endpoint-to-parser routing for the seven `option_history_*` /
 # `index_at_time_price` endpoints. Gated on `__test-helpers` for
-# `HistoricalClient::for_endpoint_routing_test` and the `grpc::{Channel, ChannelPool}`
+# `MarketDataClient::for_endpoint_routing_test` and the `grpc::{Channel, ChannelPool}`
 # re-export.
 [[test]]
 name = "test_endpoint_routing"

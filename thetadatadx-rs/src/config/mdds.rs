@@ -1,6 +1,6 @@
-//! Historical (gRPC) sub-configuration.
+//! Market-data (gRPC) sub-configuration.
 //!
-//! Holds the per-channel gRPC tuning for the historical transport:
+//! Holds the per-channel gRPC tuning for the market-data transport:
 //! message-size ceiling, keepalive cadence, HTTP/2 flow-control
 //! windows, connect/request deadlines, and the buffered-response warn
 //! threshold.
@@ -13,7 +13,7 @@
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
 
-/// Default per-request historical deadline in seconds (5 min).
+/// Default per-request market-data deadline in seconds (5 min).
 ///
 /// The floor the effective-deadline resolver applies when a caller leaves the
 /// per-request deadline unset AND the configured `request_timeout_secs` is `0`:
@@ -24,27 +24,27 @@
 /// unaffected by this floor.
 pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 
-/// Historical client tuning.
+/// Market-data client tuning.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct HistoricalConfig {
-    /// Historical hostname (v3 path).
+pub struct MarketDataConfig {
+    /// Market-data hostname (v3 path).
     ///
-    /// Set through [`DirectConfig::set_historical_host`] so the write is
+    /// Set through [`DirectConfig::set_market_data_host`] so the write is
     /// recorded as an explicit override that survives environment
-    /// selection; read through [`DirectConfig::historical_host`]. The field
-    /// is crate-private so the only way to point the historical channel at a
+    /// selection; read through [`DirectConfig::market_data_host`]. The field
+    /// is crate-private so the only way to point the market-data channel at a
     /// host is the tracked setter — there is no untracked direct-write path
     /// for environment selection to second-guess.
     ///
-    /// [`DirectConfig::set_historical_host`]: crate::config::DirectConfig::set_historical_host
-    /// [`DirectConfig::historical_host`]: crate::config::DirectConfig::historical_host
+    /// [`DirectConfig::set_market_data_host`]: crate::config::DirectConfig::set_market_data_host
+    /// [`DirectConfig::market_data_host`]: crate::config::DirectConfig::market_data_host
     pub(crate) host: String,
 
-    /// Historical port (443 for TLS in production).
+    /// Market-data port (443 for TLS in production).
     pub port: u16,
 
-    /// Whether to use TLS for the historical connection.
+    /// Whether to use TLS for the market-data connection.
     /// Always `true` in production (standard gRPC-over-TLS on port 443).
     pub tls: bool,
 
@@ -57,7 +57,7 @@ pub struct HistoricalConfig {
 
     /// gRPC keepalive interval in seconds (`keepAliveTime(30, SECONDS)`).
     ///
-    /// Sets the HTTP/2 keepalive PING cadence on every historical channel.
+    /// Sets the HTTP/2 keepalive PING cadence on every market-data channel.
     pub keepalive_secs: u64,
 
     /// gRPC keepalive timeout in seconds (`keepAliveTimeout(10, SECONDS)`).
@@ -68,7 +68,7 @@ pub struct HistoricalConfig {
 
     /// gRPC flow control: initial stream window size in KB.
     ///
-    /// Sets the per-stream HTTP/2 flow-control window on every historical
+    /// Sets the per-stream HTTP/2 flow-control window on every market-data
     /// channel. Default 64 KB matches the HTTP/2 spec default;
     /// validation clamps to `[64, 1024]`.
     pub window_size_kb: usize,
@@ -76,11 +76,11 @@ pub struct HistoricalConfig {
     /// gRPC flow control: initial connection window size in KB.
     ///
     /// Sets the connection-level HTTP/2 flow-control window on every
-    /// Historical channel. Default 64 KB; validation clamps to `[64, 1024]`.
+    /// Market-data channel. Default 64 KB; validation clamps to `[64, 1024]`.
     /// Increase for high-throughput bulk queries.
     pub connection_window_size_kb: usize,
 
-    /// TCP connect timeout for the historical channel, in seconds.
+    /// TCP connect timeout for the market-data channel, in seconds.
     ///
     /// Bounds the time the transport will spend establishing a TCP +
     /// TLS handshake before failing fast. Default `10s` matches the upper
@@ -89,7 +89,7 @@ pub struct HistoricalConfig {
     /// cadence.
     pub connect_timeout_secs: u64,
 
-    /// Default per-request deadline for historical (gRPC) queries, in
+    /// Default per-request deadline for market-data (gRPC) queries, in
     /// seconds.
     ///
     /// A server that holds the HTTP/2 stream open while sending no
@@ -100,7 +100,7 @@ pub struct HistoricalConfig {
     /// stream resolves to `Error::Timeout` instead of blocking forever.
     ///
     /// Configuring `0` here does **not** disable the guard: the effective-
-    /// deadline resolver every historical request routes through floors a `0`
+    /// deadline resolver every market-data request routes through floors a `0`
     /// to the production default (`300s`) so a deadline-less request can never
     /// hang the client forever, regardless of whether the config was validated.
     /// Opt a single request out with the per-call escape hatch instead.
@@ -138,7 +138,7 @@ pub struct HistoricalConfig {
     pub warn_on_buffered_threshold_bytes: usize,
 }
 
-impl HistoricalConfig {
+impl MarketDataConfig {
     /// Upper ceiling for [`Self::max_message_size`], in megabytes.
     ///
     /// The inbound message size is a pre-allocated decode budget, so an
@@ -146,22 +146,22 @@ impl HistoricalConfig {
     /// commits the channel to a buffer far beyond any legitimate response, and
     /// the MB→byte conversion (`mb * 1024 * 1024`) overflows `usize` for the
     /// largest inputs. The production default is 4 MB; 64 MB leaves generous
-    /// headroom for the largest bulk historical chunk while keeping the budget
+    /// headroom for the largest bulk market-data chunk while keeping the budget
     /// bounded. This is the single source of truth both the byte-denominated
     /// [`crate::config::DirectConfig::validate`] check and the
     /// `[grpc] max_message_size_mb` TOML ceiling read, so the two spellings
     /// cannot drift.
     pub(crate) const MAX_MESSAGE_SIZE_MB: usize = 64;
 
-    /// Historical hostname.
+    /// Market-data hostname.
     ///
     /// Read accessor for the crate-private [`Self::host`] field. The host is
-    /// written through [`DirectConfig::set_historical_host`] so a
+    /// written through [`DirectConfig::set_market_data_host`] so a
     /// caller-supplied value is recorded as a tracked override; this getter
     /// is the supported way to read it back (including from the SDK
-    /// bindings, which snapshot a [`HistoricalConfig`]).
+    /// bindings, which snapshot a [`MarketDataConfig`]).
     ///
-    /// [`DirectConfig::set_historical_host`]: crate::config::DirectConfig::set_historical_host
+    /// [`DirectConfig::set_market_data_host`]: crate::config::DirectConfig::set_market_data_host
     #[must_use]
     pub fn host(&self) -> &str {
         &self.host
@@ -196,7 +196,7 @@ impl HistoricalConfig {
     }
 }
 
-impl Default for HistoricalConfig {
+impl Default for MarketDataConfig {
     fn default() -> Self {
         Self::production_defaults()
     }

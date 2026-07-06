@@ -250,7 +250,7 @@ def _selftest() -> int:
         # Exempt-only fixture: every hit is allow-listed -> clean.
         (root / "README.md").write_text(
             "# Demo\n"
-            "Historical host is mdds-01.thetadata.us; staging is "
+            "Market-data host is mdds-01.thetadata.us; staging is "
             "mdds-stage.thetadata.us.\n"
             "Scrape the thetadatadx.fpss.reconnects counter.\n"
             "<!-- @generated from fpss_event_schema.toml -->\n"

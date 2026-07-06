@@ -84,9 +84,9 @@ TEST_CASE("Reconnect setters under Manual policy are silent no-ops",
     REQUIRE_NOTHROW(cfg.set_reconnect_stable_window_secs(120));
 }
 
-TEST_CASE("Reconnect setters compose with historical tuning setters",
+TEST_CASE("Reconnect setters compose with market-data tuning setters",
           "[config][reconnect][offline]") {
-    // Interleaved reconnect setter and historical tuning setter calls
+    // Interleaved reconnect setter and market-data tuning setter calls
     // on the same `thetadatadx::Config` must not interfere with each
     // other.
     auto cfg = thetadatadx::Config::production();

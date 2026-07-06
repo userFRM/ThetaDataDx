@@ -188,7 +188,7 @@ describe('projected Arrow-IPC terminal', () => {
 // projected serialiser in the addon.
 describe('withColumns live-call variant drives the projected export', () => {
   const generated = readFileSync(
-    resolve(__dirname, '..', 'src', '_generated', 'historical_methods.rs'),
+    resolve(__dirname, '..', 'src', '_generated', 'market_data_methods.rs'),
     'utf8'
   );
 
@@ -222,12 +222,12 @@ describe('withColumns live-call variant drives the projected export', () => {
     assert.equal(cols[0], 'symbol', 'the return object symbol must lead the projected frame');
   });
 
-  it('generates the WithColumns variant on both historical classes', () => {
-    // Present on the standalone HistoricalClient and the unified HistoricalView
+  it('generates the WithColumns variant on both market-data classes', () => {
+    // Present on the standalone MarketDataClient and the unified MarketDataView
     // (both impl blocks), returning the presence-carrying object, never the bare
     // row array.
     const jsName = (generated.match(/js_name = "(\w+WithColumns)"/g) || []).length;
-    assert.ok(jsName >= 2, 'stockHistoryTradeWithColumns must exist on both historical impl blocks');
+    assert.ok(jsName >= 2, 'stockHistoryTradeWithColumns must exist on both market-data impl blocks');
     assert.match(generated, /pub async fn stock_history_trade_with_columns\(/);
     assert.match(generated, /-> napi::Result<TradeTickWithColumns>/);
     assert.match(generated, /pub struct TradeTickWithColumns \{/);

@@ -83,9 +83,9 @@ TEST_CASE("Config::set_flatfiles_read_timeout_secs round-trips via getter",
     }
 }
 
-TEST_CASE("FlatFiles setters compose with historical tuning setters",
+TEST_CASE("FlatFiles setters compose with market-data tuning setters",
           "[config][flatfiles][offline]") {
-    // Interleaved flatfiles setter and historical tuning setter calls
+    // Interleaved flatfiles setter and market-data tuning setter calls
     // on the same `thetadatadx::Config` must not interfere with each
     // other.
     auto cfg = thetadatadx::Config::production();

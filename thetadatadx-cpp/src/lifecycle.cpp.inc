@@ -54,15 +54,15 @@ Config Config::from_dotenv(const std::string& path) {
     return Config(h);
 }
 
-HistoricalClient HistoricalClient::connect(const Credentials& creds, const Config& config) {
-    auto h = thetadatadx_historical_connect(creds.get(), config.get());
+MarketDataClient MarketDataClient::connect(const Credentials& creds, const Config& config) {
+    auto h = thetadatadx_market_data_connect(creds.get(), config.get());
     if (!h) detail::throw_last_ffi_error();
-    return HistoricalClient(h);
+    return MarketDataClient(h);
 }
 
-HistoricalClient HistoricalClient::from_file(const std::string& path, const Config& config) {
-    auto h = thetadatadx_historical_connect_from_file(path.c_str(), config.get());
+MarketDataClient MarketDataClient::from_file(const std::string& path, const Config& config) {
+    auto h = thetadatadx_market_data_connect_from_file(path.c_str(), config.get());
     if (!h) detail::throw_last_ffi_error();
-    return HistoricalClient(h);
+    return MarketDataClient(h);
 }
 

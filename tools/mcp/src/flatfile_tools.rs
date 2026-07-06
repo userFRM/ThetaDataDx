@@ -254,7 +254,7 @@ fn arg_str_opt(args: &Value, key: &str) -> Option<String> {
 /// Map a tool-name suffix to a `(SecType, ReqType)` pair, e.g.
 /// `"thetadatadx_flatfile_option_eod"` -> `Some((Option, Eod))`. Only
 /// the datasets the flat-file distribution serves have a convenience
-/// tool; every other request type is reachable via the historical
+/// tool; every other request type is reachable via the market-data
 /// endpoints, not as a flat file.
 fn convenience_pair(tool_name: &str) -> Option<(SecType, ReqType)> {
     match tool_name {

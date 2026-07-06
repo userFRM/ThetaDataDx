@@ -7,7 +7,7 @@
 //!
 //! ```python
 //! try:
-//!     client.historical.stock_history_eod("AAPL", "20240101", "20240301")
+//!     client.market_data.stock_history_eod("AAPL", "20240101", "20240301")
 //! except thetadatadx.InvalidCredentialsError:
 //!     refresh_session()
 //! except thetadatadx.RateLimitError:
@@ -248,7 +248,7 @@ fn rate_limit_err(e: &thetadatadx::Error) -> PyErr {
 /// Raise a `ConfigError` for a malformed client-construction argument.
 ///
 /// Used by the inline client constructor when the authentication kwargs
-/// conflict, are absent, or carry an unparseable `historical_type` — a local,
+/// conflict, are absent, or carry an unparseable `market_data_type` — a local,
 /// pre-network configuration fault distinct from a server-side auth
 /// rejection.
 pub fn config_err(message: impl Into<String>) -> PyErr {
@@ -528,7 +528,7 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let invalid_value = to_py_err(thetadatadx::Error::config_invalid(
-                "historical.uri",
+                "market_data.uri",
                 "invalid URI",
             ));
             assert_exception_class(py, &invalid_value, "InvalidParameterError");

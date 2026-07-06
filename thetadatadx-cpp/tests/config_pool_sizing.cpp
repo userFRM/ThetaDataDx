@@ -1,6 +1,6 @@
-// Historical tuning setters + getters on thetadatadx::Config.
+// Market-data tuning setters + getters on thetadatadx::Config.
 //
-// Offline test pinning the contract that the historical tuning setters
+// Offline test pinning the contract that the market-data tuning setters
 // and readback getters on the `thetadatadx::Config` C++ wrapper
 // round-trip through the underlying C ABI.
 
@@ -11,7 +11,7 @@
 #include "thetadatadx.h"
 #include "thetadatadx.hpp"
 
-TEST_CASE("Config historical request_timeout_secs setter + getter round-trip",
+TEST_CASE("Config market-data request_timeout_secs setter + getter round-trip",
           "[config][pool_sizing][offline]") {
     auto cfg = thetadatadx::Config::production();
     // The readback getter mirrors the Python `Config.request_timeout_secs`
@@ -28,36 +28,36 @@ TEST_CASE("Config historical request_timeout_secs setter + getter round-trip",
     REQUIRE(cfg.get_request_timeout_secs() == 0u);
 }
 
-TEST_CASE("Config historical_host / historical_port setters + getters round-trip",
-          "[config][historical][offline]") {
-    // The historical endpoint overrides mirror the Python `Config.historical_host` /
-    // `.historical_port` advanced knobs, so a value set through the C++ wrapper
+TEST_CASE("Config market_data_host / market_data_port setters + getters round-trip",
+          "[config][market_data][offline]") {
+    // The market-data endpoint overrides mirror the Python `Config.market_data_host` /
+    // `.market_data_port` advanced knobs, so a value set through the C++ wrapper
     // reads back through the same wrapper.
     auto cfg = thetadatadx::Config::production();
 
     // A production config has a non-empty default host.
-    REQUIRE_FALSE(cfg.get_historical_host().empty());
+    REQUIRE_FALSE(cfg.get_market_data_host().empty());
 
-    cfg.set_historical_host("127.0.0.1");
-    REQUIRE(cfg.get_historical_host() == "127.0.0.1");
+    cfg.set_market_data_host("127.0.0.1");
+    REQUIRE(cfg.get_market_data_host() == "127.0.0.1");
 
-    cfg.set_historical_port(50051);
-    REQUIRE(cfg.get_historical_port() == 50051u);
+    cfg.set_market_data_port(50051);
+    REQUIRE(cfg.get_market_data_port() == 50051u);
 }
 
 TEST_CASE("Config environment getters read back the selected clusters",
           "[config][environment][offline]") {
     // The environment readbacks mirror the Python
-    // `Config.historical_environment` / `.streaming_environment` and the
-    // TypeScript `historicalEnvironment` / `streamingEnvironment` getters.
+    // `Config.market_data_environment` / `.streaming_environment` and the
+    // TypeScript `marketDataEnvironment` / `streamingEnvironment` getters.
     // The two channels are selected independently: the stage preset moves
-    // the historical channel to staging while streaming stays on
+    // the market-data channel to staging while streaming stays on
     // production, and the dev preset moves the streaming channel to dev
-    // while historical stays on production.
-    REQUIRE(thetadatadx::Config::stage().get_historical_environment() == "STAGE");
+    // while market-data stays on production.
+    REQUIRE(thetadatadx::Config::stage().get_market_data_environment() == "STAGE");
     REQUIRE(thetadatadx::Config::stage().get_streaming_environment() == "PROD");
-    REQUIRE(thetadatadx::Config::dev().get_historical_environment() == "PROD");
+    REQUIRE(thetadatadx::Config::dev().get_market_data_environment() == "PROD");
     REQUIRE(thetadatadx::Config::dev().get_streaming_environment() == "DEV");
-    REQUIRE(thetadatadx::Config::production().get_historical_environment() == "PROD");
+    REQUIRE(thetadatadx::Config::production().get_market_data_environment() == "PROD");
     REQUIRE(thetadatadx::Config::production().get_streaming_environment() == "PROD");
 }

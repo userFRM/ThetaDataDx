@@ -1,19 +1,19 @@
-//! Standalone Python `HistoricalClient` pyclass.
+//! Standalone Python `MarketDataClient` pyclass.
 //!
-//! Opens ONLY the historical channel and the Nexus HTTP authentication
+//! Opens ONLY the market-data channel and the Nexus HTTP authentication
 //! flow, no streaming TLS connection, no event ring, no streaming
 //! state machine. Mirrors the standalone C ABI entry points
 //! (`thetadatadx_client_*` in `thetadatadx-ffi/src/auth.rs`) and the C++ `thetadatadx::Client`
-//! pattern, letting Python users run a historical-only session
+//! pattern, letting Python users run a market-data-only session
 //! alongside a parallel streaming process without the bundled
 //! [`crate::Client`] preempting the parallel work at the
 //! Nexus session layer.
 //!
 //! # Nexus session behaviour
 //!
-//! `HistoricalClient.__new__` issues exactly one Nexus authentication and
+//! `MarketDataClient.__new__` issues exactly one Nexus authentication and
 //! holds the resulting session UUID for the lifetime of the handle.
-//! When a parallel process (or another `HistoricalClient` / bundled
+//! When a parallel process (or another `MarketDataClient` / bundled
 //! `Client` in the same interpreter) authenticates against
 //! Nexus with the same credentials, the upstream behaviour is the
 //! user's environment concern — the SDK does not invalidate, share,
@@ -28,10 +28,10 @@
 //! and forwards historical / list / snapshot / at-time / FLATFILES
 //! endpoint calls through PyO3 attribute lookup against an internally
 //! held [`crate::Client`] pyclass instance. The bundled
-//! client opens the historical channel + Nexus at construction time and never
+//! client opens the market-data channel + Nexus at construction time and never
 //! opens streaming unless `start_streaming` is called. By construction
 //! and by allowlist enforcement here, no streaming-touching method is
-//! reachable through `HistoricalClient`.
+//! reachable through `MarketDataClient`.
 //!
 //! This is the same delegation pattern [`crate::AsyncClient`]
 //! uses for its async-only surface, with an inverted allowlist
@@ -44,16 +44,16 @@ use crate::{Client, Config, Credentials};
 
 /// Methods on the `client.stream` [`crate::StreamView`] surface (plus
 /// the `stream` accessor itself) that touch the streaming transport. Reaching
-/// for any of these through `HistoricalClient` raises `AttributeError` so
-/// callers who chose the historical-only surface cannot accidentally open a
+/// for any of these through `MarketDataClient` raises `AttributeError` so
+/// callers who chose the market-data-only surface cannot accidentally open a
 /// streaming connection that would conflict with a parallel streaming process.
 ///
 /// The block-list approach (vs. the inverted `AsyncClient`
-/// allowlist) keeps the historical / FLATFILES surface — which is
+/// allowlist) keeps the market-data / FLATFILES surface — which is
 /// 50+ generated `*_builder` factories plus per-endpoint sync and
 /// async terminals — accessible without listing each one. Adding a
-/// new historical endpoint to `Client` is automatically
-/// available on `HistoricalClient` with zero edit here.
+/// new market-data endpoint to `Client` is automatically
+/// available on `MarketDataClient` with zero edit here.
 ///
 /// Drift guard: the compile-time assertion below pins the generator-emitted
 /// streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`, generated from
@@ -91,7 +91,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     // sibling streaming pyclasses. These factories return a
     // streaming-session pyclass (sync, sync-iter, or asyncio) — the
     // session itself transitively opens the streaming surface, so a
-    // historical-only handle must refuse access. Drift guard: the offline
+    // market-data-only handle must refuse access. Drift guard: the offline
     // coverage test in
     // `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`
     // pairs every name here with the
@@ -127,26 +127,26 @@ const _: () = {
             found,
             "PYTHON_UNIFIED_FPSS_METHODS contains a name not in \
              `mdds_client::FPSS_TOUCHING_METHODS` — extend the \
-             block-list (and the offline-coverage test) so the historical \
+             block-list (and the offline-coverage test) so the market-data \
              surface stays streaming-free."
         );
         i += 1;
     }
 };
 
-/// Standalone historical-only client.
+/// Standalone market-data-only client.
 ///
-/// Opens ONLY the historical channel, no streaming TLS connection.
+/// Opens ONLY the market-data channel, no streaming TLS connection.
 /// Authenticates once against Nexus at construction time. Use when a
 /// parallel streaming process is already running in the same environment
-/// and you need to test historical / FLATFILES endpoints without the
+/// and you need to test market-data / FLATFILES endpoints without the
 /// bundled [`crate::Client`] also opening a streaming slot.
 ///
 /// ```python
-/// from thetadatadx import HistoricalClient, Credentials, Config
+/// from thetadatadx import MarketDataClient, Credentials, Config
 ///
 /// creds = Credentials.from_file("creds.txt")
-/// mdds = HistoricalClient(creds, Config.production())
+/// mdds = MarketDataClient(creds, Config.production())
 ///
 /// eod = mdds.stock_history_eod("AAPL", "20240101", "20240301")
 /// print(eod.to_pandas().head())
@@ -160,19 +160,19 @@ const _: () = {
 // own interior state; the pyclass shell is immutable. A future
 // `&mut self` regression surfaces as a `cargo check` failure rather
 // than slipping silently.
-#[pyclass(module = "thetadatadx", name = "HistoricalClient", frozen)]
-pub(crate) struct HistoricalClient {
-    /// Hidden inner unified client. Opens the historical channel + Nexus at
+#[pyclass(module = "thetadatadx", name = "MarketDataClient", frozen)]
+pub(crate) struct MarketDataClient {
+    /// Hidden inner unified client. Opens the market-data channel + Nexus at
     /// `connect` time and lazily opens streaming only on `start_streaming*`
     /// (neither of which we surface through this pyclass), so no streaming
     /// TLS slot is ever opened for a session that lives entirely
-    /// through `HistoricalClient`.
+    /// through `MarketDataClient`.
     inner: Py<Client>,
 }
 
 #[pymethods]
-impl HistoricalClient {
-    /// Connect to ThetaData and open the historical channel.
+impl MarketDataClient {
+    /// Connect to ThetaData and open the market-data channel.
     ///
     /// Authenticates against Nexus once and opens the in-house gRPC
     /// channel pool — same first-step behaviour as
@@ -189,14 +189,14 @@ impl HistoricalClient {
         Ok(Self { inner })
     }
 
-    /// Convenience constructor: `HistoricalClient.from_file("creds.txt")`.
+    /// Convenience constructor: `MarketDataClient.from_file("creds.txt")`.
     /// Loads credentials from a two-line file and connects with the
     /// supplied `config`, defaulting to `Config.production()`.
     ///
     /// The `config` kwarg is optional: with no kwarg the constructor
     /// targets the production endpoint. Tests and dev / stage
     /// environments reach a single-arg constructor shape via
-    /// `HistoricalClient.from_file("creds.txt", config=Config.dev())`.
+    /// `MarketDataClient.from_file("creds.txt", config=Config.dev())`.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
@@ -211,49 +211,49 @@ impl HistoricalClient {
     /// [`crate::Client`].
     ///
     /// Block-list applied first: every streaming-touching method raises
-    /// `AttributeError` so a historical-only handle cannot accidentally
-    /// race a parallel streaming process. Everything else (historical
+    /// `AttributeError` so a market-data-only handle cannot accidentally
+    /// race a parallel streaming process. Everything else (market-data
     /// endpoints, FLATFILES, snapshot / list / at-time builders,
     /// `flat_files` namespace) reaches the unified client transparently.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if FPSS_TOUCHING_METHODS.contains(&name) {
             return Err(PyAttributeError::new_err(format!(
-                "HistoricalClient is the standalone historical surface and does not expose `{name}`. \
+                "MarketDataClient is the standalone market-data surface and does not expose `{name}`. \
                  Use StreamingClient(creds, config) for streaming, or Client(creds, config) \
                  for the unified handle."
             )));
         }
         let bound = self.inner.bind(py);
-        // Historical endpoints (sync, `*_async`, `*_builder`) live on the
-        // `client.historical` `HistoricalView` surface; resolve there first
+        // Market-data endpoints (sync, `*_async`, `*_builder`) live on the
+        // `client.market_data` `MarketDataView` surface; resolve there first
         // so `mdds.stock_history_eod(...)` keeps its flat call shape. The
         // FLATFILES surface (`flat_files`, `dump_*`) and the remaining
-        // historical-session accessors stay on `Client` and resolve through
+        // market-data-session accessors stay on `Client` and resolve through
         // the fallback.
-        let historical = bound.getattr("historical")?;
-        if let Ok(attr) = historical.getattr(name) {
+        let market_data = bound.getattr("market_data")?;
+        if let Ok(attr) = market_data.getattr(name) {
             return Ok(attr.unbind());
         }
         Ok(bound.getattr(name)?.unbind())
     }
 
     fn __repr__(&self) -> String {
-        // Drop the inherited-then-rewritten `streaming=` slot. The historical-only
+        // Drop the inherited-then-rewritten `streaming=` slot. The market-data-only
         // surface never opens the streaming TLS transport, so reporting a
-        // streaming state at all is misleading. The historical channel
+        // streaming state at all is misleading. The market-data channel
         // is always connected by construction (the constructor errored
         // out otherwise).
-        "HistoricalClient(historical=connected)".to_string()
+        "MarketDataClient(connected)".to_string()
     }
 
-    /// Deterministically close the historical client.
+    /// Deterministically close the market-data client.
     ///
-    /// The historical-only surface never opens streaming, so there is no
+    /// The market-data-only surface never opens streaming, so there is no
     /// dispatcher to drain; close forwards to the inner [`crate::Client::close`]
     /// (a fast no-op teardown) and the gRPC channel pool releases when this
-    /// handle is dropped. Provided so the historical surface matches the
+    /// handle is dropped. Provided so the market-data surface matches the
     /// unified client's lifecycle across every binding. Idempotent. Prefer
-    /// ``with HistoricalClient(...) as c:`` so close runs on block exit.
+    /// ``with MarketDataClient(...) as c:`` so close runs on block exit.
     fn close(&self, py: Python<'_>) -> PyResult<()> {
         self.inner.borrow(py).close_impl(py)
     }

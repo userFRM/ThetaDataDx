@@ -59,7 +59,7 @@ const langs = [
 const active = ref('python')
 const isCurl = computed(() => active.value === 'curl')
 
-const cls = computed(() => (clientKind.value === 'unified' ? 'Client' : 'HistoricalClient'))
+const cls = computed(() => (clientKind.value === 'unified' ? 'Client' : 'MarketDataClient'))
 const filledOpt = computed(() => props.cfg.optional.filter((o) => (vals.value[o.key] ?? '') !== ''))
 const scalar = computed(() => !!props.cfg.scalar)
 function camel(s) {
@@ -128,12 +128,13 @@ const rustPrintln = computed(() => {
 
 function hist(lang) {
   if (clientKind.value !== 'unified') return ''
-  return lang === 'rust' || lang === 'cpp' ? '.historical()' : '.historical'
+  const acc = lang === 'typescript' ? 'marketData' : 'market_data'
+  return lang === 'rust' || lang === 'cpp' ? `.${acc}()` : `.${acc}`
 }
 
 // Client construction, mapped to the real SDK surface. The unified `Client`
 // has the ergonomic one-step constructors (builder / connectWith / inline
-// kwargs); the historical-only `HistoricalClient` exposes no such sugar, so it
+// kwargs); the market-data-only `MarketDataClient` exposes no such sugar, so it
 // is built from a `Credentials` value passed to `connect(creds, config)` (or
 // the `from_file` / connectFromFile convenience). The `auth.source === 'env'`
 // + `creds` cell sources email + password from a `.env`/creds file — the SDK
@@ -213,80 +214,80 @@ function clientLine(lang) {
     },
   }
 
-  // HistoricalClient: build a Credentials, then connect(creds, config).
-  const historical = {
+  // MarketDataClient: build a Credentials, then connect(creds, config).
+  const marketData = {
     python: {
       'env-apikey': {
-        line: `client = HistoricalClient(Credentials.from_env(), Config.production())`,
+        line: `client = MarketDataClient(Credentials.from_env(), Config.production())`,
         imports: ['Credentials', 'Config'],
       },
       'inline-apikey': {
-        line: `client = HistoricalClient(Credentials.from_api_key("YOUR_API_KEY"), Config.production())`,
+        line: `client = MarketDataClient(Credentials.from_api_key("YOUR_API_KEY"), Config.production())`,
         imports: ['Credentials', 'Config'],
       },
       'inline-creds': {
-        line: `client = HistoricalClient(Credentials("you@example.com", "YOUR_PASSWORD"), Config.production())`,
+        line: `client = MarketDataClient(Credentials("you@example.com", "YOUR_PASSWORD"), Config.production())`,
         imports: ['Credentials', 'Config'],
       },
-      'env-creds': { line: `client = HistoricalClient.from_file("creds.txt")`, imports: [] },
+      'env-creds': { line: `client = MarketDataClient.from_file("creds.txt")`, imports: [] },
     },
     rust: {
       'env-apikey': {
-        line: `let client = HistoricalClient::connect(&Credentials::from_env()?, DirectConfig::production()).await?;`,
+        line: `let client = MarketDataClient::connect(&Credentials::from_env()?, DirectConfig::production()).await?;`,
         imports: ['Credentials', 'DirectConfig'],
       },
       'inline-apikey': {
-        line: `let client = HistoricalClient::connect(&Credentials::api_key("YOUR_API_KEY"), DirectConfig::production()).await?;`,
+        line: `let client = MarketDataClient::connect(&Credentials::api_key("YOUR_API_KEY"), DirectConfig::production()).await?;`,
         imports: ['Credentials', 'DirectConfig'],
       },
       'inline-creds': {
-        line: `let client = HistoricalClient::connect(&Credentials::new("you@example.com", "YOUR_PASSWORD"), DirectConfig::production()).await?;`,
+        line: `let client = MarketDataClient::connect(&Credentials::new("you@example.com", "YOUR_PASSWORD"), DirectConfig::production()).await?;`,
         imports: ['Credentials', 'DirectConfig'],
       },
       'env-creds': {
-        line: `let client = HistoricalClient::connect(&Credentials::from_file("creds.txt")?, DirectConfig::production()).await?;`,
+        line: `let client = MarketDataClient::connect(&Credentials::from_file("creds.txt")?, DirectConfig::production()).await?;`,
         imports: ['Credentials', 'DirectConfig'],
       },
     },
     typescript: {
       'env-apikey': {
-        line: `const client = await HistoricalClient.connect(Credentials.fromEnv());`,
+        line: `const client = await MarketDataClient.connect(Credentials.fromEnv());`,
         imports: ['Credentials'],
       },
       'inline-apikey': {
-        line: `const client = await HistoricalClient.connect(Credentials.fromApiKey("YOUR_API_KEY"));`,
+        line: `const client = await MarketDataClient.connect(Credentials.fromApiKey("YOUR_API_KEY"));`,
         imports: ['Credentials'],
       },
       'inline-creds': {
-        line: `const client = await HistoricalClient.connect(new Credentials("you@example.com", "YOUR_PASSWORD"));`,
+        line: `const client = await MarketDataClient.connect(new Credentials("you@example.com", "YOUR_PASSWORD"));`,
         imports: ['Credentials'],
       },
       'env-creds': {
-        line: `const client = await HistoricalClient.connectFromFile("creds.txt");`,
+        line: `const client = await MarketDataClient.connectFromFile("creds.txt");`,
         imports: [],
       },
     },
     cpp: {
       'env-apikey': {
-        line: `auto client = thetadatadx::HistoricalClient::connect(thetadatadx::Credentials::from_env(), thetadatadx::Config::production());`,
+        line: `auto client = thetadatadx::MarketDataClient::connect(thetadatadx::Credentials::from_env(), thetadatadx::Config::production());`,
         imports: [],
       },
       'inline-apikey': {
-        line: `auto client = thetadatadx::HistoricalClient::connect(thetadatadx::Credentials::from_api_key("YOUR_API_KEY"), thetadatadx::Config::production());`,
+        line: `auto client = thetadatadx::MarketDataClient::connect(thetadatadx::Credentials::from_api_key("YOUR_API_KEY"), thetadatadx::Config::production());`,
         imports: [],
       },
       'inline-creds': {
-        line: `auto client = thetadatadx::HistoricalClient::connect(thetadatadx::Credentials::from_email("you@example.com", "YOUR_PASSWORD"), thetadatadx::Config::production());`,
+        line: `auto client = thetadatadx::MarketDataClient::connect(thetadatadx::Credentials::from_email("you@example.com", "YOUR_PASSWORD"), thetadatadx::Config::production());`,
         imports: [],
       },
       'env-creds': {
-        line: `auto client = thetadatadx::HistoricalClient::from_file("creds.txt");`,
+        line: `auto client = thetadatadx::MarketDataClient::from_file("creds.txt");`,
         imports: [],
       },
     },
   }
 
-  const table = clientKind.value === 'unified' ? unified : historical
+  const table = clientKind.value === 'unified' ? unified : marketData
   return table[lang][cell]
 }
 
@@ -450,7 +451,7 @@ function copy() {
         <span class="rb-ol">Client</span>
         <div class="rb-pg">
           <button :class="{ on: clientKind === 'unified' }" @click="clientKind = 'unified'">Unified</button>
-          <button :class="{ on: clientKind === 'historical' }" @click="clientKind = 'historical'">Historical</button>
+          <button :class="{ on: clientKind === 'market_data' }" @click="clientKind = 'market_data'">Market-data</button>
         </div>
       </div>
       <div class="rb-og">
