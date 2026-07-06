@@ -44,7 +44,7 @@ import { Client } from 'thetadatadx';
 const client = await Client.connectWith({ apiKey: 'td1_...' });
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-const greeks = await client.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
+const greeks = await client.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', { date: '20240315' });
 for (const t of greeks.slice(0, 5)) {
   console.log(`K=${t.strike} ${t.right} delta=${t.delta.toFixed(4)} theta=${t.theta.toFixed(4)}`);
 }
@@ -72,7 +72,7 @@ Every historical method resolves a `Promise` of typed tick objects off the runti
 const eod = await client.historical.stockHistoryEOD('AAPL', '20240101', '20240301');
 console.log(eod.length, eod[0].close);
 
-const bars = await client.historical.stockHistoryOHLC('AAPL', '20240315', { interval: '1m' });
+const bars = await client.historical.stockHistoryOHLC('AAPL', { date: '20240315', interval: '1m' });
 const exps = await client.historical.optionListExpirations('SPY');
 
 // Optional parameters — including a per-call timeout — ride in the trailing options object

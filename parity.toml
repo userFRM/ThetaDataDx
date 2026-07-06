@@ -3115,14 +3115,6 @@ cpp = true
 ffi = true
 
 [[historical_streaming]]
-name = "stock_history_ohlc_range"
-rust = true
-python = true
-typescript = true
-cpp = true
-ffi = true
-
-[[historical_streaming]]
 name = "stock_history_quote"
 rust = true
 python = true
@@ -3523,13 +3515,6 @@ cpp = true
 
 [[historical_async]]
 name = "stock_history_ohlc"
-rust = true
-python = true
-typescript = true
-cpp = true
-
-[[historical_async]]
-name = "stock_history_ohlc_range"
 rust = true
 python = true
 typescript = true
@@ -4027,14 +4012,6 @@ ffi = true
 
 [[historical_base]]
 name = "stock_history_ohlc"
-rust = true
-python = true
-typescript = true
-cpp = true
-ffi = true
-
-[[historical_base]]
-name = "stock_history_ohlc_range"
 rust = true
 python = true
 typescript = true

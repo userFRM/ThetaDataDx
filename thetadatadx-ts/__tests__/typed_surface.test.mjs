@@ -51,7 +51,7 @@ describe('endpoint options objects', () => {
 });
 
 describe('historical methods resolve off the execution thread', () => {
-  // The 61 buffered data-fetch methods declared on the `client.historical`
+  // The 60 buffered data-fetch methods declared on the `client.historical`
   // `HistoricalView` sub-namespace. Each runs the network round-trip on a
   // worker and resolves a Promise with the full typed row array, so a
   // fetch never holds the Node event loop. Element types are unchanged —
@@ -91,14 +91,14 @@ describe('historical methods resolve off the execution thread', () => {
     .split('\n')
     .filter((line) => familyRe.test(line) && !/Stream\(/.test(line) && !/WithColumns\(/.test(line));
 
-  it('every buffered data-fetch method is present (61 of them)', () => {
+  it('every buffered data-fetch method is present (60 of them)', () => {
     // Pin the count so a generator change that drops a method, or leaks
     // a streaming lifecycle method into the data-fetch families, is
     // caught here rather than silently shrinking the async surface.
     assert.equal(
       methodLines.length,
-      61,
-      `expected 61 data-fetch methods, found ${methodLines.length}`
+      60,
+      `expected 60 data-fetch methods, found ${methodLines.length}`
     );
   });
 

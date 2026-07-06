@@ -2775,7 +2775,7 @@ void thetadatadx_flatfile_rowlist_free(ThetaDataDxFlatFileRowList* rowlist);
  *                  "TRADE_QUOTE".
  *  @param date The snapshot date as "YYYYMMDD".
  *  @param path Output file path; the format extension is appended if missing.
- *  @param format Output format, "csv" or "jsonl".
+ *  @param format Output format: "csv", "json", "jsonl"/"ndjson", or "html".
  *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
 int thetadatadx_flatfile_request_to_path(
     const ThetaDataDxClient* handle,

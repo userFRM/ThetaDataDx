@@ -14,8 +14,8 @@ curl 'http://127.0.0.1:25503/v3/stock/history/eod?symbol=AAPL&start_date=2025-03
 # Option quote snapshot for one contract
 curl 'http://127.0.0.1:25503/v3/option/snapshot/quote?symbol=SPY&expiration=2025-03-21&strike=570&right=C'
 
-# Intraday OHLC bars across a range
-curl 'http://127.0.0.1:25503/v3/stock/history/ohlc_range?symbol=AAPL&start_date=2025-03-03&end_date=2025-03-06&interval=1m'
+# Intraday OHLC bars across a range (same route as single-date; supply start_date/end_date instead of date)
+curl 'http://127.0.0.1:25503/v3/stock/history/ohlc?symbol=AAPL&start_date=2025-03-03&end_date=2025-03-06&interval=1m'
 
 # Trading calendar
 curl 'http://127.0.0.1:25503/v3/calendar/open_today'

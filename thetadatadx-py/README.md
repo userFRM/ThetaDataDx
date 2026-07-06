@@ -48,7 +48,7 @@ from thetadatadx import Client
 client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
+greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", date="20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -78,7 +78,7 @@ for tick in eod:
     print(f"{tick.date}: O={tick.open:.2f} H={tick.high:.2f} "
           f"L={tick.low:.2f} C={tick.close:.2f} V={tick.volume}")
 
-bars = client.historical.stock_history_ohlc("AAPL", "20240315", interval="1m")   # 1-minute bars
+bars = client.historical.stock_history_ohlc("AAPL", date="20240315", interval="1m")   # 1-minute bars
 exps = client.historical.option_list_expirations("SPY")
 strikes = client.historical.option_list_strikes("SPY", exps[0])
 ```
@@ -114,7 +114,7 @@ def on_chunk(ticks):
     for t in ticks:
         ...   # write to Parquet, push to a bus, accumulate stats
 
-(client.historical.option_history_quote_builder("QQQ", "20260516", "20260516")
+(client.historical.option_history_quote_builder("QQQ", "20260516").date("20260516")
     .interval("tick")
     .strike_range(5)
     .stream(on_chunk))

@@ -38,7 +38,6 @@ pub(super) fn endpoint_title(endpoint: &GeneratedEndpoint) -> String {
         "contracts" => "Contracts",
         "eod" => "EOD",
         "ohlc" => "OHLC",
-        "ohlc_range" => "OHLC Range",
         "trade" => "Trade",
         "quote" => "Quote",
         "trade_quote" => "Trade Quote",

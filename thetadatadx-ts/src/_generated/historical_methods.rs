@@ -121,6 +121,8 @@ pub struct StockHistoryEODOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryOHLCOptions {
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -147,6 +149,8 @@ pub struct StockHistoryOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryTradeOptions {
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -171,6 +175,8 @@ pub struct StockHistoryTradeOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryQuoteOptions {
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -197,6 +203,8 @@ pub struct StockHistoryQuoteOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct StockHistoryTradeQuoteOptions {
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -653,6 +661,8 @@ pub struct OptionHistoryOHLCOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -683,6 +693,8 @@ pub struct OptionHistoryTradeOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -713,6 +725,8 @@ pub struct OptionHistoryQuoteOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -745,6 +759,8 @@ pub struct OptionHistoryTradeQuoteOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -777,6 +793,8 @@ pub struct OptionHistoryOpenInterestOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
     /// Strike range filter
@@ -835,6 +853,8 @@ pub struct OptionHistoryGreeksAllOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -873,6 +893,8 @@ pub struct OptionHistoryTradeGreeksAllOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -911,6 +933,8 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -949,6 +973,8 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -987,6 +1013,8 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -1025,6 +1053,8 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -1063,6 +1093,8 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -1101,6 +1133,8 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -1139,6 +1173,8 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -1177,6 +1213,8 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
     pub strike: Option<String>,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
@@ -1365,6 +1403,8 @@ pub struct IndexHistoryOHLCOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct IndexHistoryPriceOptions {
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
     /// Start time filter
@@ -1445,28 +1485,6 @@ pub struct CalendarYearOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct InterestRateHistoryEODOptions {
-    /// Per-call deadline as a non-negative whole number of milliseconds;
-    /// on expiry the returned Promise rejects and the underlying request
-    /// is cancelled. A non-finite, negative, or fractional value is
-    /// rejected with `InvalidParameterError` rather than coerced.
-    pub timeout_ms: Option<f64>,
-}
-
-/// Optional parameters for the `stockHistoryOHLCRange` method. Keys are
-/// the camelCase parameter names; absent keys behave exactly like an
-/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
-/// returned Promise rejects and the underlying request is cancelled.
-#[napi(object)]
-#[derive(Default)]
-pub struct StockHistoryOHLCRangeOptions {
-    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
-    pub interval: Option<String>,
-    /// Start time filter
-    pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// End time filter
-    pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
-    pub venue: Option<String>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -2540,7 +2558,6 @@ impl HistoricalView {
     pub async fn stock_history_ohlc(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
@@ -2549,7 +2566,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2557,7 +2574,10 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -2590,7 +2610,6 @@ impl HistoricalView {
     pub async fn stock_history_ohlc_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryOHLCOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -2600,7 +2619,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2610,7 +2629,10 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -2667,7 +2689,6 @@ impl HistoricalView {
     pub async fn stock_history_ohlc_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryOHLCOptions>,
     ) -> napi::Result<OhlcTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -2676,7 +2697,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2684,7 +2705,10 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -2730,7 +2754,6 @@ impl HistoricalView {
     pub async fn stock_history_trade(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
@@ -2739,14 +2762,17 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -2776,7 +2802,6 @@ impl HistoricalView {
     pub async fn stock_history_trade_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -2786,7 +2811,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
@@ -2795,7 +2820,10 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -2849,7 +2877,6 @@ impl HistoricalView {
     pub async fn stock_history_trade_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeOptions>,
     ) -> napi::Result<TradeTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -2858,14 +2885,17 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -2911,7 +2941,6 @@ impl HistoricalView {
     pub async fn stock_history_quote(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
@@ -2920,7 +2949,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2928,7 +2957,10 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -2961,7 +2993,6 @@ impl HistoricalView {
     pub async fn stock_history_quote_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -2971,7 +3002,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2981,7 +3012,10 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -3038,7 +3072,6 @@ impl HistoricalView {
     pub async fn stock_history_quote_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryQuoteOptions>,
     ) -> napi::Result<QuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -3047,7 +3080,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -3055,7 +3088,10 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -3102,7 +3138,6 @@ impl HistoricalView {
     pub async fn stock_history_trade_quote(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
@@ -3111,7 +3146,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -3119,7 +3154,10 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -3152,7 +3190,6 @@ impl HistoricalView {
     pub async fn stock_history_trade_quote_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -3162,7 +3199,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -3172,7 +3209,10 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -3229,7 +3269,6 @@ impl HistoricalView {
     pub async fn stock_history_trade_quote_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeQuoteOptions>,
     ) -> napi::Result<TradeQuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -3238,7 +3277,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -3246,7 +3285,10 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -5319,7 +5361,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
@@ -5329,9 +5370,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -5339,12 +5380,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -5379,7 +5423,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOHLCOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -5390,9 +5433,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -5402,12 +5445,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -5466,7 +5512,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOHLCOptions>,
     ) -> napi::Result<OhlcTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -5476,9 +5521,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -5486,12 +5531,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -5542,7 +5590,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
@@ -5552,9 +5599,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -5562,12 +5609,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -5602,7 +5652,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -5613,9 +5662,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -5625,12 +5674,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -5689,7 +5741,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeOptions>,
     ) -> napi::Result<TradeTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -5699,9 +5750,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -5709,12 +5760,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -5765,7 +5819,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
@@ -5775,9 +5828,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -5786,12 +5839,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -5829,7 +5885,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -5840,9 +5895,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -5853,12 +5908,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -5920,7 +5978,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryQuoteOptions>,
     ) -> napi::Result<QuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -5930,9 +5987,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -5941,12 +5998,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -6001,7 +6061,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
@@ -6011,9 +6070,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -6022,12 +6081,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -6065,7 +6127,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -6076,9 +6137,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -6089,12 +6150,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -6156,7 +6220,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeQuoteOptions>,
     ) -> napi::Result<TradeQuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -6166,9 +6229,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -6177,12 +6240,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -6233,7 +6299,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOpenInterestOptions>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
         let options = options.unwrap_or_default();
@@ -6243,20 +6308,23 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -6285,7 +6353,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOpenInterestOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -6296,9 +6363,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
@@ -6306,12 +6373,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -6364,7 +6434,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOpenInterestOptions>,
     ) -> napi::Result<OpenInterestTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -6374,20 +6443,23 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -6676,7 +6748,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksAllOptions>,
     ) -> napi::Result<Vec<GreeksAllTick>> {
         let options = options.unwrap_or_default();
@@ -6686,9 +6757,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -6700,12 +6771,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -6752,7 +6826,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksAllOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -6763,9 +6836,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -6779,12 +6852,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -6855,7 +6931,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksAllOptions>,
     ) -> napi::Result<GreeksAllTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -6865,9 +6940,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -6879,12 +6954,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -6949,7 +7027,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
     ) -> napi::Result<Vec<TradeGreeksAllTick>> {
         let options = options.unwrap_or_default();
@@ -6959,9 +7036,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -6973,12 +7050,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -7025,7 +7105,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -7036,9 +7115,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -7052,12 +7131,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -7128,7 +7210,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
     ) -> napi::Result<TradeGreeksAllTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -7138,9 +7219,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -7152,12 +7233,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -7223,7 +7307,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
@@ -7233,9 +7316,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7247,12 +7330,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -7299,7 +7385,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -7310,9 +7395,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7326,12 +7411,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -7402,7 +7490,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
     ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -7412,9 +7499,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7426,12 +7513,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -7496,7 +7586,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
@@ -7506,9 +7595,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -7520,12 +7609,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -7572,7 +7664,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -7583,9 +7674,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -7599,12 +7690,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -7675,7 +7769,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
     ) -> napi::Result<TradeGreeksFirstOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -7685,9 +7778,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -7699,12 +7792,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -7770,7 +7866,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
@@ -7780,9 +7875,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7794,12 +7889,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -7846,7 +7944,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -7857,9 +7954,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7873,12 +7970,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -7949,7 +8049,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
     ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -7959,9 +8058,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7973,12 +8072,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -8043,7 +8145,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
@@ -8053,9 +8154,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -8067,12 +8168,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -8119,7 +8223,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -8130,9 +8233,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -8146,12 +8249,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -8222,7 +8328,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
     ) -> napi::Result<TradeGreeksSecondOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -8232,9 +8337,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -8246,12 +8351,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -8317,7 +8425,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
@@ -8327,9 +8434,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -8341,12 +8448,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -8393,7 +8503,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -8404,9 +8513,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -8420,12 +8529,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -8496,7 +8608,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
     ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -8506,9 +8617,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -8520,12 +8631,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -8590,7 +8704,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
@@ -8600,9 +8713,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -8614,12 +8727,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -8666,7 +8782,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -8677,9 +8792,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -8693,12 +8808,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -8769,7 +8887,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
     ) -> napi::Result<TradeGreeksThirdOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -8779,9 +8896,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -8793,12 +8910,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -8863,7 +8983,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<IvTick>> {
         let options = options.unwrap_or_default();
@@ -8873,9 +8992,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -8887,12 +9006,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -8939,7 +9061,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IvTick>, (), Vec<IvTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -8950,9 +9071,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -8966,12 +9087,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -9042,7 +9166,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<IvTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -9052,9 +9175,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -9066,12 +9189,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -9135,7 +9261,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<TradeGreeksImpliedVolatilityTick>> {
         let options = options.unwrap_or_default();
@@ -9145,9 +9270,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -9159,12 +9284,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -9211,7 +9339,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksImpliedVolatilityTick>, (), Vec<TradeGreeksImpliedVolatilityTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -9222,9 +9349,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -9238,12 +9365,15 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -9314,7 +9444,6 @@ impl HistoricalView {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<TradeGreeksImpliedVolatilityTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -9324,9 +9453,9 @@ impl HistoricalView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -9338,12 +9467,15 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -10312,7 +10444,6 @@ impl HistoricalView {
     pub async fn index_history_price(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<IndexHistoryPriceOptions>,
     ) -> napi::Result<Vec<PriceTick>> {
         let options = options.unwrap_or_default();
@@ -10321,14 +10452,17 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -10358,7 +10492,6 @@ impl HistoricalView {
     pub async fn index_history_price_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<IndexHistoryPriceOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<PriceTick>, (), Vec<PriceTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -10368,7 +10501,7 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -10377,7 +10510,10 @@ impl HistoricalView {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -10431,7 +10567,6 @@ impl HistoricalView {
     pub async fn index_history_price_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<IndexHistoryPriceOptions>,
     ) -> napi::Result<PriceTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -10440,14 +10575,17 @@ impl HistoricalView {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -10891,176 +11029,6 @@ impl HistoricalView {
         .await?;
         Ok(InterestRateTickWithColumns {
             rows: interest_rate_ticks_to_class_vec(&ticks),
-            present_columns: ticks.columns().present_names().map(String::from).collect(),
-            symbol: ticks.columns().symbol().map(String::from),
-            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
-        })
-    }
-
-    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-    ///
-    /// Defaults (upstream):
-    /// - `interval`: `"1s"`
-    /// - `start_time`: `"09:30:00"`
-    /// - `end_time`: `"16:00:00"`
-    /// - `venue`: `"nqb"`
-    #[napi(js_name = "stockHistoryOHLCRange")]
-    pub async fn stock_history_ohlc_range(
-        &self,
-        symbol: String,
-        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        options: Option<StockHistoryOHLCRangeOptions>,
-    ) -> napi::Result<Vec<OhlcTick>> {
-        let options = options.unwrap_or_default();
-        let timeout_ms = match options.timeout_ms {
-            Some(ms) => Some(validate_timeout_ms(ms)?),
-            None => None,
-        };
-        let client = self.client_handle()?;
-        let start_date = normalize_date(start_date);
-        let end_date = normalize_date(end_date);
-        let interval = options.interval;
-        let start_time = normalize_optional_time(options.start_time);
-        let end_time = normalize_optional_time(options.end_time);
-        let venue = options.venue;
-        let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(value) = interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })
-        .await?;
-        Ok(ohlc_ticks_to_class_vec(&ticks))
-    }
-
-    /// Stream `stock_history_ohlc_range` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryOHLCRange` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
-    #[napi(js_name = "stockHistoryOHLCRangeStream")]
-    pub async fn stock_history_ohlc_range_stream(
-        &self,
-        symbol: String,
-        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        options: Option<StockHistoryOHLCRangeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
-    ) -> napi::Result<()> {
-        let options = options.unwrap_or_default();
-        let timeout_ms = match options.timeout_ms {
-            Some(ms) => Some(validate_timeout_ms(ms)?),
-            None => None,
-        };
-        let client = self.client_handle()?;
-        let start_date = normalize_date(start_date);
-        let end_date = normalize_date(end_date);
-        let interval = options.interval;
-        let start_time = normalize_optional_time(options.start_time);
-        let end_time = normalize_optional_time(options.end_time);
-        let venue = options.venue;
-        let callback = std::sync::Arc::new(callback);
-        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
-        spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(value) = interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
-            let stream_result = request
-                .stream_ticks_async(move |chunk| {
-                    let callback = std::sync::Arc::clone(&callback);
-                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
-                    async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
-                            }
-                        }
-                    }
-                })
-                .await;
-            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
-                Err(err)
-            } else {
-                stream_result.map_err(to_napi_err)
-            }
-        })
-        .await
-    }
-
-    /// Run the `stockHistoryOHLCRange` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLCRange` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
-    #[napi(js_name = "stockHistoryOHLCRangeWithColumns")]
-    pub async fn stock_history_ohlc_range_with_columns(
-        &self,
-        symbol: String,
-        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        options: Option<StockHistoryOHLCRangeOptions>,
-    ) -> napi::Result<OhlcTickWithColumns> {
-        let options = options.unwrap_or_default();
-        let timeout_ms = match options.timeout_ms {
-            Some(ms) => Some(validate_timeout_ms(ms)?),
-            None => None,
-        };
-        let client = self.client_handle()?;
-        let start_date = normalize_date(start_date);
-        let end_date = normalize_date(end_date);
-        let interval = options.interval;
-        let start_time = normalize_optional_time(options.start_time);
-        let end_time = normalize_optional_time(options.end_time);
-        let venue = options.venue;
-        let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(value) = interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })
-        .await?;
-        Ok(OhlcTickWithColumns {
-            rows: ohlc_ticks_to_class_vec(&ticks),
             present_columns: ticks.columns().present_names().map(String::from).collect(),
             symbol: ticks.columns().symbol().map(String::from),
             symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
@@ -11582,7 +11550,6 @@ impl HistoricalClient {
     pub async fn stock_history_ohlc(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
@@ -11591,7 +11558,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -11599,7 +11566,10 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -11632,7 +11602,6 @@ impl HistoricalClient {
     pub async fn stock_history_ohlc_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryOHLCOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -11642,7 +11611,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -11652,7 +11621,10 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -11709,7 +11681,6 @@ impl HistoricalClient {
     pub async fn stock_history_ohlc_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryOHLCOptions>,
     ) -> napi::Result<OhlcTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -11718,7 +11689,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -11726,7 +11697,10 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_ohlc(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -11772,7 +11746,6 @@ impl HistoricalClient {
     pub async fn stock_history_trade(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
@@ -11781,14 +11754,17 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -11818,7 +11794,6 @@ impl HistoricalClient {
     pub async fn stock_history_trade_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -11828,7 +11803,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
@@ -11837,7 +11812,10 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -11891,7 +11869,6 @@ impl HistoricalClient {
     pub async fn stock_history_trade_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeOptions>,
     ) -> napi::Result<TradeTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -11900,14 +11877,17 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -11953,7 +11933,6 @@ impl HistoricalClient {
     pub async fn stock_history_quote(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
@@ -11962,7 +11941,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -11970,7 +11949,10 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -12003,7 +11985,6 @@ impl HistoricalClient {
     pub async fn stock_history_quote_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -12013,7 +11994,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -12023,7 +12004,10 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -12080,7 +12064,6 @@ impl HistoricalClient {
     pub async fn stock_history_quote_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryQuoteOptions>,
     ) -> napi::Result<QuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -12089,7 +12072,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -12097,7 +12080,10 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -12144,7 +12130,6 @@ impl HistoricalClient {
     pub async fn stock_history_trade_quote(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
@@ -12153,7 +12138,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -12161,7 +12146,10 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -12194,7 +12182,6 @@ impl HistoricalClient {
     pub async fn stock_history_trade_quote_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -12204,7 +12191,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -12214,7 +12201,10 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -12271,7 +12261,6 @@ impl HistoricalClient {
     pub async fn stock_history_trade_quote_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<StockHistoryTradeQuoteOptions>,
     ) -> napi::Result<TradeQuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -12280,7 +12269,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -12288,7 +12277,10 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            let mut request = client.historical().stock_history_trade_quote(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
             }
@@ -14361,7 +14353,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOHLCOptions>,
     ) -> napi::Result<Vec<OhlcTick>> {
         let options = options.unwrap_or_default();
@@ -14371,9 +14362,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -14381,12 +14372,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -14421,7 +14415,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOHLCOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -14432,9 +14425,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -14444,12 +14437,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -14508,7 +14504,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOHLCOptions>,
     ) -> napi::Result<OhlcTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -14518,9 +14513,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -14528,12 +14523,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -14584,7 +14582,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeOptions>,
     ) -> napi::Result<Vec<TradeTick>> {
         let options = options.unwrap_or_default();
@@ -14594,9 +14591,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -14604,12 +14601,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -14644,7 +14644,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeTick>, (), Vec<TradeTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -14655,9 +14654,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -14667,12 +14666,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -14731,7 +14733,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeOptions>,
     ) -> napi::Result<TradeTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -14741,9 +14742,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -14751,12 +14752,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -14807,7 +14811,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryQuoteOptions>,
     ) -> napi::Result<Vec<QuoteTick>> {
         let options = options.unwrap_or_default();
@@ -14817,9 +14820,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -14828,12 +14831,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -14871,7 +14877,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<QuoteTick>, (), Vec<QuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -14882,9 +14887,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -14895,12 +14900,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -14962,7 +14970,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryQuoteOptions>,
     ) -> napi::Result<QuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -14972,9 +14979,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -14983,12 +14990,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -15043,7 +15053,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeQuoteOptions>,
     ) -> napi::Result<Vec<TradeQuoteTick>> {
         let options = options.unwrap_or_default();
@@ -15053,9 +15062,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -15064,12 +15073,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -15107,7 +15119,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeQuoteOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeQuoteTick>, (), Vec<TradeQuoteTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -15118,9 +15129,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -15131,12 +15142,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -15198,7 +15212,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeQuoteOptions>,
     ) -> napi::Result<TradeQuoteTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -15208,9 +15221,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let exclusive = options.exclusive;
@@ -15219,12 +15232,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -15275,7 +15291,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOpenInterestOptions>,
     ) -> napi::Result<Vec<OpenInterestTick>> {
         let options = options.unwrap_or_default();
@@ -15285,20 +15300,23 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -15327,7 +15345,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOpenInterestOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OpenInterestTick>, (), Vec<OpenInterestTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -15338,9 +15355,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
@@ -15348,12 +15365,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -15406,7 +15426,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryOpenInterestOptions>,
     ) -> napi::Result<OpenInterestTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -15416,20 +15435,23 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
@@ -15718,7 +15740,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksAllOptions>,
     ) -> napi::Result<Vec<GreeksAllTick>> {
         let options = options.unwrap_or_default();
@@ -15728,9 +15749,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -15742,12 +15763,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -15794,7 +15818,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksAllOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -15805,9 +15828,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -15821,12 +15844,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -15897,7 +15923,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksAllOptions>,
     ) -> napi::Result<GreeksAllTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -15907,9 +15932,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -15921,12 +15946,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -15991,7 +16019,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
     ) -> napi::Result<Vec<TradeGreeksAllTick>> {
         let options = options.unwrap_or_default();
@@ -16001,9 +16028,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -16015,12 +16042,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -16067,7 +16097,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -16078,9 +16107,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -16094,12 +16123,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -16170,7 +16202,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksAllOptions>,
     ) -> napi::Result<TradeGreeksAllTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -16180,9 +16211,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -16194,12 +16225,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -16265,7 +16299,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
@@ -16275,9 +16308,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -16289,12 +16322,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -16341,7 +16377,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -16352,9 +16387,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -16368,12 +16403,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -16444,7 +16482,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksFirstOrderOptions>,
     ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -16454,9 +16491,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -16468,12 +16505,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -16538,7 +16578,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksFirstOrderTick>> {
         let options = options.unwrap_or_default();
@@ -16548,9 +16587,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -16562,12 +16601,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -16614,7 +16656,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -16625,9 +16666,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -16641,12 +16682,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -16717,7 +16761,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
     ) -> napi::Result<TradeGreeksFirstOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -16727,9 +16770,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -16741,12 +16784,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -16812,7 +16858,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
@@ -16822,9 +16867,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -16836,12 +16881,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -16888,7 +16936,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -16899,9 +16946,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -16915,12 +16962,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -16991,7 +17041,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksSecondOrderOptions>,
     ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -17001,9 +17050,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -17015,12 +17064,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -17085,7 +17137,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksSecondOrderTick>> {
         let options = options.unwrap_or_default();
@@ -17095,9 +17146,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -17109,12 +17160,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -17161,7 +17215,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -17172,9 +17225,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -17188,12 +17241,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -17264,7 +17320,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
     ) -> napi::Result<TradeGreeksSecondOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -17274,9 +17329,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -17288,12 +17343,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -17359,7 +17417,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
@@ -17369,9 +17426,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -17383,12 +17440,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -17435,7 +17495,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -17446,9 +17505,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -17462,12 +17521,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -17538,7 +17600,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksThirdOrderOptions>,
     ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -17548,9 +17609,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -17562,12 +17623,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -17632,7 +17696,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
     ) -> napi::Result<Vec<TradeGreeksThirdOrderTick>> {
         let options = options.unwrap_or_default();
@@ -17642,9 +17705,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -17656,12 +17719,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -17708,7 +17774,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -17719,9 +17784,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -17735,12 +17800,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -17811,7 +17879,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
     ) -> napi::Result<TradeGreeksThirdOrderTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -17821,9 +17888,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -17835,12 +17902,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -17905,7 +17975,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<IvTick>> {
         let options = options.unwrap_or_default();
@@ -17915,9 +17984,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -17929,12 +17998,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -17981,7 +18053,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<IvTick>, (), Vec<IvTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -17992,9 +18063,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -18008,12 +18079,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -18084,7 +18158,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<IvTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -18094,9 +18167,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -18108,12 +18181,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -18177,7 +18253,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<Vec<TradeGreeksImpliedVolatilityTick>> {
         let options = options.unwrap_or_default();
@@ -18187,9 +18262,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -18201,12 +18276,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -18253,7 +18331,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksImpliedVolatilityTick>, (), Vec<TradeGreeksImpliedVolatilityTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -18264,9 +18341,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -18280,12 +18357,15 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -18356,7 +18436,6 @@ impl HistoricalClient {
         &self,
         symbol: String,
         expiration: Either<String, chrono::DateTime<chrono::Utc>>,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
     ) -> napi::Result<TradeGreeksImpliedVolatilityTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -18366,9 +18445,9 @@ impl HistoricalClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
-        let date = normalize_date(date);
         let strike = options.strike;
         let right = options.right;
+        let date = normalize_optional_date(options.date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let annual_dividend = options.annual_dividend;
@@ -18380,12 +18459,15 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
             }
             if let Some(value) = right {
                 request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
             }
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -19354,7 +19436,6 @@ impl HistoricalClient {
     pub async fn index_history_price(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<IndexHistoryPriceOptions>,
     ) -> napi::Result<Vec<PriceTick>> {
         let options = options.unwrap_or_default();
@@ -19363,14 +19444,17 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -19400,7 +19484,6 @@ impl HistoricalClient {
     pub async fn index_history_price_stream(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<IndexHistoryPriceOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<PriceTick>, (), Vec<PriceTick>, napi::Status, false>,
     ) -> napi::Result<()> {
@@ -19410,7 +19493,7 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -19419,7 +19502,10 @@ impl HistoricalClient {
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
-            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -19473,7 +19559,6 @@ impl HistoricalClient {
     pub async fn index_history_price_with_columns(
         &self,
         symbol: String,
-        date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<IndexHistoryPriceOptions>,
     ) -> napi::Result<PriceTickWithColumns> {
         let options = options.unwrap_or_default();
@@ -19482,14 +19567,17 @@ impl HistoricalClient {
             None => None,
         };
         let client = self.client_handle()?;
-        let date = normalize_date(date);
+        let date = normalize_optional_date(options.date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            let mut request = client.historical().index_history_price(&symbol);
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
             }
@@ -19933,176 +20021,6 @@ impl HistoricalClient {
         .await?;
         Ok(InterestRateTickWithColumns {
             rows: interest_rate_ticks_to_class_vec(&ticks),
-            present_columns: ticks.columns().present_names().map(String::from).collect(),
-            symbol: ticks.columns().symbol().map(String::from),
-            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
-        })
-    }
-
-    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-    ///
-    /// Defaults (upstream):
-    /// - `interval`: `"1s"`
-    /// - `start_time`: `"09:30:00"`
-    /// - `end_time`: `"16:00:00"`
-    /// - `venue`: `"nqb"`
-    #[napi(js_name = "stockHistoryOHLCRange")]
-    pub async fn stock_history_ohlc_range(
-        &self,
-        symbol: String,
-        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        options: Option<StockHistoryOHLCRangeOptions>,
-    ) -> napi::Result<Vec<OhlcTick>> {
-        let options = options.unwrap_or_default();
-        let timeout_ms = match options.timeout_ms {
-            Some(ms) => Some(validate_timeout_ms(ms)?),
-            None => None,
-        };
-        let client = self.client_handle()?;
-        let start_date = normalize_date(start_date);
-        let end_date = normalize_date(end_date);
-        let interval = options.interval;
-        let start_time = normalize_optional_time(options.start_time);
-        let end_time = normalize_optional_time(options.end_time);
-        let venue = options.venue;
-        let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(value) = interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })
-        .await?;
-        Ok(ohlc_ticks_to_class_vec(&ticks))
-    }
-
-    /// Stream `stock_history_ohlc_range` rows into `callback` without materialising the full response in memory. `callback(chunk: OhlcTick[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `stockHistoryOHLCRange` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
-    #[napi(js_name = "stockHistoryOHLCRangeStream")]
-    pub async fn stock_history_ohlc_range_stream(
-        &self,
-        symbol: String,
-        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        options: Option<StockHistoryOHLCRangeOptions>,
-        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OhlcTick>, (), Vec<OhlcTick>, napi::Status, false>,
-    ) -> napi::Result<()> {
-        let options = options.unwrap_or_default();
-        let timeout_ms = match options.timeout_ms {
-            Some(ms) => Some(validate_timeout_ms(ms)?),
-            None => None,
-        };
-        let client = self.client_handle()?;
-        let start_date = normalize_date(start_date);
-        let end_date = normalize_date(end_date);
-        let interval = options.interval;
-        let start_time = normalize_optional_time(options.start_time);
-        let end_time = normalize_optional_time(options.end_time);
-        let venue = options.venue;
-        let callback = std::sync::Arc::new(callback);
-        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
-        spawn_napi_task(async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(value) = interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
-            let stream_result = request
-                .stream_ticks_async(move |chunk| {
-                    let callback = std::sync::Arc::clone(&callback);
-                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
-                    async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
-                            }
-                        }
-                    }
-                })
-                .await;
-            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
-                Err(err)
-            } else {
-                stream_result.map_err(to_napi_err)
-            }
-        })
-        .await
-    }
-
-    /// Run the `stockHistoryOHLCRange` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLCRange` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
-    #[napi(js_name = "stockHistoryOHLCRangeWithColumns")]
-    pub async fn stock_history_ohlc_range_with_columns(
-        &self,
-        symbol: String,
-        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
-        options: Option<StockHistoryOHLCRangeOptions>,
-    ) -> napi::Result<OhlcTickWithColumns> {
-        let options = options.unwrap_or_default();
-        let timeout_ms = match options.timeout_ms {
-            Some(ms) => Some(validate_timeout_ms(ms)?),
-            None => None,
-        };
-        let client = self.client_handle()?;
-        let start_date = normalize_date(start_date);
-        let end_date = normalize_date(end_date);
-        let interval = options.interval;
-        let start_time = normalize_optional_time(options.start_time);
-        let end_time = normalize_optional_time(options.end_time);
-        let venue = options.venue;
-        let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
-            if let Some(value) = interval {
-                request = request.interval(value.as_str());
-            }
-            if let Some(value) = start_time {
-                request = request.start_time(value.as_str());
-            }
-            if let Some(value) = end_time {
-                request = request.end_time(value.as_str());
-            }
-            if let Some(value) = venue {
-                request = request.venue(value.as_str());
-            }
-            if let Some(ms) = timeout_ms {
-                request = request.with_deadline(std::time::Duration::from_millis(ms));
-            }
-            request.await
-        })
-        .await?;
-        Ok(OhlcTickWithColumns {
-            rows: ohlc_ticks_to_class_vec(&ticks),
             present_columns: ticks.columns().present_names().map(String::from).collect(),
             symbol: ticks.columns().symbol().map(String::from),
             symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),

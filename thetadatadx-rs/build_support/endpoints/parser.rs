@@ -58,14 +58,8 @@ pub(super) fn load_endpoint_specs() -> Result<ParsedEndpoints, Box<dyn std::erro
 
     // Detect proto RPCs not covered by endpoint_surface.toml. A new RPC added
     // to the proto should fail the build rather than being silently ignored.
-    // Synthetic wire entries (cloned variants like stock_history_ohlc_range that
-    // share an RPC with another endpoint) are excluded because they don't
-    // correspond to a unique proto RPC.
-    let synthetic = ["stock_history_ohlc_range"];
     for wire_name in wire_by_name.keys() {
-        if !consumed_wire_names.contains(wire_name.as_str())
-            && !synthetic.contains(&wire_name.as_str())
-        {
+        if !consumed_wire_names.contains(wire_name.as_str()) {
             return Err(format!(
                 "wire endpoint '{}' from mdds.proto has no entry in endpoint_surface.toml",
                 wire_name

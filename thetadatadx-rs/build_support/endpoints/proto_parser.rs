@@ -114,18 +114,6 @@ pub(super) fn load_proto_endpoints() -> Result<WireEndpoints, Box<dyn std::error
         });
     }
 
-    // ── Synthetic extra: stock_history_ohlc_range ──────────────────────────
-    // Second SDK-level method on top of the same GetStockHistoryOhlc RPC.
-    // The proto supports both shapes via the optional `date` vs
-    // `start_date`/`end_date` fields; the SDK exposes them as two distinct
-    // methods for nicer ergonomics.  Clone the wire model from the base RPC
-    // and rename; the TOML surface spec carries the parameter differences.
-    if let Some(ohlc) = endpoints.iter().find(|e| e.name == "stock_history_ohlc") {
-        let mut range = ohlc.clone();
-        range.name = "stock_history_ohlc_range".into();
-        endpoints.push(range);
-    }
-
     Ok(WireEndpoints { endpoints })
 }
 

@@ -377,48 +377,6 @@ fn terminal_param_default(param_name: &str) -> Option<&'static str> {
     }
 }
 
-/// Resolve the endpoint a request should actually dispatch to.
-///
-/// The legacy terminal serves both the single-date and the date-range
-/// shape on the single-date URL, dispatching on which params are
-/// populated. The registry models the range shape as a dedicated
-/// `<stem>_range` sibling endpoint, so a query that carries
-/// `start_date` + `end_date` without `date` on a path whose endpoint
-/// requires `date` re-dispatches to the sibling instead of failing
-/// with `missing required parameter: 'date'`. Every current and future
-/// single-date endpoint with a `_range` sibling inherits the bridge
-/// automatically; endpoints without a sibling keep their existing
-/// missing-param diagnostics.
-fn resolve_range_sibling<'a>(
-    ep: &'a EndpointMeta,
-    params: &HashMap<String, String>,
-) -> &'a EndpointMeta {
-    let wants_range = params.contains_key("start_date")
-        && params.contains_key("end_date")
-        && !params.contains_key("date");
-    if !wants_range {
-        return ep;
-    }
-    let requires_date = ep
-        .params
-        .iter()
-        .any(|param| param.name == "date" && param.required);
-    if !requires_date {
-        return ep;
-    }
-    match thetadatadx::find(&format!("{}_range", ep.name)) {
-        Some(sibling) => {
-            tracing::debug!(
-                from = ep.name,
-                to = sibling.name,
-                "date-range query on single-date path; dispatching to range sibling"
-            );
-            sibling
-        }
-        None => ep,
-    }
-}
-
 /// `Retry-After` seconds advertised when the upstream reports
 /// `ResourceExhausted` after the SDK's retry budget is spent. Upstream
 /// tier slots free on a millisecond-to-second cadence, so one second is
@@ -607,14 +565,12 @@ fn ndjson_response(json_val: &mut sonic_rs::Value) -> Response {
 /// 1. The [`BoundedQuery`] extractor enforces [`MAX_QUERY_PARAMS`] DURING
 ///    URL parse so `?a=1&b=2&...` flood attacks can't force a multi-MB
 ///    HashMap allocation before the cap trips.
-/// 2. Re-dispatches `start_date`+`end_date` queries on a single-date path
-///    to the `_range` registry sibling (see [`resolve_range_sibling`]).
-/// 3. Validates query params against `EndpointMeta.params` (length caps
+/// 2. Validates query params against `EndpointMeta.params` (length caps
 ///    included — `format` falls under the generic 64-byte cap here).
-/// 4. Negotiates the response format (`csv` default, `json`,
+/// 3. Negotiates the response format (`csv` default, `json`,
 ///    `ndjson`/`jsonl`, `html`); unknown `format` values are a 400.
-/// 5. Invokes the shared endpoint runtime.
-/// 6. Renders the negotiated format.
+/// 4. Invokes the shared endpoint runtime.
+/// 5. Renders the negotiated format.
 pub async fn generic(
     State(state): State<AppState>,
     BoundedQuery(params): BoundedQuery<MAX_QUERY_PARAMS>,
@@ -658,8 +614,6 @@ pub async fn generic_with_overrides(
     if let Some(response) = deprecated_v2_param_response(&params) {
         return response;
     }
-
-    let ep = resolve_range_sibling(ep, &params);
 
     let args = match build_endpoint_args(ep, &params) {
         Ok(args) => args,
@@ -1092,11 +1046,20 @@ mod tests {
         );
     }
 
-    /// `start_date`+`end_date` (without `date`) on a single-date path
-    /// dispatches to the registry's `_range` sibling, matching the
-    /// legacy terminal which accepts both shapes on one URL.
+    /// Intraday history endpoints carry an optional `date` plus optional
+    /// `start_date`/`end_date`, exactly as the terminal serves them: a
+    /// single URL accepts either a single-day query or a range query.
     #[test]
-    fn range_query_on_single_date_path_routes_to_range_sibling() {
+    fn intraday_history_accepts_single_date_query() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[("symbol", "AMZN"), ("date", "20260603"), ("interval", "1m")]);
+        build_endpoint_args(ep, &params).expect("single-date query must be accepted");
+    }
+
+    #[test]
+    fn intraday_history_accepts_range_query_on_base_route() {
+        // No `date`, only `start_date`+`end_date` — the terminal serves
+        // this on the base route; there is no separate `_range` route.
         let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
         let params = string_params(&[
             ("symbol", "AMZN"),
@@ -1104,73 +1067,42 @@ mod tests {
             ("end_date", "20260605"),
             ("interval", "1m"),
         ]);
-        let resolved = resolve_range_sibling(ep, &params);
-        assert_eq!(resolved.name, "stock_history_ohlc_range");
-
-        // ...and the resolved endpoint accepts the params end-to-end.
-        build_endpoint_args(resolved, &params)
-            .expect("range sibling must accept the range-shaped query");
+        build_endpoint_args(ep, &params).expect("range query must be accepted on the base route");
     }
 
+    /// The same holds for every intraday history endpoint, not just OHLC —
+    /// `trade` carries the same optional-date/optional-range shape.
     #[test]
-    fn single_date_query_stays_on_single_date_endpoint() {
-        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
-        let params = string_params(&[("symbol", "AMZN"), ("date", "20260603")]);
-        let resolved = resolve_range_sibling(ep, &params);
-        assert_eq!(resolved.name, "stock_history_ohlc");
-    }
-
-    /// An explicit `date` wins even when the range pair is also present:
-    /// the single-date endpoint already accepts optional `start_date` /
-    /// `end_date` pass-through, so no re-dispatch happens.
-    #[test]
-    fn explicit_date_disables_range_routing() {
-        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
-        let params = string_params(&[
-            ("symbol", "AMZN"),
-            ("date", "20260603"),
-            ("start_date", "20260603"),
-            ("end_date", "20260605"),
-        ]);
-        assert_eq!(
-            resolve_range_sibling(ep, &params).name,
-            "stock_history_ohlc"
-        );
-    }
-
-    /// Endpoints without a `_range` sibling keep their existing
-    /// missing-param diagnostics — no silent re-dispatch to nowhere.
-    #[test]
-    fn endpoints_without_range_sibling_keep_missing_date_diagnostic() {
+    fn intraday_trade_history_accepts_range_query() {
         let ep = thetadatadx::find("stock_history_trade").expect("endpoint exists");
         let params = string_params(&[
             ("symbol", "AMZN"),
             ("start_date", "20260603"),
             ("end_date", "20260605"),
         ]);
-        let resolved = resolve_range_sibling(ep, &params);
-        assert_eq!(resolved.name, "stock_history_trade");
-        let err = build_endpoint_args(resolved, &params)
-            .expect_err("missing required date must still surface");
-        match err {
-            EndpointError::InvalidParams(msg) => {
-                assert!(msg.contains("'date'"), "diagnostic names the param: {msg}");
-            }
-            other => panic!("expected InvalidParams, got {other:?}"),
-        }
+        build_endpoint_args(ep, &params).expect("range query must be accepted");
     }
 
-    /// Endpoints whose range shape is native (required `start_date` /
-    /// `end_date`, no `date` param) never re-dispatch.
+    /// The fabricated `_range` route no longer exists in the registry.
     #[test]
-    fn native_range_endpoints_are_untouched() {
+    fn no_fabricated_ohlc_range_endpoint() {
+        assert!(
+            thetadatadx::find("stock_history_ohlc_range").is_none(),
+            "the terminal has no ohlc_range route; it must not exist in the registry"
+        );
+    }
+
+    /// EOD endpoints require an explicit range (`start_date`/`end_date`),
+    /// matching the terminal — there is no single-`date` shortcut there.
+    #[test]
+    fn eod_history_requires_range() {
         let ep = thetadatadx::find("stock_history_eod").expect("endpoint exists");
         let params = string_params(&[
             ("symbol", "AAPL"),
             ("start_date", "20260101"),
             ("end_date", "20260301"),
         ]);
-        assert_eq!(resolve_range_sibling(ep, &params).name, "stock_history_eod");
+        build_endpoint_args(ep, &params).expect("range query must be accepted");
     }
 
     // -----------------------------------------------------------------------

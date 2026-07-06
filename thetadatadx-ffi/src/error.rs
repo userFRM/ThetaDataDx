@@ -72,9 +72,29 @@ pub const THETADATADX_ERR_CONFIG: i32 = 12;
 /// unrelated configuration failure.
 pub const THETADATADX_ERR_INVALID_PARAMETER: i32 = 13;
 
+/// Build a `CString` that never fails on an interior NUL. A message with an
+/// embedded NUL would make `CString::new(..).ok()` yield `None`, leaving the
+/// error slot empty while the code is set non-zero — the C++/TS bindings would
+/// then read a null message as success and swallow the failure. Replace any
+/// interior NUL with `?` (matching `cstring_for_ffi`) so the slot is always
+/// populated whenever a code is set.
+fn error_cstring(msg: &str) -> CString {
+    match CString::new(msg) {
+        Ok(s) => s,
+        Err(_) => {
+            let bytes: Vec<u8> = msg
+                .as_bytes()
+                .iter()
+                .map(|&b| if b == 0 { b'?' } else { b })
+                .collect();
+            CString::new(bytes).expect("interior NULs were replaced")
+        }
+    }
+}
+
 pub(crate) fn set_error(msg: &str) {
     LAST_ERROR.with(|e| {
-        *e.borrow_mut() = CString::new(msg).ok();
+        *e.borrow_mut() = Some(error_cstring(msg));
     });
     LAST_ERROR_CODE.with(|c| c.set(THETADATADX_ERR_OTHER));
     clear_retry_after();
@@ -86,7 +106,7 @@ pub(crate) fn set_error(msg: &str) {
 /// rather than the default [`THETADATADX_ERR_OTHER`]).
 pub(crate) fn set_error_with_code(msg: &str, code: i32) {
     LAST_ERROR.with(|e| {
-        *e.borrow_mut() = CString::new(msg).ok();
+        *e.borrow_mut() = Some(error_cstring(msg));
     });
     LAST_ERROR_CODE.with(|c| c.set(code));
     clear_retry_after();
@@ -99,7 +119,7 @@ pub(crate) fn set_error_with_code(msg: &str, code: i32) {
 /// the error carries one, is stashed for [`thetadatadx_last_error_retry_after_ms`].
 pub(crate) fn set_error_from(err: &thetadatadx::Error) {
     LAST_ERROR.with(|e| {
-        *e.borrow_mut() = CString::new(err.to_string()).ok();
+        *e.borrow_mut() = Some(error_cstring(&err.to_string()));
     });
     LAST_ERROR_CODE.with(|c| c.set(error_code_for(err)));
     let retry_after_ms = err
@@ -568,6 +588,26 @@ mod tests {
         thetadatadx_clear_error();
         set_error("plain error");
         assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_OTHER);
+        thetadatadx_clear_error();
+    }
+
+    #[test]
+    fn set_error_with_interior_nul_still_populates_message_slot() {
+        // A message carrying an interior NUL must not leave the error slot
+        // null while the code is set non-zero — otherwise a C++/TS consumer
+        // reads a null message as success and swallows the failure. The NUL is
+        // replaced so the slot is always populated whenever a code is set.
+        thetadatadx_clear_error();
+        set_error_with_code("bad\0value", THETADATADX_ERR_INVALID_PARAMETER);
+        assert_eq!(
+            thetadatadx_last_error_code(),
+            THETADATADX_ERR_INVALID_PARAMETER
+        );
+        let ptr = thetadatadx_last_error();
+        assert!(!ptr.is_null(), "error message slot must be populated");
+        // SAFETY: `ptr` is the thread-local CString we just set, valid until cleared.
+        let msg = unsafe { std::ffi::CStr::from_ptr(ptr) }.to_string_lossy();
+        assert_eq!(msg, "bad?value");
         thetadatadx_clear_error();
     }
 

@@ -64,9 +64,11 @@ fn parse_flatfile_req_type(req: &str) -> PyResult<ReqType> {
 fn parse_flatfile_format(fmt: Option<&str>) -> PyResult<FlatFileFormat> {
     match fmt.unwrap_or("csv").to_lowercase().as_str() {
         "csv" => Ok(FlatFileFormat::Csv),
-        "jsonl" | "json" => Ok(FlatFileFormat::Jsonl),
+        "json" => Ok(FlatFileFormat::Json),
+        "jsonl" | "ndjson" => Ok(FlatFileFormat::Jsonl),
+        "html" => Ok(FlatFileFormat::Html),
         other => Err(crate::errors::invalid_parameter_err(format!(
-            "unknown flat-file format: {other:?} (expected csv or jsonl)"
+            "unknown flat-file format: {other:?} (expected csv, json, jsonl, ndjson, or html)"
         ))),
     }
 }
@@ -336,9 +338,9 @@ impl crate::Client {
     /// load it into their own pipeline later.
     ///
     /// `sec_type` / `req_type` accept the same strings as
-    /// `flat_files.request(...)`. `format` is `"csv"` (default) or
-    /// `"jsonl"`. Returns the final on-disk path (with the extension
-    /// auto-appended if absent).
+    /// `flat_files.request(...)`. `format` is `"csv"` (default),
+    /// `"json"`, `"jsonl"`/`"ndjson"`, or `"html"`. Returns the final
+    /// on-disk path (with the extension auto-appended if absent).
     #[pyo3(signature = (sec_type, req_type, date, path, format=None))]
     fn flatfile_to_path(
         &self,

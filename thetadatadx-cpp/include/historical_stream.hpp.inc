@@ -42,7 +42,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_ohlc_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void stock_history_ohlc_stream(const std::string& symbol, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all trades for a stock on a given date.
     ///
@@ -54,7 +54,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_trade_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void stock_history_trade_stream(const std::string& symbol, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
     ///
@@ -66,7 +66,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_quote_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void stock_history_quote_stream(const std::string& symbol, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
     ///
@@ -78,7 +78,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_trade_quote_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void stock_history_trade_quote_stream(const std::string& symbol, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the trade at a specific time of day across a date range.
     ///
@@ -126,7 +126,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_ohlc_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_ohlc_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all trades for an option contract on a given date.
     ///
@@ -138,7 +138,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_trade_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch NBBO quotes for an option contract on a given date.
     ///
@@ -150,7 +150,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_quote_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const QuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch combined trade + quote ticks for an option contract.
     ///
@@ -162,7 +162,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_quote_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_trade_quote_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeQuoteTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch open interest history for an option contract.
     ///
@@ -174,7 +174,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_open_interest_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const OpenInterestTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_open_interest_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const OpenInterestTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch end-of-day Greeks history for an option contract.
     ///
@@ -198,7 +198,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all Greeks on each trade for an option contract.
     ///
@@ -210,7 +210,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
     ///
@@ -222,7 +222,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
@@ -234,7 +234,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
     ///
@@ -246,7 +246,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
@@ -258,7 +258,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
     ///
@@ -270,7 +270,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
@@ -282,7 +282,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch implied volatility history (intraday, sampled by interval).
     ///
@@ -294,7 +294,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const IvTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const IvTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch implied volatility on each trade for an option contract.
     ///
@@ -306,7 +306,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void option_history_trade_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, const std::string& date, std::function<void(Span<const TradeGreeksImpliedVolatilityTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void option_history_trade_greeks_implied_volatility_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksImpliedVolatilityTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the trade at a specific time of day across a date range for an option.
     ///
@@ -366,7 +366,7 @@
     /// builder parameters and `timeout_ms` as the buffered method via
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
-    void index_history_price_stream(const std::string& symbol, const std::string& date, std::function<void(Span<const PriceTick>)> handler, const EndpointRequestOptions& options = {}) const;
+    void index_history_price_stream(const std::string& symbol, std::function<void(Span<const PriceTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch the index price at a specific time of day across a date range.
     ///
@@ -391,16 +391,4 @@
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
     void interest_rate_history_eod_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const InterestRateTick>)> handler, const EndpointRequestOptions& options = {}) const;
-
-    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-    ///
-    /// Stream `stock_history_ohlc_range` rows into `handler` without materialising the full
-    /// response. `handler` is invoked once per server chunk with a
-    /// `Span<const OhlcTick>` view over a contiguous run of rows; the chunk is
-    /// freed before the next is fetched, so peak memory tracks a single
-    /// chunk rather than the whole result. Carries the same optional
-    /// builder parameters and `timeout_ms` as the buffered method via
-    /// `options`. Throws on a wire or decode error once the stream
-    /// drains; the `Span` is valid only for the duration of each call.
-    void stock_history_ohlc_range_stream(const std::string& symbol, const std::string& start_date, const std::string& end_date, std::function<void(Span<const OhlcTick>)> handler, const EndpointRequestOptions& options = {}) const;
 

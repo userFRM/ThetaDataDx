@@ -108,9 +108,11 @@ unsafe fn parse_fmt(raw: *const c_char) -> Result<FlatFileFormat, String> {
         .unwrap_or("csv");
     match s.to_lowercase().as_str() {
         "csv" => Ok(FlatFileFormat::Csv),
-        "jsonl" | "json" => Ok(FlatFileFormat::Jsonl),
+        "json" => Ok(FlatFileFormat::Json),
+        "jsonl" | "ndjson" => Ok(FlatFileFormat::Jsonl),
+        "html" => Ok(FlatFileFormat::Html),
         other => Err(format!(
-            "unknown flat-file format: {other:?} (expected csv or jsonl)"
+            "unknown flat-file format: {other:?} (expected csv, json, jsonl, ndjson, or html)"
         )),
     }
 }
@@ -286,8 +288,9 @@ pub unsafe extern "C" fn thetadatadx_flatfile_rowlist_free(
 }
 
 /// Pull a flat-file blob and write the requested vendor format
-/// (`csv` / `jsonl`) directly to `path`. Skips the typed-row decode
-/// step. Returns 0 on success, -1 on error; check `thetadatadx_last_error()`.
+/// (`csv` / `json` / `jsonl` / `ndjson` / `html`) directly to `path`.
+/// Skips the typed-row decode step. Returns 0 on success, -1 on error;
+/// check `thetadatadx_last_error()`.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_flatfile_request_to_path(
     handle: *const ThetaDataDxClient,

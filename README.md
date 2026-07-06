@@ -43,8 +43,8 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 >
 > ```bash
 > pip install --pre thetadatadx          # Python (pinned: pip install thetadatadx==13.0.0rc14)
-> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.15)
-> cargo add thetadatadx@13.0.0-rc.15     # Rust
+> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.16)
+> cargo add thetadatadx@13.0.0-rc.16     # Rust
 > ```
 
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
@@ -69,7 +69,7 @@ from thetadatadx import Client
 client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
+greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", date="20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -188,7 +188,7 @@ int main() {
         .api_key("td1_...")
         .connect();
 
-    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", "20240315");
+    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f gamma=%+.4f\n",
                     t.strike, t.right, t.delta, t.gamma);
@@ -200,7 +200,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.15"
+thetadatadx = "13.0.0-rc.16"
 ```
 
 ```rust

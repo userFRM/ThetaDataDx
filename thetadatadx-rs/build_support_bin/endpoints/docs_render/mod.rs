@@ -43,16 +43,13 @@ pub(super) struct DocFile {
 }
 
 /// Subscription tier for an endpoint, resolved from the pinned upstream
-/// OpenAPI snapshot by `operationId`. Two endpoints have no upstream
-/// counterpart and resolve through the explicit table below.
+/// OpenAPI snapshot by `operationId`. One endpoint has no upstream
+/// counterpart and resolves through the explicit table below.
 fn endpoint_tier(endpoint: &GeneratedEndpoint, upstream: &UpstreamOpenApi) -> String {
     // Endpoints absent from the upstream spec:
-    //   * `stock_history_ohlc_range` is the ranged form of the upstream
-    //     `stock_history_ohlc` endpoint — same data, same tier.
     //   * `interest_rate_history_eod` is not documented upstream; rate
     //     data is available on every tier.
     let lookup_name = match endpoint.name.as_str() {
-        "stock_history_ohlc_range" => "stock_history_ohlc",
         "interest_rate_history_eod" => return "free".to_string(),
         other => other,
     };

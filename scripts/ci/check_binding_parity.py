@@ -48,7 +48,7 @@ async-query, and server-stream surfaces per endpoint. Each carries a
 `thetadatadx-rs/endpoint_surface.toml` — the file the build pipeline
 generates every binding's historical method from. The Rust buffered
 surface is every `[[endpoints]]` entry except the four `*_stream` FPSS
-subscription endpoints (61 endpoints); the Rust streaming subset mirrors
+subscription endpoints (60 endpoints); the Rust streaming subset mirrors
 the build's `endpoint_streams` SSOT (list / snapshot / calendar endpoints
 get no server-stream terminal). `[[historical_base]]` additionally pins
 the C-ABI `thetadatadx_<endpoint>_with_options` base symbol read from the
@@ -11090,7 +11090,7 @@ def _run_selftest() -> int:
             _endpoint_method_to_snake("optionHistoryGreeksImpliedVolatility")
             == "option_history_greeks_implied_volatility"
         )
-        assert _endpoint_method_to_snake("stockHistoryOHLCRange") == "stock_history_ohlc_range"
+        assert _endpoint_method_to_snake("stockHistoryOHLC") == "stock_history_ohlc"
 
     _case("hist-stream positive — all five surfaces stream", _case_hist_stream_positive_all_bound)
     _case("hist-stream negative — missing C++ member trips", _case_hist_stream_missing_on_cpp_trips)
@@ -11280,7 +11280,7 @@ def _run_selftest() -> int:
 
     def _case_hist_base_live_sources_clean() -> None:
         """The live buffered base surface is symmetric across all five
-        surfaces: every one of the 61 endpoints present on Rust / Python /
+        surfaces: every one of the 60 endpoints present on Rust / Python /
         TypeScript / C++ / the C-ABI base, and the shipped header agrees with
         the `thetadatadx-ffi/src` source and the Rust registry."""
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
@@ -11300,12 +11300,12 @@ def _run_selftest() -> int:
         assert errors == [], f"live buffered base surface must be clean; got {errors!r}"
 
     def _case_hist_base_registry_count() -> None:
-        """The registry of record yields exactly the 61 buffered endpoints
+        """The registry of record yields exactly the 60 buffered endpoints
         (the four `*_stream` FPSS subscription endpoints excluded), and the
-        shipped C-ABI header declares the same 61 base symbols."""
+        shipped C-ABI header declares the same 60 base symbols."""
         rust = _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML)
         cabi = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
-        assert len(rust) == 61, f"registry must yield 61 buffered endpoints; got {len(rust)}"
+        assert len(rust) == 60, f"registry must yield 60 buffered endpoints; got {len(rust)}"
         assert rust == cabi, (
             f"registry buffered set must equal the C-ABI base set; "
             f"rust-only={sorted(rust - cabi)!r}, cabi-only={sorted(cabi - rust)!r}"
@@ -11317,7 +11317,7 @@ def _run_selftest() -> int:
     _case("hist-base negative — header/source divergence trips", _case_hist_base_header_source_divergence_trips)
     _case("hist-base negative — untracked endpoint trips", _case_hist_base_untracked_orphan_trips)
     _case("hist-base — live sources clean", _case_hist_base_live_sources_clean)
-    _case("hist-base — registry yields 61 endpoints matching C-ABI base", _case_hist_base_registry_count)
+    _case("hist-base — registry yields 60 endpoints matching C-ABI base", _case_hist_base_registry_count)
 
     # ── Client construction-from-file surface selftests ───────────
 

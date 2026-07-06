@@ -16,7 +16,7 @@ ThetaDataDx connects directly to ThetaData's servers — nothing to install and 
 ```toml
 # Cargo.toml
 [dependencies]
-thetadatadx = "13.0.0-rc.15"
+thetadatadx = "13.0.0-rc.16"
 ```
 
 The historical client is async; call it from your application's async runtime.

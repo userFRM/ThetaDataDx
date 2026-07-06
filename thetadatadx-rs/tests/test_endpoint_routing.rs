@@ -162,7 +162,8 @@ async fn option_history_trade_greeks_all_routes_to_trade_greeks_all_parser() {
     let (_mock, client) = client_for_response(response).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksAllTick> = client
-        .option_history_trade_greeks_all("SPY", "20240621", "20240614")
+        .option_history_trade_greeks_all("SPY", "20240621")
+        .date("20240614")
         .await
         .expect("option_history_trade_greeks_all via mock");
 
@@ -184,7 +185,8 @@ async fn option_history_trade_greeks_first_order_routes_to_first_order_parser() 
     let (_mock, client) = client_for_response(response).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksFirstOrderTick> = client
-        .option_history_trade_greeks_first_order("SPY", "20240621", "20240614")
+        .option_history_trade_greeks_first_order("SPY", "20240621")
+        .date("20240614")
         .await
         .expect("option_history_trade_greeks_first_order via mock");
 
@@ -206,7 +208,8 @@ async fn option_history_trade_greeks_second_order_routes_to_second_order_parser(
     let (_mock, client) = client_for_response(response).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksSecondOrderTick> = client
-        .option_history_trade_greeks_second_order("SPY", "20240621", "20240614")
+        .option_history_trade_greeks_second_order("SPY", "20240621")
+        .date("20240614")
         .await
         .expect("option_history_trade_greeks_second_order via mock");
 
@@ -228,7 +231,8 @@ async fn option_history_trade_greeks_third_order_routes_to_third_order_parser() 
     let (_mock, client) = client_for_response(response).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksThirdOrderTick> = client
-        .option_history_trade_greeks_third_order("SPY", "20240621", "20240614")
+        .option_history_trade_greeks_third_order("SPY", "20240621")
+        .date("20240614")
         .await
         .expect("option_history_trade_greeks_third_order via mock");
 
@@ -250,7 +254,8 @@ async fn option_history_trade_greeks_implied_volatility_routes_to_iv_parser() {
     let (_mock, client) = client_for_response(response).await;
 
     let ticks: thetadatadx::Ticks<TradeGreeksImpliedVolatilityTick> = client
-        .option_history_trade_greeks_implied_volatility("SPY", "20240621", "20240614")
+        .option_history_trade_greeks_implied_volatility("SPY", "20240621")
+        .date("20240614")
         .await
         .expect("option_history_trade_greeks_implied_volatility via mock");
 
@@ -285,7 +290,8 @@ async fn stock_trade_quote_await_projects_columns_end_to_end() {
     let (_mock, client) = client_for_response(response).await;
 
     let ticks: thetadatadx::Ticks<thetadatadx::TradeQuoteTick> = client
-        .stock_history_trade_quote("AAPL", "20240102")
+        .stock_history_trade_quote("AAPL")
+        .date("20240102")
         .await
         .expect("stock_history_trade_quote via mock");
     assert!(!ticks.is_empty(), "mock served a non-empty fixture");
@@ -445,7 +451,8 @@ async fn stream_endpoint_unset_deadline_applies_configured_default() {
     .await;
 
     let result = client
-        .stock_history_trade_stream("AAPL", "20240102")
+        .stock_history_trade_stream("AAPL")
+        .date("20240102")
         .stream(|_ticks| {})
         .await;
     match result {

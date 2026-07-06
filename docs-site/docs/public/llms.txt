@@ -74,7 +74,6 @@
 /reference/stock/at-time/trade — Trade: Fetch the trade at a specific time of day across a date range.
 /reference/stock/history/eod — EOD: Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
 /reference/stock/history/ohlc — OHLC: Fetch intraday OHLC bars for a stock on a single date.
-/reference/stock/history/ohlc-range — OHLC Range: Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
 /reference/stock/history/quote — Quote: Fetch NBBO quotes for a stock on a given date at a given interval.
 /reference/stock/history/trade — Trade: Fetch all trades for a stock on a given date.
 /reference/stock/history/trade-quote — Trade Quote: Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.

@@ -56,9 +56,11 @@ fn parse_flatfile_req_type(req: &str) -> napi::Result<ReqType> {
 fn parse_flatfile_format(fmt: Option<&str>) -> napi::Result<FlatFileFormat> {
     match fmt.unwrap_or("csv").to_lowercase().as_str() {
         "csv" => Ok(FlatFileFormat::Csv),
-        "jsonl" | "json" => Ok(FlatFileFormat::Jsonl),
+        "json" => Ok(FlatFileFormat::Json),
+        "jsonl" | "ndjson" => Ok(FlatFileFormat::Jsonl),
+        "html" => Ok(FlatFileFormat::Html),
         other => Err(crate::invalid_parameter_err(format!(
-            "unknown flat-file format: {other:?} (expected csv or jsonl)"
+            "unknown flat-file format: {other:?} (expected csv, json, jsonl, ndjson, or html)"
         ))),
     }
 }

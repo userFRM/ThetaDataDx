@@ -20,6 +20,8 @@ struct EndpointRequestOptions {
     std::optional<std::string> venue;
     /// Minimum time filter
     std::optional<std::string> min_time;
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    std::optional<std::string> date;
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     std::optional<std::string> interval;
     /// Start time filter
@@ -65,6 +67,10 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_min_time(std::string value) {
         min_time = std::move(value);
+        return *this;
+    }
+    EndpointRequestOptions& with_date(std::string value) {
+        date = std::move(value);
         return *this;
     }
     EndpointRequestOptions& with_interval(std::string value) {
@@ -159,6 +165,7 @@ struct FfiEndpointRequestOptions {
     ThetaDataDxEndpointRequestOptions raw{};
     std::string venue_storage;
     std::string min_time_storage;
+    std::string date_storage;
     std::string interval_storage;
     std::string start_time_storage;
     std::string end_time_storage;
@@ -178,6 +185,10 @@ struct FfiEndpointRequestOptions {
         if (options.min_time) {
             min_time_storage = *options.min_time;
             raw.min_time = min_time_storage.c_str();
+        }
+        if (options.date) {
+            date_storage = *options.date;
+            raw.date = date_storage.c_str();
         }
         if (options.interval) {
             interval_storage = *options.interval;

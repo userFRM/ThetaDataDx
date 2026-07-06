@@ -179,6 +179,15 @@ param_type = "Date"
 required = true
 binding = "method"
 
+[param_groups.optional_date]
+
+[[param_groups.optional_date.params]]
+name = "date"
+description = "Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range."
+param_type = "Date"
+required = false
+binding = "builder"
+
 [param_groups.interval]
 
 [[param_groups.interval.params]]
@@ -484,7 +493,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_intraday_interval.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.stock_history_intraday_interval.params]]
 use = "interval"
@@ -506,7 +515,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_intraday_ticks.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.stock_history_intraday_ticks.params]]
 use = "history_time_filters"
@@ -525,7 +534,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_trade_quote.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.stock_history_trade_quote.params]]
 use = "history_time_filters"
@@ -553,25 +562,6 @@ use = "date_range_required"
 use = "time_of_day"
 
 [[templates.stock_at_time.params]]
-use = "stock_venue_filter"
-
-[templates.stock_history_ohlc_range]
-extends = "stock_parsed"
-subcategory = "history"
-
-[[templates.stock_history_ohlc_range.params]]
-use = "stock_symbol"
-
-[[templates.stock_history_ohlc_range.params]]
-use = "date_range_required"
-
-[[templates.stock_history_ohlc_range.params]]
-use = "interval"
-
-[[templates.stock_history_ohlc_range.params]]
-use = "history_time_filters"
-
-[[templates.stock_history_ohlc_range.params]]
 use = "stock_venue_filter"
 
 [templates.option_base]
@@ -665,7 +655,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_ohlc.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_ohlc.params]]
 use = "interval"
@@ -687,7 +677,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_trade.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_trade.params]]
 use = "history_time_filters"
@@ -709,7 +699,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_quote.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_quote.params]]
 use = "interval"
@@ -734,7 +724,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_trade_quote.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_trade_quote.params]]
 use = "history_time_filters"
@@ -759,7 +749,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_open_interest.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_open_interest.params]]
 use = "max_dte_filter"
@@ -800,7 +790,7 @@ subcategory = "history_greeks"
 use = "contract_identity"
 
 [[templates.option_history_greeks.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_greeks.params]]
 use = "interval"
@@ -825,7 +815,7 @@ subcategory = "history_trade_greeks"
 use = "contract_identity"
 
 [[templates.option_history_trade_greeks.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_trade_greeks.params]]
 use = "history_time_filters"
@@ -917,7 +907,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.index_history_price.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.index_history_price.params]]
 use = "interval"
@@ -982,7 +972,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_trade_stream.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.stock_history_trade_stream.params]]
 use = "history_time_filters"
@@ -1002,7 +992,7 @@ subcategory = "history"
 use = "stock_symbol"
 
 [[templates.stock_history_quote_stream.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.stock_history_quote_stream.params]]
 use = "interval"
@@ -1025,7 +1015,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_trade_stream.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_trade_stream.params]]
 use = "history_time_filters"
@@ -1048,7 +1038,7 @@ subcategory = "history"
 use = "contract_identity"
 
 [[templates.option_history_quote_stream.params]]
-use = "required_date"
+use = "optional_date"
 
 [[templates.option_history_quote_stream.params]]
 use = "interval"
@@ -1834,20 +1824,6 @@ vendor_docstring = """
 rest_path = "/v3/rate/history/eod"
 returns = "InterestRateTicks"
 
-# The `_range` suffix mirrors a distinct upstream vendor route
-# (`/v3/stock/history/ohlc_range`), separate from the single-date
-# `/v3/stock/history/ohlc` route that `stock_history_ohlc` maps to. It is
-# the one endpoint family the vendor exposes as a dedicated range route
-# rather than as start/end parameters on the base route, so the suffix is a
-# faithful 1:1 mirror of the upstream surface, not a naming inconsistency.
-[[endpoints]]
-name = "stock_history_ohlc_range"
-template = "stock_history_ohlc_range"
-wire_name = "stock_history_ohlc"
-description = "Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route."
-rest_path = "/v3/stock/history/ohlc_range"
-returns = "OhlcTicks"
-
 [[endpoints]]
 name = "stock_history_trade_stream"
 template = "stock_history_trade_stream"
@@ -1933,6 +1909,7 @@ min_time = "09:45:00"
 venue = "nqb"
 start_time = "09:30:00"
 end_time = "10:00:00"
+date = "20250303"
 start_date = "20250303"
 end_date = "20250303"
 exclusive = "true"

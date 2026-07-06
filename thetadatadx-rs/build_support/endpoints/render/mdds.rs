@@ -514,9 +514,6 @@ pub(super) fn mdds_query_field_expr(
         }
         return "contract_spec!(symbol, expiration, strike, right)".into();
     }
-    if field.name == "date" && endpoint.name == "stock_history_ohlc_range" {
-        return "None".into();
-    }
 
     let param = endpoint
         .params

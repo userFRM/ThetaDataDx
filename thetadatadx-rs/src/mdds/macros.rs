@@ -737,11 +737,12 @@ macro_rules! list_endpoint_impl_body {
 /// // `client` value — there is no in-scope construction path for a
 /// // doc-test to spin up an authenticated `HistoricalClient` without
 /// // credentials.
-/// // Simple -- just .await the builder directly
-/// let ticks = client.stock_history_ohlc("AAPL", "20260401").await?;
+/// // Simple -- set the date and .await the builder directly
+/// let ticks = client.stock_history_ohlc("AAPL").date("20260401").await?;
 ///
 /// // With options -- chain setters before .await
-/// let ticks = client.stock_history_ohlc("AAPL", "20260401")
+/// let ticks = client.stock_history_ohlc("AAPL")
+///     .date("20260401")
 ///     .interval("1m")
 ///     .venue("arca")
 ///     .start_time("04:00:00")

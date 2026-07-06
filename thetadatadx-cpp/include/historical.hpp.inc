@@ -151,58 +151,58 @@
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
-    std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> stock_history_ohlc_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
-            return self.stock_history_ohlc(symbol, date, options);
+    std::future<std::vector<OhlcTick>> stock_history_ohlc_async(std::string symbol, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
+            return self.stock_history_ohlc(symbol, options);
         });
     }
 
     /// Fetch all trades for a stock on a given date.
-    std::vector<TradeTick> stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeTick> stock_history_trade(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> stock_history_trade_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
-            return self.stock_history_trade(symbol, date, options);
+    std::future<std::vector<TradeTick>> stock_history_trade_async(std::string symbol, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
+            return self.stock_history_trade(symbol, options);
         });
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
-    std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> stock_history_quote_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
-            return self.stock_history_quote(symbol, date, options);
+    std::future<std::vector<QuoteTick>> stock_history_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
+            return self.stock_history_quote(symbol, options);
         });
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
-    std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeQuoteTick>> stock_history_trade_quote_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
-            return self.stock_history_trade_quote(symbol, date, options);
+    std::future<std::vector<TradeQuoteTick>> stock_history_trade_quote_async(std::string symbol, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
+            return self.stock_history_trade_quote(symbol, options);
         });
     }
 
@@ -459,72 +459,72 @@
     }
 
     /// Fetch intraday OHLC bars for an option contract.
-    std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> option_history_ohlc_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_ohlc(symbol, expiration, date, options);
+    std::future<std::vector<OhlcTick>> option_history_ohlc_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_ohlc(symbol, expiration, options);
         });
     }
 
     /// Fetch all trades for an option contract on a given date.
-    std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeTick>> option_history_trade_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_trade(symbol, expiration, date, options);
+    std::future<std::vector<TradeTick>> option_history_trade_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_trade(symbol, expiration, options);
         });
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
-    std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<QuoteTick>> option_history_quote_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_quote(symbol, expiration, date, options);
+    std::future<std::vector<QuoteTick>> option_history_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_quote(symbol, expiration, options);
         });
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
-    std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeQuoteTick>> option_history_trade_quote_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_trade_quote(symbol, expiration, date, options);
+    std::future<std::vector<TradeQuoteTick>> option_history_trade_quote_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_trade_quote(symbol, expiration, options);
         });
     }
 
     /// Fetch open interest history for an option contract.
-    std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OpenInterestTick>> option_history_open_interest_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_open_interest(symbol, expiration, date, options);
+    std::future<std::vector<OpenInterestTick>> option_history_open_interest_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_open_interest(symbol, expiration, options);
         });
     }
 
@@ -543,142 +543,142 @@
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
-    std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksAllTick>> option_history_greeks_all_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_greeks_all(symbol, expiration, date, options);
+    std::future<std::vector<GreeksAllTick>> option_history_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_greeks_all(symbol, expiration, options);
         });
     }
 
     /// Fetch all Greeks on each trade for an option contract.
-    std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksAllTick>> option_history_trade_greeks_all_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_trade_greeks_all(symbol, expiration, date, options);
+    std::future<std::vector<TradeGreeksAllTick>> option_history_trade_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_trade_greeks_all(symbol, expiration, options);
         });
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
-    std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksFirstOrderTick>> option_history_greeks_first_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_greeks_first_order(symbol, expiration, date, options);
+    std::future<std::vector<GreeksFirstOrderTick>> option_history_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_greeks_first_order(symbol, expiration, options);
         });
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
-    std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksFirstOrderTick>> option_history_trade_greeks_first_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_trade_greeks_first_order(symbol, expiration, date, options);
+    std::future<std::vector<TradeGreeksFirstOrderTick>> option_history_trade_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_trade_greeks_first_order(symbol, expiration, options);
         });
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
-    std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksSecondOrderTick>> option_history_greeks_second_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_greeks_second_order(symbol, expiration, date, options);
+    std::future<std::vector<GreeksSecondOrderTick>> option_history_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_greeks_second_order(symbol, expiration, options);
         });
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
-    std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksSecondOrderTick>> option_history_trade_greeks_second_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_trade_greeks_second_order(symbol, expiration, date, options);
+    std::future<std::vector<TradeGreeksSecondOrderTick>> option_history_trade_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_trade_greeks_second_order(symbol, expiration, options);
         });
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
-    std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<GreeksThirdOrderTick>> option_history_greeks_third_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_greeks_third_order(symbol, expiration, date, options);
+    std::future<std::vector<GreeksThirdOrderTick>> option_history_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_greeks_third_order(symbol, expiration, options);
         });
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
-    std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksThirdOrderTick>> option_history_trade_greeks_third_order_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_trade_greeks_third_order(symbol, expiration, date, options);
+    std::future<std::vector<TradeGreeksThirdOrderTick>> option_history_trade_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_trade_greeks_third_order(symbol, expiration, options);
         });
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
-    std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<IvTick>> option_history_greeks_implied_volatility_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_greeks_implied_volatility(symbol, expiration, date, options);
+    std::future<std::vector<IvTick>> option_history_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_greeks_implied_volatility(symbol, expiration, options);
         });
     }
 
     /// Fetch implied volatility on each trade for an option contract.
-    std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<TradeGreeksImpliedVolatilityTick>> option_history_trade_greeks_implied_volatility_async(std::string symbol, std::string expiration, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), date = std::move(date), options = std::move(options)]() {
-            return self.option_history_trade_greeks_implied_volatility(symbol, expiration, date, options);
+    std::future<std::vector<TradeGreeksImpliedVolatilityTick>> option_history_trade_greeks_implied_volatility_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_trade_greeks_implied_volatility(symbol, expiration, options);
         });
     }
 
@@ -848,16 +848,16 @@
     }
 
     /// Fetch intraday price history for an index.
-    std::vector<PriceTick> index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+    std::vector<PriceTick> index_history_price(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
     /// it was launched from — including a temporary `client.historical()` view.
     /// The handle is freed only once the last owner (this object or the
     /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<PriceTick>> index_history_price_async(std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
-            return self.index_history_price(symbol, date, options);
+    std::future<std::vector<PriceTick>> index_history_price_async(std::string symbol, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), options = std::move(options)]() {
+            return self.index_history_price(symbol, options);
         });
     }
 
@@ -928,20 +928,6 @@
     std::future<std::vector<InterestRateTick>> interest_rate_history_eod_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
             return self.interest_rate_history_eod(symbol, start_date, end_date, options);
-        });
-    }
-
-    /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-    std::vector<OhlcTick> stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
-
-    /// The detached task captures a copy of this object (`self = *this`), so the
-    /// returned future co-owns the FFI handle and may safely outlive the object
-    /// it was launched from — including a temporary `client.historical()` view.
-    /// The handle is freed only once the last owner (this object or the
-    /// in-flight future) drops, so there is no dangling-`this` window.
-    std::future<std::vector<OhlcTick>> stock_history_ohlc_range_async(std::string symbol, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
-            return self.stock_history_ohlc_range(symbol, start_date, end_date, options);
         });
     }
 

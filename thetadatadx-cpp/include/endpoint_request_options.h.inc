@@ -2,6 +2,7 @@
 typedef struct {
     const char* venue;
     const char* min_time;
+    const char* date;
     const char* interval;
     const char* start_time;
     const char* end_time;

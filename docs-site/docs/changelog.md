@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.0.0-rc.16] - 2026-07-06
+
+### Added
+
+- **`FlatFileFormat::Json` and `FlatFileFormat::Html`.** The flat-file SDK surface now exposes a single JSON array (`Json`) and an HTML `<table>` (`Html`) alongside the existing `Csv` and `Jsonl`, so every binding can request the same set of output formats the server serves.
+
 ### Changed
 
+- **Intraday history endpoints accept a single date or a date range on the same route.** Matching the terminal, every intraday history endpoint (stock and option `ohlc` / `trade` / `quote` / `trade_quote`, option `open_interest`, the intraday greeks and trade-greeks families, and index `price`) now takes an optional `date` plus optional `start_date` / `end_date`: supply `date` for a single day, or `start_date` / `end_date` for a range. `date` moves from a required argument to an optional builder parameter. Previously `date` was required, so a multi-day range was unreachable on these endpoints.
 - **`thetadatadx-server` reports all four terminal connectivity states.** `GET /v3/terminal/fpss/status` and the WebSocket `STATUS` heartbeat now return `CONNECTED`, `UNVERIFIED` (the socket is up but login is not yet confirmed), `DISCONNECTED`, or `ERROR` — matching the terminal — instead of only connected/disconnected. The historical (MDDS) channel stays `CONNECTED` while the server runs, since it is per-request with no persistent connection to lose.
 - **`thetadatadx-server` flat-file and response-format surface matches the terminal.** REST data endpoints now accept `format=html`, rendering an HTML table exactly as the terminal does. Flat-file downloads accept `csv` (default), `json` (a streamed JSON array), `ndjson` / `jsonl`, and `html`, each with its documented content type, and a dashed `YYYY-MM-DD` date is normalized to the compact `YYYYMMDD` form the driver expects. The invented `GET /v3/flatfile/{sec_type}/{req_type}` and `POST /v3/flatfile/request` routes are removed; the terminal's `GET /v3/{sec_type}/flat_file/{req_type}` is the sole flat-file route.
 - **`thetadatadx-server`'s WebSocket wire format now matches the terminal 1:1.** On the WebSocket, an option `strike` defaults to the terminal's 1/10-cent integer (a $570 strike is `570000`) on both the subscribe input and the event output; the new `--strike-format dollars` flag switches it back to a dollar value for the SDK's convenience form. Every message header now carries the streaming-channel connectivity `status` (`CONNECTED` / `DISCONNECTED`), not only the per-second `STATUS` heartbeat. The native SDK bindings still expose `strike` in dollars on `event.contract` — only the server's WebSocket wire changed.
@@ -16,7 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The `stock_history_ohlc_range` method and its `GET /v3/stock/history/ohlc_range` route.** The terminal serves date ranges on the base `/v3/stock/history/ohlc` route via `start_date` / `end_date`, not a separate range route, so the dedicated range method and path are gone. Range OHLC pulls now go through `stock_history_ohlc` (and every other intraday history endpoint) directly.
 - **`thetadatadx-server` no longer applies its own per-IP request rate limit.** The bundled REST and WebSocket server is a drop-in for a terminal that does no per-IP rate limiting, and request limits are enforced upstream by the data service, so the server no longer adds its own. The opt-in general governor (`THETADATADX_RATE_LIMIT_PER_SECOND` / `THETADATADX_RATE_LIMIT_BURST_SIZE`) and the shutdown-route attempt limiter are gone; the request body-size and in-flight concurrency caps are unchanged.
+
+### Fixed
+
+- **The flat-file `format` argument in the Python, TypeScript, and C/C++ bindings now maps `json` to a JSON array and accepts `ndjson` and `html`.** These bindings previously mapped `json` to JSON Lines and rejected `ndjson` / `html`, so the JSON-array and HTML-table formats were unreachable through them; they now match the Rust core and the server (`csv`, `json`, `jsonl` / `ndjson`, `html`).
+- **The C-ABI never leaves a null error message paired with a non-zero error code.** An error string containing an interior NUL byte previously collapsed the message slot to null while the code stayed set, which a C++/TypeScript caller could read as success; the byte is now sanitized so the message is always populated whenever a code is set.
 
 ## [13.0.0-rc.15] - 2026-07-04
 

@@ -3,7 +3,8 @@
 //! Replicates the JVM terminal's WebSocket behavior:
 //!
 //! - Single WebSocket endpoint at `/v1/events`
-//! - Only one WebSocket client at a time (enforced via `AtomicBool`)
+//! - One WebSocket client at a time: a new connection replaces the prior
+//!   session (via `begin_ws_session`), which closes the old client out
 //! - Clients receive JSON events: QUOTE, TRADE, OHLC, STATUS
 //! - STATUS heartbeat every 1 second with FPSS connection state
 //! - Client commands: subscribe/unsubscribe via JSON messages
@@ -49,8 +50,9 @@ use crate::router::{BODY_LIMIT_BYTES, GLOBAL_CONCURRENCY_LIMIT};
 ///
 /// 1. `ConcurrencyLimitLayer` caps in-flight WS upgrades to
 ///    [`GLOBAL_CONCURRENCY_LIMIT`]; the single-client invariant is still
-///    enforced downstream via `state.try_acquire_ws`, but this stops
-///    attackers from queueing thousands of blocked upgrades.
+///    enforced downstream via `begin_ws_session` (a new client replaces
+///    the prior one), but this stops attackers from queueing thousands of
+///    blocked upgrades.
 /// 2. `DefaultBodyLimit` caps the upgrade request body at
 ///    [`BODY_LIMIT_BYTES`].
 pub fn router(state: AppState) -> Router {

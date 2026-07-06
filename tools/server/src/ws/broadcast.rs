@@ -114,6 +114,16 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
                 StreamEvent::Control(StreamControl::Disconnected { .. }) => {
                     state_for_cb.set_fpss_status(FpssStatus::Disconnected);
                 }
+                // Data only flows on a live, authenticated stream. A transient
+                // decode/protocol error (a single bad frame that did not drop
+                // the connection) may have latched ERROR; clear it back to
+                // CONNECTED now that flowing data proves the stream healthy,
+                // matching the terminal which reports CONNECTED while data is
+                // delivered. A genuinely stuck stream delivers no data, so it
+                // stays ERROR.
+                StreamEvent::Data(_) if state_for_cb.fpss_status_kind() == FpssStatus::Error => {
+                    state_for_cb.set_fpss_status(FpssStatus::Connected);
+                }
                 _ => {}
             }
 

@@ -76,61 +76,73 @@ CELLS = [
     ("stock_history_eod", "concrete", "free", "required params set, no optionals — baseline wire path", lambda: client.stock_history_eod("AAPL", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_ohlc("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_ohlc("AAPL", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("stock_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_ohlc("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_ohlc("AAPL", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("stock_history_ohlc", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_ohlc("AAPL", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_ohlc", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_ohlc("AAPL", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_history_ohlc::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("stock_history_ohlc", "with_date", "value", "date=20250303 optional filter wiring", lambda: client.stock_history_ohlc("AAPL", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("stock_history_ohlc", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.stock_history_ohlc("AAPL", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_ohlc", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.stock_history_ohlc("AAPL", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_ohlc::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("stock_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_ohlc("AAPL", "20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_ohlc("AAPL", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_history_trade("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_history_trade("AAPL", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("stock_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_trade("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_trade("AAPL", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("stock_history_trade", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_trade("AAPL", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_trade("AAPL", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_history_trade::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("stock_history_trade", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.stock_history_trade("AAPL", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("stock_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade("AAPL", date="20250303", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_quote("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_quote("AAPL", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("stock_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_quote("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_quote("AAPL", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("stock_history_quote", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_quote("AAPL", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_quote", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_quote("AAPL", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_history_quote::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("stock_history_quote", "with_date", "value", "date=20250303 optional filter wiring", lambda: client.stock_history_quote("AAPL", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_quote::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("stock_history_quote", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.stock_history_quote("AAPL", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_quote", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.stock_history_quote("AAPL", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("stock_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_quote("AAPL", "20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_quote("AAPL", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_history_trade_quote("AAPL", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_history_trade_quote("AAPL", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("stock_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_trade_quote("AAPL", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.stock_history_trade_quote("AAPL", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # stock_history_trade_quote::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("stock_history_trade_quote", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.stock_history_trade_quote("AAPL", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::with_exclusive
     #   rationale: exclusive=true optional filter wiring
-    ("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.stock_history_trade_quote("AAPL", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade_quote("AAPL", "20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade_quote("AAPL", date="20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_at_time_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("stock_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.stock_at_time_trade("AAPL", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -502,139 +514,154 @@ CELLS = [
     ("option_history_eod", "all_optionals", "free", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_ohlc("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_ohlc", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_ohlc", "with_strike", "value", "strike=570 optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "with_strike", "value", "strike=570 optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_ohlc", "with_right", "value", "right=call optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "with_right", "value", "right=call optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_ohlc::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_ohlc", "with_date", "value", "date=20250303 optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("option_history_ohlc", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_ohlc", "with_strike_range", "value", "strike_range=10 optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "with_strike_range", "value", "strike_range=10 optional filter wiring", lambda: client.option_history_ohlc("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_ohlc::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", "20250303", strike="570", right="call", interval="1m", start_time="09:30:00", end_time="10:00:00", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_ohlc("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_trade", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_trade", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_trade", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_trade", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_trade", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_trade("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade("SPY", "20250321", "20250303", strike="570", right="call", start_time="09:30:00", end_time="10:00:00", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_quote("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_quote("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_quote("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_quote("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_quote("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_quote", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_quote("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_quote", "with_strike", "value", "strike=570 optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "with_strike", "value", "strike=570 optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_quote", "with_right", "value", "right=call optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "with_right", "value", "right=call optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_quote::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_quote", "with_date", "value", "date=20250303 optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("option_history_quote", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", lambda: client.option_history_quote("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_quote("SPY", "20250321", "20250303", strike="570", right="call", interval="1m", start_time="09:30:00", end_time="10:00:00", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_quote("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_quote("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_quote("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "all_exps_one_strike", "standard", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_quote("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_trade_quote", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_trade_quote", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_quote::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_trade_quote", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_exclusive
     #   rationale: exclusive=true optional filter wiring
-    ("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_trade_quote", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", "20250303", strike="570", right="call", start_time="09:30:00", end_time="10:00:00", exclusive=True, max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_quote("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_open_interest("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_history_open_interest("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_open_interest("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "all_exps_one_strike", "value", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_open_interest("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_open_interest", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_open_interest("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_open_interest("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_open_interest", "with_strike", "value", "strike=570 optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "with_strike", "value", "strike=570 optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_open_interest", "with_right", "value", "right=call optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "with_right", "value", "right=call optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_open_interest::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_open_interest", "with_date", "value", "date=20250303 optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_open_interest", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_open_interest", "with_strike_range", "value", "strike_range=10 optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "with_strike_range", "value", "strike_range=10 optional filter wiring", lambda: client.option_history_open_interest("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_open_interest::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_open_interest("SPY", "20250321", "20250303", strike="570", right="call", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_open_interest("SPY", "20250321", strike="570", right="call", date="20250303", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("option_history_greeks_eod", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -670,349 +697,379 @@ CELLS = [
     ("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_all("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_greeks_all", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_greeks_all", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_all::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_greeks_all", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("option_history_greeks_all", "with_interval", "professional", "interval=1m optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_interval", "professional", "interval=1m optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_all("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_all("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_all("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_all("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", "20250303", strike="570", right="call", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_all("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_all("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_all("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_trade_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_trade_greeks_all", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_trade_greeks_all", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_all::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_trade_greeks_all", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_trade_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_trade_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_trade_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_trade_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", "20250303", strike="570", right="call", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_first_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_greeks_first_order", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_greeks_first_order", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_greeks_first_order", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_greeks_first_order", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_first_order::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_greeks_first_order", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("option_history_greeks_first_order", "with_interval", "standard", "interval=1m optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_interval", "standard", "interval=1m optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_first_order", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", "20250303", strike="570", right="call", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_first_order("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_first_order("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_trade_greeks_first_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_trade_greeks_first_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_trade_greeks_first_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_first_order::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_trade_greeks_first_order", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_trade_greeks_first_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_first_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_trade_greeks_first_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_trade_greeks_first_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", "20250303", strike="570", right="call", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_second_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_greeks_second_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_second_order::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_greeks_second_order", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("option_history_greeks_second_order", "with_interval", "professional", "interval=1m optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_interval", "professional", "interval=1m optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", "20250303", strike="570", right="call", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_second_order("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_second_order("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_trade_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_trade_greeks_second_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_trade_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_second_order::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_trade_greeks_second_order", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_trade_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_trade_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_trade_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", "20250303", strike="570", right="call", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_third_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_greeks_third_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_third_order::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_greeks_third_order", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("option_history_greeks_third_order", "with_interval", "professional", "interval=1m optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_interval", "professional", "interval=1m optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", "20250303", strike="570", right="call", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_third_order("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_third_order("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_trade_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_trade_greeks_third_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_trade_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_third_order::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_trade_greeks_third_order", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_trade_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_trade_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_trade_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", "20250303", strike="570", right="call", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_greeks_implied_volatility", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_greeks_implied_volatility", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_date_range", "standard", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_greeks_implied_volatility", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_strike", "standard", "strike=570 optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_greeks_implied_volatility", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_right", "standard", "right=call optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_greeks_implied_volatility::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_greeks_implied_volatility", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("option_history_greeks_implied_volatility", "with_interval", "standard", "interval=1m optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_interval", "standard", "interval=1m optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_annual_dividend", "standard", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_implied_volatility", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", "20250303", strike="570", right="call", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, no optionals — baseline wire path", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::all_exps_one_strike
     #   rationale: expiration=* — sent as literal `*` on the wire (server fan-out)
-    ("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", "20250303", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "all_exps_one_strike", "professional", "expiration=* — sent as literal `*` on the wire (server fan-out)", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "*", right="both", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("option_history_trade_greeks_implied_volatility", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_date_range", "professional", "start_date + end_date pair — date range optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_strike
     #   rationale: strike=570 optional filter wiring
-    ("option_history_trade_greeks_implied_volatility", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_strike", "professional", "strike=570 optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_right
     #   rationale: right=call optional filter wiring
-    ("option_history_trade_greeks_implied_volatility", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_right", "professional", "right=call optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", right="call", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_history_trade_greeks_implied_volatility::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("option_history_trade_greeks_implied_volatility", "with_date", "professional", "date=20250303 optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_annual_dividend
     #   rationale: annual_dividend=0.015 optional Greeks-input wiring
-    ("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_annual_dividend", "professional", "annual_dividend=0.015 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", annual_dividend=0.015, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_rate_value
     #   rationale: rate_value=0.05 optional Greeks-input wiring
-    ("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_version
     #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_implied_volatility", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_history_trade_greeks_implied_volatility", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
-    ("option_history_trade_greeks_implied_volatility", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", "20250303", strike="570", right="call", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_history_trade_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("option_at_time_trade", "concrete", "standard", "required params set, no optionals — baseline wire path", lambda: client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1096,19 +1153,22 @@ CELLS = [
     ("index_history_ohlc", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.index_history_ohlc("SPX", "20250303", "20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_price::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("index_history_price", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.index_history_price("SPX", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("index_history_price", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.index_history_price("SPX", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_price::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("index_history_price", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.index_history_price("SPX", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("index_history_price", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.index_history_price("SPX", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_price::with_date_range
     #   rationale: start_date + end_date pair — date range optional wiring
-    ("index_history_price", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.index_history_price("SPX", "20250303", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("index_history_price", "with_date_range", "value", "start_date + end_date pair — date range optional wiring", lambda: client.index_history_price("SPX", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # index_history_price::with_date
+    #   rationale: date=20250303 optional filter wiring
+    ("index_history_price", "with_date", "value", "date=20250303 optional filter wiring", lambda: client.index_history_price("SPX", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_price::with_interval
     #   rationale: interval=1m optional filter wiring
-    ("index_history_price", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.index_history_price("SPX", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("index_history_price", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.index_history_price("SPX", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_history_price::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("index_history_price", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.index_history_price("SPX", "20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("index_history_price", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.index_history_price("SPX", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # index_at_time_price::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("index_at_time_price", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.index_at_time_price("SPX", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1124,18 +1184,6 @@ CELLS = [
     # interest_rate_history_eod::basic
     #   rationale: list/calendar/rate baseline call — no parameter variation
     ("interest_rate_history_eod", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: client.interest_rate_history_eod("SOFR", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # stock_history_ohlc_range::concrete
-    #   rationale: required params set, no optionals — baseline wire path
-    ("stock_history_ohlc_range", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # stock_history_ohlc_range::with_intraday_window
-    #   rationale: start_time + end_time pair — intraday window optional wiring
-    ("stock_history_ohlc_range", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # stock_history_ohlc_range::with_interval
-    #   rationale: interval=1m optional filter wiring
-    ("stock_history_ohlc_range", "with_interval", "value", "interval=1m optional filter wiring", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", interval="1m", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # stock_history_ohlc_range::all_optionals
-    #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("stock_history_ohlc_range", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_ohlc_range("AAPL", "20250303", "20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", venue="nqb", timeout_ms=PER_CELL_TIMEOUT_MS)),
 ]
 
 pass_count = skip_count = fail_count = 0

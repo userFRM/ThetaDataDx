@@ -13,10 +13,10 @@ use crate::state::StrikeFormat;
 ///
 /// Distinct from the WS broadcast-channel drop counter — this counts
 /// the upstream "we built the JSON value but `to_string` returned `Err`"
-/// branch in [`fpss_event_to_ws_json`]. M1 fix: previously these
-/// failures returned `None` silently; the operator could not tell
-/// whether the WS feed was healthy + idle or quietly leaking events
-/// to a serialization bug.
+/// branch in [`fpss_event_to_ws_json`]. Without this counter a
+/// serialization failure returns `None` silently, so the operator
+/// cannot tell whether the WS feed is healthy + idle or quietly
+/// leaking events to a serialization bug.
 static JSON_SERIALIZE_FAILURES: AtomicU64 = AtomicU64::new(0);
 
 /// Wrap a `sonic_rs::to_string` call so a serialization failure logs
@@ -770,10 +770,10 @@ mod tests {
     }
 
     /// A resolved Quote whose `peeked_contract` is the live mapped
-    /// contract continues to serialise the same way it always did —
-    /// MED-001 only changes the unresolved-sentinel branch.
+    /// contract serialises the same way regardless of the
+    /// unresolved-sentinel handling: only the unresolved branch differs.
     #[test]
-    fn resolved_contract_path_unchanged_by_med_001_fix() {
+    fn resolved_contract_path_serialises_unchanged() {
         let resolved = Arc::new(Contract::stock("SPY"));
         let event = make_quote(Arc::clone(&resolved));
         let json =

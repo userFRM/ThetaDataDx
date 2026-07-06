@@ -93,8 +93,8 @@ fn build_invalid_parameter_error(py: Python<'_>) -> PyResult<Py<PyType>> {
             py.get_type::<PyValueError>().into_any(),
         ],
     )?;
-    let name = CString::new("thetadatadx.InvalidParameterError")
-        .expect("static name has no interior NUL");
+    let name =
+        CString::new("thetadatadx.InvalidParameterError").expect("static name has no interior NUL");
     // SAFETY: `name` is a valid C string, `bases` is a non-null tuple of
     // exception types, and the null `dict` is accepted by the C-API. The
     // returned object is a new reference to a new exception type.
