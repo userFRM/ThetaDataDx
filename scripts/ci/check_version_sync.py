@@ -533,18 +533,18 @@ def _selftest() -> int:
             "Install with\n\n"
             "```toml\n"
             '[dependencies]\n'
-            'thetadatadx = "13.0.0-rc.1"\n'
+            'thetadatadx-rs = "13.0.0-rc.1"\n'
             "```\n",
             encoding="utf-8",
         )
         stale_feature_doc = root / "features.md"
         stale_feature_doc.write_text(
-            'thetadatadx = { version = "13.0.0-rc.1", features = ["frames"] }\n',
+            'thetadatadx-rs = { version = "13.0.0-rc.1", features = ["frames"] }\n',
             encoding="utf-8",
         )
         clean_doc = root / "clean.md"
         clean_doc.write_text(
-            'thetadatadx = "13.0.0-rc.5"\n',
+            'thetadatadx-rs = "13.0.0-rc.5"\n',
             encoding="utf-8",
         )
 
@@ -637,14 +637,14 @@ def _selftest() -> int:
         try:
             install_doc = root / "thetadatadx-py" / "README.md"
             install_doc.parent.mkdir(parents=True, exist_ok=True)
-            install_doc.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+            install_doc.write_text('thetadatadx-rs = "13.0.0-rc.1"\n', encoding="utf-8")
 
             changelog = root / "CHANGELOG.md"
-            changelog.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+            changelog.write_text('thetadatadx-rs = "13.0.0-rc.1"\n', encoding="utf-8")
 
             release_note = root / ".github" / "release-notes" / "v13.0.0-rc.1.md"
             release_note.parent.mkdir(parents=True, exist_ok=True)
-            release_note.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+            release_note.write_text('thetadatadx-rs = "13.0.0-rc.1"\n', encoding="utf-8")
 
             migration = root / "docs-site" / "docs" / "migration" / "v11-to-v12.md"
             migration.parent.mkdir(parents=True, exist_ok=True)

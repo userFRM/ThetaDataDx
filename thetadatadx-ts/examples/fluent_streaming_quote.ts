@@ -9,7 +9,7 @@
 //
 //     npx tsx fluent_streaming_quote.ts
 
-import { Contract, SecType, Client } from "thetadatadx";
+import { Contract, SecType, Client } from "thetadatadx-ts";
 
 async function main(): Promise<void> {
   const client = await Client.connectFromFile("creds.txt");

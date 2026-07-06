@@ -1,7 +1,5 @@
 > [!IMPORTANT]
-> **Every release before 13.0.0 has been withdrawn.** No earlier version met the production-readiness bar, so all of them were removed from npm and PyPI and yanked from crates.io. **13.0.0 is the first fully production-ready release**, validated end to end against live production data across every endpoint. Install the stable `13.0.0` package below and pin `>=13.0.0`.
->
-> Heads-up: a future release may move the SDKs to per-language package names (`thetadatadx-rs`, `thetadatadx-ts`, `thetadatadx-py`, `thetadatadx-cpp`) starting fresh at `0.1.0`.
+> **The SDK now ships under per-language package names, starting fresh at `0.1.0`:** `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm), and the in-repo `thetadatadx-cpp`. The API and import surface are unchanged — only the package names and the version differ. Install the packages below.
 
 <p align="center">
   <img src="assets/logo.svg" alt="ThetaDataDx" width="100%" />
@@ -19,7 +17,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 [![Crates.io](https://img.shields.io/crates/v/thetadatadx-rs.svg?logo=rust)](https://crates.io/crates/thetadatadx-rs)
 [![PyPI](https://img.shields.io/pypi/v/thetadatadx-py?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx-py)
 [![npm](https://img.shields.io/npm/v/thetadatadx-ts?logo=npm)](https://www.npmjs.com/package/thetadatadx-ts)
-[![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
+[![docs.rs](https://img.shields.io/docsrs/thetadatadx-rs?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg?logo=rust)](https://www.rust-lang.org)
@@ -44,7 +42,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 ## Install
 
 > [!IMPORTANT]
-> The supported release line is **13.0.0**. Install the stable package directly. Versions before 13.0.0 are unsupported and have been withdrawn from the registries — pin `>=13.0.0`.
+> Install the per-language packages at `0.1.0` below — `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm).
 >
 > ```bash
 > pip install thetadatadx-py            # Python
@@ -132,7 +130,7 @@ with client.streaming(on_event) as session:
 ### TypeScript
 
 ```typescript
-import { Contract, Client } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx-ts';
 
 async function main() {
   // Pass your API key directly. Add marketDataType: "STAGE" to target staging.
@@ -168,7 +166,7 @@ await main();
 Other ways to construct the client:
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 
 // API key from the THETADATA_API_KEY environment variable, or from a .env file
 const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
@@ -314,9 +312,9 @@ common `ThetaDataError` base.
 
 | Path | Package | Purpose |
 |---|---|---|
-| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, decoders, and the network client in one crate |
-| [`thetadatadx-py`](thetadatadx-py/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
-| [`thetadatadx-ts`](thetadatadx-ts/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
+| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx-rs` (crates.io) | The Rust SDK: tick types, decoders, and the network client in one crate |
+| [`thetadatadx-py`](thetadatadx-py/) | `thetadatadx-py` (PyPI) | Python package with DataFrame adapters |
+| [`thetadatadx-ts`](thetadatadx-ts/) | `thetadatadx-ts` (npm) | TypeScript / Node.js package, prebuilt binaries |
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |

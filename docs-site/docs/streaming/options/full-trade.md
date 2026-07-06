@@ -69,7 +69,7 @@ client.stream.unsubscribe(sub)
 <template #typescript>
 
 ```typescript
-import { SecType } from 'thetadatadx';
+import { SecType } from 'thetadatadx-ts';
 
 await client.stream.startStreaming((event) => {
   switch (event.kind) {

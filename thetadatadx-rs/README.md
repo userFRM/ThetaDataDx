@@ -7,7 +7,7 @@
 The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — from one async client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
 [![Crates.io](https://img.shields.io/crates/v/thetadatadx-rs.svg?logo=rust)](https://crates.io/crates/thetadatadx-rs)
-[![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
+[![docs.rs](https://img.shields.io/docsrs/thetadatadx-rs?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
 
 > [!IMPORTANT]

@@ -188,7 +188,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
-          path: thetadatadx-ts/thetadatadx.*.node
+          path: thetadatadx-ts/thetadatadx-ts.*.node
           if-no-files-found: error
 
   publish:

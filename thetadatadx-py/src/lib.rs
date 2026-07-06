@@ -1831,7 +1831,7 @@ pub(crate) fn pyarrow_table_to_pandas(py: Python<'_>, table: Py<PyAny>) -> PyRes
         // untouched.
         if e.is_instance_of::<pyo3::exceptions::PyImportError>(py) {
             pyo3::exceptions::PyImportError::new_err(
-                "pandas is required for .to_pandas(). Install with: pip install thetadatadx[pandas]",
+                "pandas is required for .to_pandas(). Install with: pip install thetadatadx-py[pandas]",
             )
         } else {
             e
@@ -1845,7 +1845,7 @@ pub(crate) fn pyarrow_table_to_pandas(py: Python<'_>, table: Py<PyAny>) -> PyRes
 pub(crate) fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {
     let polars = py.import("polars").map_err(|_| {
         pyo3::exceptions::PyImportError::new_err(
-            "polars is not installed. Install it with: pip install thetadatadx[polars]",
+            "polars is not installed. Install it with: pip install thetadatadx-py[polars]",
         )
     })?;
     let df = polars.call_method1("from_arrow", (table,))?;

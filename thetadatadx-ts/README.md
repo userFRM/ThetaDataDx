@@ -38,7 +38,7 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 > Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then call `Client.connectWith({ apiKey: "td1_..." })`. The key can also come from the environment (`{ apiKeyFromEnv: true }`, reading `THETADATA_API_KEY`) or a `.env` file (`{ apiKeyFromDotenv: ".env" }`). Email and password is also supported: `{ email, password }` inline, or a `creds.txt` file (email on line 1, password on line 2) via `connectFromFile`. Target staging with `marketDataType: "STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and call `Client.connect(creds, config)`.
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 
 // Pass your API key directly. Add marketDataType: "STAGE" to target staging.
 const client = await Client.connectWith({ apiKey: 'td1_...' });
@@ -53,7 +53,7 @@ for (const t of greeks.slice(0, 5)) {
 Other ways to construct the client:
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 
 // API key from the THETADATA_API_KEY environment variable, or from a .env file
 const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
@@ -84,7 +84,7 @@ const snap = await client.marketData.stockSnapshotQuote(['AAPL', 'MSFT'], { time
 Real-time quotes and trades flow through the same client. Register a callback with `startStreaming`; events are discriminated on `event.kind` and the typed payload narrows automatically:
 
 ```typescript
-import { Contract, Client } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx-ts';
 
 const client = await Client.connectWith({ apiKey: 'td1_...' });
 
@@ -115,7 +115,7 @@ client.stream.subscribeMany([
 Build subscriptions with the fluent `Contract` API and pass them — one at a time or in bulk — to `subscribe` / `subscribeMany`. Every subscription is the same typed value, so quotes, trades, and open interest across contracts mix freely in one array:
 
 ```typescript
-import { Contract, SecType } from 'thetadatadx';
+import { Contract, SecType } from 'thetadatadx-ts';
 
 const stock = Contract.stock('AAPL');
 const option = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' });
@@ -127,7 +127,7 @@ client.stream.subscribeMany([option.quote(), option.trade(), option.openInterest
 Or take a whole-market feed — every option trade across the universe, no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `ohlcvc` branch to the callback to handle the bars:
 
 ```typescript
-import { SecType } from 'thetadatadx';
+import { SecType } from 'thetadatadx-ts';
 
 await client.stream.startStreaming((event) => {
   if (event.kind === 'ohlcvc' && event.ohlcvc) {
@@ -158,7 +158,7 @@ const drained = await client.stream.awaitDrain(5000);
 Prefer columns? `client.stream.batches(...)` is a sibling to the callback: the same subscriptions, delivered as apache-arrow `RecordBatch` values under a fixed schema, consumed with `for await`. It closes (unsubscribe + tear down) on `close()`, or on `Symbol.asyncDispose` via `await using` where your runtime supports explicit resource management:
 
 ```typescript
-import { Contract } from 'thetadatadx';
+import { Contract } from 'thetadatadx-ts';
 
 // `batches(...)` starts the streaming session, so open it first, then subscribe.
 const batches = await client.stream.batches({ batchSize: 8192 });
@@ -179,7 +179,7 @@ Decoding the batches needs `apache-arrow` installed alongside the SDK.
 Every tick type and streaming event is exported. Import the ones you need:
 
 ```typescript
-import type { OhlcTick, GreeksAllTick, Quote, Trade, StreamEvent } from 'thetadatadx';
+import type { OhlcTick, GreeksAllTick, Quote, Trade, StreamEvent } from 'thetadatadx-ts';
 ```
 
 The streaming callback receives a discriminated `StreamEvent`, narrowed on `event.kind`. Market-data events (`trade`, `quote`, `ohlcvc`, `open_interest`) carry their payload under a matching field; one typed payload also exists per lifecycle event (`connected`, `loginSuccess`, `disconnected`, `reconnecting`, …):
@@ -208,7 +208,7 @@ await client.stream.startStreaming((event: StreamEvent) => {
 Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so the binding emits Arrow IPC bytes — pair with `apache-arrow`'s `tableFromIPC` to materialise a typed `Table`:
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 import { tableFromIPC } from 'apache-arrow';   // peer dependency
 
 const client = await Client.connectFromFile('creds.txt');

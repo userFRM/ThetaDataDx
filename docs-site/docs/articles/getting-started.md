@@ -609,7 +609,7 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 
 // Pass your API key directly. Add marketDataType: 'STAGE' to target staging.
 const client = await Client.connectWith({ apiKey: 'your_api_key' });
