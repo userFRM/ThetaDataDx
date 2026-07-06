@@ -1,150 +1,146 @@
-code,name
-0,REGULAR
-1,FORM_T
-2,OUT_OF_SEQ
-3,AVG_PRC
-4,AVG_PRC_NASDAQ
-5,OPEN_REPORT_LATE
-6,OPEN_REPORT_OUT_OF_SEQ
-7,OPEN_REPORT_IN_SEQ
-8,PRIOR_REFERENCE_PRICE
-9,NEXT_DAY_SALE
-10,BUNCHED
-11,CASH_SALE
-12,SELLER
-13,SOLD_LAST
-14,RULE_127
-15,BUNCHED_SOLD
-16,NON_BOARD_LOT
-17,POSIT
-18,AUTO_EXECUTION
-19,HALT
-20,DELAYED
-21,REOPEN
-22,ACQUISITION
-23,CASH_MARKET
-24,NEXT_DAY_MARKET
-25,BURST_BASKET
-26,OPEN_DETAIL
-27,INTRA_DETAIL
-28,BASKET_ON_CLOSE
-29,RULE_155
-30,DISTRIBUTION
-31,SPLIT
-32,REGULAR_SETTLE
-33,CUSTOM_BASKET_CROSS
-34,ADJ_TERMS
-35,SPREAD
-36,STRADDLE
-37,BUY_WRITE
-38,COMBO
-39,STPD
-40,CANC
-41,CANC_LAST
-42,CANC_OPEN
-43,CANC_ONLY
-44,CANC_STPD
-45,MATCH_CROSS
-46,FAST_MARKET
-47,NOMINAL
-48,CABINET
-49,BLANK_PRICE
-50,NOT_SPECIFIED
-51,MC_OFFICIAL_CLOSE
-52,SPECIAL_TERMS
-53,CONTINGENT_ORDER
-54,INTERNAL_CROSS
-55,STOPPED_REGULAR
-56,STOPPED_SOLD_LAST
-57,STOPPED_OUT_OF_SEQ
-58,BASIS
-59,VWAP
-60,SPECIAL_SESSION
-61,NANEX_ADMIN
-62,OPEN_REPORT
-63,MARKET_ON_CLOSE
-64,SETTLE_PRICE
-65,OUT_OF_SEQ_PRE_MKT
-66,MC_OFFICIAL_OPEN
-67,FUTURES_SPREAD
-68,OPEN_RANGE
-69,CLOSE_RANGE
-70,NOMINAL_CABINET
-71,CHANGING_TRANS
-72,CHANGING_TRANS_CAB
-73,NOMINAL_UPDATE
-74,PIT_SETTLEMENT
-75,BLOCK_TRADE
-76,EXG_FOR_PHYSICAL
-77,VOLUME_ADJUSTMENT
-78,VOLATILITY_TRADE
-79,YELLOW_FLAG
-80,FLOOR_PRICE
-81,OFFICIAL_PRICE
-82,UNOFFICIAL_PRICE
-83,MID_BID_ASK_PRICE
-84,END_SESSION_HIGH
-85,END_SESSION_LOW
-86,BACKWARDATION
-87,CONTANGO
-88,HOLIDAY
-89,PRE_OPENING
-90,POST_FULL
-91,POST_RESTRICTED
-92,CLOSING_AUCTION
-93,BATCH
-94,TRADING
-95,INTERMARKET_SWEEP
-96,DERIVATIVE
-97,REOPENING
-98,CLOSING
-99,CAPELECTION
-100,SPOT_SETTLEMENT
-101,BASIS_HIGH
-102,BASIS_LOW
-103,YIELD
-104,PRICE_VARIATION
-105,CONTINGENT_TRADE
-106,STOPPED_IM
-107,BENCHMARK
-108,TRADE_THRU_EXEMPT
-109,IMPLIED
-110,OTC
-111,MKT_SUPERVISION
-112,RESERVED_77
-113,RESERVED_91
-114,CONTINGENT_UTP
-115,ODD_LOT
-116,RESERVED_89
-117,CORRECTED_CS_LAST
-118,OPRA_EXT_HOURS
-119,RESERVED_78
-120,RESERVED_81
-121,RESERVED_84
-122,RESERVED_878
-123,RESERVED_90
-124,QUALIFIED_CONTINGENT_TRADE
-125,SINGLE_LEG_AUCTION_NON_ISO
-126,SINGLE_LEG_AUCTION_ISO
-127,SINGLE_LEG_CROSS_NON_ISO
-128,SINGLE_LEG_CROSS_ISO
-129,SINGLE_LEG_FLOOR_TRADE
-130,MULTI_LEG_AUTOELEC_TRADE
-131,MULTI_LEG_AUCTION
-132,MULTI_LEG_CROSS
-133,MULTI_LEG_FLOOR_TRADE
-134,ML_AUTO_ELEC_TRADE_AGSL
-135,STOCK_OPTIONS_AUCTION
-136,ML_AUCTION_AGSL
-137,ML_FLOOR_TRADE_AGSL
-138,STK_OPT_AUTO_ELEC_TRADE
-139,STOCK_OPTIONS_CROSS
-140,STOCK_OPTIONS_FLOOR_TRADE
-141,STK_OPT_AE_TRD_AGSL
-142,STK_OPT_AUCTION_AGSL
-143,STK_OPT_FLOOR_TRADE_AGSL
-144,ML_FLOOR_TRADE_OF_PP
-145,BID_AGGRESSOR
-146,ASK_AGGRESSOR
-147,MULTILAT_COMP_TR_PDP
-148,EXTENDED_HOURS_TRADE
+Code,Name,Cancel,LateReport,AutoExecuted,OpenReport,Volume,High,Low,Last,Description
+0,REGULAR,false,false,false,false,true,true,true,true,Regular Trade
+1,FORM_T,false,false,false,false,true,false,false,false,Form T. Before and After Regular Hours. note: NYSE/AMEX previously used code 'T' for BurstBasket.
+2,OUT_OF_SEQ,false,true,false,false,true,true,true,*,"Report was sent Out Of Sequence. Updates last if it becomes only trade (if the trade reports before it are canceled, for example)."
+4,AVG_PRC_NASDAQ,false,false,false,false,true,false,false,false,"Average Price. Nasdaq stocks. Similar to AvgPrc, but does not set high/low/last."
+5,OPEN_REPORT_LATE,false,true,false,false,true,true,true,*,NYSE/AMEX. Market opened Late. Here is the report. It may not be in sequence. Nasdaq uses OpenReportOutOfSeq. *update last if only trade.
+6,OPEN_REPORT_OUT_OF_SEQ,false,true,false,false,true,true,true,false,"Report IS out of sequence. Market was open, and now this report is just getting to us."
+7,OPEN_REPORT_IN_SEQ,false,true,false,false,true,true,true,true,Opening report. This is the first price.
+8,PRIOR_REFERENCE_PRICE,false,true,false,false,true,true,true,*,Trade references price established earlier. *Update last if this is the only trade report.
+9,NEXT_DAY_SALE,false,false,false,false,true,false,false,false,"NYSE/AMEX:Next Day Clearing. Nasdaq: Delivery of Securities and payment one to four days later.*As of September 5, 2017, the NYSE will no longer accept orders with Cash, Next Day or Seller's Option instructions."
+10,BUNCHED,false,false,false,false,true,true,true,true,"Aggregate of 2 or more Regular trades at same price within 60 seconds and each trade size not greater than 10,000."
+11,CASH_SALE,false,false,false,false,true,false,false,false,"Delivery of securities and payment on the same day.*As of September 5, 2017, the NYSE will no longer accept orders with Cash, Next Day or Seller's Option instructions."
+12,SELLER,false,false,false,false,true,false,false,false,"Stock can be delivered up to 60 days later as specified by the seller. After 1995, the number of days can be greater than 60. note: delivery of 3 days would be considered a regular trade.*As of September 5, 2017, the NYSE will no longer accept orders with Cash, Next Day or Seller's Option instructions."
+13,SOLD_LAST,false,true,false,false,true,true,true,*,"Late Reporting. *Sets Consolidated Last if no other qualifying Last, or same Exchange set previous Trade, or Exchange is Listed Exchange."
+14,RULE_127,false,false,false,false,true,true,true,true,NYSE only. Rule 127 basically denotes the trade was executed as a block trade.
+15,BUNCHED_SOLD,false,true,false,false,true,true,true,*,"Several trades were bunched into one trade report, and the report is late. *Update last if this is first trade."
+16,NON_BOARD_LOT,false,false,false,false,true,false,false,false,"Size of trade is less than a board lot (oddlot). A board lot is usually 1,00 shares. Note this is Canadian markets."
+17,POSIT,false,false,false,false,true,true,true,false,POSIT Canada is an electronic order matching system that prices trades at the mid-point of the bid and ask in the continuous market.
+18,AUTO_EXECUTION,false,false,true,false,true,true,true,true,"Transaction executed electronically. Soley for information. Only found in OPRA -- options trades, and quite common."
+19,HALT,false,false,false,false,false,false,false,false,Temporary halt in trading in a particular security for one or more participants.
+20,DELAYED,false,false,false,false,true,false,false,false,Indicates a delayed opening
+21,REOPEN,false,false,false,false,true,true,true,true,Reopening of a contract that was previously halted.
+22,ACQUISITION,false,false,false,false,true,true,true,true,Transaction on exchange as a result of an Exchange Acquisition
+25,BURST_BASKET,false,false,false,false,true,true,true,true,Specialist bought or sold this stock as part of an execution of a specific basket of stocks.
+26,OPEN_DETAIL,false,true,false,false,false,false,false,false,"107-113, 130, 160 Deleted an existing Sale Condition (Note: the code may be repurposed at a future date): 'G' - 'Opening/Reopening Trade Detail'. This trade is one of several trades that made up the open report trade. Often the open report has a large size which was made up of orders placed overnight. After trading has commenced, the individual trades of the open report trade are sent with this condition. Note it doesn't update volume, high, low, or last because it's already been accounted for in the open report."
+27,INTRA_DETAIL,false,true,false,false,false,false,false,false,This trade is one of several trades that made up a previous trade. Similar to OpenDetail but refers to a trade report that was not the opening trade report.
+28,BASKET_ON_CLOSE,false,true,false,false,true,false,false,false,A trade consisting of a paired basket order to be executed based on the closing value of an index. These trades are reported after the close when the index closing value is known.
+29,RULE_155,false,false,false,false,true,true,true,true,AMEX only rule 155. Sale of block at one clean-up price.
+30,DISTRIBUTION,false,false,false,false,true,true,true,true,Sale of a large block of stock in a way that price is not adversely affected.
+31,SPLIT,false,false,false,false,true,true,true,true,Execution in 2 markets when the specialist or MM in the market first receiving the order agrees to execute a portion of it at whatever price is realized in another market to which the balance of the order is forwarded for execution.
+32,REGULAR_SETTLE,false,false,false,false,true,true,true,true,RegularSettle
+33,CUSTOM_BASKET_CROSS,false,false,false,false,true,false,false,false,One of two types:2 paired but seperate orders in which a market maker or member facilitates both sides of a remaining portion of a basket. A split basket plus an entire basket where the market maker or member facilitates the remaining shares of the split basket.
+34,ADJ_TERMS,false,false,false,false,true,true,true,true,Terms have been adjusted to reflect stock split/dividend or similar event.
+35,SPREAD,false,false,false,false,true,true,true,true,Spread between 2 options in the same options class.
+36,STRADDLE,false,false,false,false,true,true,true,true,Straddle between 2 options in the same options class.
+37,BUY_WRITE,false,false,false,false,true,true,true,true,This is the option part of a covered call.
+38,COMBO,false,false,false,false,true,true,true,true,A buy and a sell in 2 or more options in the same class.
+39,STPD,false,false,false,false,true,true,true,true,Traded at price agreed upon by the floor following a non-stopped trade of the same series at the same price.
+40,CANC,true,false,false,false,false,false,false,false,"Cancel a previously reported trade - it will not be the first or last trade record. note: If the most recent report is Out of seq, SoldLast, or a type that does not qualify to set the last, that report can be considered in processing the cancel."
+41,CANC_LAST,true,false,false,false,false,false,false,false,Cancel the most recent trade report that is qualified to set the last.
+42,CANC_OPEN,true,false,false,false,false,false,false,false,Cancel the opening trade report.
+43,CANC_ONLY,true,false,false,false,false,false,false,false,"Cancel the only trade report. There is only one trade report, cancel it."
+44,CANC_STPD,true,false,false,false,false,false,false,false,Cancel the trade report that has the condition STPD.
+45,MATCH_CROSS,false,false,false,false,true,true,true,true,CTS and UTP: Cross Trade. A Cross Trade a trade transaction resulting from a market center's crossing session.
+46,FAST_MARKET,false,false,false,false,true,true,true,true,Term used to define unusually hectic market conditions.
+47,NOMINAL,false,false,false,false,true,true,true,true,Nominal price. A calculated price primarily generated to represent the fair market value of an inactive instrument for the purpose of determining margin requirements and evaluating position risk. Common in futures and futures options.
+48,CABINET,false,false,false,true,false,false,false,false,A trade in a deep out-of-the-money option priced at one-half the tick value. Used by options traders to liquidate positions.
+49,BLANK_PRICE,false,false,false,false,false,false,false,false,"Sent by an exchange to blank out the associated price (bid, ask or trade)."
+50,NOT_SPECIFIED,false,false,false,false,false,false,false,false,An unspecified (generalized) condition.
+51,MC_OFFICIAL_CLOSE,false,false,false,false,false,false,false,false,The Official closing value as determined by a Market Center.
+52,SPECIAL_TERMS,false,false,false,false,true,true,true,true,Indicates that all trades executed will be settled in other than the regular manner.
+53,CONTINGENT_ORDER,false,false,false,false,true,true,true,true,The result of an order placed by a Participating Organization on behalf of a client for one security and contingent on the execution of a second order placed by the same client for an offsetting volume of a related security.
+54,INTERNAL_CROSS,false,false,false,false,true,true,true,true,A cross between two client accounts of a Participating Organization which are managed by a single firm acting as portfolio manager with discretionary authority to manage the investment portfolio granted by each of the clients. This was originally from Toronto Stock Exchange (TSX). Information located here.
+55,STOPPED_REGULAR,false,false,false,false,true,true,true,true,Stopped Stock  Regular Trade.
+56,STOPPED_SOLD_LAST,false,false,false,false,false,true,true,true,TStopped Stock  SoldLast Trade
+58,BASIS,false,false,false,false,true,true,true,true,"A transaction involving a basket of securities or an index participation unit that is transacted at prices achieved through the execution of related exchange-traded derivative instruments, which may include index futures, index options and index participation units in an amount that will correspond to an equivalent market exposure."
+59,VWAP,false,false,false,false,true,false,false,false,Volume Weighted Average Price. A transaction for the purpose of executing trades at a volume-weighted average price of the security traded for a continuous period on or during a trading day on the exchange.
+60,SPECIAL_SESSION,false,false,false,false,true,false,false,false,Occurs when an order is placed by a purchase order on behalf of a client for execution in the Special Trading Session at the last sale price.
+61,NANEX_ADMIN,false,false,false,false,false,false,false,false,Used to make volume and price corrections to match official exchange values.
+62,OPEN_REPORT,false,false,false,false,true,true,true,false,Indicates an opening trade report.
+63,MARKET_ON_CLOSE,false,false,false,false,true,true,true,true,The Official closing value as determined by a Market Center.
+64,SETTLE_PRICE,false,false,false,false,false,false,false,false,Settlement price
+65,OUT_OF_SEQ_PRE_MKT,false,true,false,false,true,false,false,false,An out of sequence trade that exectuted in pre or post market -- a combination of FormT and OutOfSeq.
+66,MC_OFFICIAL_OPEN,false,false,false,false,false,false,false,false,Indicates the 'Official' opening value as determined by a Market Center. This transaction report will contain the market center generated opening price.
+67,FUTURES_SPREAD,false,false,false,false,true,true,true,true,Execution was part of a spread with another futures contract.
+68,OPEN_RANGE,false,false,false,false,false,true,true,false,Two trade prices are used to indicate an opening range representing the high and low prices during the first 30 seconds or so of trading.
+69,CLOSE_RANGE,false,false,false,false,false,true,true,false,Two trade prices are used to indicate an opening range representing the high and low prices during the last 30 seconds or so of trading.
+70,NOMINAL_CABINET,false,false,false,false,false,false,false,false,Nominal Cabinet
+71,CHANGING_TRANS,false,false,false,false,true,true,true,true,Changing Transaction
+72,CHANGING_TRANS_CAB,false,false,false,false,false,false,false,false,Changing Cabinet Transaction
+73,NOMINAL_UPDATE,false,false,false,false,false,false,false,false,Nominal price update
+74,PIT_SETTLEMENT,false,false,false,false,false,false,false,false,"Sent with a ""pit session"" settlement price to the electronic session, for the purpose of computing net change from the next day electronic session and the prior session settlement price."
+75,BLOCK_TRADE,false,false,false,false,true,true,true,true,"An executed trade of a large number of shares, typically 10,000 shares or more."
+76,EXG_FOR_PHYSICAL,false,false,false,false,true,true,true,true,Exchange Future for Physical
+77,VOLUME_ADJUSTMENT,false,false,false,false,true,false,false,false,An adjustment made to the cumulative trading volume for a trading session.
+78,VOLATILITY_TRADE,false,false,false,false,true,true,true,true,Volatility trade
+79,YELLOW_FLAG,false,false,false,false,true,true,true,true,Appears when reporting exchnge may be experiencing technical difficulties.
+80,FLOOR_PRICE,false,false,false,false,true,true,true,true,Distinguishes a floor Bid/Ask from a member Bid Ask on LME
+81,OFFICIAL_PRICE,false,false,false,false,true,true,true,true,Official bid/ask price used by LME.
+82,UNOFFICIAL_PRICE,false,false,false,false,true,true,true,true,Unofficial bid/ask price used by LME.
+83,MID_BID_ASK_PRICE,false,false,false,false,true,true,true,true,A price halfway between the bid and ask on LME.
+84,END_SESSION_HIGH,false,false,false,false,false,true,false,false,End of Session High Price.
+85,END_SESSION_LOW,false,false,false,false,false,false,true,false,End of Session Low Price.
+86,BACKWARDATION,false,false,false,false,true,true,true,true,A condition where the immediate delivery price is higher than the future delivery price. Opposite of Contango.
+87,CONTANGO,false,false,false,false,true,true,true,true,A condition where the future delivery price is higher than the immediate delivery price. Opposite of Backwardation.
+88,HOLIDAY,false,false,false,false,true,true,true,true,In Development
+89,PRE_OPENING,false,false,false,false,true,false,false,false,The period of time prior to the market opening time (7:00 A.M. - 9:30 A.M.) during which orders are entered into the market for the Opening.
+90,POST_FULL,false,false,false,false,false,false,false,false,false
+91,POST_RESTRICTED,false,false,false,false,false,false,false,false,false
+92,CLOSING_AUCTION,false,false,false,false,false,false,false,false,false
+93,BATCH,false,false,false,false,false,false,false,false,false
+94,TRADING,false,false,false,false,false,false,false,false,false
+95,INTERMARKET_SWEEP,false,false,false,false,true,true,true,true,"A trade resulting from an Intermarket Sweep Order Execution. For more information on intermarket sweeps, please see the SEC NMS regulation (June 29, 2005 - PDF).From that report:""The intermarket sweep exception enables trading centers that receive sweep orders to execute those orders immediately, without waiting for betterpriced quotations in other markets to be updated."""
+96,DERIVATIVE,false,false,false,false,true,true,true,*,Derivatively priced.
+97,REOPENING,false,false,false,false,true,true,true,true,Market center re-opening prints.
+98,CLOSING,false,false,false,false,true,true,true,*,"Market center closing prints. Can be used to get closing auction information for exchanges that report it, such as NYSE."
+99,CAPELECTION,false,false,false,false,true,true,true,false,"CTA Docs 78, 110, 111, 113 & 136 Redefined: Existing code 'I' in the Sale Condition field to denote the following change in value: From - Cap Election Trade To - Odd Lot Trade. A trade resulting from an sweep execution where CAP orders were elected and executed outside the best bid or affer and appear as repeat trades. DEL"
+100,SPOT_SETTLEMENT,false,false,false,false,true,true,true,true,false
+101,BASIS_HIGH,false,false,false,false,true,true,true,false,false
+102,BASIS_LOW,false,false,false,false,true,true,true,false,false
+103,YIELD,false,false,false,false,false,false,false,false,Applies to bid and ask yield updates for Cantor Treasuries
+104,PRICE_VARIATION,false,false,false,false,false,false,false,false,false
+105,CONTINGENT_TRADE,false,false,false,false,true,false,false,false,"Effective July 2015 ~ A Sale Condition used to identify a transaction where the execution of the transaction is contingent upon some event.SIAC Trader Update: February 25, 2015 (PDF) Previously: StockOption"
+106,STOPPED_IM,false,false,false,false,true,true,true,false,Transaction order which was stopped at a price that did not constitute a Trade-Through on another market. Valid trade do not update last
+107,BENCHMARK,false,false,false,false,false,false,false,true,"This condition will be assigned for Tapes A/B and UTP when no Trade Through Exempt reason is given, and the Trade Through Exempt indicator is set. For Tapes A/B and UTP, these trades are eligible to update O/H/L/L/V. For OPRA, these trades only update volume."
+108,TRADE_THRU_EXEMPT,false,false,false,false,false,false,false,false,"true,This condition will be assigned for Tapes A/B and UTP when no Trade Through Exempt reason is given, and the Trade Through Exempt indicator is set. For Tapes A/B and UTP, these trades are eligible to update O/H/L/L/V. For OPRA, these trades only update volume."
+109,IMPLIED,false,false,false,false,true,false,false,false,"These trades are result of a spread trade. The exchange sends a leg price on each future for spread transactions. These trades do not update O/H/L/L but they update volume. We are now sending these spread trades for Globex exchanges: CME, NYMEX, COMEX, CBOT, MGE, KCBT and DME."
+110,OTC,false,false,false,false,false,false,false,false,false
+111,MKT_SUPERVISION,false,false,false,false,false,false,false,false,false
+112,RESERVED_77,false,false,false,false,false,false,false,false,false
+113,RESERVED_91,false,false,false,false,false,false,false,false,false
+114,CONTINGENT_UTP,false,false,false,false,false,false,false,false,
+115,ODD_LOT,false,false,false,false,true,false,false,false,This indicates any trade with size between 1-99.
+116,RESERVED_89,false,false,false,false,false,false,false,false,false
+117,CORRECTED_CS_LAST,false,false,false,false,false,true,true,true,This allows for a mechanism to correct the official close on the consolidated tape.
+118,OPRA_EXT_HOURS,false,false,false,false,false,false,false,false,"OPRA extended trading hours session. Equivalent to the OPRA ""Session Indicator"" with ASCII value of 'X' (Pre-Market extended hours trading session)(Obselete, see condition 148)."
+119,RESERVED_78,false,false,false,false,false,false,false,false,false
+120,RESERVED_81,false,false,false,false,false,false,false,false,false
+121,RESERVED_84,false,false,false,false,false,false,false,false,false
+122,RESERVED_878,false,false,false,false,false,false,false,false,false
+123,RESERVED_90,false,false,false,false,false,false,false,false,false
+124,QUALIFIED_CONTINGENT_TRADE,false,false,false,false,true,false,false,false,"Effective July 2015 ~ A transaction consisting of two or more component orders, executed as agent or principal, that meets each of the following elements: At least one component order is for an NMS stock. All components are effected with a product or price contingency that either has been agreed to by the respective counterparties or arranged for by a broker-dealer as principal or agent. The execution of one component is contingent upon the execution of all other components at or near the same time. The specific relationship between the component orders (e.g. the spread between the prices of the component orders) is determined at the time the contingent order is placed. The component orders bear a derivative relationship to one another, represent different classes of shares of the same issuer, or involve the securities of participants in mergers or with intentions to"
+125,SINGLE_LEG_AUCTION_NON_ISO,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic order which was ""stopped"" at a price and traded in a two sided auction mechanism that goes through an exposure period. Such auctions mechanisms include and not limited to Price Improvement, Facilitation or Solicitation Mechanism."
+126,SINGLE_LEG_AUCTION_ISO,false,false,false,false,true,true,true,true,"Transaction was the execution of an Intermarket Sweep electronic order which was ""stopped"" at a price and traded in a two sided auction mechanism that goes through an exposure period. Suchauctions mechanisms include and not limited to Price Improvement, Facilitation or Solicitation Mechanism marked as ISO."
+127,SINGLE_LEG_CROSS_NON_ISO,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic order which was ""stopped"" at a price and traded in a two sided crossing mechanism that does not go through an exposure period. Such crossing mechanisms include and not limited to Customer to Customer Cross and QCC with a single option leg."
+128,SINGLE_LEG_CROSS_ISO,false,false,false,false,true,true,true,true,"Transaction was the execution of an Intermarket Sweep electronic order which was ""stopped"" at a price and traded in a two sided crossing mechanism that does not go through an exposure period. Such crossing mechanisms include and not limited to Customer to Customer Cross."
+129,SINGLE_LEG_FLOOR_TRADE,false,false,false,false,true,true,true,true,Transaction represents a non-electronic trade executed on a trading floor. Execution of Paired and Non-Paired Auctions and Cross orders on an exchange floor are also included in this category.
+130,MULTI_LEG_AUTOELEC_TRADE,false,false,false,false,true,true,true,true,Transactionrepresents an electronic execution of a multi leg order traded in a complex order book.
+131,MULTI_LEG_AUCTION,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic multi leg order which was ""stopped"" at a price and traded in a two sided auction mechanism that goes through an exposure period in a complex order book. Such auctions mechanisms include and not limited to Price Improvement, Facilitation or Solicitation Mechanism."
+132,MULTI_LEG_CROSS,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic multi leg order which was ""stopped"" at a price and traded in a two sided crossing mechanism that does not go through an exposure period. Such crossing mechanisms include and not limited to Customer to Customer Cross and QCC with two or more options legs."
+133,MULTI_LEG_FLOOR_TRADE,false,false,false,false,true,true,true,true,Transaction represents a non-electronic multi leg order trade executed against other multi-leg order(s) on a trading floor. Execution of Paired and Non-Paired Auctions and Cross orders on an exchange floor are also included in this category.
+134,ML_AUTO_ELEC_TRADE_AGSL,false,false,false,false,true,true,true,true,Transaction represents an electronic execution of a multi Leg order traded against single leg orders/quotes.
+135,STOCK_OPTIONS_AUCTION,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic multi leg stock/options order which was ""stopped"" at a price and traded in a two sided auction mechanism that goes through an exposure period in a complex order book. Such auctions mechanisms include and not limited to Price Improvement, Facilitation or Solicitation Mechanism."
+136,ML_AUCTION_AGSL,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic multi leg order which was ""stopped"" at a price and traded in a two sided auction mechanism that goes through an exposure period and trades against single leg orders/ quotes. Such auctions mechanisms include and not limited to Price Improvement, Facilitation or Solicitation Mechanism."
+137,ML_FLOOR_TRADE_AGSL,false,false,false,false,true,true,true,true,Transaction represents a non-electronic multi leg order trade executed on a trading floor against single leg orders/ quotes. Execution of Paired and Non-Paired Auctions on an exchange floor are also included in this category.
+138,STK_OPT_AUTO_ELEC_TRADE,false,false,false,false,true,true,true,true,Transaction represents an electronic execution of a multi leg stock/options order traded in a complex order book.
+139,STOCK_OPTIONS_CROSS,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic multi leg stock/options order which was ""stopped"" at a price and traded in a two sided crossing mechanism that does not go through an exposure period. Such crossing mechanisms include and not limited to Customer to Customer Cross."
+140,STOCK_OPTIONS_FLOOR_TRADE,false,false,false,false,true,true,true,true,Transaction represents a non-electronic multi leg order stock/options trade executed on a trading floor in a Complex order book. Execution of Paired and Non-Paired Auctions and Cross orders on an exchange floor are also included in this category.
+141,STK_OPT_AE_TRD_AGSL,false,false,false,false,true,true,true,true,Transaction represents an electronic execution of a multi Leg stock/options order traded against single leg orders/quotes.
+142,STK_OPT_AUCTION_AGSL,false,false,false,false,true,true,true,true,"Transaction was the execution of an electronic multi leg stock/options order which was ""stopped"" at a price and traded in a two sided auction mechanism that goes through an exposure periodand trades against single leg orders/ quotes. Such auctions mechanisms include and not limited to Price Improvement, Facilitation or Solicitation Mechanism."
+143,STK_OPT_FLOOR_TRADE_AGSL,false,false,false,false,true,true,true,true,Transaction represents a non-electronic multi leg stock/options order trade executed on a trading floor against single leg orders/ quotes. Execution of Paired and Non-Paired Auctions on an exchange floor are also included in this category.
+144,ML_FLOOR_TRADE_OF_PP,false,false,false,false,true,true,true,true,Transaction represents execution of a proprietary product non-electronic multi leg order with at least 3 legs. The trade price may be outside the current NBBO.
+145,BID_AGGRESSOR,false,false,false,false,true,true,true,true,Aggressor of the trade is on the buy side.
+146,ASK_AGGRESSOR,false,false,false,false,true,true,true,true,Aggressor of the trade is on the sell side.
+147,MULTILAT_COMP_TR_PDP,false,false,false,false,true,false,false,false,Transaction represents an execution in a proprietary product done as part of a multilateral compression. Trades are executed outside of regular trading hours at prices derived from end of day markets.
+148,EXTENDED_HOURS_TRADE,false,false,false,false,true,false,false,false,Transaction represents a trade that was executed outside of regular market hours.

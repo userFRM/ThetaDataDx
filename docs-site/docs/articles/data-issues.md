@@ -28,7 +28,7 @@ Trade and quote feeds are separate streams. For trade-with-prevailing-quote anal
 :::
 
 ::: details A value disagrees with another vendor
-Check the `condition` / `exchange` codes on the rows in question against the [Conditions](/articles/conditions) and [Exchanges](/articles/exchanges) tables — many discrepancies are condition-filtering differences (odd lots, late reports, derivative prints).
+Check the `condition` / `exchange` codes on the rows in question against the [Trade](/articles/trade-conditions) / [Quote](/articles/quote-conditions) conditions and [Exchanges](/articles/exchanges) tables — many discrepancies are condition-filtering differences (odd lots, late reports, derivative prints).
 :::
 
 Still stuck? Report the exact request (endpoint, parameters, date) on the [issue tracker](https://github.com/userFRM/ThetaDataDx/issues). For upstream data-content questions, use ThetaData's support channels listed on [their documentation site](https://docs.thetadata.us/).

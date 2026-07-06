@@ -5,7 +5,6 @@
 / — ThetaDataDx: Every ThetaData endpoint, market-data, streaming, and bulk, over REST, four native SDKs, or an MCP server for AI.
 /articles/ai-llms — Building with AI / LLMs: Machine-readable entry points for coding assistants and LLM agents.
 /articles/concurrent-requests — Concurrent Requests: How many market-data requests run in parallel per subscription tier.
-/articles/conditions — Trade & Quote Conditions: Condition code mapping for the condition fields on trade and quote rows.
 /articles/configuration — Configuration: Environments, retries, timeouts, and the streaming knobs.
 /articles/data-issues — Data Issues?: A short checklist before filing a data problem.
 /articles/error-codes — Error Codes: The typed error surface across all four SDKs and the server's error envelope.
@@ -13,10 +12,12 @@
 /articles/flat-files — Flat Files: Whole-universe daily archives — every contract for a date in one call.
 /articles/getting-started — Getting Started: Install the SDK, save your credentials, and make your first request in Rust, Python, TypeScript, or C++.
 /articles/option-greeks — Option Greeks: The model behind the Greeks endpoints, with input conventions.
+/articles/quote-conditions — Quote Conditions: The full ThetaData quote-condition code table for the condition fields on quote rows.
 /articles/request-sizing — Request Sizing: How to split large market-data requests.
 /articles/subscriptions — Subscriptions: Minimum ThetaData subscription tier for every endpoint.
 /articles/symbology — Symbology & Contract Identity: How symbols, option contracts, dates, prices, and timestamps are written across the SDK surface.
 /articles/terminology — Terminology: The dozen terms the rest of this documentation assumes.
+/articles/trade-conditions — Trade Conditions: The full ThetaData trade-condition code table for the condition fields on trade rows.
 /changelog — Changelog
 /mcp — MCP Server: Give any Model Context Protocol client live access to every market-data endpoint.
 /reference/ — API Reference: Every endpoint, one page — signatures and runnable samples in Rust, Python, TypeScript, C++, and HTTP.

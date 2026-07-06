@@ -1,0 +1,89 @@
+---
+title: Quote Conditions
+description: The full ThetaData quote-condition code table for the condition fields on quote rows.
+---
+
+# Quote Conditions
+
+Quote rows carry `bid_condition` / `ask_condition` codes. Below is ThetaData's complete published quote-condition set: every code, whether the quote is firm, and whether it denotes a halt. Trade-row condition fields are on the [Trade Conditions](/articles/trade-conditions) page.
+
+[Download as CSV](/csv/quote-conditions.csv)
+
+Legend: ✓ = yes, blank = no. Code 31 is unassigned. Source: ThetaData's [Quote Conditions article](https://docs.thetadata.us/Articles/Errors-Exchanges-Conditions/Quote-Conditions.html).
+
+| Code | Name | Firm | Halted |
+|---:|---|:-:|:-:|
+| 0 | REGULAR | ✓ |  |
+| 1 | BID_ASK_AUTO_EXEC | ✓ |  |
+| 2 | ROTATION |  |  |
+| 3 | SPECIALIST_ASK | ✓ |  |
+| 4 | SPECIALIST_BID | ✓ |  |
+| 5 | LOCKED | ✓ |  |
+| 6 | FAST_MARKET |  |  |
+| 7 | SPECIALIST_BID_ASK | ✓ |  |
+| 8 | ONE_SIDE | ✓ |  |
+| 9 | OPENING_QUOTE |  |  |
+| 10 | CLOSING_QUOTE |  |  |
+| 11 | MARKET_MAKER_CLOSED |  |  |
+| 12 | DEPTH_ON_ASK | ✓ |  |
+| 13 | DEPTH_ON_BID | ✓ |  |
+| 14 | DEPTH_ON_BID_ASK | ✓ |  |
+| 15 | TIER_3 | ✓ |  |
+| 16 | CROSSED | ✓ |  |
+| 17 | HALTED |  | ✓ |
+| 18 | OPERATIONAL_HALT |  | ✓ |
+| 19 | NEWS_OUT |  | ✓ |
+| 20 | NEWS_PENDING |  | ✓ |
+| 21 | NON_FIRM |  |  |
+| 22 | DUE_TO_RELATED |  | ✓ |
+| 23 | RESUME |  |  |
+| 24 | NO_MARKET_MAKERS |  | ✓ |
+| 25 | ORDER_IMBALANCE |  | ✓ |
+| 26 | ORDER_INFLUX |  | ✓ |
+| 27 | INDICATED |  | ✓ |
+| 28 | PRE_OPEN |  |  |
+| 29 | IN_VIEW_OF_COMMON |  | ✓ |
+| 30 | RELATED_NEWS_OUT |  | ✓ |
+| 32 | ADDITIONAL_INFO |  | ✓ |
+| 33 | RELATED_ADD_INFO |  | ✓ |
+| 34 | NO_OPEN_RESUME |  | ✓ |
+| 35 | DELETED |  | ✓ |
+| 36 | REGULATORY_HALT |  | ✓ |
+| 37 | SEC_SUSPENSION |  | ✓ |
+| 38 | NON_COMLIANCE |  | ✓ |
+| 39 | FILINGS_NOT_CURRENT |  | ✓ |
+| 40 | CATS_HALTED |  | ✓ |
+| 41 | CATS |  |  |
+| 42 | EX_DIV_OR_SPLIT | ✓ |  |
+| 43 | UNASSIGNED |  |  |
+| 44 | INSIDE_OPEN |  |  |
+| 45 | INSIDE_CLOSED |  |  |
+| 46 | OFFER_WANTED |  |  |
+| 47 | BID_WANTED |  |  |
+| 48 | CASH | ✓ |  |
+| 49 | INACTIVE | ✓ |  |
+| 50 | NATIONAL_BBO | ✓ |  |
+| 51 | NOMINAL | ✓ |  |
+| 52 | CABINET | ✓ |  |
+| 53 | NOMINAL_CABINET | ✓ |  |
+| 54 | BLANK_PRICE | ✓ |  |
+| 55 | SLOW_BID_ASK |  |  |
+| 56 | SLOW_LIST | ✓ |  |
+| 57 | SLOW_BID |  |  |
+| 58 | SLOW_ASK |  |  |
+| 59 | BID_OFFER_WANTED |  |  |
+| 60 | SUBPENNY |  |  |
+| 61 | NON_BBO |  |  |
+| 62 | SPECIAL_OPEN |  |  |
+| 63 | BENCHMARK |  |  |
+| 64 | IMPLIED |  |  |
+| 65 | EXCHANGE_BEST |  |  |
+| 66 | MKT_WIDE_HALT_1 |  |  |
+| 67 | MKT_WIDE_HALT_2 |  |  |
+| 68 | MKT_WIDE_HALT_3 |  |  |
+| 69 | ON_DEMAND_AUCTION |  |  |
+| 70 | NON_FIRM_BID |  |  |
+| 71 | NON_FIRM_ASK |  |  |
+| 72 | RETAIL_BID |  |  |
+| 73 | RETAIL_ASK |  |  |
+| 74 | RETAIL_QTE |  |  |
