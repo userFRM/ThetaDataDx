@@ -119,7 +119,7 @@ fn render_request_options_layout_asserts(params: &[GeneratedParam]) -> String {
     // and finally the fixed `timeout_ms` (u64) + `has_timeout_ms` (i32) tail.
     let mut fields: Vec<(String, usize, usize)> = Vec::new();
     for param in params {
-        let (size, align) = ffi_field_size_align(&ffi_option_value_type(param));
+        let (size, align) = ffi_field_size_align(ffi_option_value_type(param));
         fields.push((param.name.clone(), size, align));
         if ffi_option_has_flag(param) {
             fields.push((format!("has_{}", param.name), 4, 4));
