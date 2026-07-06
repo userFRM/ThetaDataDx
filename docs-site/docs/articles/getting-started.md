@@ -16,7 +16,7 @@ ThetaDataDx connects directly to ThetaData's servers — nothing to install and 
 ```toml
 # Cargo.toml
 [dependencies]
-thetadatadx = "13.0.0-rc.17"
+thetadatadx = "13.0.0"
 ```
 
 The historical client is async; call it from your application's async runtime.
@@ -26,12 +26,12 @@ The historical client is async; call it from your application's async runtime.
 <template #python>
 
 ```bash
-pip install --pre thetadatadx
+pip install thetadatadx
 
 # Optional DataFrame adapters:
-pip install --pre "thetadatadx[pandas]"    # pandas
-pip install --pre "thetadatadx[polars]"    # polars
-pip install --pre "thetadatadx[arrow]"     # pyarrow only
+pip install "thetadatadx[pandas]"    # pandas
+pip install "thetadatadx[polars]"    # polars
+pip install "thetadatadx[arrow]"     # pyarrow only
 ```
 
 Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Windows — no Rust toolchain needed. On other platforms, build from source with [maturin](https://www.maturin.rs/) (`maturin develop --release` in `thetadatadx-py`).
@@ -41,7 +41,7 @@ Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Wind
 <template #typescript>
 
 ```bash
-npm install thetadatadx@next
+npm install thetadatadx
 ```
 
 Requires Node.js 20+. Pre-built native binaries install automatically per platform.

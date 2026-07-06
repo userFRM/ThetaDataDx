@@ -16,7 +16,7 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp@next"],
+      "args": ["-y", "thetadatadx-mcp"],
       "env": {
         "THETADATA_API_KEY": "your-api-key"
       }
@@ -25,14 +25,14 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
 }
 ```
 
-`npx -y thetadatadx-mcp@next` fetches a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
+`npx -y thetadatadx-mcp` fetches a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
 
 ```json
 {
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp@next"],
+      "args": ["-y", "thetadatadx-mcp"],
       "env": {
         "THETADATA_EMAIL": "you@example.com",
         "THETADATA_PASSWORD": "your-password"

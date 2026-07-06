@@ -92,14 +92,14 @@ println!("{} {}", rows[0].bid, rows[0].ask);
 
 ## Install
 
-::: warning Install the release candidate
+::: warning 13.0.0 is the production release
 
-The active release line is the **13.0.0 release candidate**. It carries the latest data coverage and fixes, and we recommend installing it. Grab the newest RC:
+**13.0.0 is the first production release.** Install it directly. Every earlier version — the `13.0.0` pre-releases and all prior majors — is unsupported, carries known issues, and has been yanked; do not pin an older version.
 
 ```bash
-pip install --pre thetadatadx          # Python 3.12+ (pinned: pip install thetadatadx==13.0.0rc17)
-npm install thetadatadx@next           # Node.js 20+ (pinned: npm install thetadatadx@13.0.0-rc.17)
-cargo add thetadatadx@13.0.0-rc.17     # Rust async client
+pip install thetadatadx                # Python 3.12+
+npm install thetadatadx                # Node.js 20+
+cargo add thetadatadx                  # Rust async client
 ```
 
 :::
