@@ -97,9 +97,9 @@ println!("{} {}", rows[0].bid, rows[0].ask);
 The active release line is the **13.0.0 release candidate**. It carries the latest data coverage and fixes, and we recommend installing it. Grab the newest RC:
 
 ```bash
-pip install --pre thetadatadx          # Python 3.12+ (pinned: pip install thetadatadx==13.0.0rc14)
-npm install thetadatadx@next           # Node.js 20+ (pinned: npm install thetadatadx@13.0.0-rc.15)
-cargo add thetadatadx@13.0.0-rc.15     # Rust async client
+pip install --pre thetadatadx          # Python 3.12+ (pinned: pip install thetadatadx==13.0.0rc17)
+npm install thetadatadx@next           # Node.js 20+ (pinned: npm install thetadatadx@13.0.0-rc.17)
+cargo add thetadatadx@13.0.0-rc.17     # Rust async client
 ```
 
 :::

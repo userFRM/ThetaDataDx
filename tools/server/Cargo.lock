@@ -2106,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "13.0.0-rc.16"
+version = "13.0.0-rc.17"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -2147,7 +2147,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "13.0.0-rc.16"
+version = "13.0.0-rc.17"
 dependencies = [
  "axum",
  "clap",
