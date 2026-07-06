@@ -24,27 +24,27 @@
 /// unaffected by this floor.
 pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 
-/// Historical client tuning.
+/// Market-data client tuning.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub struct HistoricalConfig {
+pub struct MarketDataConfig {
     /// Historical hostname (v3 path).
     ///
-    /// Set through [`DirectConfig::set_historical_host`] so the write is
+    /// Set through [`DirectConfig::set_market_data_host`] so the write is
     /// recorded as an explicit override that survives environment
-    /// selection; read through [`DirectConfig::historical_host`]. The field
-    /// is crate-private so the only way to point the historical channel at a
+    /// selection; read through [`DirectConfig::market_data_host`]. The field
+    /// is crate-private so the only way to point the market-data channel at a
     /// host is the tracked setter — there is no untracked direct-write path
     /// for environment selection to second-guess.
     ///
-    /// [`DirectConfig::set_historical_host`]: crate::config::DirectConfig::set_historical_host
-    /// [`DirectConfig::historical_host`]: crate::config::DirectConfig::historical_host
+    /// [`DirectConfig::set_market_data_host`]: crate::config::DirectConfig::set_market_data_host
+    /// [`DirectConfig::market_data_host`]: crate::config::DirectConfig::market_data_host
     pub(crate) host: String,
 
     /// Historical port (443 for TLS in production).
     pub port: u16,
 
-    /// Whether to use TLS for the historical connection.
+    /// Whether to use TLS for the market-data connection.
     /// Always `true` in production (standard gRPC-over-TLS on port 443).
     pub tls: bool,
 
@@ -57,7 +57,7 @@ pub struct HistoricalConfig {
 
     /// gRPC keepalive interval in seconds (`keepAliveTime(30, SECONDS)`).
     ///
-    /// Sets the HTTP/2 keepalive PING cadence on every historical channel.
+    /// Sets the HTTP/2 keepalive PING cadence on every market-data channel.
     pub keepalive_secs: u64,
 
     /// gRPC keepalive timeout in seconds (`keepAliveTimeout(10, SECONDS)`).
@@ -76,11 +76,11 @@ pub struct HistoricalConfig {
     /// gRPC flow control: initial connection window size in KB.
     ///
     /// Sets the connection-level HTTP/2 flow-control window on every
-    /// Historical channel. Default 64 KB; validation clamps to `[64, 1024]`.
+    /// Market-data channel. Default 64 KB; validation clamps to `[64, 1024]`.
     /// Increase for high-throughput bulk queries.
     pub connection_window_size_kb: usize,
 
-    /// TCP connect timeout for the historical channel, in seconds.
+    /// TCP connect timeout for the market-data channel, in seconds.
     ///
     /// Bounds the time the transport will spend establishing a TCP +
     /// TLS handshake before failing fast. Default `10s` matches the upper
@@ -138,7 +138,7 @@ pub struct HistoricalConfig {
     pub warn_on_buffered_threshold_bytes: usize,
 }
 
-impl HistoricalConfig {
+impl MarketDataConfig {
     /// Upper ceiling for [`Self::max_message_size`], in megabytes.
     ///
     /// The inbound message size is a pre-allocated decode budget, so an
@@ -156,12 +156,12 @@ impl HistoricalConfig {
     /// Historical hostname.
     ///
     /// Read accessor for the crate-private [`Self::host`] field. The host is
-    /// written through [`DirectConfig::set_historical_host`] so a
+    /// written through [`DirectConfig::set_market_data_host`] so a
     /// caller-supplied value is recorded as a tracked override; this getter
     /// is the supported way to read it back (including from the SDK
-    /// bindings, which snapshot a [`HistoricalConfig`]).
+    /// bindings, which snapshot a [`MarketDataConfig`]).
     ///
-    /// [`DirectConfig::set_historical_host`]: crate::config::DirectConfig::set_historical_host
+    /// [`DirectConfig::set_market_data_host`]: crate::config::DirectConfig::set_market_data_host
     #[must_use]
     pub fn host(&self) -> &str {
         &self.host
@@ -196,7 +196,7 @@ impl HistoricalConfig {
     }
 }
 
-impl Default for HistoricalConfig {
+impl Default for MarketDataConfig {
     fn default() -> Self {
         Self::production_defaults()
     }

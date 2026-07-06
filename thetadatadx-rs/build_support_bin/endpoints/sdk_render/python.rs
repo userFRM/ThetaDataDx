@@ -186,7 +186,7 @@ pub(super) fn render_python_decode_bench(endpoints: &[GeneratedEndpoint]) -> Str
     out
 }
 
-/// Renders the Python historical surface: per-endpoint builder
+/// Renders the Python market-data surface: per-endpoint builder
 /// pyclasses, their module registrar, and the `Client`
 /// `#[pymethods]` block with sync, async, and builder variants.
 pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
@@ -231,7 +231,7 @@ pub(super) fn render_python_historical_methods(endpoints: &[GeneratedEndpoint]) 
     out.push_str("}\n\n");
 
     out.push_str("#[pymethods]\n");
-    out.push_str("impl HistoricalView {\n");
+    out.push_str("impl MarketDataView {\n");
     for endpoint in endpoints
         .iter()
         .filter(|endpoint| !is_streaming_endpoint(endpoint))
@@ -354,7 +354,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
         writeln!(
             out,
-            "            let call = self.client.historical().{}({});",
+            "            let call = self.client.market_data().{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
@@ -382,7 +382,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         .join(", ");
     writeln!(
         out,
-        "        let mut request = self.client.historical().{}({});",
+        "        let mut request = self.client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -542,7 +542,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             .expect("list endpoint must declare list_column");
         writeln!(
             out,
-            "            let call = client.historical().{}({});",
+            "            let call = client.market_data().{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
@@ -583,7 +583,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         .join(", ");
     writeln!(
         out,
-        "            let mut request = client.historical().{}({});",
+        "            let mut request = client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1180,7 +1180,7 @@ fn write_stream_request_setup(
         .join(", ");
     writeln!(
         out,
-        "{indent}let mut request = client.historical().{}({});",
+        "{indent}let mut request = client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1336,7 +1336,7 @@ fn write_sync_list_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let call = client.historical().{}({});",
+        "{indent}    let call = client.market_data().{}({});",
         endpoint.name, positional_args_closure
     )
     .unwrap();
@@ -1393,7 +1393,7 @@ fn write_async_list_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let call = client.historical().{}({});",
+        "{indent}    let call = client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1462,7 +1462,7 @@ fn write_sync_parsed_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let mut request = client.historical().{}({});",
+        "{indent}    let mut request = client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -1570,7 +1570,7 @@ fn write_async_parsed_dispatch(
         .join(", ");
     writeln!(
         out,
-        "{indent}    let mut request = client.historical().{}({});",
+        "{indent}    let mut request = client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();

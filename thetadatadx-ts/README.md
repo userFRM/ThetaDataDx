@@ -35,16 +35,16 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 ## Quick start
 
 > [!TIP]
-> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then call `Client.connectWith({ apiKey: "td1_..." })`. The key can also come from the environment (`{ apiKeyFromEnv: true }`, reading `THETADATA_API_KEY`) or a `.env` file (`{ apiKeyFromDotenv: ".env" }`). Email and password is also supported: `{ email, password }` inline, or a `creds.txt` file (email on line 1, password on line 2) via `connectFromFile`. Target staging with `historicalType: "STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and call `Client.connect(creds, config)`.
+> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then call `Client.connectWith({ apiKey: "td1_..." })`. The key can also come from the environment (`{ apiKeyFromEnv: true }`, reading `THETADATA_API_KEY`) or a `.env` file (`{ apiKeyFromDotenv: ".env" }`). Email and password is also supported: `{ email, password }` inline, or a `creds.txt` file (email on line 1, password on line 2) via `connectFromFile`. Target staging with `marketDataType: "STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and call `Client.connect(creds, config)`.
 
 ```typescript
 import { Client } from 'thetadatadx';
 
-// Pass your API key directly. Add historicalType: "STAGE" to target staging.
+// Pass your API key directly. Add marketDataType: "STAGE" to target staging.
 const client = await Client.connectWith({ apiKey: 'td1_...' });
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-const greeks = await client.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', { date: '20240315' });
+const greeks = await client.marketData.optionHistoryGreeksFirstOrder('SPY', '20260619', { date: '20240315' });
 for (const t of greeks.slice(0, 5)) {
   console.log(`K=${t.strike} ${t.right} delta=${t.delta.toFixed(4)} theta=${t.theta.toFixed(4)}`);
 }
@@ -69,14 +69,14 @@ const fullControl = await Client.connectFromFile('creds.txt');
 Every historical method resolves a `Promise` of typed tick objects off the runtime's execution thread, so a fetch never holds the event loop:
 
 ```typescript
-const eod = await client.historical.stockHistoryEOD('AAPL', '20240101', '20240301');
+const eod = await client.marketData.stockHistoryEOD('AAPL', '20240101', '20240301');
 console.log(eod.length, eod[0].close);
 
-const bars = await client.historical.stockHistoryOHLC('AAPL', { date: '20240315', interval: '1m' });
-const exps = await client.historical.optionListExpirations('SPY');
+const bars = await client.marketData.stockHistoryOHLC('AAPL', { date: '20240315', interval: '1m' });
+const exps = await client.marketData.optionListExpirations('SPY');
 
 // Optional parameters — including a per-call timeout — ride in the trailing options object
-const snap = await client.historical.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
+const snap = await client.marketData.stockSnapshotQuote(['AAPL', 'MSFT'], { timeoutMs: 5000 });
 ```
 
 ## Streaming

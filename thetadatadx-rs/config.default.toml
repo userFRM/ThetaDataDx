@@ -6,7 +6,7 @@
 # ── Historical Data (gRPC) ───────────────────────────────────────────────────
 # Historical data is served via gRPC over TLS (not raw TCP).
 
-[historical]
+[market_data]
 host = "mdds-01.thetadata.us"
 port = 443
 tls = true
@@ -77,7 +77,7 @@ consumer_cpu = -1
 # ── Environment selection ────────────────────────────────────────────────────
 # The historical and streaming channels are selected independently via
 # environment variables, each PROD by default:
-#   THETADATA_HISTORICAL_TYPE = "prod" | "stage"  — historical cluster + auth marker
+#   THETADATA_MARKET_DATA_TYPE = "prod" | "stage"  — market-data cluster + auth marker
 #   THETADATA_STREAMING_TYPE  = "prod" | "dev"    — streaming cluster only
 # There is no streaming staging cluster; historical staging leaves streaming on
 # production. `stage` (historical) is less stable than production and reboots

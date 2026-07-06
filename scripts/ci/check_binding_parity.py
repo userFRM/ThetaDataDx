@@ -142,7 +142,7 @@ RUST_CLIENT_BUILDER_RS = (
 CORE_CLIENT_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "client.rs"
 CORE_FPSS_MOD_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "mod.rs"
 # The canonical endpoint registry of record. The build pipeline generates
-# the Rust historical surface (`HistoricalClient::<endpoint>` methods + the
+# the Rust historical surface (`MarketDataClient::<endpoint>` methods + the
 # per-endpoint streaming builders) from this file; the parity gate reads it
 # directly so a dropped or renamed Rust historical endpoint trips without a
 # full build. Every `[[endpoints]]` entry not named `*_stream` (the four FPSS
@@ -832,9 +832,9 @@ CPP_ALIASES: dict[str, str] = {
     "ParseError": "StreamParseError",
     # The unified client's sub-namespace views carry the Python / TypeScript
     # canonical names in `parity.toml`; the C++ header names them without the
-    # `View` suffix (`client.historical()` -> `Historical`, `client.stream()`
+    # `View` suffix (`client.market_data()` -> `Historical`, `client.stream()`
     # -> `Stream`).
-    "HistoricalView": "Historical",
+    "MarketDataView": "MarketData",
     "StreamView": "Stream",
 }
 
@@ -1052,7 +1052,7 @@ def _check_binding_class_orphans(
 # resolves to Python `set_reconnect_wait_ms`, TS `setReconnectWaitMs`,
 # C++ `set_reconnect_wait_ms`, FFI `thetadatadx_config_set_reconnect_wait_ms`.
 STRUCT_TO_PREFIX: dict[str, str] = {
-    "HistoricalConfig": "",
+    "MarketDataConfig": "",
     "StreamingConfig": "",
     "FlatFilesConfig": "flatfiles_",
     "ReconnectConfig": "reconnect_",
@@ -1379,7 +1379,7 @@ def _normalize_setter(name: str) -> str:
 # reason. This is the documented per-language-idiom carve-out the gate
 # tolerates — every entry is a reviewed decision, not a silencer.
 #
-# Empty today: the `historical_host` / `historical_port` advanced endpoint
+# Empty today: the `market_data_host` / `market_data_port` advanced endpoint
 # overrides are now bound on every binding (Python / TypeScript / C++ /
 # the C ABI), so no carve-out is required. Add an entry here only when a
 # setter is intentionally exposed on a strict subset of bindings.
@@ -1619,7 +1619,7 @@ TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER: frozenset[str] = frozenset(
         "email",
         "password",
         "credentialsFile",
-        "historicalType",
+        "marketDataType",
         "streamingType",
     }
 )
@@ -1764,7 +1764,7 @@ def _check_public_surface_vocab(
 # write through to it). The parity-toml rows under `ReconnectConfig.*`
 # already cover the cross-binding contract for those fields.
 SCOPED_STRUCTS: tuple[str, ...] = (
-    "HistoricalConfig",
+    "MarketDataConfig",
     "StreamingConfig",
     "FlatFilesConfig",
     "ReconnectConfig",
@@ -4078,11 +4078,11 @@ def _collect_python_streaming_endpoints(py_src: pathlib.Path) -> set[str]:
 def _collect_typescript_streaming_endpoints(
     ts_methods: dict[str, set[str]],
 ) -> set[str]:
-    """Snake_case endpoint names whose `HistoricalView` napi class
+    """Snake_case endpoint names whose `MarketDataView` napi class
     exposes a `<endpoint>Stream` method.
 
-    The server-stream companions live on the `client.historical`
-    `HistoricalView` view alongside the buffered historical queries.
+    The server-stream companions live on the `client.market_data`
+    `MarketDataView` view alongside the buffered historical queries.
     Reuses the already-collected `{class: {method, ...}}` map. A method
     whose camelCase name ends in `Stream` is a historical server-stream
     terminal; strip the suffix and lower to snake_case to recover the
@@ -4094,7 +4094,7 @@ def _collect_typescript_streaming_endpoints(
     `[[method]]` rows regardless).
     """
     out: set[str] = set()
-    methods = ts_methods.get("HistoricalView", set())
+    methods = ts_methods.get("MarketDataView", set())
     lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
     for method in methods:
         if method in lifecycle:
@@ -4126,17 +4126,17 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
 
 
 def _collect_cpp_streaming_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
-    """Snake_case endpoint names whose C++ `Historical` view exposes an
+    """Snake_case endpoint names whose C++ `MarketData` view exposes an
     `<endpoint>_stream` member.
 
     Reuses the already-collected C++ `{class: {method, ...}}` map. The
-    server-stream companions live on the `client.historical()`
-    `Historical` view body in `thetadatadx.hpp`. A member whose snake_case
+    server-stream companions live on the `client.market_data()`
+    `MarketData` view body in `thetadatadx.hpp`. A member whose snake_case
     name ends in `_stream` is a server-stream terminal; strip the suffix
     to recover the endpoint name.
     """
     out: set[str] = set()
-    methods = cpp_methods.get(_cpp_class_for("HistoricalView"), set())
+    methods = cpp_methods.get(_cpp_class_for("MarketDataView"), set())
     for method in methods:
         if method.endswith("_stream") and len(method) > len("_stream"):
             out.add(method[: -len("_stream")])
@@ -4225,9 +4225,9 @@ def _check_historical_streaming_rows(
 #     `thetadatadx-py/src/_generated/historical_methods.rs`).
 #   * TypeScript: the buffered `<endpoint>` method is itself `async` and
 #     returns a `Promise`, so there is no separate `_async` name — the
-#     presence of the buffered endpoint method on `HistoricalView` IS the
+#     presence of the buffered endpoint method on `MarketDataView` IS the
 #     async surface.
-#   * C++: an inline `<endpoint>_async` member on the `Historical` view
+#   * C++: an inline `<endpoint>_async` member on the `MarketData` view
 #     returning `std::future<std::vector<Row>>` over the blocking member.
 #
 # There is no C ABI row: the async surface is a binding-layer concern
@@ -4283,20 +4283,20 @@ def _collect_python_async_endpoints(py_src: pathlib.Path) -> set[str]:
 def _collect_typescript_async_endpoints(
     ts_methods: dict[str, set[str]],
 ) -> set[str]:
-    """Snake_case endpoint names whose `HistoricalView` napi class exposes a
+    """Snake_case endpoint names whose `MarketDataView` napi class exposes a
     buffered `<endpoint>` query method.
 
     Every buffered TypeScript data method is an `async fn` returning a
     `Promise`, so the buffered endpoint method IS the async surface — there
     is no separate `_async` spelling. Reuses the already-collected
-    `{class: {method, ...}}` map: take the `HistoricalView` methods, drop
+    `{class: {method, ...}}` map: take the `MarketDataView` methods, drop
     the `<endpoint>Stream` server-stream companions, the `<endpoint>WithColumns`
     presence-carrying variants (tracked by the withColumns reachability gate),
     and the FPSS lifecycle methods, and snake-ify the remainder to recover the
     endpoint names.
     """
     out: set[str] = set()
-    methods = ts_methods.get("HistoricalView", set())
+    methods = ts_methods.get("MarketDataView", set())
     lifecycle = {"startStreaming", "stopStreaming", "isStreaming"}
     for method in methods:
         if method in lifecycle:
@@ -4310,7 +4310,7 @@ def _collect_typescript_async_endpoints(
 
 
 def _collect_cpp_async_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
-    """Snake_case endpoint names whose C++ `Historical` view exposes an
+    """Snake_case endpoint names whose C++ `MarketData` view exposes an
     `<endpoint>_async` member.
 
     Reuses the already-collected C++ `{class: {method, ...}}` map. A member
@@ -4318,7 +4318,7 @@ def _collect_cpp_async_endpoints(cpp_methods: dict[str, set[str]]) -> set[str]:
     companion; strip the suffix to recover the endpoint name.
     """
     out: set[str] = set()
-    methods = cpp_methods.get(_cpp_class_for("HistoricalView"), set())
+    methods = cpp_methods.get(_cpp_class_for("MarketDataView"), set())
     for method in methods:
         if method.endswith("_async") and len(method) > len("_async"):
             out.add(method[: -len("_async")])
@@ -4339,7 +4339,7 @@ def _check_historical_async_rows(
     the declared state against the actual surface state and returns a list of
     mismatch strings (empty when every row matches). The Rust column is the
     source of truth: every buffered endpoint in the registry carries a
-    `HistoricalClient::<name>` async query method (the builder-await /
+    `MarketDataClient::<name>` async query method (the builder-await /
     `list_async` twin of the blocking collect), so a dropped or renamed Rust
     endpoint trips here even if a binding still declares it. There is no C
     ABI column — the async surface is a binding-layer concern over the
@@ -4359,10 +4359,10 @@ def _check_historical_async_rows(
             continue
         camel = _snake_to_camel(name)
         for lang, actual_set, hint in (
-            ("rust", rust_async, f"`HistoricalClient::{name}` async query method (registry of record)"),
+            ("rust", rust_async, f"`MarketDataClient::{name}` async query method (registry of record)"),
             ("python", py_async, f"`fn {name}_async` on the historical surface"),
-            ("typescript", ts_async, f"`{camel}` async (Promise) method on `HistoricalView`"),
-            ("cpp", cpp_async, f"`{name}_async(` on the C++ `Historical` view"),
+            ("typescript", ts_async, f"`{camel}` async (Promise) method on `MarketDataView`"),
+            ("cpp", cpp_async, f"`{name}_async(` on the C++ `MarketData` view"),
         ):
             declared = row.get(lang, False)
             actual = name in actual_set
@@ -4400,7 +4400,7 @@ def _check_historical_async_rows(
 # gate the managed bindings (Python / TypeScript / C++) and the C ABI, but
 # the Rust core is the SOURCE OF TRUTH every one of them is generated from:
 # the build pipeline reads `endpoint_surface.toml` and emits the
-# `HistoricalClient::<endpoint>` buffered method, its async / streaming
+# `MarketDataClient::<endpoint>` buffered method, its async / streaming
 # companions, and the `thetadatadx_<endpoint>_with_options` C-ABI base
 # symbol. Without a Rust column + a collector that reads the actual Rust
 # historical surface, a dropped or renamed Rust endpoint reaches none of
@@ -4410,7 +4410,7 @@ def _check_historical_async_rows(
 # The generated Rust method files live only in `OUT_DIR` (not committed),
 # so the gate reads the registry of record directly — `endpoint_surface.toml`
 # — which is the deterministic, no-build source the build pipeline itself
-# consumes. Every `[[endpoints]]` entry generates a `HistoricalClient`
+# consumes. Every `[[endpoints]]` entry generates a `MarketDataClient`
 # method, so the registry IS the Rust historical surface.
 
 
@@ -4425,7 +4425,7 @@ def _collect_rust_buffered_endpoints(
     FPSS real-time subscription endpoints (a distinct surface tracked by
     the streaming-client `[[method]]` rows); the remainder are the buffered
     historical endpoints (the 61-endpoint base surface). Each generates a
-    `HistoricalClient::<name>` method on the Rust core, so this set is the
+    `MarketDataClient::<name>` method on the Rust core, so this set is the
     Rust buffered + async query surface (every buffered endpoint carries an
     `.await` collect and the `list_async` / builder-await async twin).
     """
@@ -4516,7 +4516,7 @@ def _collect_typescript_with_columns_endpoints(
     streaming / buffered rows read `endpoint_surface.toml`. Each variant carries
     a `#[napi(js_name = "<camel>WithColumns")]` attribute; the camel stem
     snake-ifies back to the endpoint name. The method is emitted onto both the
-    `HistoricalView` and `HistoricalClient` impl blocks, so the set dedups.
+    `MarketDataView` and `MarketDataClient` impl blocks, so the set dedups.
     """
     out: set[str] = set()
     if not hist_methods_rs.is_file():
@@ -4643,10 +4643,10 @@ def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
 # ─── Historical buffered base surface ([[historical_base]]) ───────────
 #
 # Every buffered historical endpoint exposes a blocking query terminal on
-# all five surfaces: the Rust `HistoricalClient::<endpoint>` method, the
+# all five surfaces: the Rust `MarketDataClient::<endpoint>` method, the
 # Python `<Endpoint>Builder.list()` collect, the TypeScript buffered
 # `<endpoint>` method (it is itself async-returning, so the buffered and
-# async surfaces coincide there), the C++ `Historical::<endpoint>(...)`
+# async surfaces coincide there), the C++ `MarketData::<endpoint>(...)`
 # member, and the C-ABI `thetadatadx_<endpoint>_with_options` base symbol.
 #
 # This is the core "every endpoint exists everywhere" guarantee. Before
@@ -4696,7 +4696,7 @@ def _check_historical_base_rows(
     Each row declares a snake_case endpoint `name` plus the expected
     buffered-query presence on all five surfaces: Rust (the registry-of-
     record buffered method), Python (`<Endpoint>Builder.list()`), TypeScript
-    (the buffered `<endpoint>` method), C++ (`Historical::<endpoint>`), and
+    (the buffered `<endpoint>` method), C++ (`MarketData::<endpoint>`), and
     the C-ABI `thetadatadx_<endpoint>_with_options` base symbol. The checker
     compares the declared state against the actual surface state and returns
     a list of mismatch strings (empty when every row matches).
@@ -4719,10 +4719,10 @@ def _check_historical_base_rows(
             errors.append(f"  [[historical_base]] row missing `name`: {row!r}")
             continue
         for lang, actual_set, hint in (
-            ("rust", rust_buffered, f"`HistoricalClient::{name}` buffered method (registry of record)"),
+            ("rust", rust_buffered, f"`MarketDataClient::{name}` buffered method (registry of record)"),
             ("python", py_buffered, f"`fn list` on the `{name}` builder pyclass"),
-            ("typescript", ts_buffered, f"buffered `{_snake_to_camel(name)}` method on `HistoricalView`"),
-            ("cpp", cpp_buffered, f"`{name}(` on the C++ `Historical` view"),
+            ("typescript", ts_buffered, f"buffered `{_snake_to_camel(name)}` method on `MarketDataView`"),
+            ("cpp", cpp_buffered, f"`{name}(` on the C++ `MarketData` view"),
             ("ffi", cabi_base, f"`thetadatadx_{name}_with_options` extern \"C\" symbol"),
         ):
             declared = row.get(lang, False)
@@ -4806,8 +4806,8 @@ def _check_historical_base_rows(
 #
 # `name` is the cross-binding client class identifier. The C ABI symbol
 # stem differs from the class name (`thetadatadx_client_connect_from_file` for
-# `Client`, `thetadatadx_historical_connect_from_file` for
-# `HistoricalClient`, `thetadatadx_streaming_connect_from_file` for `StreamingClient`); the stem
+# `Client`, `thetadatadx_market_data_connect_from_file` for
+# `MarketDataClient`, `thetadatadx_streaming_connect_from_file` for `StreamingClient`); the stem
 # table below bridges the two.
 #
 # The family governs exactly the standalone clients that connect to the
@@ -4828,7 +4828,7 @@ def _check_historical_base_rows(
 # classes the collectors below consider.
 FROM_FILE_FFI_STEMS: dict[str, str] = {
     "Client": "client",
-    "HistoricalClient": "historical",
+    "MarketDataClient": "market_data",
     "StreamingClient": "streaming",
 }
 
@@ -4993,7 +4993,7 @@ def _check_from_file_rows(
 # call itself, which `[[method]]` rows cannot express because its
 # spelling differs per binding:
 #   * Python — a `#[new]` constructor (`Client(creds, config)` /
-#     `HistoricalClient(...)` / `StreamingClient(...)`, plus the
+#     `MarketDataClient(...)` / `StreamingClient(...)`, plus the
 #     Python-only `AsyncClient(...)`). The method collector filters
 #     `new`/`__new__`, so the constructor needs its own detector.
 #   * TypeScript — a `connect` static factory (`Client.connect(...)`,
@@ -5011,7 +5011,7 @@ def _check_from_file_rows(
 # in the governed roster separately so its constructor is still scanned.
 CONNECT_FFI_STEMS: dict[str, str] = {
     "Client": "client",
-    "HistoricalClient": "historical",
+    "MarketDataClient": "market_data",
     "StreamingClient": "streaming",
 }
 
@@ -5442,8 +5442,8 @@ def _check_dotted_rows(
             continue
         # Allow rows to override the auto-derived setter name. Used
         # when a single struct has a mix of prefixed / unprefixed
-        # binding-side names (e.g. `HistoricalConfig.host` binds as
-        # `historical_host` because the bare `host` name would collide with
+        # binding-side names (e.g. `MarketDataConfig.host` binds as
+        # `market_data_host` because the bare `host` name would collide with
         # nothing meaningful and the `historical_` prefix clarifies intent).
         canonical = row.get("setter") or f"{prefix}{suffix}"
 
@@ -5892,7 +5892,7 @@ FFI_SYMBOL_EXEMPT: frozenset[str] = frozenset(
         "flatfile_bytes_free",
         "flatfile_rowlist_free",
         "credentials_free",
-        "historical_free",
+        "market_data_free",
         "config_free",
         "test_panic_str",
         "test_panic_string",
@@ -5934,7 +5934,7 @@ _FFI_OBS_SYMBOLS: frozenset[str] = frozenset(
 ) | frozenset(
     {
         "client_stop_streaming",
-        "client_historical",
+        "client_market_data",
         "streaming_shutdown",
     }
 )
@@ -5949,7 +5949,7 @@ _FFI_CONFIG_MISC: frozenset[str] = frozenset(
 # `[[from_file]]` families).
 _FFI_CONNECT_SYMBOLS: frozenset[str] = frozenset(
     f"{stem}_{suf}"
-    for stem in ("client", "streaming", "historical")
+    for stem in ("client", "streaming", "market_data")
     for suf in ("connect", "connect_from_file")
 )
 
@@ -6811,13 +6811,13 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # the view directly; the Rust core returns a borrowed view), so each is a
     # per-binding cell. A drop / rename of the returned view on any binding
     # trips the gate.
-    "HistoricalView": {
-        "python": ("HistoricalView",),
-        "python_pyi": ("HistoricalView",),
-        "ts_napi": ("HistoricalView",),
-        "ts_dts": ("HistoricalView",),
-        "cpp": ("Historical",),
-        "rust": ("&HistoricalClient",),
+    "MarketDataView": {
+        "python": ("MarketDataView",),
+        "python_pyi": ("MarketDataView",),
+        "ts_napi": ("MarketDataView",),
+        "ts_dts": ("MarketDataView",),
+        "cpp": ("MarketData",),
+        "rust": ("&MarketDataClient",),
     },
     "StreamView": {
         "python": ("StreamView",),
@@ -7326,7 +7326,7 @@ def _sig_pyi_public_member_missing(
     stub deliberately omits — the 100+ historical builders / `<Tick>List`
     wrappers reached via the module-level `__getattr__ -> Any`), OR when the
     class carries its own `__getattr__` fallback (`AsyncClient`,
-    `HistoricalClient`, `StreamingSession` route extras to `Any`). In both
+    `MarketDataClient`, `StreamingSession` route extras to `Any`). In both
     degrade cases the pyo3-source `python` lane + stubtest remain the authority
     — exactly the way `_sig_dts_public_member_missing` degrades a class absent
     from the `.d.ts` surface to napi-as-authority."""
@@ -8182,7 +8182,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Historical buffered base surface ([[historical_base]] rows) — the
     # blocking query terminal per endpoint on ALL FIVE surfaces: the Rust
-    # `HistoricalClient::<endpoint>` method (registry of record), the Python
+    # `MarketDataClient::<endpoint>` method (registry of record), the Python
     # `<Endpoint>Builder.list()` collect, the buffered TypeScript method, the
     # C++ `Historical::<endpoint>` member, and the C-ABI
     # `thetadatadx_<endpoint>_with_options` base symbol read from the SHIPPED
@@ -8191,7 +8191,7 @@ def main(argv: list[str] | None = None) -> int:
     # entirely on the C-ABI base.
     py_buffered = _collect_python_buffered_endpoints(PY_SRC)
     ts_buffered = _collect_typescript_async_endpoints(ts_class_methods)
-    cpp_buffered = cpp_class_methods.get(_cpp_class_for("HistoricalView"), set())
+    cpp_buffered = cpp_class_methods.get(_cpp_class_for("MarketDataView"), set())
     cabi_base = _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC)
     ffi_base = _collect_ffi_base_endpoints(FFI_SRC)
     historical_base_errors = _check_historical_base_rows(
@@ -8837,7 +8837,7 @@ def _run_selftest() -> int:
         """
         rows = [
             {
-                "name": "HistoricalConfig.host",
+                "name": "MarketDataConfig.host",
                 "python": True,
                 "typescript": False,
                 "cpp": False,
@@ -10713,9 +10713,9 @@ def _run_selftest() -> int:
 
     def _case_connect_with_field_roster_missing_field_trips() -> None:
         """A dropped/renamed connectWith field trips the roster."""
-        actual = set(TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"historicalType"}
+        actual = set(TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"marketDataType"}
         errors = _check_typescript_connect_with_field_roster(actual)
-        assert any("historicalType" in e and "missing" in e for e in errors), (
+        assert any("marketDataType" in e and "missing" in e for e in errors), (
             f"a missing connectWith field must trip; got {errors!r}"
         )
 
@@ -11170,7 +11170,7 @@ def _run_selftest() -> int:
         """The C++ collector recovers the endpoint name from an `_async`
         member and ignores the blocking member of the same name."""
         cpp_methods = {
-            "Historical": {"stock_history_eod", "stock_history_eod_async"}
+            "MarketData": {"stock_history_eod", "stock_history_eod_async"}
         }
         found = _collect_cpp_async_endpoints(cpp_methods)
         assert found == {"stock_history_eod"}, (
@@ -11293,7 +11293,7 @@ def _run_selftest() -> int:
             _collect_rust_buffered_endpoints(ENDPOINT_SURFACE_TOML),
             _collect_python_buffered_endpoints(PY_SRC),
             _collect_typescript_async_endpoints(ts_methods),
-            cpp_methods.get(_cpp_class_for("HistoricalView"), set()),
+            cpp_methods.get(_cpp_class_for("MarketDataView"), set()),
             _collect_cabi_base_endpoints(ENDPOINT_WITH_OPTIONS_INC),
             _collect_ffi_base_endpoints(FFI_SRC),
         )
@@ -11326,7 +11326,7 @@ def _run_selftest() -> int:
         (with the idiomatic per-binding spelling) is silent."""
         rows = [
             {
-                "name": "HistoricalClient",
+                "name": "MarketDataClient",
                 "python": True,
                 "typescript": True,
                 "cpp": True,
@@ -11335,10 +11335,10 @@ def _run_selftest() -> int:
         ]
         errors = _check_from_file_rows(
             rows,
-            {"HistoricalClient"},
-            {"HistoricalClient"},
-            {"HistoricalClient"},
-            {"historical"},
+            {"MarketDataClient"},
+            {"MarketDataClient"},
+            {"MarketDataClient"},
+            {"market_data"},
         )
         assert errors == [], f"all-bound row must be silent; got {errors!r}"
 
@@ -11584,14 +11584,14 @@ def _run_selftest() -> int:
 
     def _case_surface_vocab_allows_vendor_protocol_names() -> None:
         """Vendor protocol names (mdds / fpss) are allow-listed and must
-        NEVER trip — `HistoricalClient`, `historical_host`,
+        NEVER trip — `MarketDataClient`, `market_data_host`,
         `setStreamingRingSize`, `streaming_ring_size` are all clean.
         """
         errors = _check_public_surface_vocab(
-            {"HistoricalClient", "StreamingClient", "StreamEvent"},
+            {"MarketDataClient", "StreamingClient", "StreamEvent"},
             set(),
             set(),
-            {"historical_host", "historical_port", "streaming_ring_size", "streaming_host_selection"},
+            {"market_data_host", "market_data_port", "streaming_ring_size", "streaming_host_selection"},
             {"streaming_ring_size"},
             set(),
             set(),
@@ -11669,12 +11669,12 @@ def _run_selftest() -> int:
         """A Python-only knob listed in the exemption map does NOT trip
         — the documented per-language-idiom carve-out.
         """
-        py = {"historical_host", "shared"}
+        py = {"market_data_host", "shared"}
         ts = {"shared"}
         cpp = {"shared"}
         ffi = {"shared"}
         errors = _check_setter_set_parity(
-            py, ts, cpp, ffi, exempt={"historical_host": "Python-only advanced override"}
+            py, ts, cpp, ffi, exempt={"market_data_host": "Python-only advanced override"}
         )
         assert errors == [], (
             f"exempted Python-only knob must not trip; got {errors!r}"
@@ -11684,22 +11684,22 @@ def _run_selftest() -> int:
         """An exempted knob that is now uniformly bound on every binding
         is a stale carve-out and trips so the list never rots.
         """
-        allfour = {"historical_host"}
+        allfour = {"market_data_host"}
         errors = _check_setter_set_parity(
             allfour,
             allfour,
             allfour,
             allfour,
-            exempt={"historical_host": "Python-only advanced override"},
+            exempt={"market_data_host": "Python-only advanced override"},
         )
-        assert any("historical_host" in e and "stale" in e for e in errors), (
+        assert any("market_data_host" in e and "stale" in e for e in errors), (
             f"uniformly-bound exemption must surface as stale; got {errors!r}"
         )
 
     def _case_setter_set_parity_shipped_exemption_is_live() -> None:
         """The shipped `SETTER_PARITY_EXEMPT` carve-outs must be live
-        against the real binding sources — `historical_host` /
-        `historical_port` present on every binding, so the carve-out map
+        against the real binding sources — `market_data_host` /
+        `market_data_port` present on every binding, so the carve-out map
         stays empty and the live gate stays silent on them.
         """
         py = _collect_python_setters(PY_SRC)

@@ -82,9 +82,9 @@ describe('InterestRateTick (runtime shape)', () => {
     // Client client names.
     assert.ok(
       typeof mod.Client === 'function'
-        || typeof mod.HistoricalClient === 'function'
+        || typeof mod.MarketDataClient === 'function'
         || typeof mod.Client === 'function'
-        || typeof mod.HistoricalClient === 'function',
+        || typeof mod.MarketDataClient === 'function',
       'native addon should expose at least one Client client class',
     );
   });

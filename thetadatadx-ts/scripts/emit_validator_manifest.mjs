@@ -133,10 +133,10 @@ function parseMethods(source) {
     const trimmed = lines[i].trim();
     // The unified client exposes historical/stream methods through the
     // `historical` / `stream` sub-namespace views, so the projected
-    // methods live on `HistoricalView` / `StreamView` rather than flat on
+    // methods live on `MarketDataView` / `StreamView` rather than flat on
     // `Client`. Scope the parse to all three (exact match excludes the
-    // standalone `HistoricalClient` / `StreamingClient`).
-    if (/^export declare class (Client|HistoricalView|StreamView)\b/.test(trimmed)) {
+    // standalone `MarketDataClient` / `StreamingClient`).
+    if (/^export declare class (Client|MarketDataView|StreamView)\b/.test(trimmed)) {
       inClass = true;
       depth = 1;
       continue;

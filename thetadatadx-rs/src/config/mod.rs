@@ -27,7 +27,7 @@
 //!
 //! | Field           | Type                                                |
 //! |-----------------|-----------------------------------------------------|
-//! | `historical`    | [`HistoricalConfig`] — gRPC host/port/TLS/keepalive       |
+//! | `historical`    | [`MarketDataConfig`] — gRPC host/port/TLS/keepalive       |
 //! | `streaming`     | [`StreamingConfig`] — TCP hosts, queue/ring, flush mode  |
 //! | `flatfiles`     | [`FlatFilesConfig`] — FLATFILES retry budget        |
 //! | `reconnect`     | [`ReconnectConfig`] — wait cadence + policy         |
@@ -51,15 +51,15 @@ use crate::error::Error;
 
 pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
-    ENV_CLIENT_TYPE, ENV_HISTORICAL_HOST, ENV_HISTORICAL_PORT, ENV_HISTORICAL_TYPE, ENV_NEXUS_URL,
-    ENV_STREAMING_HOST, ENV_STREAMING_PORT, ENV_STREAMING_TYPE,
+    ENV_CLIENT_TYPE, ENV_MARKET_DATA_HOST, ENV_MARKET_DATA_PORT, ENV_MARKET_DATA_TYPE,
+    ENV_NEXUS_URL, ENV_STREAMING_HOST, ENV_STREAMING_PORT, ENV_STREAMING_TYPE,
 };
-pub use environment::{HistoricalEnvironment, StreamingEnvironment};
+pub use environment::{MarketDataEnvironment, StreamingEnvironment};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{
     bounds as streaming_bounds, HostSelectionPolicy, StreamingConfig, StreamingFlushMode,
 };
-pub use mdds::HistoricalConfig;
+pub use mdds::MarketDataConfig;
 pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
 pub use metrics::MetricsConfig;
 pub use reconnect::{
@@ -77,7 +77,7 @@ pub use crate::backoff::JitterMode;
 ///
 /// # Layout
 ///
-/// Fields are grouped into eight nested sub-configs ([`HistoricalConfig`],
+/// Fields are grouped into eight nested sub-configs ([`MarketDataConfig`],
 /// [`StreamingConfig`], [`FlatFilesConfig`], [`ReconnectConfig`], [`RetryPolicy`],
 /// [`AuthConfig`], [`MetricsConfig`], [`RuntimeConfig`]). Read accessors on [`DirectConfig`]
 /// preserve the field-style naming used by older callers; writes go through
@@ -92,10 +92,10 @@ pub use crate::backoff::JitterMode;
 ///
 /// | Variable | Type | Effect |
 /// |---|---|---|
-/// | `THETADATA_HISTORICAL_TYPE` | `PROD`/`STAGE` | selects the historical environment + auth marker. Case-insensitive. |
+/// | `THETADATA_MARKET_DATA_TYPE` | `PROD`/`STAGE` | selects the market-data environment + auth marker. Case-insensitive. |
 /// | `THETADATA_STREAMING_TYPE` | `PROD`/`DEV` | selects the streaming environment. Case-insensitive. |
-/// | `THETADATA_HISTORICAL_HOST` | host | overrides `historical.host` |
-/// | `THETADATA_HISTORICAL_PORT` | u16  | overrides `historical.port` |
+/// | `THETADATA_MARKET_DATA_HOST` | host | overrides `historical.host` |
+/// | `THETADATA_MARKET_DATA_PORT` | u16  | overrides `historical.port` |
 /// | `THETADATA_NEXUS_URL` | url  | overrides the Nexus auth URL |
 /// | `THETADATA_STREAMING_HOST` | host | overrides the primary streaming host |
 /// | `THETADATA_STREAMING_PORT` | u16  | overrides the primary streaming port |
@@ -104,17 +104,17 @@ pub use crate::backoff::JitterMode;
 /// | `THETADATA_PASSWORD`    | str | credential helper ([`crate::auth`]) |
 ///
 /// The historical and streaming channels are selected
-/// independently: `THETADATA_HISTORICAL_TYPE` chooses the historical cluster and the
+/// independently: `THETADATA_MARKET_DATA_TYPE` chooses the market-data cluster and the
 /// auth marker (production or staging), `THETADATA_STREAMING_TYPE` chooses the
 /// streaming cluster (production or dev), and neither affects the other. The
-/// typed [`DirectConfig::with_historical_environment`] /
+/// typed [`DirectConfig::with_market_data_environment`] /
 /// [`DirectConfig::with_streaming_environment`] are the programmatic
 /// equivalents.
 ///
 /// The explicit host/port overrides are recorded first and the environments
 /// are selected last: selecting an environment rebuilds that channel's routing
 /// and then patches the recorded overrides on top, so an explicit
-/// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` /
+/// `THETADATA_MARKET_DATA_HOST` / `THETADATA_STREAMING_HOST` /
 /// `THETADATA_STREAMING_PORT` wins over the environment default while the
 /// selected environment's **failover** hosts are preserved. It is independent
 /// of the credential — it works the same with either an api-key or an
@@ -123,7 +123,7 @@ pub use crate::backoff::JitterMode;
 /// The "explicit host wins over the environment default" precedence holds
 /// for **every** path that sets a host, not only the env-var ordering above.
 /// An explicit host survives a later
-/// [`DirectConfig::with_historical_environment`] /
+/// [`DirectConfig::with_market_data_environment`] /
 /// [`DirectConfig::with_streaming_environment`] / [`DirectConfig::stage`] /
 /// [`DirectConfig::dev`], while the channel's selector (and, for the historical
 /// channel, the auth marker) still flips. This is modelled by **provenance,
@@ -134,7 +134,7 @@ pub use crate::backoff::JitterMode;
 ///
 /// The host is set the same way regardless of source — the process env, a
 /// `.env`, a config file, or the programmatic
-/// [`DirectConfig::set_historical_host`] / [`DirectConfig::set_streaming_hosts`]
+/// [`DirectConfig::set_market_data_host`] / [`DirectConfig::set_streaming_hosts`]
 /// setters all funnel through the override-recording path, so every source
 /// shares one precedence. There is no untracked direct-write path: the fields
 /// are crate-private, so environment selection never has to guess whether a
@@ -149,10 +149,10 @@ pub use crate::backoff::JitterMode;
 /// dropped by a value match. A plain `production()` / `stage()` / `dev()` with
 /// no override yields that environment's full cluster, unchanged.
 ///
-/// A malformed `THETADATA_HISTORICAL_PORT` / `THETADATA_STREAMING_PORT` (a
+/// A malformed `THETADATA_MARKET_DATA_PORT` / `THETADATA_STREAMING_PORT` (a
 /// non-integer) is ignored with a `tracing::warn!`, keeping the current value.
 /// An unrecognized environment selector, by contrast, FAILS LOUD: a
-/// `THETADATA_HISTORICAL_TYPE` that is not `PROD` / `STAGE` (including the now-removed
+/// `THETADATA_MARKET_DATA_TYPE` that is not `PROD` / `STAGE` (including the now-removed
 /// `DEV`) or a `THETADATA_STREAMING_TYPE` that is not `PROD` / `DEV` (including
 /// `STAGE`) is a hard error naming the valid set, never a silent fallback, so a
 /// stale or cross-channel selector cannot quietly route to the wrong cluster.
@@ -160,7 +160,7 @@ pub use crate::backoff::JitterMode;
 #[non_exhaustive]
 pub struct DirectConfig {
     /// Historical tuning.
-    pub historical: HistoricalConfig,
+    pub market_data: MarketDataConfig,
     /// Streaming tuning.
     pub streaming: StreamingConfig,
     /// FLATFILES retry tuning.
@@ -175,29 +175,29 @@ pub struct DirectConfig {
     pub metrics: MetricsConfig,
     /// Async runtime tuning.
     pub runtime: RuntimeConfig,
-    /// Target historical environment (production or staging). Defaults
-    /// to [`HistoricalEnvironment::Prod`]; [`DirectConfig::stage`] selects
-    /// [`HistoricalEnvironment::Stage`]. Selects the cluster the historical
+    /// Target market-data environment (production or staging). Defaults
+    /// to [`MarketDataEnvironment::Prod`]; [`DirectConfig::stage`] selects
+    /// [`MarketDataEnvironment::Stage`]. Selects the cluster the historical
     /// channel dials and the auth wire marker carried on the auth request
     /// (staging carries the staging marker, production carries none). The
     /// streaming channel is selected independently via
     /// [`Self::streaming_environment`].
-    pub historical_environment: HistoricalEnvironment,
+    pub market_data_environment: MarketDataEnvironment,
     /// Target streaming environment (production or dev). Defaults to
     /// [`StreamingEnvironment::Prod`]; [`DirectConfig::dev`] selects
     /// [`StreamingEnvironment::Dev`]. Selects the cluster the streaming
     /// channel dials and nothing else — it never affects auth, so a dev
     /// session authenticates byte-identically to a production one. The
-    /// historical channel is selected independently via
-    /// [`Self::historical_environment`].
+    /// market-data channel is selected independently via
+    /// [`Self::market_data_environment`].
     pub streaming_environment: StreamingEnvironment,
-    /// Explicit historical host override (env-var / `.env` / config-file).
-    /// When set, environment selection ([`Self::apply_historical_environment`])
+    /// Explicit market-data host override (env-var / `.env` / config-file).
+    /// When set, environment selection ([`Self::apply_market_data_environment`])
     /// uses this host instead of the environment's default so an explicit host
     /// wins over the environment — the precedence documented on this
     /// struct. Not part of the public field set; reset implicitly by
     /// [`Default`] and the preset constructors.
-    historical_host_override: Option<String>,
+    market_data_host_override: Option<String>,
     /// Explicit primary streaming host override (`THETADATA_STREAMING_HOST`
     /// / `.env`). Patches the primary slot of the selected environment's
     /// streaming hosts in [`Self::apply_streaming_environment`], leaving that
@@ -242,7 +242,7 @@ impl DirectConfig {
     pub fn production() -> Self {
         // Delegate to the fallible sibling and panic on its typed error so the
         // panic message still names the offending key, its value, and the valid
-        // set (an unrecognized `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE`,
+        // set (an unrecognized `THETADATA_MARKET_DATA_TYPE` / `THETADATA_STREAMING_TYPE`,
         // including a cross-channel value such as `DEV` on the historical
         // channel, or an override that pushes a knob out of validated bounds).
         Self::try_production().unwrap_or_else(|e| {
@@ -255,7 +255,7 @@ impl DirectConfig {
     /// validation error instead of panicking.
     ///
     /// The env-resolution paths (a plain `.connect()`, `.stage()`, `.dev()`)
-    /// use this so an invalid `THETADATA_HISTORICAL_TYPE` surfaces as
+    /// use this so an invalid `THETADATA_MARKET_DATA_TYPE` surfaces as
     /// [`Error::Config`] to the caller rather than a panic inside the
     /// blocking-pool task that resolves the config.
     ///
@@ -276,7 +276,7 @@ impl DirectConfig {
     #[must_use]
     pub(crate) fn production_defaults() -> Self {
         Self {
-            historical: HistoricalConfig::production_defaults(),
+            market_data: MarketDataConfig::production_defaults(),
             streaming: StreamingConfig::production_defaults(),
             flatfiles: FlatFilesConfig::production_defaults(),
             reconnect: ReconnectConfig::production_defaults(),
@@ -284,30 +284,30 @@ impl DirectConfig {
             auth: AuthConfig::production_defaults(),
             metrics: MetricsConfig::default(),
             runtime: RuntimeConfig::default(),
-            historical_environment: HistoricalEnvironment::Prod,
+            market_data_environment: MarketDataEnvironment::Prod,
             streaming_environment: StreamingEnvironment::Prod,
             // The canonical defaults are the environment's own cluster, not
             // a caller override, so environment selection is free to move
             // them. The override layer records these when an explicit host
             // (or port, or full host list) is supplied.
-            historical_host_override: None,
+            market_data_host_override: None,
             streaming_primary_host_override: None,
             streaming_primary_port_override: None,
             streaming_hosts_full_override: None,
         }
     }
 
-    /// Route the historical channel at `env`.
+    /// Route the market-data channel at `env`.
     ///
-    /// Sets [`Self::historical_environment`] and points the historical host at
+    /// Sets [`Self::market_data_environment`] and points the market-data host at
     /// that environment's cluster. This is the single place that maps a
-    /// [`HistoricalEnvironment`] to its host, so [`Self::production`],
-    /// [`Self::stage`], and [`Self::with_historical_environment`] all stay in
+    /// [`MarketDataEnvironment`] to its host, so [`Self::production`],
+    /// [`Self::stage`], and [`Self::with_market_data_environment`] all stay in
     /// agreement without duplicating host literals. The streaming channel is
     /// untouched — [`Self::apply_streaming_environment`] routes it
     /// independently.
     ///
-    /// A recorded historical host override (env-var / `.env` / config-file) is
+    /// A recorded market-data host override (env-var / `.env` / config-file) is
     /// layered on top of the environment's cluster so an explicit host wins
     /// over the environment's default — the precedence documented on the
     /// struct. The environment marker still flips regardless, since it routes
@@ -319,19 +319,19 @@ impl DirectConfig {
     /// Resolution is purely provenance-driven: the host field is encapsulated,
     /// so the recorded override is the single source of truth for whether a
     /// caller set a host. There is no value comparison and no untracked
-    /// direct-write to detect — a host set via [`Self::set_historical_host`]
+    /// direct-write to detect — a host set via [`Self::set_market_data_host`]
     /// (or the env-var / `.env` / config-file layers, which funnel through the
     /// same override-recording path) is honoured here, and an unset channel
     /// takes the selected environment's cluster.
-    fn apply_historical_environment(&mut self, env: HistoricalEnvironment) {
-        self.historical_environment = env;
+    fn apply_market_data_environment(&mut self, env: MarketDataEnvironment) {
+        self.market_data_environment = env;
         // Historical (gRPC) targets the cluster host on the same TLS port;
         // only the host differs between environments. A recorded override
         // wins over the environment default so it survives environment
         // selection. The streaming channel is untouched — the two are
         // independent.
-        self.historical.host = self
-            .historical_host_override
+        self.market_data.host = self
+            .market_data_host_override
             .clone()
             .unwrap_or_else(|| env.host().to_string());
     }
@@ -342,7 +342,7 @@ impl DirectConfig {
         // layer the recorded streaming overrides on top. Rebuilding from `env`
         // every call is what makes an env-var primary override keep tracking
         // the current environment's failover hosts across a later switch. The
-        // historical channel and the auth marker are untouched — the streaming
+        // market-data channel and the auth marker are untouched — the streaming
         // environment selects only the streaming hosts.
         let base = env.hosts();
         self.streaming.hosts = self.resolve_streaming_hosts(base);
@@ -395,31 +395,31 @@ impl DirectConfig {
     /// CURRENT environment.
     ///
     /// Keeps the invariant that the live host fields always equal what the
-    /// recorded overrides imply for [`Self::historical_environment`] /
+    /// recorded overrides imply for [`Self::market_data_environment`] /
     /// [`Self::streaming_environment`]. The override setters call this the
     /// moment they record a value, so the live field a getter reads is
     /// consistent without waiting for the next environment switch.
     fn reapply_overrides_to_live_fields(&mut self) {
-        self.historical.host = self
-            .historical_host_override
+        self.market_data.host = self
+            .market_data_host_override
             .clone()
-            .unwrap_or_else(|| self.historical_environment.host().to_string());
+            .unwrap_or_else(|| self.market_data_environment.host().to_string());
         self.streaming.hosts = self.resolve_streaming_hosts(self.streaming_environment.hosts());
     }
 
-    /// Set an explicit historical host.
+    /// Set an explicit market-data host.
     ///
     /// This is the only supported way to point the historical (gRPC) channel
     /// at a host. The host is recorded as a tracked override, so it survives a
-    /// later `apply_historical_environment` (and therefore
-    /// [`Self::with_historical_environment`] / [`Self::stage`] / [`Self::dev`]):
+    /// later `apply_market_data_environment` (and therefore
+    /// [`Self::with_market_data_environment`] / [`Self::stage`] / [`Self::dev`]):
     /// an explicit host wins over the environment's default — the precedence
     /// documented on the struct. The most recent call wins over any earlier
     /// override (an env-var / `.env` / config-file host or a prior `set_*`
     /// call). The live field is updated immediately so a subsequent
-    /// [`Self::historical_host`] read reflects the new host.
-    pub fn set_historical_host(&mut self, host: impl Into<String>) {
-        self.historical_host_override = Some(host.into());
+    /// [`Self::market_data_host`] read reflects the new host.
+    pub fn set_market_data_host(&mut self, host: impl Into<String>) {
+        self.market_data_host_override = Some(host.into());
         self.reapply_overrides_to_live_fields();
     }
 
@@ -458,17 +458,17 @@ impl DirectConfig {
         self.reapply_overrides_to_live_fields();
     }
 
-    /// Record an explicit historical host override.
+    /// Record an explicit market-data host override.
     ///
     /// The internal entry point the env-var / `.env` / config-file layers use;
-    /// [`Self::set_historical_host`] is the public equivalent. Recording an
+    /// [`Self::set_market_data_host`] is the public equivalent. Recording an
     /// override makes the host survive a later
-    /// [`Self::apply_historical_environment`], so an explicit host wins over the
+    /// [`Self::apply_market_data_environment`], so an explicit host wins over the
     /// environment's default — the precedence documented on the struct. The
     /// override is mirrored onto the live field immediately so a getter reflects
     /// it before the next switch.
-    pub(crate) fn set_historical_host_override(&mut self, host: String) {
-        self.historical_host_override = Some(host);
+    pub(crate) fn set_market_data_host_override(&mut self, host: String) {
+        self.market_data_host_override = Some(host);
         self.reapply_overrides_to_live_fields();
     }
 
@@ -515,15 +515,15 @@ impl DirectConfig {
         self.set_streaming_hosts(hosts);
     }
 
-    /// Select the historical environment, returning the updated config.
+    /// Select the market-data environment, returning the updated config.
     ///
-    /// The programmatic equivalent of the `THETADATA_HISTORICAL_TYPE`
-    /// (`PROD` / `STAGE`) env var: it points the historical host and the auth
+    /// The programmatic equivalent of the `THETADATA_MARKET_DATA_TYPE`
+    /// (`PROD` / `STAGE`) env var: it points the market-data host and the auth
     /// wire marker at the chosen environment. The streaming channel is
     /// unaffected — select it independently with
     /// [`Self::with_streaming_environment`].
     ///
-    /// `DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage)`
+    /// `DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage)`
     /// is the historical half of [`DirectConfig::stage`].
     ///
     /// Works the same with either credential form (api-key or
@@ -535,8 +535,8 @@ impl DirectConfig {
     /// Only the cluster routing changes, so this fires only when a tuning
     /// knob was already out of range before the call.
     #[must_use]
-    pub fn with_historical_environment(mut self, env: HistoricalEnvironment) -> Self {
-        self.apply_historical_environment(env);
+    pub fn with_market_data_environment(mut self, env: MarketDataEnvironment) -> Self {
+        self.apply_market_data_environment(env);
         self.validate()
             .expect("environment switch leaves tuning knobs unchanged")
     }
@@ -545,10 +545,10 @@ impl DirectConfig {
     ///
     /// The programmatic equivalent of the `THETADATA_STREAMING_TYPE`
     /// (`PROD` / `DEV`) env var: it points the streaming hosts at the chosen
-    /// environment and nothing else. Auth and the historical channel are
+    /// environment and nothing else. Auth and the market-data channel are
     /// unaffected — a dev session authenticates byte-identically to a
-    /// production one. Select the historical channel independently with
-    /// [`Self::with_historical_environment`].
+    /// production one. Select the market-data channel independently with
+    /// [`Self::with_market_data_environment`].
     ///
     /// `DirectConfig::production().with_streaming_environment(StreamingEnvironment::Dev)`
     /// is the streaming half of [`DirectConfig::dev`].
@@ -570,18 +570,18 @@ impl DirectConfig {
     /// Starts from the hardcoded production defaults and applies the cluster
     /// keys carried by the file:
     ///
-    /// - `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`, case-insensitive) selects the
-    ///   historical environment via [`HistoricalEnvironment::parse`], pointing
-    ///   the historical host and the auth marker at the chosen cluster — the
-    ///   file-sourced equivalent of the [`THETADATA_HISTORICAL_TYPE`](Self::production)
-    ///   env var and of [`Self::with_historical_environment`].
+    /// - `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`, case-insensitive) selects the
+    ///   market-data environment via [`MarketDataEnvironment::parse`], pointing
+    ///   the market-data host and the auth marker at the chosen cluster — the
+    ///   file-sourced equivalent of the [`THETADATA_MARKET_DATA_TYPE`](Self::production)
+    ///   env var and of [`Self::with_market_data_environment`].
     /// - `THETADATA_STREAMING_TYPE` (`PROD` / `DEV`, case-insensitive) selects the
     ///   streaming environment via [`StreamingEnvironment::parse`], pointing the
     ///   streaming hosts at the chosen cluster — the file-sourced equivalent of
     ///   the [`THETADATA_STREAMING_TYPE`](Self::production) env var and of
     ///   [`Self::with_streaming_environment`]. The two channels are selected
     ///   independently and neither affects the other.
-    /// - `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`, when
+    /// - `THETADATA_MARKET_DATA_HOST` / `THETADATA_STREAMING_HOST`, when
     ///   present, override the historical and primary streaming hosts. They
     ///   are layered on top of the environment selection, so an explicit host
     ///   wins over the environment default — the same precedence as the
@@ -592,14 +592,14 @@ impl DirectConfig {
     /// optional matching quotes). It is the **same** file format and the same
     /// keys that [`crate::auth::Credentials::from_dotenv`] reads for the
     /// credential, so a single `.env` can carry both `THETADATA_API_KEY` and
-    /// `THETADATA_HISTORICAL_TYPE`: the credential reader picks up the secret keys
+    /// `THETADATA_MARKET_DATA_TYPE`: the credential reader picks up the secret keys
     /// and this reader picks up the cluster keys.
     ///
     /// An empty selector reads as unset (the production default is kept), and a
     /// file that carries only a credential key (for example just
     /// `THETADATA_API_KEY`) yields the production configuration without error.
-    /// An *unrecognized* `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` (including
-    /// a cross-channel value such as `DEV` on `THETADATA_HISTORICAL_TYPE` or `STAGE` on
+    /// An *unrecognized* `THETADATA_MARKET_DATA_TYPE` / `THETADATA_STREAMING_TYPE` (including
+    /// a cross-channel value such as `DEV` on `THETADATA_MARKET_DATA_TYPE` or `STAGE` on
     /// `THETADATA_STREAMING_TYPE`) is a returned error naming the valid set, never a
     /// silent fallback.
     ///
@@ -613,8 +613,8 @@ impl DirectConfig {
         // [`Self::production`]: a file-sourced config must be deterministic
         // from its defaults plus the file, so the ambient process env never
         // leaks in. A `.env` that selects `PROD` must yield the prod cluster
-        // even when the shell has `THETADATA_HISTORICAL_TYPE=STAGE` (or a stray
-        // `THETADATA_HISTORICAL_HOST`) left over. `with_dotenv` layers only
+        // even when the shell has `THETADATA_MARKET_DATA_TYPE=STAGE` (or a stray
+        // `THETADATA_MARKET_DATA_HOST`) left over. `with_dotenv` layers only
         // the parsed file pairs via `apply_dotenv_overrides`, which reads the
         // file, never the process env.
         Self::production_defaults().with_dotenv(path)
@@ -650,7 +650,7 @@ impl DirectConfig {
                 source: Some(Box::new(e)),
             })?);
         let pairs = crate::auth::dotenv::parse(&contents);
-        // An unrecognized `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` in the
+        // An unrecognized `THETADATA_MARKET_DATA_TYPE` / `THETADATA_STREAMING_TYPE` in the
         // file is a returned error naming the valid set, not a silent fallback.
         env::apply_dotenv_overrides(&mut self, &pairs)?;
         self.validate()
@@ -666,7 +666,7 @@ impl DirectConfig {
     ///
     /// Dev selects the streaming dev-replay cluster ONLY: the streaming
     /// channel dials the dev replay hosts ([`StreamingEnvironment::Dev`]) while
-    /// the historical channel and the auth wire marker stay on production —
+    /// the market-data channel and the auth wire marker stay on production —
     /// there is no dev historical, and the two clients are selected
     /// independently. A dev session authenticates byte-identically to a
     /// production one. Because the environment fully determines the cluster, a
@@ -721,8 +721,8 @@ impl DirectConfig {
     ///
     /// Selects `ThetaData`'s historical staging cluster ONLY:
     ///
-    /// - Historical environment: [`HistoricalEnvironment::Stage`], so the
-    ///   historical channel dials `mdds-stage.thetadata.us:443` (TLS) and the
+    /// - Market-data environment: [`MarketDataEnvironment::Stage`], so the
+    ///   market-data channel dials `mdds-stage.thetadata.us:443` (TLS) and the
     ///   auth request carries the staging marker so the server routes the
     ///   session to staging.
     /// - Streaming stays on production. There is no streaming staging cluster,
@@ -742,7 +742,7 @@ impl DirectConfig {
         let mut config = Self::production();
         // Select historical-staging (host + auth marker) only; streaming stays
         // on production since streaming has no staging cluster.
-        config.apply_historical_environment(HistoricalEnvironment::Stage);
+        config.apply_market_data_environment(MarketDataEnvironment::Stage);
         config
             .validate()
             .expect("stage preset is within validated bounds")
@@ -993,39 +993,40 @@ impl DirectConfig {
         if let Err(e) = crate::fpss::ring::check_ring_size(self.streaming.ring_size) {
             return Err(Error::config_invalid("streaming.ring_size", e.to_string()));
         }
-        self.historical.window_size_kb = self.historical.window_size_kb.clamp(64, 1_024);
-        self.historical.connection_window_size_kb =
-            self.historical.connection_window_size_kb.clamp(64, 1_024);
-        // The historical channel needs a routable port. A `0` port is never a
+        self.market_data.window_size_kb = self.market_data.window_size_kb.clamp(64, 1_024);
+        self.market_data.connection_window_size_kb =
+            self.market_data.connection_window_size_kb.clamp(64, 1_024);
+        // The market-data channel needs a routable port. A `0` port is never a
         // valid dial target, so reject it up front rather than at the connect
         // attempt.
-        if self.historical.port == 0 {
+        if self.market_data.port == 0 {
             return Err(Error::config_invalid(
                 "historical.port",
                 "port must be non-zero".to_string(),
             ));
         }
-        // The historical channel needs a routable host. A blank or whitespace
-        // host is accepted only by the raw `set_historical_host` setter and the
+        // The market-data channel needs a routable host. A blank or whitespace
+        // host is accepted only by the raw `set_market_data_host` setter and the
         // config-file path; reject it here (after trimming) so it fails fast
         // with a named field error instead of a late dial-time transport error.
-        let trimmed_host = self.historical.host.trim();
+        let trimmed_host = self.market_data.host.trim();
         if trimmed_host.is_empty() {
             return Err(Error::config_invalid(
                 "historical.host",
                 "host must be non-empty".to_string(),
             ));
         }
-        if trimmed_host.len() != self.historical.host.len() {
-            self.historical.host = trimmed_host.to_string();
+        if trimmed_host.len() != self.market_data.host.len() {
+            self.market_data.host = trimmed_host.to_string();
         }
         // Historical TCP+TLS connect timeout must be positive: a `0` makes
         // every channel-pool connect time out on its first poll. Band-checked
         // against the same range as the flat-file connect timeout it mirrors.
-        if !flatfiles_bounds::CONNECT_TIMEOUT_SECS.contains(&self.historical.connect_timeout_secs) {
+        if !flatfiles_bounds::CONNECT_TIMEOUT_SECS.contains(&self.market_data.connect_timeout_secs)
+        {
             return Err(Error::config_out_of_range(
                 "historical.connect_timeout_secs",
-                to_i64(self.historical.connect_timeout_secs),
+                to_i64(self.market_data.connect_timeout_secs),
                 to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.start()),
                 to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.end()),
             ));
@@ -1034,13 +1035,13 @@ impl DirectConfig {
         // rejects every response and an absurd value commits the channel to a
         // buffer far beyond any legitimate chunk. Range-checked against the
         // same ceiling the `[grpc] max_message_size_mb` spelling enforces (the
-        // shared `HistoricalConfig::MAX_MESSAGE_SIZE_MB`, in megabytes, scaled to
+        // shared `MarketDataConfig::MAX_MESSAGE_SIZE_MB`, in megabytes, scaled to
         // bytes here), so the two spellings cannot drift.
-        let max_message_size_bytes = HistoricalConfig::MAX_MESSAGE_SIZE_MB * 1024 * 1024;
-        if !(1..=max_message_size_bytes).contains(&self.historical.max_message_size) {
+        let max_message_size_bytes = MarketDataConfig::MAX_MESSAGE_SIZE_MB * 1024 * 1024;
+        if !(1..=max_message_size_bytes).contains(&self.market_data.max_message_size) {
             return Err(Error::config_out_of_range(
                 "historical.max_message_size",
-                i64::try_from(self.historical.max_message_size).unwrap_or(i64::MAX),
+                i64::try_from(self.market_data.max_message_size).unwrap_or(i64::MAX),
                 1,
                 to_i64(max_message_size_bytes as u64),
             ));
@@ -1110,8 +1111,8 @@ impl DirectConfig {
 impl DirectConfig {
     /// Historical hostname.
     #[must_use]
-    pub fn historical_host(&self) -> &str {
-        &self.historical.host
+    pub fn market_data_host(&self) -> &str {
+        &self.market_data.host
     }
 
     /// Streaming host list.
@@ -1120,10 +1121,10 @@ impl DirectConfig {
         &self.streaming.hosts
     }
 
-    /// Target historical environment (production or staging).
+    /// Target market-data environment (production or staging).
     #[must_use]
-    pub fn historical_environment(&self) -> HistoricalEnvironment {
-        self.historical_environment
+    pub fn market_data_environment(&self) -> MarketDataEnvironment {
+        self.market_data_environment
     }
 
     /// Target streaming environment (production or dev).
@@ -1138,7 +1139,7 @@ impl DirectConfig {
 #[cfg(feature = "config-file")]
 mod config_file {
     use super::{
-        DirectConfig, HistoricalConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
+        DirectConfig, MarketDataConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
         StreamingFlushMode,
     };
     use crate::error::Error;
@@ -1153,7 +1154,7 @@ mod config_file {
     #[derive(Debug, Default, Deserialize)]
     #[serde(default, deny_unknown_fields)]
     struct ConfigFile {
-        historical: MddsSection,
+        market_data: MddsSection,
         streaming: FpssSection,
         grpc: GrpcSection,
     }
@@ -1180,11 +1181,11 @@ mod config_file {
                 // Absent by default so the environment's host stays the
                 // single source of truth unless the operator sets it.
                 host: None,
-                port: prod.historical.port,
-                tls: prod.historical.tls,
-                keepalive_time_secs: prod.historical.keepalive_secs,
-                keepalive_timeout_secs: prod.historical.keepalive_timeout_secs,
-                max_message_size: prod.historical.max_message_size,
+                port: prod.market_data.port,
+                tls: prod.market_data.tls,
+                keepalive_time_secs: prod.market_data.keepalive_secs,
+                keepalive_timeout_secs: prod.market_data.keepalive_timeout_secs,
+                max_message_size: prod.market_data.max_message_size,
             }
         }
     }
@@ -1248,7 +1249,7 @@ mod config_file {
         window_size_kb: usize,
         connection_window_size_kb: usize,
         /// Max inbound message size, in MB. `None` (key absent) leaves the
-        /// `[historical].max_message_size` byte value in force; an explicit
+        /// `[market_data].max_message_size` byte value in force; an explicit
         /// value here — including the default of `4` — overrides it. Kept
         /// distinguishable from "absent" via `Option` so setting the
         /// override to the same number as the default is still honoured as
@@ -1260,9 +1261,9 @@ mod config_file {
         fn default() -> Self {
             let prod = DirectConfig::production_defaults();
             Self {
-                window_size_kb: prod.historical.window_size_kb,
-                connection_window_size_kb: prod.historical.connection_window_size_kb,
-                // Absent by default so `[historical].max_message_size`
+                window_size_kb: prod.market_data.window_size_kb,
+                connection_window_size_kb: prod.market_data.connection_window_size_kb,
+                // Absent by default so `[market_data].max_message_size`
                 // remains the single source of truth unless the operator
                 // sets this MB-denominated override explicitly.
                 max_message_size_mb: None,
@@ -1329,7 +1330,7 @@ mod config_file {
         /// # Example file
         ///
         /// ```toml
-        /// [historical]
+        /// [market_data]
         /// host = "mdds-01.thetadata.us"
         /// port = 443
         /// tls = true
@@ -1389,7 +1390,7 @@ mod config_file {
                 }
             };
 
-            // `[historical].max_message_size` (bytes) is the canonical knob.
+            // `[market_data].max_message_size` (bytes) is the canonical knob.
             // `[grpc].max_message_size_mb` (MB) is an explicit override that
             // wins when present — including when set to the same number as
             // the default — and is inert when absent.
@@ -1400,12 +1401,12 @@ mod config_file {
                 // `checked_mul` so an absurd input is reported as a range
                 // error rather than wrapping `usize` into a tiny cap.
                 Some(mb) => {
-                    if mb == 0 || mb > HistoricalConfig::MAX_MESSAGE_SIZE_MB {
+                    if mb == 0 || mb > MarketDataConfig::MAX_MESSAGE_SIZE_MB {
                         return Err(Error::config_out_of_range(
                             "grpc.max_message_size_mb",
                             i64::try_from(mb).unwrap_or(i64::MAX),
                             1,
-                            i64::try_from(HistoricalConfig::MAX_MESSAGE_SIZE_MB)
+                            i64::try_from(MarketDataConfig::MAX_MESSAGE_SIZE_MB)
                                 .unwrap_or(i64::MAX),
                         ));
                     }
@@ -1414,33 +1415,33 @@ mod config_file {
                             "grpc.max_message_size_mb",
                             i64::try_from(mb).unwrap_or(i64::MAX),
                             1,
-                            i64::try_from(HistoricalConfig::MAX_MESSAGE_SIZE_MB)
+                            i64::try_from(MarketDataConfig::MAX_MESSAGE_SIZE_MB)
                                 .unwrap_or(i64::MAX),
                         )
                     })?
                 }
-                None => cf.historical.max_message_size,
+                None => cf.market_data.max_message_size,
             };
 
             let mut out = DirectConfig::production_defaults();
-            // An explicit `[historical] host` is the operator's choice, so
+            // An explicit `[market_data] host` is the operator's choice, so
             // record it as a tracked override: a later
-            // `with_historical_environment()` / `stage()` / `dev()` must respect
+            // `with_market_data_environment()` / `stage()` / `dev()` must respect
             // it rather than clobber it back to the environment default. The
             // setter mirrors the value onto the live field immediately, so this
             // path needs no separate field write. An absent key leaves the
             // production default in force and records no override, so a later
             // environment switch still re-points the host.
-            if let Some(host) = cf.historical.host {
-                out.set_historical_host(host);
+            if let Some(host) = cf.market_data.host {
+                out.set_market_data_host(host);
             }
-            out.historical.port = cf.historical.port;
-            out.historical.tls = cf.historical.tls;
-            out.historical.max_message_size = max_message_size;
-            out.historical.keepalive_secs = cf.historical.keepalive_time_secs;
-            out.historical.keepalive_timeout_secs = cf.historical.keepalive_timeout_secs;
-            out.historical.window_size_kb = cf.grpc.window_size_kb;
-            out.historical.connection_window_size_kb = cf.grpc.connection_window_size_kb;
+            out.market_data.port = cf.market_data.port;
+            out.market_data.tls = cf.market_data.tls;
+            out.market_data.max_message_size = max_message_size;
+            out.market_data.keepalive_secs = cf.market_data.keepalive_time_secs;
+            out.market_data.keepalive_timeout_secs = cf.market_data.keepalive_timeout_secs;
+            out.market_data.window_size_kb = cf.grpc.window_size_kb;
+            out.market_data.connection_window_size_kb = cf.grpc.connection_window_size_kb;
             // mdds.connect_timeout_secs is not yet TOML-surfaced; keep production default.
 
             // An explicit `[streaming] hosts` list is the operator's full host
@@ -1506,9 +1507,9 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         let config = DirectConfig::production();
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
         assert_eq!(config.streaming_environment, StreamingEnvironment::Prod);
-        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
     }
 
     #[test]
@@ -1517,10 +1518,10 @@ mod tests {
         clear_env_matrix();
         let config = DirectConfig::stage();
         // Historical flips to staging (host + auth marker).
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
-        assert_eq!(config.historical.port, 443);
-        assert!(config.historical.tls);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
+        assert_eq!(config.market_data.port, 443);
+        assert!(config.market_data.tls);
         // Streaming stays on PRODUCTION — there is no streaming staging cluster,
         // and the channels are independent. The staging :20100 hosts must NOT
         // appear.
@@ -1555,9 +1556,9 @@ mod tests {
                 ("test-server.thetadata.us".to_string(), 20201),
             ]
         );
-        // Historical stays on PRODUCTION — there is no dev historical cluster.
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
-        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        // Historical stays on PRODUCTION — there is no dev market-data cluster.
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
     }
 
     #[test]
@@ -1567,9 +1568,9 @@ mod tests {
         // historical-staging + streaming-dev in one config — the channels are
         // orthogonal.
         let config = DirectConfig::production()
-            .with_historical_environment(HistoricalEnvironment::Stage)
+            .with_market_data_environment(MarketDataEnvironment::Stage)
             .with_streaming_environment(StreamingEnvironment::Dev);
-        assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
+        assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
         assert_eq!(
             config.streaming.hosts,
             vec![
@@ -1581,7 +1582,7 @@ mod tests {
         // And the mirror: historical-prod + streaming-prod is the production
         // baseline, with neither channel pulling the other.
         let baseline = DirectConfig::production();
-        assert_eq!(baseline.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(baseline.market_data.host, "mdds-01.thetadata.us");
         assert_eq!(
             baseline.streaming.hosts,
             StreamingConfig::production_defaults().hosts
@@ -1598,10 +1599,10 @@ mod tests {
         use crate::auth::nexus::auth_request_json_for_test;
         let _guard = env_test_guard();
         clear_env_matrix();
-        let dev_hist = DirectConfig::dev().historical_environment();
-        let prod_hist = DirectConfig::production().historical_environment();
-        assert_eq!(dev_hist, HistoricalEnvironment::Prod);
-        assert_eq!(prod_hist, HistoricalEnvironment::Prod);
+        let dev_hist = DirectConfig::dev().market_data_environment();
+        let prod_hist = DirectConfig::production().market_data_environment();
+        assert_eq!(dev_hist, MarketDataEnvironment::Prod);
+        assert_eq!(prod_hist, MarketDataEnvironment::Prod);
         let dev_body = auth_request_json_for_test(dev_hist);
         let prod_body = auth_request_json_for_test(prod_hist);
         assert!(
@@ -1615,7 +1616,7 @@ mod tests {
     }
 
     #[test]
-    fn dev_then_set_historical_host_keeps_dev_streaming_cluster() {
+    fn dev_then_set_market_data_host_keeps_dev_streaming_cluster() {
         // THE BUG: a post-construction override on a `dev()` config used to
         // rebuild streaming from the (prod) environment base and silently
         // drop the dev replay cluster, reconnecting FPSS to production. With
@@ -1625,10 +1626,10 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         let mut config = DirectConfig::dev();
-        config.set_historical_host("custom-hist.example.com");
+        config.set_market_data_host("custom-hist.example.com");
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
         assert_eq!(
-            config.historical.host, "custom-hist.example.com",
+            config.market_data.host, "custom-hist.example.com",
             "the explicit historical override must apply"
         );
         assert_eq!(
@@ -1648,9 +1649,9 @@ mod tests {
         let mut config = DirectConfig::dev();
         let custom = vec![("dev-stream.example.com".to_string(), 4242)];
         config.set_streaming_hosts(custom.clone());
-        config.set_historical_host("dev-hist.example.com");
+        config.set_market_data_host("dev-hist.example.com");
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
-        assert_eq!(config.historical.host, "dev-hist.example.com");
+        assert_eq!(config.market_data.host, "dev-hist.example.com");
         assert_eq!(
             config.streaming.hosts, custom,
             "an explicit full streaming list on a dev config must survive a later override"
@@ -1678,7 +1679,7 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         let config = DirectConfig::production();
-        assert_eq!(config.historical.connect_timeout_secs, 10);
+        assert_eq!(config.market_data.connect_timeout_secs, 10);
     }
 
     #[test]
@@ -1686,7 +1687,7 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         let config = DirectConfig::production();
-        assert_eq!(config.historical_host(), config.historical.host.as_str());
+        assert_eq!(config.market_data_host(), config.market_data.host.as_str());
         assert_eq!(config.streaming_hosts(), config.streaming.hosts.as_slice());
     }
 
@@ -1711,8 +1712,8 @@ mod tests {
         fn empty_toml_gives_production_defaults() {
             let config = DirectConfig::from_toml_str("").unwrap();
             let prod = DirectConfig::production();
-            assert_eq!(config.historical.host, prod.historical.host);
-            assert_eq!(config.historical.port, prod.historical.port);
+            assert_eq!(config.market_data.host, prod.market_data.host);
+            assert_eq!(config.market_data.port, prod.market_data.port);
             assert_eq!(config.streaming.hosts.len(), prod.streaming.hosts.len());
             assert_eq!(config.streaming.ring_size, prod.streaming.ring_size);
         }
@@ -1720,7 +1721,7 @@ mod tests {
         #[test]
         fn partial_toml_overrides_only_specified() {
             let toml = r#"
-                [historical]
+                [market_data]
                 host = "custom.example.com"
                 port = 8443
 
@@ -1728,11 +1729,11 @@ mod tests {
                 ring_size = 65536
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.historical.host, "custom.example.com");
-            assert_eq!(config.historical.port, 8443);
+            assert_eq!(config.market_data.host, "custom.example.com");
+            assert_eq!(config.market_data.port, 8443);
             assert_eq!(config.streaming.ring_size, 65536);
             // Unspecified fields keep production defaults
-            assert!(config.historical.tls);
+            assert!(config.market_data.tls);
         }
 
         #[test]
@@ -1822,8 +1823,8 @@ mod tests {
                 connection_window_size_kb = 256
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.historical.window_size_kb, 128);
-            assert_eq!(config.historical.connection_window_size_kb, 256);
+            assert_eq!(config.market_data.window_size_kb, 128);
+            assert_eq!(config.market_data.connection_window_size_kb, 256);
         }
 
         #[test]
@@ -1833,7 +1834,7 @@ mod tests {
                 max_message_size_mb = 8
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.historical.max_message_size, 8 * 1024 * 1024);
+            assert_eq!(config.market_data.max_message_size, 8 * 1024 * 1024);
         }
 
         #[test]
@@ -1895,14 +1896,14 @@ mod tests {
             // production default (4 MB) must still take effect as an
             // explicit choice — "set to 4" is distinguishable from "absent".
             let toml = r#"
-                [historical]
+                [market_data]
                 max_message_size = 8388608
 
                 [grpc]
                 max_message_size_mb = 4
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.historical.max_message_size, 4 * 1024 * 1024);
+            assert_eq!(config.market_data.max_message_size, 4 * 1024 * 1024);
         }
 
         #[test]
@@ -1912,7 +1913,7 @@ mod tests {
                 max_message_size_mb = 64
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.historical.max_message_size, 64 * 1024 * 1024);
+            assert_eq!(config.market_data.max_message_size, 64 * 1024 * 1024);
         }
 
         #[test]
@@ -1952,14 +1953,14 @@ mod tests {
 
         #[test]
         fn grpc_max_message_size_absent_keeps_historical_bytes() {
-            // With no [grpc] override the canonical [historical] byte value
+            // With no [grpc] override the canonical [market_data] byte value
             // stays in force.
             let toml = r#"
-                [historical]
+                [market_data]
                 max_message_size = 8388608
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.historical.max_message_size, 8 * 1024 * 1024);
+            assert_eq!(config.market_data.max_message_size, 8 * 1024 * 1024);
         }
 
         #[test]
@@ -1967,8 +1968,8 @@ mod tests {
             // Validate that config.default.toml (shipped with the crate) can be parsed.
             let default_toml = include_str!("../../config.default.toml");
             let config = DirectConfig::from_toml_str(default_toml).unwrap();
-            assert_eq!(config.historical.host, "mdds-01.thetadata.us");
-            assert_eq!(config.historical.port, 443);
+            assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
+            assert_eq!(config.market_data.port, 443);
             assert_eq!(config.streaming.hosts.len(), 4);
         }
 
@@ -1985,28 +1986,28 @@ mod tests {
             let prod = DirectConfig::production();
 
             // Historical (gRPC).
-            assert_eq!(config.historical.host, prod.historical.host);
-            assert_eq!(config.historical.port, prod.historical.port);
-            assert_eq!(config.historical.tls, prod.historical.tls);
+            assert_eq!(config.market_data.host, prod.market_data.host);
+            assert_eq!(config.market_data.port, prod.market_data.port);
+            assert_eq!(config.market_data.tls, prod.market_data.tls);
             assert_eq!(
-                config.historical.keepalive_secs,
-                prod.historical.keepalive_secs
+                config.market_data.keepalive_secs,
+                prod.market_data.keepalive_secs
             );
             assert_eq!(
-                config.historical.keepalive_timeout_secs,
-                prod.historical.keepalive_timeout_secs
+                config.market_data.keepalive_timeout_secs,
+                prod.market_data.keepalive_timeout_secs
             );
             assert_eq!(
-                config.historical.max_message_size,
-                prod.historical.max_message_size
+                config.market_data.max_message_size,
+                prod.market_data.max_message_size
             );
             assert_eq!(
-                config.historical.window_size_kb,
-                prod.historical.window_size_kb
+                config.market_data.window_size_kb,
+                prod.market_data.window_size_kb
             );
             assert_eq!(
-                config.historical.connection_window_size_kb,
-                prod.historical.connection_window_size_kb
+                config.market_data.connection_window_size_kb,
+                prod.market_data.connection_window_size_kb
             );
 
             // Streaming (TCP).
@@ -2034,7 +2035,7 @@ mod tests {
 
         #[test]
         fn config_default_toml_uses_canonical_section_names() {
-            // The deserializer binds `[historical]` / `[streaming]`; the
+            // The deserializer binds `[market_data]` / `[streaming]`; the
             // internal vendor names `[mdds]` / `[fpss]` deserialize to
             // nothing, so a sample shipping them silently discards every
             // override. Asserting host==443 above can't catch that (those
@@ -2042,8 +2043,8 @@ mod tests {
             // the shipped sample directly.
             let default_toml = include_str!("../../config.default.toml");
             assert!(
-                default_toml.contains("[historical]"),
-                "config.default.toml must use the canonical [historical] section"
+                default_toml.contains("[market_data]"),
+                "config.default.toml must use the canonical [market_data] section"
             );
             assert!(
                 default_toml.contains("[streaming]"),
@@ -2064,9 +2065,9 @@ mod tests {
 
         #[test]
         fn config_file_streaming_hosts_win_over_later_environment_switch() {
-            use crate::config::HistoricalEnvironment;
+            use crate::config::MarketDataEnvironment;
             // The config-file `[streaming] hosts` list is the power-user full
-            // override: a later `with_historical_environment(Stage)` must respect
+            // override: a later `with_market_data_environment(Stage)` must respect
             // it outright (environment selection does not touch the streaming
             // hosts at all).
             let toml = r#"
@@ -2075,8 +2076,8 @@ mod tests {
             "#;
             let config = DirectConfig::from_toml_str(toml)
                 .unwrap()
-                .with_historical_environment(HistoricalEnvironment::Stage);
-            assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+                .with_market_data_environment(MarketDataEnvironment::Stage);
+            assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
             assert_eq!(
                 config.streaming.hosts,
                 vec![
@@ -2089,32 +2090,32 @@ mod tests {
 
         #[test]
         fn config_file_historical_host_wins_over_later_environment_switch() {
-            // The config-file `[historical] host` is an explicit override that
-            // must survive a later `stage()` / `with_historical_environment`
+            // The config-file `[market_data] host` is an explicit override that
+            // must survive a later `stage()` / `with_market_data_environment`
             // switch while the historical marker still flips to staging.
             let toml = r#"
-                [historical]
+                [market_data]
                 host = "h.example.com"
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
             // Build the stage routing on top of the config-file override.
-            let staged = config.with_historical_environment(super::HistoricalEnvironment::Stage);
+            let staged = config.with_market_data_environment(super::MarketDataEnvironment::Stage);
             assert_eq!(
-                staged.historical_environment,
-                super::HistoricalEnvironment::Stage
+                staged.market_data_environment,
+                super::MarketDataEnvironment::Stage
             );
             assert_eq!(
-                staged.historical.host, "h.example.com",
-                "the config-file historical host must survive the environment switch"
+                staged.market_data.host, "h.example.com",
+                "the config-file market-data host must survive the environment switch"
             );
         }
 
         #[test]
         fn config_file_omitting_hosts_lets_environment_switch_repoint() {
-            use crate::config::{HistoricalEnvironment, StreamingConfig};
-            // When the TOML omits `[streaming] hosts` and `[historical] host`,
-            // no override is recorded, so a later historical environment switch
-            // re-points the historical host to the staging cluster. Streaming
+            use crate::config::{MarketDataEnvironment, StreamingConfig};
+            // When the TOML omits `[streaming] hosts` and `[market_data] host`,
+            // no override is recorded, so a later market-data environment switch
+            // re-points the market-data host to the staging cluster. Streaming
             // stays on production — there is no streaming staging cluster, and
             // the channels are independent.
             let toml = r#"
@@ -2123,9 +2124,9 @@ mod tests {
             "#;
             let config = DirectConfig::from_toml_str(toml)
                 .unwrap()
-                .with_historical_environment(HistoricalEnvironment::Stage);
-            assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-            assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
+                .with_market_data_environment(MarketDataEnvironment::Stage);
+            assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+            assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
             assert_eq!(
                 config.streaming.hosts,
                 StreamingConfig::production_defaults().hosts
@@ -2140,20 +2141,20 @@ mod tests {
     #[test]
     fn validate_clamps_historical_window_sizes_into_range() {
         let mut config = DirectConfig::production_defaults();
-        config.historical.window_size_kb = 2_048;
-        config.historical.connection_window_size_kb = 32;
+        config.market_data.window_size_kb = 2_048;
+        config.market_data.connection_window_size_kb = 32;
         let config = config
             .validate()
             .expect("historical window sizes are clamped");
-        assert_eq!(config.historical.window_size_kb, 1_024);
-        assert_eq!(config.historical.connection_window_size_kb, 64);
+        assert_eq!(config.market_data.window_size_kb, 1_024);
+        assert_eq!(config.market_data.connection_window_size_kb, 64);
     }
 
     #[test]
     fn validate_preserves_in_range_values() {
         let config = DirectConfig::production_defaults();
         let validated = config.validate().expect("production defaults validate");
-        assert_eq!(validated.historical.window_size_kb, 64);
+        assert_eq!(validated.market_data.window_size_kb, 64);
         assert_eq!(validated.streaming.timeout_ms, 10_000);
         assert_eq!(validated.streaming.ping_interval_ms, 250);
         assert_eq!(validated.streaming.connect_timeout_ms, 2_000);
@@ -2253,21 +2254,21 @@ mod tests {
     #[test]
     fn validate_rejects_empty_historical_host() {
         let mut config = DirectConfig::production_defaults();
-        config.historical.host = "   ".to_string();
+        config.market_data.host = "   ".to_string();
         let err = config
             .validate()
-            .expect_err("must reject a blank historical host");
+            .expect_err("must reject a blank market-data host");
         assert!(err.to_string().contains("historical.host"));
     }
 
     #[test]
     fn validate_trims_historical_host() {
         let mut config = DirectConfig::production_defaults();
-        config.historical.host = "  data.example  ".to_string();
+        config.market_data.host = "  data.example  ".to_string();
         let config = config
             .validate()
             .expect("a padded host trims and validates");
-        assert_eq!(config.historical.host, "data.example");
+        assert_eq!(config.market_data.host, "data.example");
     }
 
     #[test]
@@ -2378,7 +2379,7 @@ mod tests {
     #[test]
     fn validate_rejects_zero_historical_connect_timeout() {
         let mut config = DirectConfig::production_defaults();
-        config.historical.connect_timeout_secs = 0;
+        config.market_data.connect_timeout_secs = 0;
         let err = config
             .validate()
             .expect_err("zero connect timeout would time out every connect");
@@ -2388,7 +2389,7 @@ mod tests {
     #[test]
     fn validate_rejects_zero_and_oversized_historical_max_message_size() {
         let mut zero = DirectConfig::production_defaults();
-        zero.historical.max_message_size = 0;
+        zero.market_data.max_message_size = 0;
         assert!(zero
             .validate()
             .expect_err("zero budget rejects every response")
@@ -2396,7 +2397,7 @@ mod tests {
             .contains("historical.max_message_size"));
 
         let mut huge = DirectConfig::production_defaults();
-        huge.historical.max_message_size = 64 * 1024 * 1024 + 1;
+        huge.market_data.max_message_size = 64 * 1024 * 1024 + 1;
         assert!(huge
             .validate()
             .expect_err("above the 64 MiB ceiling")
@@ -2407,7 +2408,7 @@ mod tests {
     #[test]
     fn validate_rejects_zero_historical_port() {
         let mut config = DirectConfig::production_defaults();
-        config.historical.port = 0;
+        config.market_data.port = 0;
         assert!(config
             .validate()
             .expect_err("port 0 is not a dial target")
@@ -2449,7 +2450,7 @@ mod tests {
 
     #[test]
     fn historical_defaults_match_production_baseline() {
-        let mdds = crate::config::HistoricalConfig::production_defaults();
+        let mdds = crate::config::MarketDataConfig::production_defaults();
         // The buffered-response warn fires at 100 MiB by default, and
         // the per-request deadline is the 300s ceiling. Channel-pool
         // concurrency carries no default here — it is resolved from
@@ -2555,10 +2556,10 @@ mod tests {
         // thread reads or writes the environment concurrently — the
         // mutex provides exactly that.
         unsafe {
-            std::env::remove_var(ENV_HISTORICAL_TYPE);
+            std::env::remove_var(ENV_MARKET_DATA_TYPE);
             std::env::remove_var(ENV_STREAMING_TYPE);
-            std::env::remove_var(ENV_HISTORICAL_HOST);
-            std::env::remove_var(ENV_HISTORICAL_PORT);
+            std::env::remove_var(ENV_MARKET_DATA_HOST);
+            std::env::remove_var(ENV_MARKET_DATA_PORT);
             std::env::remove_var(ENV_NEXUS_URL);
             std::env::remove_var(ENV_STREAMING_HOST);
             std::env::remove_var(ENV_STREAMING_PORT);
@@ -2567,40 +2568,40 @@ mod tests {
     }
 
     #[test]
-    fn historical_type_env_stage_selects_stage_cluster() {
+    fn market_data_type_env_stage_selects_stage_cluster() {
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: `_guard` holds the process-global env-var mutex for the
         // body of this test, so no other thread observes or mutates the
         // environment while this write lands.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "STAGE");
         }
         let config = DirectConfig::production();
-        // THETADATA_HISTORICAL_TYPE=STAGE yields the historical staging cluster +
+        // THETADATA_MARKET_DATA_TYPE=STAGE yields the historical staging cluster +
         // Stage marker, identical to the `stage()` preset. Streaming stays on
         // production (no streaming staging cluster).
         let staged = DirectConfig::stage();
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(config.streaming_environment, StreamingEnvironment::Prod);
-        assert_eq!(config.historical.host, staged.historical.host);
+        assert_eq!(config.market_data.host, staged.market_data.host);
         assert_eq!(config.streaming.hosts, staged.streaming.hosts);
         clear_env_matrix();
     }
 
     #[test]
-    fn historical_type_env_dev_panics_as_cross_channel_value() {
-        // DEV is no longer a historical environment — it belongs to the
+    fn market_data_type_env_dev_panics_as_cross_channel_value() {
+        // DEV is no longer a market-data environment — it belongs to the
         // streaming channel (`THETADATA_STREAMING_TYPE`). A cross-channel
-        // `THETADATA_HISTORICAL_TYPE=DEV` must FAIL LOUD via `production()`'s
-        // `.expect`, never silently route the historical channel anywhere.
+        // `THETADATA_MARKET_DATA_TYPE=DEV` must FAIL LOUD via `production()`'s
+        // `.expect`, never silently route the market-data channel anywhere.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: `_guard` holds the process-global env-var mutex for the body
         // of this test, so no other thread observes or mutates the environment
         // while this write lands.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "DEV");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "DEV");
         }
         // `production()` panics on the invalid selector; catch the unwind so the
         // env matrix is still cleared even though the panic skips the tail.
@@ -2608,7 +2609,7 @@ mod tests {
         clear_env_matrix();
         assert!(
             panicked,
-            "THETADATA_HISTORICAL_TYPE=DEV (a streaming-only value) must panic, not fall back"
+            "THETADATA_MARKET_DATA_TYPE=DEV (a streaming-only value) must panic, not fall back"
         );
     }
 
@@ -2620,15 +2621,15 @@ mod tests {
         // would otherwise report an opaque worker panic.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
+        // SAFETY: see `market_data_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "DEV");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "DEV");
         }
         let result = DirectConfig::try_production();
         clear_env_matrix();
         let err = result.expect_err("DEV is a streaming-only selector; must be a typed error");
         let msg = err.to_string();
-        assert!(msg.contains(ENV_HISTORICAL_TYPE), "names the key: {msg}");
+        assert!(msg.contains(ENV_MARKET_DATA_TYPE), "names the key: {msg}");
         assert!(
             msg.contains("PROD") && msg.contains("STAGE"),
             "names the valid set: {msg}"
@@ -2642,28 +2643,28 @@ mod tests {
         // on production, identical to the `dev()` preset.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
+        // SAFETY: see `market_data_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
             std::env::set_var(ENV_STREAMING_TYPE, "DEV");
         }
         let config = DirectConfig::production();
         let dev = DirectConfig::dev();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
         assert_eq!(config.streaming.hosts, dev.streaming.hosts);
         assert_eq!(config.streaming.hosts, DirectConfig::dev_streaming_hosts());
-        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
         clear_env_matrix();
     }
 
     #[test]
     fn streaming_type_env_stage_panics_as_cross_channel_value() {
-        // The mirror negative: STAGE is a historical-only value, so a
+        // The mirror negative: STAGE is a market-data-only value, so a
         // cross-channel `THETADATA_STREAMING_TYPE=STAGE` must FAIL LOUD via
         // `production()`'s `.expect`, never silently keep production streaming.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
+        // SAFETY: see `market_data_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
             std::env::set_var(ENV_STREAMING_TYPE, "STAGE");
         }
@@ -2671,30 +2672,30 @@ mod tests {
         clear_env_matrix();
         assert!(
             panicked,
-            "THETADATA_STREAMING_TYPE=STAGE (a historical-only value) must panic, not fall back"
+            "THETADATA_STREAMING_TYPE=STAGE (a market-data-only value) must panic, not fall back"
         );
     }
 
     #[test]
-    fn historical_type_env_is_case_insensitive() {
+    fn market_data_type_env_is_case_insensitive() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "  stage  ");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "  stage  ");
         }
         let config = DirectConfig::production();
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         clear_env_matrix();
     }
 
     #[test]
-    fn historical_type_env_unrecognized_panics() {
+    fn market_data_type_env_unrecognized_panics() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
+        // SAFETY: see `market_data_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "bogus");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "bogus");
         }
         // FAIL LOUD: an unrecognized selector is a hard error, so `production()`
         // panics via its `.expect` rather than silently keeping production.
@@ -2702,44 +2703,44 @@ mod tests {
         clear_env_matrix();
         assert!(
             panicked,
-            "an unrecognized THETADATA_HISTORICAL_TYPE must panic, not fall back to production"
+            "an unrecognized THETADATA_MARKET_DATA_TYPE must panic, not fall back to production"
         );
     }
 
     #[test]
-    fn explicit_historical_host_wins_over_historical_type_default() {
+    fn explicit_historical_host_wins_over_market_data_type_default() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
-            std::env::set_var(ENV_HISTORICAL_HOST, "custom.example.com");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "STAGE");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "custom.example.com");
         }
         let config = DirectConfig::production();
         // The historical marker still flips to Stage, but an explicit host
         // override wins over the environment's default cluster host.
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(config.historical.host, "custom.example.com");
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data.host, "custom.example.com");
         clear_env_matrix();
     }
 
     #[test]
     fn explicit_historical_host_survives_stage_preset() {
-        // Finding 2(a): an explicit `THETADATA_HISTORICAL_HOST` must survive
+        // Finding 2(a): an explicit `THETADATA_MARKET_DATA_HOST` must survive
         // the `stage()` preset. `stage()` selects the historical staging cluster
-        // for the marker, but the explicit host wins for the historical channel.
+        // for the marker, but the explicit host wins for the market-data channel.
         // Streaming stays on production — there is no streaming staging cluster.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_HOST, "myhost");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "myhost");
         }
         let config = DirectConfig::stage();
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(
-            config.historical.host, "myhost",
-            "explicit historical host must survive stage()"
+            config.market_data.host, "myhost",
+            "explicit market-data host must survive stage()"
         );
         assert_eq!(
             config.streaming.hosts,
@@ -2750,23 +2751,23 @@ mod tests {
     }
 
     #[test]
-    fn with_historical_environment_honors_previously_set_explicit_host() {
-        // Finding 2(b): the typed `with_historical_environment(Stage)` setter,
-        // applied after an explicit historical host was recorded, must keep that
+    fn with_market_data_environment_honors_previously_set_explicit_host() {
+        // Finding 2(b): the typed `with_market_data_environment(Stage)` setter,
+        // applied after an explicit market-data host was recorded, must keep that
         // host while still flipping the historical marker to stage. Streaming is
         // untouched and stays on production.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_HOST, "myhost");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "myhost");
         }
         let config =
-            DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+            DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(
-            config.historical.host, "myhost",
-            "with_historical_environment must not clobber an explicit historical host"
+            config.market_data.host, "myhost",
+            "with_market_data_environment must not clobber an explicit market-data host"
         );
         assert_eq!(
             config.streaming.hosts,
@@ -2776,21 +2777,21 @@ mod tests {
     }
 
     #[test]
-    fn set_historical_host_survives_later_environment_switch() {
-        // A host set via the tracked `set_historical_host` setter must survive
-        // a later historical environment switch — the documented "explicit host
+    fn set_market_data_host_survives_later_environment_switch() {
+        // A host set via the tracked `set_market_data_host` setter must survive
+        // a later market-data environment switch — the documented "explicit host
         // wins over the environment default" invariant holds for the
         // programmatic setter, not only the env-var path. Order: set-then-switch.
         let _guard = env_test_guard();
         clear_env_matrix();
         let mut config = DirectConfig::production();
-        config.set_historical_host("programmatic.example.com");
-        let staged = config.with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(staged.historical_environment, HistoricalEnvironment::Stage);
+        config.set_market_data_host("programmatic.example.com");
+        let staged = config.with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(staged.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(
-            staged.historical_host(),
+            staged.market_data_host(),
             "programmatic.example.com",
-            "a host set via set_historical_host must survive the environment switch"
+            "a host set via set_market_data_host must survive the environment switch"
         );
         // Streaming is untouched by a historical switch and stays on production.
         assert_eq!(
@@ -2800,27 +2801,27 @@ mod tests {
     }
 
     #[test]
-    fn set_historical_host_after_a_switch_survives_the_next_switch() {
+    fn set_market_data_host_after_a_switch_survives_the_next_switch() {
         // Order: switch-then-set(-then-switch). A host set AFTER an environment
         // switch must survive a SUBSEQUENT switch (and the round-trip back to
         // prod keeps it).
         let _guard = env_test_guard();
         clear_env_matrix();
         let mut config =
-            DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage);
+            DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage);
         // Set after the first switch.
-        config.set_historical_host("edited-after-switch.example.com");
-        let back = config.with_historical_environment(HistoricalEnvironment::Prod);
-        assert_eq!(back.historical_environment, HistoricalEnvironment::Prod);
+        config.set_market_data_host("edited-after-switch.example.com");
+        let back = config.with_market_data_environment(MarketDataEnvironment::Prod);
+        assert_eq!(back.market_data_environment, MarketDataEnvironment::Prod);
         assert_eq!(
-            back.historical_host(),
+            back.market_data_host(),
             "edited-after-switch.example.com",
             "a host set after a switch must survive the next switch"
         );
         // And it persists across yet another switch.
-        let staged_again = back.with_historical_environment(HistoricalEnvironment::Stage);
+        let staged_again = back.with_market_data_environment(MarketDataEnvironment::Stage);
         assert_eq!(
-            staged_again.historical_host(),
+            staged_again.market_data_host(),
             "edited-after-switch.example.com",
             "the recorded host must persist across repeated switches"
         );
@@ -2829,8 +2830,8 @@ mod tests {
     #[test]
     fn set_streaming_hosts_survive_later_environment_switch() {
         // A host list set via the tracked `set_streaming_hosts` setter must
-        // survive a later historical environment switch (it wins outright, the
-        // full-list tier), while the non-overridden historical host moves to the
+        // survive a later market-data environment switch (it wins outright, the
+        // full-list tier), while the non-overridden market-data host moves to the
         // staging cluster.
         let _guard = env_test_guard();
         clear_env_matrix();
@@ -2840,17 +2841,17 @@ mod tests {
             ("prog-b.example.com".to_string(), 4101),
         ];
         config.set_streaming_hosts(custom.clone());
-        let staged = config.with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(staged.historical_environment, HistoricalEnvironment::Stage);
+        let staged = config.with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(staged.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(
             staged.streaming_hosts(),
             custom,
             "hosts set via set_streaming_hosts must survive the environment switch"
         );
-        // The non-overridden historical host still moves to the stage cluster.
+        // The non-overridden market-data host still moves to the stage cluster.
         assert_eq!(
-            staged.historical_host(),
-            HistoricalEnvironment::Stage.host()
+            staged.market_data_host(),
+            MarketDataEnvironment::Stage.host()
         );
     }
 
@@ -2911,7 +2912,7 @@ mod tests {
     #[test]
     fn set_streaming_hosts_full_list_survives_switch_even_when_equal_to_dev_hosts() {
         // A full list set via `set_streaming_hosts` is honoured by PROVENANCE,
-        // not value: it must survive `with_historical_environment` even when it
+        // not value: it must survive `with_market_data_environment` even when it
         // happens to equal `dev_streaming_hosts()`. The old value-based
         // heuristic would have dropped a list that matched the dev cluster; the
         // encapsulated model keeps it because it was recorded as an override.
@@ -2920,8 +2921,8 @@ mod tests {
         let mut config = DirectConfig::production();
         let dev_shaped = DirectConfig::dev_streaming_hosts();
         config.set_streaming_hosts(dev_shaped.clone());
-        let staged = config.with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(staged.historical_environment, HistoricalEnvironment::Stage);
+        let staged = config.with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(staged.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(
             staged.streaming_hosts(),
             dev_shaped,
@@ -2929,8 +2930,8 @@ mod tests {
         );
         // Historical (no override) still tracks the stage cluster.
         assert_eq!(
-            staged.historical_host(),
-            HistoricalEnvironment::Stage.host()
+            staged.market_data_host(),
+            MarketDataEnvironment::Stage.host()
         );
     }
 
@@ -2941,11 +2942,11 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         let mut config = DirectConfig::production();
-        config.set_historical_host("h.example.com");
+        config.set_market_data_host("h.example.com");
         let custom = vec![("s.example.com".to_string(), 5000)];
         config.set_streaming_hosts(custom.clone());
-        let staged = config.with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(staged.historical_host(), "h.example.com");
+        let staged = config.with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(staged.market_data_host(), "h.example.com");
         assert_eq!(staged.streaming_hosts(), custom);
     }
 
@@ -2953,27 +2954,27 @@ mod tests {
     fn no_override_presets_are_byte_identical_across_switches() {
         // Guard that the provenance model is invisible on the common paths: a
         // plain historical switch with no recorded override must yield the
-        // selected environment's historical host verbatim while leaving
+        // selected environment's market-data host verbatim while leaving
         // streaming on production (stage has no streaming cluster).
         let _guard = env_test_guard();
         clear_env_matrix();
         let prod_stream = StreamingConfig::production_defaults().hosts;
-        // production() -> with_historical_environment(Stage) must equal stage()
+        // production() -> with_market_data_environment(Stage) must equal stage()
         // exactly, and round-tripping back to Prod must restore the prod host.
         let staged =
-            DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(staged.historical_host(), "mdds-stage.thetadata.us");
+            DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(staged.market_data_host(), "mdds-stage.thetadata.us");
         assert_eq!(
             staged.streaming_hosts(),
             prod_stream.as_slice(),
             "a historical switch leaves streaming on production"
         );
-        let back = staged.with_historical_environment(HistoricalEnvironment::Prod);
-        assert_eq!(back.historical_host(), "mdds-01.thetadata.us");
+        let back = staged.with_market_data_environment(MarketDataEnvironment::Prod);
+        assert_eq!(back.market_data_host(), "mdds-01.thetadata.us");
         assert_eq!(back.streaming_hosts(), prod_stream.as_slice());
         // Repeated no-op switches keep the prod cluster.
-        let still_prod = back.with_historical_environment(HistoricalEnvironment::Prod);
-        assert_eq!(still_prod.historical_host(), "mdds-01.thetadata.us");
+        let still_prod = back.with_market_data_environment(MarketDataEnvironment::Prod);
+        assert_eq!(still_prod.market_data_host(), "mdds-01.thetadata.us");
         assert_eq!(still_prod.streaming_hosts(), prod_stream.as_slice());
     }
 
@@ -2981,17 +2982,17 @@ mod tests {
     fn explicit_streaming_host_survives_stage_preset() {
         // Companion to 2(a) for the streaming channel: an explicit
         // `THETADATA_STREAMING_HOST` survives `stage()` in the primary slot.
-        // `stage()` only flips the historical channel, so the streaming failover
-        // hosts stay the PRODUCTION cluster's while the historical host moves to
+        // `stage()` only flips the market-data channel, so the streaming failover
+        // hosts stay the PRODUCTION cluster's while the market-data host moves to
         // the stage host.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "stream.example.com");
         }
         let config = DirectConfig::stage();
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(
             config.streaming.hosts[0].0, "stream.example.com",
             "explicit streaming host must survive stage()"
@@ -3002,9 +3003,9 @@ mod tests {
             "streaming failover stays on the production cluster under stage()"
         );
         assert_eq!(
-            config.historical.host,
-            HistoricalEnvironment::Stage.host(),
-            "non-overridden historical host must move to the stage cluster"
+            config.market_data.host,
+            MarketDataEnvironment::Stage.host(),
+            "non-overridden market-data host must move to the stage cluster"
         );
         clear_env_matrix();
     }
@@ -3030,25 +3031,25 @@ mod tests {
         ];
 
         let prod = DirectConfig::production();
-        assert_eq!(prod.historical_environment, HistoricalEnvironment::Prod);
+        assert_eq!(prod.market_data_environment, MarketDataEnvironment::Prod);
         assert_eq!(prod.streaming_environment, StreamingEnvironment::Prod);
-        assert_eq!(prod.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(prod.market_data.host, "mdds-01.thetadata.us");
         assert_eq!(prod.streaming.hosts, prod_stream);
 
         let stage = DirectConfig::stage();
-        // Stage flips only the historical channel; streaming stays on the
+        // Stage flips only the market-data channel; streaming stays on the
         // production cluster (no streaming staging).
-        assert_eq!(stage.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(stage.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(stage.streaming_environment, StreamingEnvironment::Prod);
-        assert_eq!(stage.historical.host, "mdds-stage.thetadata.us");
+        assert_eq!(stage.market_data.host, "mdds-stage.thetadata.us");
         assert_eq!(stage.streaming.hosts, prod_stream);
 
         let dev = DirectConfig::dev();
         // Dev flips only the streaming channel; historical still uses the prod
         // host, and only the streaming hosts switch to the dev replay cluster.
         assert_eq!(dev.streaming_environment, StreamingEnvironment::Dev);
-        assert_eq!(dev.historical_environment, HistoricalEnvironment::Prod);
-        assert_eq!(dev.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(dev.market_data_environment, MarketDataEnvironment::Prod);
+        assert_eq!(dev.market_data.host, "mdds-01.thetadata.us");
         assert_eq!(
             dev.streaming.hosts,
             vec![
@@ -3071,7 +3072,7 @@ mod tests {
         // rewrite.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "myhost");
         }
@@ -3103,7 +3104,7 @@ mod tests {
         // suppressed the host rebuild entirely.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_PORT, "9999");
         }
@@ -3133,7 +3134,7 @@ mod tests {
         // failover under Prod) while the overridden primary host persists.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "sticky.example.com");
         }
@@ -3159,19 +3160,19 @@ mod tests {
 
     #[test]
     fn historical_host_override_with_dev_keeps_dev_streaming() {
-        // `THETADATA_HISTORICAL_HOST` must survive `dev()` on the historical
+        // `THETADATA_MARKET_DATA_HOST` must survive `dev()` on the historical
         // channel while the streaming channel stays on the dev replay hosts.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_HOST, "hist.example.com");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "hist.example.com");
         }
         let config = DirectConfig::dev();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
         assert_eq!(
-            config.historical.host, "hist.example.com",
-            "explicit historical host must survive dev()"
+            config.market_data.host, "hist.example.com",
+            "explicit market-data host must survive dev()"
         );
         assert_eq!(
             config.streaming.hosts,
@@ -3188,7 +3189,7 @@ mod tests {
         // `dev()` no longer clobbers the override.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "devstream.example.com");
         }
@@ -3210,7 +3211,7 @@ mod tests {
         // never the dev preset.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "sticky.example.com");
         }
@@ -3227,7 +3228,7 @@ mod tests {
             "failover must track the production cluster, not the dev replay hosts"
         );
         // Historical is untouched by a streaming switch and stays on production.
-        assert_eq!(prod.historical_host(), "mdds-01.thetadata.us");
+        assert_eq!(prod.market_data_host(), "mdds-01.thetadata.us");
         clear_env_matrix();
     }
 
@@ -3235,16 +3236,16 @@ mod tests {
     fn dev_then_historical_stage_moves_historical_and_keeps_dev_streaming() {
         // The channels are independent: the `dev()` preset selects the dev replay
         // streaming cluster while leaving historical on production. A later
-        // `with_historical_environment(Stage)` must move ONLY the historical
+        // `with_market_data_environment(Stage)` must move ONLY the historical
         // channel to staging — the dev streaming cluster must be untouched, a
         // genuine split config.
         let _guard = env_test_guard();
         clear_env_matrix();
-        let split = DirectConfig::dev().with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(split.historical_environment, HistoricalEnvironment::Stage);
+        let split = DirectConfig::dev().with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(split.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(split.streaming_environment, StreamingEnvironment::Dev);
         assert_eq!(
-            split.historical.host, "mdds-stage.thetadata.us",
+            split.market_data.host, "mdds-stage.thetadata.us",
             "historical must move to the stage cluster"
         );
         assert_eq!(
@@ -3264,7 +3265,7 @@ mod tests {
         clear_env_matrix();
         let prod = DirectConfig::dev().with_streaming_environment(StreamingEnvironment::Prod);
         assert_eq!(prod.streaming_environment, StreamingEnvironment::Prod);
-        assert_eq!(prod.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(prod.market_data.host, "mdds-01.thetadata.us");
         assert_eq!(
             prod.streaming.hosts,
             StreamingConfig::production_defaults().hosts,
@@ -3278,27 +3279,27 @@ mod tests {
     }
 
     #[test]
-    fn latest_set_historical_host_wins_over_recorded_env_override() {
+    fn latest_set_market_data_host_wins_over_recorded_env_override() {
         // An override recorded up front (here via the process env), THEN a
-        // later `set_historical_host`, THEN a historical environment switch: the
+        // later `set_market_data_host`, THEN a market-data environment switch: the
         // most recent setter must win over the stale env override.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_HOST, "recorded.example.com");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "recorded.example.com");
         }
         let mut config = DirectConfig::production();
-        assert_eq!(config.historical_host(), "recorded.example.com");
+        assert_eq!(config.market_data_host(), "recorded.example.com");
         // Tracked setter AFTER the env override was recorded + applied.
-        config.set_historical_host("field-edited.example.com");
-        let staged = config.with_historical_environment(HistoricalEnvironment::Stage);
+        config.set_market_data_host("field-edited.example.com");
+        let staged = config.with_market_data_environment(MarketDataEnvironment::Stage);
         assert_eq!(
-            staged.historical_host(),
+            staged.market_data_host(),
             "field-edited.example.com",
-            "the latest set_historical_host must win over the stale env override"
+            "the latest set_market_data_host must win over the stale env override"
         );
-        assert_eq!(staged.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(staged.market_data_environment, MarketDataEnvironment::Stage);
         clear_env_matrix();
     }
 
@@ -3309,7 +3310,7 @@ mod tests {
         // the latest full list wins and the stale primary patch is dropped.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "recorded-stream.example.com");
         }
@@ -3358,7 +3359,7 @@ mod tests {
         );
 
         // A later primary override via `.env` (host + port). No
-        // THETADATA_HISTORICAL_TYPE, so the environment marker is unchanged.
+        // THETADATA_MARKET_DATA_TYPE, so the environment marker is unchanged.
         let path = write_temp_dotenv(
             "primary-after-full.env",
             "THETADATA_STREAMING_HOST=later-primary.example.com\n\
@@ -3423,36 +3424,36 @@ mod tests {
     }
 
     #[test]
-    fn with_historical_environment_stage_equals_stage_preset() {
+    fn with_market_data_environment_stage_equals_stage_preset() {
         let _guard = env_test_guard();
         clear_env_matrix();
         let via_builder =
-            DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage);
+            DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage);
         let via_preset = DirectConfig::stage();
         assert_eq!(
-            via_builder.historical_environment,
-            via_preset.historical_environment
+            via_builder.market_data_environment,
+            via_preset.market_data_environment
         );
         assert_eq!(
             via_builder.streaming_environment,
             via_preset.streaming_environment
         );
-        assert_eq!(via_builder.historical.host, via_preset.historical.host);
+        assert_eq!(via_builder.market_data.host, via_preset.market_data.host);
         assert_eq!(via_builder.streaming.hosts, via_preset.streaming.hosts);
     }
 
     #[test]
-    fn with_historical_environment_round_trips_prod_and_stage() {
+    fn with_market_data_environment_round_trips_prod_and_stage() {
         let _guard = env_test_guard();
         clear_env_matrix();
         let staged =
-            DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage);
-        assert_eq!(staged.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(staged.historical.host, "mdds-stage.thetadata.us");
-        // Switching back to Prod restores the production historical host.
-        let back = staged.with_historical_environment(HistoricalEnvironment::Prod);
-        assert_eq!(back.historical_environment, HistoricalEnvironment::Prod);
-        assert_eq!(back.historical.host, "mdds-01.thetadata.us");
+            DirectConfig::production().with_market_data_environment(MarketDataEnvironment::Stage);
+        assert_eq!(staged.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(staged.market_data.host, "mdds-stage.thetadata.us");
+        // Switching back to Prod restores the production market-data host.
+        let back = staged.with_market_data_environment(MarketDataEnvironment::Prod);
+        assert_eq!(back.market_data_environment, MarketDataEnvironment::Prod);
+        assert_eq!(back.market_data.host, "mdds-01.thetadata.us");
         // Streaming was never touched and stays on the production cluster.
         assert_eq!(back.streaming.hosts.len(), 4);
     }
@@ -3465,8 +3466,8 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         assert_eq!(
-            DirectConfig::stage().historical_environment(),
-            HistoricalEnvironment::Stage
+            DirectConfig::stage().market_data_environment(),
+            MarketDataEnvironment::Stage
         );
         assert_eq!(
             DirectConfig::stage().streaming_environment(),
@@ -3477,18 +3478,18 @@ mod tests {
             StreamingEnvironment::Dev
         );
         assert_eq!(
-            DirectConfig::dev().historical_environment(),
-            HistoricalEnvironment::Prod
+            DirectConfig::dev().market_data_environment(),
+            MarketDataEnvironment::Prod
         );
         assert_eq!(
-            DirectConfig::production().historical_environment(),
-            HistoricalEnvironment::Prod
+            DirectConfig::production().market_data_environment(),
+            MarketDataEnvironment::Prod
         );
         assert_eq!(
             DirectConfig::production()
-                .with_historical_environment(HistoricalEnvironment::Stage)
-                .historical_environment(),
-            HistoricalEnvironment::Stage
+                .with_market_data_environment(MarketDataEnvironment::Stage)
+                .market_data_environment(),
+            MarketDataEnvironment::Stage
         );
         clear_env_matrix();
     }
@@ -3502,16 +3503,16 @@ mod tests {
         // the environment while these writes land. `std::env::set_var`'s
         // 1.88 `unsafe fn` contract is therefore upheld.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_HOST, "historical.staging.example.com");
-            std::env::set_var(ENV_HISTORICAL_PORT, "8443");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "historical.staging.example.com");
+            std::env::set_var(ENV_MARKET_DATA_PORT, "8443");
             std::env::set_var(ENV_NEXUS_URL, "https://nexus.staging.example.com/auth");
             std::env::set_var(ENV_CLIENT_TYPE, "rust-thetadatadx-staging");
             std::env::set_var(ENV_STREAMING_HOST, "streaming.staging.example.com");
             std::env::set_var(ENV_STREAMING_PORT, "21000");
         }
         let config = DirectConfig::production();
-        assert_eq!(config.historical.host, "historical.staging.example.com");
-        assert_eq!(config.historical.port, 8443);
+        assert_eq!(config.market_data.host, "historical.staging.example.com");
+        assert_eq!(config.market_data.port, 8443);
         assert_eq!(
             config.auth.nexus_url,
             "https://nexus.staging.example.com/auth"
@@ -3532,14 +3533,14 @@ mod tests {
         // the body of this test, so no other thread observes or mutates
         // the environment while these writes land.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_PORT, "not-a-port");
+            std::env::set_var(ENV_MARKET_DATA_PORT, "not-a-port");
             std::env::set_var(ENV_STREAMING_PORT, "0"); // reject zero
-            std::env::set_var(ENV_HISTORICAL_HOST, "   "); // whitespace-only
+            std::env::set_var(ENV_MARKET_DATA_HOST, "   "); // whitespace-only
         }
         let config = DirectConfig::production();
         let defaults = DirectConfig::production_defaults();
-        assert_eq!(config.historical.host, defaults.historical.host);
-        assert_eq!(config.historical.port, defaults.historical.port);
+        assert_eq!(config.market_data.host, defaults.market_data.host);
+        assert_eq!(config.market_data.port, defaults.market_data.port);
         assert_eq!(config.streaming.hosts[0].1, defaults.streaming.hosts[0].1);
         clear_env_matrix();
     }
@@ -3558,44 +3559,44 @@ mod tests {
     }
 
     #[test]
-    fn from_dotenv_historical_type_stage_selects_stage_cluster() {
+    fn from_dotenv_market_data_type_stage_selects_stage_cluster() {
         let _guard = env_test_guard();
         clear_env_matrix();
         let path = write_temp_dotenv(
             "stage.env",
-            "# select staging\nTHETADATA_HISTORICAL_TYPE=STAGE\n",
+            "# select staging\nTHETADATA_MARKET_DATA_TYPE=STAGE\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
         let staged = DirectConfig::stage();
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(config.historical.host, staged.historical.host);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data.host, staged.market_data.host);
         assert_eq!(config.streaming.hosts, staged.streaming.hosts);
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
-    fn from_dotenv_historical_type_is_case_insensitive_and_quoted() {
+    fn from_dotenv_market_data_type_is_case_insensitive_and_quoted() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        let path = write_temp_dotenv("ci.env", "export THETADATA_HISTORICAL_TYPE=\"stage\"\n");
+        let path = write_temp_dotenv("ci.env", "export THETADATA_MARKET_DATA_TYPE=\"stage\"\n");
         let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
-    fn from_dotenv_explicit_historical_host_wins_over_historical_type() {
+    fn from_dotenv_explicit_historical_host_wins_over_market_data_type() {
         let _guard = env_test_guard();
         clear_env_matrix();
         let path = write_temp_dotenv(
             "hostwins.env",
-            "THETADATA_HISTORICAL_TYPE=STAGE\nTHETADATA_HISTORICAL_HOST=custom.example.com\n",
+            "THETADATA_MARKET_DATA_TYPE=STAGE\nTHETADATA_MARKET_DATA_HOST=custom.example.com\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         // The historical marker still flips to Stage, but an explicit host
         // override wins over the environment's default cluster host.
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(config.historical.host, "custom.example.com");
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data.host, "custom.example.com");
         std::fs::remove_file(&path).ok();
     }
 
@@ -3607,23 +3608,23 @@ mod tests {
         // reader: it picks up no cluster keys and returns the prod default.
         let path = write_temp_dotenv("apikeyonly.env", "THETADATA_API_KEY=td_example_key\n");
         let config = DirectConfig::from_dotenv(&path).expect("api-key-only .env must source");
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
         assert_eq!(config.streaming_environment, StreamingEnvironment::Prod);
-        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
-    fn from_dotenv_malformed_historical_type_returns_error() {
+    fn from_dotenv_malformed_market_data_type_returns_error() {
         let _guard = env_test_guard();
         clear_env_matrix();
         // FAIL LOUD: an unrecognized mdds-type in a `.env` is a returned error
         // naming the valid set, never a silent fallback to production.
-        let path = write_temp_dotenv("bogus.env", "THETADATA_HISTORICAL_TYPE=bogus\n");
+        let path = write_temp_dotenv("bogus.env", "THETADATA_MARKET_DATA_TYPE=bogus\n");
         let err = DirectConfig::from_dotenv(&path)
-            .expect_err("an unrecognized THETADATA_HISTORICAL_TYPE must return an error");
+            .expect_err("an unrecognized THETADATA_MARKET_DATA_TYPE must return an error");
         assert!(
-            err.to_string().contains("THETADATA_HISTORICAL_TYPE"),
+            err.to_string().contains("THETADATA_MARKET_DATA_TYPE"),
             "the error must name the offending selector, got: {err}"
         );
         std::fs::remove_file(&path).ok();
@@ -3634,7 +3635,7 @@ mod tests {
         let _guard = env_test_guard();
         clear_env_matrix();
         // The streaming companion: a cross-channel `THETADATA_STREAMING_TYPE=STAGE`
-        // (STAGE is historical-only) is a returned error, never a silent
+        // (STAGE is market-data-only) is a returned error, never a silent
         // fallback.
         let path = write_temp_dotenv("fpss-stage.env", "THETADATA_STREAMING_TYPE=STAGE\n");
         let err = DirectConfig::from_dotenv(&path)
@@ -3652,11 +3653,11 @@ mod tests {
         clear_env_matrix();
         let path = write_temp_dotenv(
             "streamhost.env",
-            "THETADATA_HISTORICAL_TYPE=STAGE\nTHETADATA_STREAMING_HOST=stream.example.com\n",
+            "THETADATA_MARKET_DATA_TYPE=STAGE\nTHETADATA_STREAMING_HOST=stream.example.com\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         assert_eq!(config.streaming.hosts[0].0, "stream.example.com");
-        // THETADATA_HISTORICAL_TYPE=STAGE flips only historical; streaming stays on production,
+        // THETADATA_MARKET_DATA_TYPE=STAGE flips only historical; streaming stays on production,
         // so the production failover hosts surround the overridden primary.
         assert_eq!(
             &config.streaming.hosts[1..],
@@ -3672,10 +3673,10 @@ mod tests {
         // A `.env` carrying only the streaming PORT (no host) must patch the
         // selected streaming environment's primary port and keep its host
         // cluster — the `.env` path mirrors the process-env override model.
-        // THETADATA_HISTORICAL_TYPE=STAGE flips only historical, so streaming stays production.
+        // THETADATA_MARKET_DATA_TYPE=STAGE flips only historical, so streaming stays production.
         let path = write_temp_dotenv(
             "streamport.env",
-            "THETADATA_HISTORICAL_TYPE=STAGE\nTHETADATA_STREAMING_PORT=9999\n",
+            "THETADATA_MARKET_DATA_TYPE=STAGE\nTHETADATA_STREAMING_PORT=9999\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         let prod_hosts = StreamingConfig::production_defaults().hosts;
@@ -3689,9 +3690,9 @@ mod tests {
     fn from_dotenv_nexus_url_with_stage_routes_auth_to_staging_no_split_cluster() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // An operator ships a `.env` that redirects the historical channel to
+        // An operator ships a `.env` that redirects the market-data channel to
         // staging AND supplies a staging Nexus URL. Auth must follow the
-        // historical cluster: the historical channel goes to the staging host
+        // market-data cluster: the market-data channel goes to the staging host
         // and auth POSTs to the staging Nexus. Streaming stays on production
         // (no streaming staging cluster).
         let staging_nexus = "https://nexus-stage.thetadata.us/identity/terminal/auth_user";
@@ -3699,15 +3700,15 @@ mod tests {
             "nexus-stage.env",
             &format!(
                 "THETADATA_API_KEY=td_example_key\n\
-                 THETADATA_HISTORICAL_TYPE=STAGE\n\
+                 THETADATA_MARKET_DATA_TYPE=STAGE\n\
                  THETADATA_NEXUS_URL={staging_nexus}\n"
             ),
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         let staged = DirectConfig::stage();
         // Cluster: historical on staging, streaming on production.
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(config.historical.host, staged.historical.host);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data.host, staged.market_data.host);
         assert_eq!(config.streaming.hosts, staged.streaming.hosts);
         // Auth: the staging Nexus URL is honoured from the SAME `.env`, so auth
         // does not keep POSTing to production while the data channels moved.
@@ -3719,15 +3720,15 @@ mod tests {
     fn from_dotenv_honors_historical_port_and_client_type() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // `THETADATA_HISTORICAL_PORT` and `THETADATA_CLIENT_TYPE` must be read
+        // `THETADATA_MARKET_DATA_PORT` and `THETADATA_CLIENT_TYPE` must be read
         // from a `.env` exactly as the process-env path reads them — the `.env`
         // path honours the same key set.
         let path = write_temp_dotenv(
             "histport.env",
-            "THETADATA_HISTORICAL_PORT=8443\nTHETADATA_CLIENT_TYPE=rust-thetadatadx-fleet\n",
+            "THETADATA_MARKET_DATA_PORT=8443\nTHETADATA_CLIENT_TYPE=rust-thetadatadx-fleet\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
-        assert_eq!(config.historical.port, 8443);
+        assert_eq!(config.market_data.port, 8443);
         assert_eq!(config.auth.client_type, "rust-thetadatadx-fleet");
         std::fs::remove_file(&path).ok();
     }
@@ -3739,11 +3740,11 @@ mod tests {
         // A malformed / zero historical port from a `.env` is skipped leniently
         // (logged), keeping the hardcoded default — matching the process-env
         // path's `>0` + `parse::<u16>()` guard.
-        let path = write_temp_dotenv("badport.env", "THETADATA_HISTORICAL_PORT=not-a-port\n");
+        let path = write_temp_dotenv("badport.env", "THETADATA_MARKET_DATA_PORT=not-a-port\n");
         let config = DirectConfig::from_dotenv(&path).expect("malformed port must not error");
         assert_eq!(
-            config.historical.port,
-            DirectConfig::production_defaults().historical.port
+            config.market_data.port,
+            DirectConfig::production_defaults().market_data.port
         );
         std::fs::remove_file(&path).ok();
     }
@@ -3760,7 +3761,7 @@ mod tests {
         let path = write_temp_dotenv(
             "dev-override.env",
             "THETADATA_STREAMING_HOST=dev-primary.example.com\nTHETADATA_STREAMING_PORT=4242\n\
-             THETADATA_HISTORICAL_HOST=dev-hist.example.com\n",
+             THETADATA_MARKET_DATA_HOST=dev-hist.example.com\n",
         );
         let config = DirectConfig::dev()
             .with_dotenv(&path)
@@ -3769,7 +3770,7 @@ mod tests {
         // Streaming marker stays dev; no `.env` THETADATA_STREAMING_TYPE present.
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
         // Historical override applied.
-        assert_eq!(config.historical.host, "dev-hist.example.com");
+        assert_eq!(config.market_data.host, "dev-hist.example.com");
         // Primary streaming slot patched (host AND port); failover hosts
         // remain the DEV cluster's, not production's.
         assert_eq!(config.streaming.hosts[0].0, "dev-primary.example.com");
@@ -3793,8 +3794,8 @@ mod tests {
         let config = DirectConfig::from_dotenv(&path).expect(".env fpss-type must source");
         let dev = DirectConfig::dev();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
-        assert_eq!(config.historical.host, dev.historical.host);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
+        assert_eq!(config.market_data.host, dev.market_data.host);
         assert_eq!(config.streaming.hosts, dev.streaming.hosts);
         std::fs::remove_file(&path).ok();
     }
@@ -3803,7 +3804,7 @@ mod tests {
     fn from_dotenv_prod_ignores_ambient_stage_env() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // The shell forces STAGE and a stage historical host, but a file-sourced
+        // The shell forces STAGE and a stage market-data host, but a file-sourced
         // config must be deterministic from defaults plus the file. A `.env`
         // selecting PROD must yield the prod cluster regardless of the ambient
         // process env.
@@ -3811,14 +3812,14 @@ mod tests {
         // of this test, so no other thread observes or mutates the environment
         // while these writes land.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
-            std::env::set_var(ENV_HISTORICAL_HOST, "mdds-stage.thetadata.us");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "STAGE");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "mdds-stage.thetadata.us");
         }
-        let path = write_temp_dotenv("prodfile.env", "THETADATA_HISTORICAL_TYPE=PROD\n");
+        let path = write_temp_dotenv("prodfile.env", "THETADATA_MARKET_DATA_TYPE=PROD\n");
         let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
         // The file says PROD, so the prod cluster wins over the ambient STAGE.
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
-        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
         let prod_defaults = DirectConfig::production_defaults();
         assert_eq!(config.streaming.hosts, prod_defaults.streaming.hosts);
         clear_env_matrix();
@@ -3833,13 +3834,13 @@ mod tests {
         // env: it sources from defaults plus the file, never the shell.
         // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
-            std::env::set_var(ENV_HISTORICAL_HOST, "mdds-stage.thetadata.us");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "STAGE");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "mdds-stage.thetadata.us");
         }
         let path = write_temp_dotenv("nocluster.env", "THETADATA_API_KEY=td_example_key\n");
         let config = DirectConfig::from_dotenv(&path).expect("api-key-only .env must source");
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
-        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
         clear_env_matrix();
         std::fs::remove_file(&path).ok();
     }
@@ -3848,20 +3849,20 @@ mod tests {
     fn dev_selects_streaming_dev_independently_of_ambient_mdds_stage() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // The shell forces THETADATA_HISTORICAL_TYPE=STAGE, which `production()` honors on the
-        // historical channel. `dev()` then selects ONLY the streaming dev
+        // The shell forces THETADATA_MARKET_DATA_TYPE=STAGE, which `production()` honors on the
+        // market-data channel. `dev()` then selects ONLY the streaming dev
         // cluster — the two channels are independent, so historical stays on the
         // ambient staging selection while streaming routes to the dev replay
         // cluster.
         // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "STAGE");
         }
         let config = DirectConfig::dev();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
-        // Historical follows the ambient THETADATA_HISTORICAL_TYPE=STAGE; dev does not touch it.
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
+        // Historical follows the ambient THETADATA_MARKET_DATA_TYPE=STAGE; dev does not touch it.
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
         // Dev streaming hosts (port 20200/20201).
         assert_eq!(config.streaming.hosts[0].0, "nj-a.thetadata.us");
         assert_eq!(config.streaming.hosts[0].1, 20200);
@@ -3877,11 +3878,11 @@ mod tests {
         // inconsistent state.
         // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_TYPE, "PROD");
+            std::env::set_var(ENV_MARKET_DATA_TYPE, "PROD");
         }
         let config = DirectConfig::stage();
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
         clear_env_matrix();
     }
 
@@ -3897,10 +3898,10 @@ mod tests {
         clear_env_matrix();
         // `with_dotenv` keeps tuning knobs the caller already set and only
         // layers the `.env`'s cluster overrides on top.
-        let path = write_temp_dotenv("layer.env", "THETADATA_HISTORICAL_TYPE=STAGE\n");
+        let path = write_temp_dotenv("layer.env", "THETADATA_MARKET_DATA_TYPE=STAGE\n");
         let base = DirectConfig::production().with_metrics_port(9100);
         let config = base.with_dotenv(&path).expect(".env must layer cleanly");
-        assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(config.metrics.port, Some(9100));
         std::fs::remove_file(&path).ok();
     }
@@ -3913,12 +3914,12 @@ mod tests {
         // the body of this test, so no other thread observes or mutates
         // the environment while these writes land.
         unsafe {
-            std::env::set_var(ENV_HISTORICAL_HOST, "ignored-by-defaults");
-            std::env::set_var(ENV_HISTORICAL_PORT, "9999");
+            std::env::set_var(ENV_MARKET_DATA_HOST, "ignored-by-defaults");
+            std::env::set_var(ENV_MARKET_DATA_PORT, "9999");
         }
         let config = DirectConfig::production_defaults();
-        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
-        assert_eq!(config.historical.port, 443);
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
+        assert_eq!(config.market_data.port, 443);
         clear_env_matrix();
     }
 }

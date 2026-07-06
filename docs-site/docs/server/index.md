@@ -68,7 +68,7 @@ thetadatadx-server --creds creds.txt
 | `--creds <path>` | `creds.txt` | Credentials file (email line 1, password line 2). |
 | `--email` / `--password` | — | Inline credentials (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`). |
 | `--config <path>` | — | TOML [configuration](/articles/configuration) file. |
-| `--historical-region <region>` | `production` | Historical environment: `production` or `stage`. |
+| `--market-data-region <region>` | `production` | Market-data environment: `production` or `stage`. |
 | `--streaming-region <region>` | `production` | Streaming environment: `production` or `dev`. |
 | `--http-port <port>` | `25503` | HTTP REST port. |
 | `--ws-port <port>` | `25520` | WebSocket port. |

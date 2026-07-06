@@ -19,14 +19,14 @@ pub struct ThetaDataDxCredentials {
     pub(crate) inner: thetadatadx::Credentials,
 }
 
-/// Opaque historical client handle.
+/// Opaque market-data client handle.
 ///
-/// `repr(transparent)` guarantees `*const ThetaDataDxHistoricalClient` and
-/// `*const HistoricalClient` have identical layout, allowing safe pointer casts in
-/// `thetadatadx_client_historical()`.
+/// `repr(transparent)` guarantees `*const ThetaDataDxMarketDataClient` and
+/// `*const MarketDataClient` have identical layout, allowing safe pointer casts in
+/// `thetadatadx_client_market_data()`.
 #[repr(transparent)]
-pub struct ThetaDataDxHistoricalClient {
-    pub(crate) inner: thetadatadx::mdds::HistoricalClient,
+pub struct ThetaDataDxMarketDataClient {
+    pub(crate) inner: thetadatadx::mdds::MarketDataClient,
 }
 
 /// Opaque config handle.

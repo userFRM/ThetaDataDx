@@ -189,7 +189,7 @@ TEST_CASE("forced Unauthenticated from a real RPC surfaces as AuthenticationErro
                                               "not-a-real-password");
     auto config = thetadatadx::Config::production();
     try {
-        (void)thetadatadx::HistoricalClient::connect(bogus, config);
+        (void)thetadatadx::MarketDataClient::connect(bogus, config);
         FAIL("bogus credentials must surface an error");
     } catch (const thetadatadx::AuthenticationError&) {
         // expected — auth failed before any data round-trip

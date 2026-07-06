@@ -3,9 +3,9 @@
 //! Renders `thetadatadx-ts/src/_generated/historical_methods.rs` — the
 //! shared per-endpoint options structs plus one `impl` block per
 //! historical napi class (`Client`, the unified handle, and
-//! `HistoricalClient`, the standalone historical-only handle). Both carry the
+//! `MarketDataClient`, the standalone market-data-only handle). Both carry the
 //! identical method bodies (every body references `self.client`), so the
-//! historical surface stays in lockstep across the two at zero
+//! market-data surface stays in lockstep across the two at zero
 //! per-method cost. napi-rs compiles the result into the Node.js native
 //! addon.
 //!
@@ -56,27 +56,27 @@ use super::super::sdk_helpers::{
 /// `client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>>` accessor,
 /// so the generated method bodies (which resolve the handle via
 /// `self.client_handle()?`) compile unchanged against either receiver.
-/// `HistoricalView` co-owns its `Arc` (always `Ok`, surviving a parent
-/// `Client::close`); `HistoricalClient` holds the handle behind an `Option` and
+/// `MarketDataView` co-owns its `Arc` (always `Ok`, surviving a parent
+/// `Client::close`); `MarketDataClient` holds the handle behind an `Option` and
 /// rejects with "client is closed" once its own `close()` has released it.
 ///
 /// `Client` is the unified handle (historical + FPSS
-/// streaming); `HistoricalClient` is the standalone historical-only handle
+/// streaming); `MarketDataClient` is the standalone market-data-only handle
 /// that never opens the FPSS transport. The standalone client mirrors
-/// the Python `HistoricalClient` (`thetadatadx-py/src/mdds_client.rs`), the C++
+/// the Python `MarketDataClient` (`thetadatadx-py/src/mdds_client.rs`), the C++
 /// `thetadatadx::Client`, and the C ABI `thetadatadx_client_*` entry points: the same
 /// MDDS/Nexus surface with no streaming methods reachable. Emitting the
-/// identical method bodies onto both keeps the historical surface in
+/// identical method bodies onto both keeps the market-data surface in
 /// lockstep at zero per-method cost — adding an endpoint to
 /// `endpoint_surface.toml` lands it on both classes automatically.
 ///
-/// The unified client exposes these through the `client.historical`
-/// sub-namespace, so the generated block targets `HistoricalView` (the
+/// The unified client exposes these through the `client.market_data`
+/// sub-namespace, so the generated block targets `MarketDataView` (the
 /// view returned by the `historical` getter); the standalone
-/// `HistoricalClient` keeps its flat historical surface.
-const HISTORICAL_IMPL_CLASSES: &[&str] = &["HistoricalView", "HistoricalClient"];
+/// `MarketDataClient` keeps its flat market-data surface.
+const HISTORICAL_IMPL_CLASSES: &[&str] = &["MarketDataView", "MarketDataClient"];
 
-/// Renders the TypeScript historical surface: the per-endpoint options
+/// Renders the TypeScript market-data surface: the per-endpoint options
 /// structs and one napi `impl` block per historical class, each carrying
 /// every endpoint method and its server-stream companion.
 pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoint]) -> String {
@@ -126,7 +126,7 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
 /// `client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>>` accessor.
 /// Parameterising over the class name lets the generator
 /// project the identical surface onto the unified `Client` and
-/// the standalone `HistoricalClient` without duplicating the per-endpoint
+/// the standalone `MarketDataClient` without duplicating the per-endpoint
 /// rendering.
 fn render_typescript_historical_impl_block(
     endpoints: &[GeneratedEndpoint],
@@ -294,7 +294,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         }
         writeln!(
             out,
-            "            let call = client.historical().{name}({positional_args});",
+            "            let call = client.market_data().{name}({positional_args});",
             name = endpoint.name,
         )
         .unwrap();
@@ -440,7 +440,7 @@ fn write_ts_builder_request(out: &mut String, endpoint: &GeneratedEndpoint) {
     }
     writeln!(
         out,
-        "            let mut request = client.historical().{}({});",
+        "            let mut request = client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -758,7 +758,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     }
     writeln!(
         out,
-        "            let mut request = client.historical().{}({});",
+        "            let mut request = client.market_data().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
@@ -892,7 +892,7 @@ mod tests {
                 method_param("end_date", "Date"),
             ],
             return_type: "EodTicks".to_string(),
-            kind: "historical".to_string(),
+            kind: "marketData".to_string(),
             list_column: None,
             vendor_docstring: None,
         }

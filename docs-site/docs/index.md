@@ -61,7 +61,7 @@ curl 'http://127.0.0.1:25503/v3/stock/snapshot/quote?symbol=AAPL'
 from thetadatadx import Client
 
 client = Client(api_key="your_api_key")
-[q] = client.historical.stock_snapshot_quote(["AAPL"])
+[q] = client.market_data.stock_snapshot_quote(["AAPL"])
 print(q.bid, q.ask)
 ```
 
@@ -69,13 +69,13 @@ print(q.bid, q.ask)
 import { Client } from 'thetadatadx';
 
 const client = await Client.connectWith({ apiKey: 'your_api_key' });
-const [q] = await client.historical.stockSnapshotQuote(['AAPL']);
+const [q] = await client.marketData.stockSnapshotQuote(['AAPL']);
 console.log(q.bid, q.ask);
 ```
 
 ```rust [Rust]
 let client = thetadatadx::Client::builder().api_key("your_api_key").connect().await?;
-let rows = client.historical().stock_snapshot_quote(&["AAPL"]).await?;
+let rows = client.market_data().stock_snapshot_quote(&["AAPL"]).await?;
 println!("{} {}", rows[0].bid, rows[0].ask);
 ```
 

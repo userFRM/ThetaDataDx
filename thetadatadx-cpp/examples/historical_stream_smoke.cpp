@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
         std::size_t peak_chunk_rows = 0;
         const auto t0 = std::chrono::steady_clock::now();
 
-        client.historical().option_history_trade_stream(
+        client.market_data().option_history_trade_stream(
             symbol, expiration, date,
             [&](thetadatadx::Span<const thetadatadx::TradeTick> chunk) {
                 ++chunk_count;
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
 
         // ── Buffered pull (ground truth) ──
         const auto t2 = std::chrono::steady_clock::now();
-        thetadatadx::HistoricalClient hist = thetadatadx::HistoricalClient::connect(creds, config);
+        thetadatadx::MarketDataClient hist = thetadatadx::MarketDataClient::connect(creds, config);
         std::vector<thetadatadx::TradeTick> buffered = hist.option_history_trade(
             symbol, expiration, date, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
         const auto t3 = std::chrono::steady_clock::now();

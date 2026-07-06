@@ -220,7 +220,7 @@ impl Config {
     }
 
     /// Set the wall-clock envelope (seconds) for one
-    /// historical-channel retry sequence, measured from the first
+    /// market-data-channel retry sequence, measured from the first
     /// attempt. ``0`` disables the envelope (attempt budget only).
     /// Default ``300``.
     #[setter]
@@ -253,7 +253,7 @@ impl Config {
         guard.flatfiles.jitter
     }
 
-    /// Set the initial backoff delay (ms) for the historical-channel retry policy.
+    /// Set the initial backoff delay (ms) for the market-data-channel retry policy.
     /// Default ``250``. Subsequent retries double from here, capped
     /// at :attr:`retry_max_delay_ms`.
     #[setter]
@@ -263,14 +263,14 @@ impl Config {
     }
 
     /// Set the upper-bound backoff delay (ms) for the
-    /// historical-channel retry policy. Default ``30_000`` (30 s).
+    /// market-data-channel retry policy. Default ``30_000`` (30 s).
     #[setter]
     fn set_retry_max_delay_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.retry.max_delay = std::time::Duration::from_millis(ms);
     }
 
-    /// Set the total attempt budget for the historical-channel retry policy. ``1``
+    /// Set the total attempt budget for the market-data-channel retry policy. ``1``
     /// disables retry (single call only); higher values permit retries
     /// up to ``max_attempts - 1`` after the initial call. Default ``20``.
     #[setter]
@@ -286,7 +286,7 @@ impl Config {
         guard.retry.max_attempts
     }
 
-    /// Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+    /// Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
     /// ``True``. ``False`` gives the deterministic backoff schedule
     /// ``min(max_delay, initial * 2^attempt)``, useful for tests that
     /// need to assert exact timings.
@@ -389,19 +389,19 @@ impl Config {
         guard.flatfiles.read_timeout_secs
     }
 
-    /// Override the historical gRPC port. Companion to `historical_host` —
+    /// Override the market-data gRPC port. Companion to `market_data_host` —
     /// same rationale and same test-only usage.
     #[setter]
-    fn set_historical_port(&self, port: u16) {
+    fn set_market_data_port(&self, port: u16) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.port = port;
+        guard.market_data.port = port;
     }
 
-    /// Current historical gRPC port.
+    /// Current market-data gRPC port.
     #[getter]
-    fn get_historical_port(&self) -> u16 {
+    fn get_market_data_port(&self) -> u16 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.port
+        guard.market_data.port
     }
 
     /// Set the warning threshold (in bytes) for buffered (non-streaming)
@@ -418,14 +418,14 @@ impl Config {
     #[setter]
     fn set_warn_on_buffered_threshold_bytes(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.warn_on_buffered_threshold_bytes = n;
+        guard.market_data.warn_on_buffered_threshold_bytes = n;
     }
 
     /// Current ``warn_on_buffered_threshold_bytes`` setting (bytes).
     #[getter]
     fn get_warn_on_buffered_threshold_bytes(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.warn_on_buffered_threshold_bytes
+        guard.market_data.warn_on_buffered_threshold_bytes
     }
 
     /// Set the default per-request deadline (in seconds) for historical
@@ -442,7 +442,7 @@ impl Config {
     #[setter]
     fn set_request_timeout_secs(&self, secs: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.request_timeout_secs = secs;
+        guard.market_data.request_timeout_secs = secs;
     }
 
     /// Current historical ``request_timeout_secs`` setting. A stored ``0``
@@ -451,7 +451,7 @@ impl Config {
     #[getter]
     fn get_request_timeout_secs(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.request_timeout_secs
+        guard.market_data.request_timeout_secs
     }
 
     /// Current ``retry.initial_delay`` value in ms.
@@ -617,21 +617,21 @@ impl Config {
         guard.auth.client_type.clone()
     }
 
-    /// Override the historical gRPC host. Used by structural tests that
-    /// need to point the historical channel at a known-refused endpoint
+    /// Override the market-data gRPC host. Used by structural tests that
+    /// need to point the market-data channel at a known-refused endpoint
     /// to prove the streaming-only surface never opens it; production
     /// code paths should keep the `Config::production()` default.
     #[setter]
-    fn set_historical_host(&self, host: String) {
+    fn set_market_data_host(&self, host: String) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.set_historical_host(host);
+        guard.set_market_data_host(host);
     }
 
-    /// Current historical gRPC host.
+    /// Current market-data gRPC host.
     #[getter]
-    fn get_historical_host(&self) -> String {
+    fn get_market_data_host(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical_host().to_string()
+        guard.market_data_host().to_string()
     }
 
     /// Set the streaming write-flush policy.

@@ -1,6 +1,6 @@
 //! Standalone TypeScript (napi-rs) `StreamingClient` — streaming only.
 //!
-//! Opens ONLY the streaming TLS transport, no historical channel, no Nexus HTTP
+//! Opens ONLY the streaming TLS transport, no market-data channel, no Nexus HTTP
 //! authentication, no historical / Treasury / Calendar surface. Mirrors
 //! the Python `StreamingClient` (`thetadatadx-py/src/fpss_client.rs`), the C++
 //! `thetadatadx::StreamingClient` (`thetadatadx-cpp/include/thetadatadx.hpp`), and the standalone
@@ -28,7 +28,7 @@
 //! This client does NOT issue a Nexus authentication. The streaming service speaks its own
 //! protocol-level `CREDENTIALS` handshake on the TLS connection itself; no
 //! separate Nexus session is acquired. Run the bundled
-//! [`crate::Client`] when you need the historical surface and Nexus
+//! [`crate::Client`] when you need the market-data surface and Nexus
 //! session machinery side by side.
 //!
 //! # Lifecycle
@@ -917,7 +917,7 @@ impl StreamingClient {
     // connection is deferred to the first `startStreaming` call, matching
     // the C ABI's deferred-connect contract (`thetadatadx_client_connect` allocates
     // the handle, `thetadatadx_client_set_callback` opens the network) so the same
-    // observable behaviour applies across every binding. No historical channel is
+    // observable behaviour applies across every binding. No market-data channel is
     // opened and no Nexus request is issued by any factory.
 
     /// Allocate a standalone streaming handle with a `Credentials` handle.

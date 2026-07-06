@@ -128,7 +128,7 @@ perf(core): use precomputed pow10 table in price decoding
 Add `!` after the type or a `BREAKING CHANGE:` footer:
 
 ```
-feat(core)!: replace HistoricalClient with the unified Client
+feat(core)!: replace MarketDataClient with the unified Client
 ```
 
 ## How to Add a New Endpoint
@@ -139,7 +139,7 @@ The endpoint-facing source of truth is split across:
 - `thetadatadx-rs/tick_schema.toml` for DataTable parser layouts
 
 The build expands that metadata into the registry, shared endpoint runtime, and
-`HistoricalClient` declarations automatically.
+`MarketDataClient` declarations automatically.
 
 1. **Update the proto** (if the endpoint uses a new message type)
    - Update `thetadatadx-rs/proto/mdds.proto`

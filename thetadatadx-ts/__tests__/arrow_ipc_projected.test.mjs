@@ -223,7 +223,7 @@ describe('withColumns live-call variant drives the projected export', () => {
   });
 
   it('generates the WithColumns variant on both historical classes', () => {
-    // Present on the standalone HistoricalClient and the unified HistoricalView
+    // Present on the standalone MarketDataClient and the unified MarketDataView
     // (both impl blocks), returning the presence-carrying object, never the bare
     // row array.
     const jsName = (generated.match(/js_name = "(\w+WithColumns)"/g) || []).length;

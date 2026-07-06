@@ -82,7 +82,7 @@ TEST_CASE("ClientBuilder validates auth before connecting",
     // composes. Pin the surface (api key first-class, plus the
     // environment selectors) at compile time without connecting.
     thetadatadx::ClientBuilder builder = thetadatadx::Client::builder();
-    builder.api_key("td1_example").historical_environment("STAGE");
+    builder.api_key("td1_example").market_data_environment("STAGE");
     thetadatadx::ClientBuilder dotenv_builder = thetadatadx::Client::builder();
     dotenv_builder.from_dotenv("/tmp/example.env").production();
 }
@@ -118,9 +118,9 @@ TEST_CASE("ClientBuilder environment and from_dotenv setters stay offline",
     // The explicit historical-environment selector uses the C++ binding's
     // string representation (`PROD` / `STAGE`, case-insensitive) and
     // validates locally, before any network round-trip.
-    REQUIRE_NOTHROW(thetadatadx::Client::builder().historical_environment("stage"));
-    REQUIRE_NOTHROW(thetadatadx::Client::builder().historical_environment(" PROD "));
-    REQUIRE_THROWS_AS(thetadatadx::Client::builder().historical_environment("qa"),
+    REQUIRE_NOTHROW(thetadatadx::Client::builder().market_data_environment("stage"));
+    REQUIRE_NOTHROW(thetadatadx::Client::builder().market_data_environment(" PROD "));
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().market_data_environment("qa"),
                       thetadatadx::ConfigError);
 
     // `from_dotenv` is fluent on both lvalues and rvalues; the setter
@@ -179,7 +179,7 @@ TEST_CASE("Stream binds the full FPSS surface",
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<thetadatadx::Client&>().stream()), SV>);
     STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const thetadatadx::Client&>().historical()),
+        decltype(std::declval<const thetadatadx::Client&>().market_data()),
         thetadatadx::Historical>);
 
     // View accessor binding contract. `stream()` (`&`) and `flat_files()`
@@ -197,14 +197,14 @@ TEST_CASE("Stream binds the full FPSS surface",
     STATIC_REQUIRE_FALSE(std::is_invocable_v<
         decltype(&thetadatadx::Client::stream), thetadatadx::Client&&>);
     STATIC_REQUIRE(std::is_invocable_v<
-        decltype(&thetadatadx::Client::historical), const thetadatadx::Client&>);
+        decltype(&thetadatadx::Client::market_data), const thetadatadx::Client&>);
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::flat_files), const thetadatadx::Client&>);
     // `historical()` is plain `const` (not ref-qualified), so it binds to an
     // rvalue `Client` in every standard — the co-owning view it returns is
     // sound on a temporary.
     STATIC_REQUIRE(std::is_invocable_v<
-        decltype(&thetadatadx::Client::historical), thetadatadx::Client&&>);
+        decltype(&thetadatadx::Client::market_data), thetadatadx::Client&&>);
     // `flat_files()` is `const&`-qualified. C++17 treats `is_invocable` of a
     // `const&` member on an rvalue as false (the rvalue is rejected), but
     // C++20 (LWG-resolved) treats it as true — an rvalue binds to a const

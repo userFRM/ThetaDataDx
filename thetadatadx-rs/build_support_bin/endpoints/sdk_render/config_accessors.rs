@@ -62,11 +62,11 @@ struct Accessor {
     #[serde(default)]
     limit_field: Option<String>,
     /// `string` setter only: route the value through a `&mut self` method
-    /// (e.g. `set_historical_host`) instead of a direct `path` assignment.
+    /// (e.g. `set_market_data_host`) instead of a direct `path` assignment.
     #[serde(default)]
     setter_call: Option<String>,
     /// `string` getter only: read the value through a `&self` method
-    /// (e.g. `historical_host`) instead of a direct `path` read.
+    /// (e.g. `market_data_host`) instead of a direct `path` read.
     #[serde(default)]
     getter_call: Option<String>,
     /// `enum` only: the FFI-side enum type (`thetadatadx::`-prefixed,
@@ -403,7 +403,7 @@ pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error
                     ),
                 };
                 // Diagnostics name the logical field (`nexus_url`,
-                // `historical_host`), not the local C param (`url`, `host`).
+                // `market_data_host`), not the local C param (`url`, `host`).
                 write!(
                     out,
                     "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: *const c_char,\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            set_error(\"config handle is null\");\n            return -1;\n        }}\n        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.\n        let {p} = match unsafe {{ cstr_to_str({p}) }} {{\n            Ok(Some(s)) => s,\n            Ok(None) => {{\n                set_error(\"{field} is null\");\n                return -1;\n            }}\n            Err(e) => {{\n                set_error(&format!(\"{field} is not valid UTF-8: {{e}}\"));\n                return -1;\n            }}\n        }};\n        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.\n        let config = unsafe {{ &mut *config }};\n        {assign}\n        0\n    }})\n}}\n\n",

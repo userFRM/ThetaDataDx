@@ -629,7 +629,7 @@ pub async fn generic_with_overrides(
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    let output = match invoke_endpoint(state.client().historical(), ep.name, &args).await {
+    let output = match invoke_endpoint(state.client().market_data(), ep.name, &args).await {
         Ok(output) => output,
         Err(error) => return endpoint_error_response(ep, error),
     };
@@ -839,7 +839,7 @@ mod tests {
     }
 
     /// Single-ticker endpoints keep the tight 16-byte cap — the typed
-    /// dispatch must not loosen the historical surface.
+    /// dispatch must not loosen the market-data surface.
     #[test]
     fn build_endpoint_args_keeps_single_symbol_cap_on_historical_endpoints() {
         let ep = thetadatadx::find("stock_history_eod")

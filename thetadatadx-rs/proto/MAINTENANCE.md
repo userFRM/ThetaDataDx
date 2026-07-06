@@ -44,7 +44,7 @@ proto/
 2. **Endpoint surface validation + generation**: the build loads
    `endpoint_surface.toml`, parses `mdds.proto` to extract wire metadata,
    validates the surface spec against the wire contract, and generates the
-   endpoint registry, shared endpoint runtime dispatch, and `HistoricalClient`
+   endpoint registry, shared endpoint runtime dispatch, and `MarketDataClient`
    endpoint declarations. Outputs: `$OUT_DIR/registry_generated.rs`,
    `$OUT_DIR/endpoint_generated.rs`,
    `$OUT_DIR/mdds_list_endpoints_generated.rs`,
@@ -150,7 +150,7 @@ cargo test         # verify nothing broke
 cargo clippy       # zero warnings
 ```
 
-The new endpoint is now available on `Client` via `Deref` to `HistoricalClient`.
+The new endpoint is now available on `Client` via `Deref` to `MarketDataClient`.
 
 ## How to: replace `mdds.proto`
 

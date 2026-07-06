@@ -56,7 +56,7 @@ pub enum EndpointArgValue {
 /// deadline" from "the caller explicitly disabled the deadline" — both
 /// collapse to `None`. That ambiguity makes `with_timeout_ms(0)` silently
 /// fall back to the configured
-/// [`crate::config::HistoricalConfig::request_timeout_secs`] default instead
+/// [`crate::config::MarketDataConfig::request_timeout_secs`] default instead
 /// of opting the call out of any deadline. This tri-state keeps the two
 /// intents distinct so the generated dispatch can honour each:
 ///
@@ -141,7 +141,7 @@ impl EndpointArgs {
     /// [`DeadlineSetting::Disabled`] so the dispatched call runs unbounded.
     /// This is distinct from never calling `with_timeout_ms` at all
     /// ([`DeadlineSetting::Unset`]), which falls back to the configured
-    /// [`crate::config::HistoricalConfig::request_timeout_secs`] default. A
+    /// [`crate::config::MarketDataConfig::request_timeout_secs`] default. A
     /// positive `ms` records [`DeadlineSetting::Millis`].
     #[must_use]
     pub fn with_timeout_ms(mut self, ms: u64) -> Self {
@@ -532,14 +532,14 @@ pub enum EndpointOutput {
 /// `with_deadline` (or the list `_with_deadline` overload). The builder is
 /// the single deadline authority, so the three deadline intents are honoured
 /// exactly: [`DeadlineSetting::Unset`] falls back to the configured
-/// [`crate::config::HistoricalConfig::request_timeout_secs`] default,
+/// [`crate::config::MarketDataConfig::request_timeout_secs`] default,
 /// [`DeadlineSetting::Disabled`] (`with_timeout_ms(0)`) runs unbounded, and
 /// [`DeadlineSetting::Millis`] applies the explicit per-call bound. On expiry
 /// the in-flight future is dropped — its locals (`_permit`,
 /// `tonic::Streaming`) drop with it, releasing the request semaphore and
 /// cancelling the in-flight gRPC stream — and the call returns
 /// `EndpointError::Server(Error::Timeout { duration_ms })`. Subsequent calls
-/// on the same `HistoricalClient` succeed.
+/// on the same `MarketDataClient` succeed.
 ///
 /// # Errors
 ///
@@ -551,7 +551,7 @@ pub enum EndpointOutput {
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
 pub async fn invoke_endpoint(
-    client: &crate::mdds::HistoricalClient,
+    client: &crate::mdds::MarketDataClient,
     name: &str,
     args: &EndpointArgs,
 ) -> Result<EndpointOutput, EndpointError> {
@@ -591,7 +591,7 @@ pub async fn invoke_endpoint(
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
 pub async fn invoke_endpoint_stream(
-    client: &crate::mdds::HistoricalClient,
+    client: &crate::mdds::MarketDataClient,
     name: &str,
     args: &EndpointArgs,
     handler: impl FnMut(*const core::ffi::c_void, usize) + Send,

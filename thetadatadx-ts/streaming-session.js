@@ -513,7 +513,7 @@ if (
 // (sync scope exit); `[Symbol.asyncDispose]` backs `await using client = ...`
 // and additionally awaits the streaming drain barrier so a callback closure is
 // safe to release, warning (never throwing) on timeout to match the session.
-for (const Klass of [native.Client, native.HistoricalClient]) {
+for (const Klass of [native.Client, native.MarketDataClient]) {
   if (!Klass) continue;
   if (typeof Klass.prototype[Symbol.dispose] !== 'function') {
     Klass.prototype[Symbol.dispose] = function dispose() {

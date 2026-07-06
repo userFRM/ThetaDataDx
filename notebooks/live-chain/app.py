@@ -176,7 +176,7 @@ ticker = st.session_state.ticker
 @st.cache_data(ttl=5)
 def fetch_spot(tkr: str) -> float:
     """Get the latest spot price for the underlying."""
-    snap = client.historical.stock_snapshot_ohlc([tkr])
+    snap = client.market_data.stock_snapshot_ohlc([tkr])
     if snap:
         return snap[0].close
     return 0.0
@@ -198,7 +198,7 @@ except Exception as exc:
 def fetch_expirations(tkr: str) -> list[str]:
     # Expirations are ISO date strings; keep upcoming ones.
     today = datetime.now().date().isoformat()
-    return [e for e in client.historical.option_list_expirations(tkr).to_list() if e > today]
+    return [e for e in client.market_data.option_list_expirations(tkr).to_list() if e > today]
 
 
 try:
@@ -239,7 +239,7 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
     """Fetch quotes, trades, OI, and snapshot Greeks for an expiration."""
 
     # 1. Get all strikes (dollar-value strings).
-    all_strikes = client.historical.option_list_strikes(tkr, exp_str).to_list()
+    all_strikes = client.market_data.option_list_strikes(tkr, exp_str).to_list()
     if not all_strikes:
         return pd.DataFrame()
 
@@ -259,7 +259,7 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
         for right, prefix in [("C", "call_"), ("P", "put_")]:
             # NBBO quote
             try:
-                quote = client.historical.option_snapshot_quote(
+                quote = client.market_data.option_snapshot_quote(
                     tkr, expiration=exp_str, strike=strike_str, right=right)
             except Exception:
                 quote = None
@@ -277,7 +277,7 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
 
             # Last trade
             try:
-                trade = client.historical.option_snapshot_trade(
+                trade = client.market_data.option_snapshot_trade(
                     tkr, expiration=exp_str, strike=strike_str, right=right)
                 if trade:
                     row[f"{prefix}last"] = trade[0].price
@@ -291,7 +291,7 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
 
             # Open interest (updated overnight)
             try:
-                oi_data = client.historical.option_snapshot_open_interest(
+                oi_data = client.market_data.option_snapshot_open_interest(
                     tkr, expiration=exp_str, strike=strike_str, right=right)
                 row[f"{prefix}oi"] = oi_data[0].open_interest if oi_data else 0
             except Exception:
@@ -299,7 +299,7 @@ def build_chain(tkr: str, exp_str: str, spot_price: float, n_strikes: int) -> pd
 
             # Snapshot Greeks (computed server-side)
             try:
-                greeks = client.historical.option_snapshot_greeks_all(
+                greeks = client.market_data.option_snapshot_greeks_all(
                     tkr, expiration=exp_str, strike=strike_str, right=right)
             except Exception:
                 greeks = None

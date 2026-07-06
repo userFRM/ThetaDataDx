@@ -62,7 +62,7 @@ int main() {
         .connect();
 
     // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
+    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
                     t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
@@ -83,10 +83,10 @@ auto with_login = thetadatadx::Client::builder()
     .connect();
 ```
 
-For full control over hosts and timeouts, build a typed `Credentials` + `Config` and connect directly. `thetadatadx::HistoricalClient` is the historical-only entry point when you do not need streaming or flat files:
+For full control over hosts and timeouts, build a typed `Credentials` + `Config` and connect directly. `thetadatadx::MarketDataClient` is the historical-only entry point when you do not need streaming or flat files:
 
 ```cpp
-auto client = thetadatadx::HistoricalClient::connect(
+auto client = thetadatadx::MarketDataClient::connect(
     thetadatadx::Credentials::from_file("creds.txt"),
     thetadatadx::Config::production());
 ```
@@ -106,7 +106,7 @@ auto exps   = client.option_list_expirations("SPY");
 
 ## Streaming
 
-Real-time streaming uses a dedicated `thetadatadx::StreamingClient` — separate from the historical `HistoricalClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
+Real-time streaming uses a dedicated `thetadatadx::StreamingClient` — separate from the historical `MarketDataClient`. Register a callback and switch on `event.kind`; market-data payloads (`quote`, `trade`, `open_interest`, `ohlcvc`) carry decoded `double` fields, no parsing on the hot path:
 
 ```cpp
 #include <thetadatadx.hpp>
@@ -220,7 +220,7 @@ auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
 unified.flat_files().to_path("OPTION", "TRADE_QUOTE", "20260428", "/tmp/option-trade-quote", "csv");
 ```
 
-The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` / `eod`. Available `flat_files().*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`; the generic paths reject an unserved `(security, request)` pair with a typed invalid-parameter error. `thetadatadx::HistoricalClient` remains the historical-only entry point; `thetadatadx::Client` adds streaming and flat files on the same connection.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` / `eod`. Available `flat_files().*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`; the generic paths reject an unserved `(security, request)` pair with a typed invalid-parameter error. `thetadatadx::MarketDataClient` remains the historical-only entry point; `thetadatadx::Client` adds streaming and flat files on the same connection.
 
 ## Endpoint coverage
 
@@ -234,7 +234,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every historical endpoint is a method on `thetadatadx::HistoricalClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadatadx.hpp`](include/thetadatadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every historical endpoint is a method on `thetadatadx::MarketDataClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadatadx.hpp`](include/thetadatadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 

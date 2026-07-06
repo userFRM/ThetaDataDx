@@ -63,7 +63,7 @@ TEST_CASE("async query methods return std::future of the sync row type",
     // `std::future` of exactly the vector the blocking method returns. No
     // connection is needed — the check is purely on the declared signature
     // via `decltype` on an unevaluated member-pointer expression.
-    using Hist = thetadatadx::HistoricalClient;
+    using Hist = thetadatadx::MarketDataClient;
 
     using SyncRet = decltype(std::declval<const Hist&>().stock_history_eod(
         std::declval<std::string>(),
@@ -102,7 +102,7 @@ TEST_CASE("async query methods return std::future of the sync row type",
     // Shared-ownership safety. The `_async` companions capture a copy of the
     // object (`self = *this`), which co-owns the FFI handle, so the future
     // keeps the handle alive on its own. The natural-looking
-    // `client.historical().foo_async(...)` — where the `Historical` view is a
+    // `client.market_data().foo_async(...)` — where the `Historical` view is a
     // temporary — is therefore SOUND, not a use-after-free, so the call is
     // well-formed on both an lvalue and an rvalue object (no `&&`-deleted
     // overload). The runtime lifetime test below proves the handle outlives a
@@ -116,7 +116,7 @@ TEST_CASE("async query methods return std::future of the sync row type",
 
 // ── Lifetime regression: a future may outlive the object it was launched from ──
 //
-// The real `HistoricalClient` / `Historical` can only be constructed by a live
+// The real `MarketDataClient` / `Historical` can only be constructed by a live
 // `connect()` (private ctor + gRPC handshake), so a true destroy-mid-flight
 // against a live FFI handle is a `[live]` scenario (last test below). This
 // offline case proves the load-bearing mechanism the generated `_async`
@@ -203,7 +203,7 @@ TEST_CASE("async future outlives the destroyed originating object",
 // view that declares `handle_` first instead releases the callback node BEFORE
 // the deleter's stop+join — so the still-live consumer fires through freed node
 // storage: a heap-use-after-free. The reproduction is exactly that swap: flip
-// `HistoricalViewStub`'s two members to handle-first below and ASan reports
+// `MarketDataViewStub`'s two members to handle-first below and ASan reports
 // heap-use-after-free; the shipped callback-first order is clean. The consumer
 // spins in a TIGHT loop with no sleep so the read lands inside the narrow
 // free-node / stop-join window every run.
@@ -244,7 +244,7 @@ struct HandleStub {
 // Mirrors the unified `Client`: co-owns the handle AND the callback node, in
 // the same reverse-destruct order (callback declared first → destroyed last).
 // `historical()` hands out a view that co-owns BOTH, exactly as the shipped
-// `Client::historical()` does.
+// `Client::market_data()` does.
 struct ClientStub {
     // Declaration order mirrors `Client`: callback_ first so it is destroyed
     // AFTER handle_ (whose deleter stops + drains the consumer).
@@ -257,7 +257,7 @@ struct ClientStub {
     // releases `handle_` first — its stop+join deleter runs while the node is
     // still alive. Flipping these two to handle-first is the regression this
     // case gates: it frees the node before the deleter joins the consumer.
-    struct HistoricalViewStub {
+    struct MarketDataViewStub {
         std::shared_ptr<CallbackNodeStub> callback_;
         std::shared_ptr<HandleStub> handle_;
 
@@ -272,10 +272,10 @@ struct ClientStub {
         }
     };
 
-    HistoricalViewStub historical() const {
+    MarketDataViewStub historical() const {
         // Share BOTH, like the fix. Positional init follows the member
         // declaration order: callback_ first, then handle_.
-        return HistoricalViewStub{callback_, handle_};
+        return MarketDataViewStub{callback_, handle_};
     }
 };
 
@@ -286,7 +286,7 @@ TEST_CASE("async future from a unified client outlives destruction while streami
     // Repeat the whole destroy-while-streaming cycle many times so a rare
     // member-order UAF is caught reliably under ASan rather than slipping past
     // on a lucky interleaving. With the shipped callback-first order every
-    // iteration is clean; flip `HistoricalViewStub` to handle-first and ASan
+    // iteration is clean; flip `MarketDataViewStub` to handle-first and ASan
     // reports heap-use-after-free within the first handful.
     constexpr int kIterations = 5000;
     for (int i = 0; i < kIterations; ++i) {
@@ -320,7 +320,7 @@ TEST_CASE("async future from a unified client outlives destruction while streami
             };
 
             // Stored future launched off the view — co-owns handle + callback.
-            fut = client.historical().read_async(start);
+            fut = client.market_data().read_async(start);
 
             // `client` is destroyed HERE while the future is pending and the
             // consumer is still firing. Its members drop in reverse order
@@ -355,7 +355,7 @@ TEST_CASE("async query resolves to the same rows as the blocking call",
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();
-    auto client = thetadatadx::HistoricalClient::connect(creds, config);
+    auto client = thetadatadx::MarketDataClient::connect(creds, config);
 
     // Blocking baseline, then the async companion. The two run on the same
     // handle sequentially (the future is drained before the next query), so
@@ -379,7 +379,7 @@ TEST_CASE("async query surfaces a typed error on future::get",
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();
-    auto client = thetadatadx::HistoricalClient::connect(creds, config);
+    auto client = thetadatadx::MarketDataClient::connect(creds, config);
 
     // A malformed date range drives the blocking call to throw; the throw is
     // captured in the future's shared state by `std::async` and re-raised on
@@ -400,14 +400,14 @@ TEST_CASE("async query from a destroyed Historical view resolves safely",
     auto config = thetadatadx::Config::production();
     auto client = thetadatadx::Client::connect(creds, config);
 
-    // Launch the async query directly on the temporary `client.historical()`
+    // Launch the async query directly on the temporary `client.market_data()`
     // view — the view is destroyed at the end of the full expression, while the
     // detached task is still in flight. With shared handle ownership the task's
     // captured copy keeps the handle alive, so `.get()` returns the correct
     // rows instead of dereferencing a freed handle. (Pre-fix this was a
     // deliberately-deleted `&&` overload; the UAF it guarded is now gone.)
     std::future<std::vector<thetadatadx::EodTick>> fut =
-        client.historical().stock_history_eod_async("AAPL", "20240101", "20240131");
+        client.market_data().stock_history_eod_async("AAPL", "20240101", "20240131");
     auto rows = fut.get();
     REQUIRE_FALSE(rows.empty());
 }

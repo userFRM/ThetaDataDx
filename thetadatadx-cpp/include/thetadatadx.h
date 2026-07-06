@@ -5,7 +5,7 @@
  * Used by both the C++ wrapper and any other C-compatible language.
  *
  * Memory model:
- * - Opaque handles (ThetaDataDxCredentials*, ThetaDataDxHistoricalClient*, ThetaDataDxConfig*) are heap-allocated
+ * - Opaque handles (ThetaDataDxCredentials*, ThetaDataDxMarketDataClient*, ThetaDataDxConfig*) are heap-allocated
  *   by the library and MUST be freed with the corresponding thetadatadx_*_free function.
  * - Tick data is returned as fixed-layout struct arrays. Each array type has a
  *   corresponding thetadatadx_*_array_free function that MUST be called.
@@ -37,7 +37,7 @@ extern "C" {
 
 /* ── Opaque handle types ── */
 typedef struct ThetaDataDxCredentials ThetaDataDxCredentials;
-typedef struct ThetaDataDxHistoricalClient ThetaDataDxHistoricalClient;
+typedef struct ThetaDataDxMarketDataClient ThetaDataDxMarketDataClient;
 typedef struct ThetaDataDxConfig ThetaDataDxConfig;
 typedef struct ThetaDataDxStreamHandle ThetaDataDxStreamHandle;
 typedef struct ThetaDataDxClient ThetaDataDxClient;
@@ -1154,7 +1154,7 @@ ThetaDataDxConfig* thetadatadx_config_stage(void);
  *  @param kind 0 for PROD, 1 for STAGE.
  *  @return 0 on success, or -1 on error (config is null, or kind is
  *          outside {0, 1}); check thetadatadx_last_error(). */
-int32_t thetadatadx_config_with_historical_environment(ThetaDataDxConfig* config, int32_t kind);
+int32_t thetadatadx_config_with_market_data_environment(ThetaDataDxConfig* config, int32_t kind);
 
 /** Select the streaming environment on a config handle in place:
  *  kind 0 = production, kind 1 = dev. The streaming and historical
@@ -1168,12 +1168,12 @@ int32_t thetadatadx_config_with_streaming_environment(ThetaDataDxConfig* config,
 
 /** Source a config from a .env-format file. Starts from the production
  *  configuration and applies the cluster keys carried by the file:
- *  THETADATA_HISTORICAL_TYPE (PROD / STAGE, case-insensitive) selects the
- *  environment, and the optional THETADATA_HISTORICAL_HOST /
+ *  THETADATA_MARKET_DATA_TYPE (PROD / STAGE, case-insensitive) selects the
+ *  environment, and the optional THETADATA_MARKET_DATA_HOST /
  *  THETADATA_STREAMING_HOST keys override the hosts (an explicit host wins
  *  over the environment default). Reads the same file format and keys as
  *  thetadatadx_credentials_from_dotenv, so one .env can carry both
- *  THETADATA_API_KEY and THETADATA_HISTORICAL_TYPE.
+ *  THETADATA_API_KEY and THETADATA_MARKET_DATA_TYPE.
  *  @param path Path to the .env file.
  *  @return Heap-owned ThetaDataDxConfig the caller must release with
  *          thetadatadx_config_free, or NULL on error
@@ -1949,13 +1949,13 @@ int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32
  * Read the historical environment carried by the config: "PROD"
  * for the production cluster or "STAGE" for staging. The historical and
  * streaming environments are selected independently; the production /
- * stage / dev presets (and the THETADATA_HISTORICAL_TYPE dotenv key) set the
+ * stage / dev presets (and the THETADATA_MARKET_DATA_TYPE dotenv key) set the
  * historical channel, and this is the readback of that selection.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null.
  */
-char* thetadatadx_config_get_historical_environment(const ThetaDataDxConfig* config);
+char* thetadatadx_config_get_market_data_environment(const ThetaDataDxConfig* config);
 
 /**
  * Read the streaming environment carried by the config: "PROD" for
@@ -2003,7 +2003,7 @@ int32_t thetadatadx_config_get_consumer_cpu(const ThetaDataDxConfig* config, int
  * @return 0 on success, -1 if config is null or host is null / not valid
  *         UTF-8.
  */
-int32_t thetadatadx_config_set_historical_host(ThetaDataDxConfig* config, const char* host);
+int32_t thetadatadx_config_set_market_data_host(ThetaDataDxConfig* config, const char* host);
 
 /**
  * Read the configured historical gRPC host.
@@ -2012,14 +2012,14 @@ int32_t thetadatadx_config_set_historical_host(ThetaDataDxConfig* config, const 
  *         thetadatadx_string_free, or NULL if config is null or the value contains
  *         an interior NUL.
  */
-char* thetadatadx_config_get_historical_host(const ThetaDataDxConfig* config);
+char* thetadatadx_config_get_market_data_host(const ThetaDataDxConfig* config);
 
 /**
  * Set the historical gRPC port.
  * @param config Config handle to mutate; no-op when NULL.
  * @param port The gRPC port.
  */
-void thetadatadx_config_set_historical_port(ThetaDataDxConfig* config, uint16_t port);
+void thetadatadx_config_set_market_data_port(ThetaDataDxConfig* config, uint16_t port);
 
 /**
  * Read the configured historical gRPC port.
@@ -2027,7 +2027,7 @@ void thetadatadx_config_set_historical_port(ThetaDataDxConfig* config, uint16_t 
  * @param out_port Receives the gRPC port on success.
  * @return 0 on success, -1 if either pointer is null.
  */
-int32_t thetadatadx_config_get_historical_port(const ThetaDataDxConfig* config, uint16_t* out_port);
+int32_t thetadatadx_config_get_market_data_port(const ThetaDataDxConfig* config, uint16_t* out_port);
 
 /**
  * Set the warn_on_buffered_threshold_bytes ceiling on a config.
@@ -2068,30 +2068,30 @@ void thetadatadx_config_set_request_timeout_secs(ThetaDataDxConfig* config, uint
  */
 int32_t thetadatadx_config_get_request_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
-/* ── HistoricalClient ── */
+/* ── MarketDataClient ── */
 
 /** Connect a historical client to ThetaData servers.
  *  @param creds Credentials handle; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          thetadatadx_historical_free, or NULL on connection/auth failure
+ *          thetadatadx_market_data_free, or NULL on connection/auth failure
  *          (check thetadatadx_last_error()). */
-ThetaDataDxHistoricalClient* thetadatadx_historical_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
+ThetaDataDxMarketDataClient* thetadatadx_market_data_connect(const ThetaDataDxCredentials* creds, const ThetaDataDxConfig* config);
 
 /** Connect a historical client, reading credentials from a file
  *  (line 1 = email, line 2 = password). One-call equivalent of
- *  thetadatadx_credentials_from_file + thetadatadx_historical_connect.
+ *  thetadatadx_credentials_from_file + thetadatadx_market_data_connect.
  *  @param path Filesystem path to the credentials file; must be non-NULL.
  *  @param config Config handle; must be non-NULL.
  *  @return A connected client the caller must release with
- *          thetadatadx_historical_free, or NULL on argument or connection/auth
+ *          thetadatadx_market_data_free, or NULL on argument or connection/auth
  *          failure (check thetadatadx_last_error()). */
-ThetaDataDxHistoricalClient* thetadatadx_historical_connect_from_file(const char* path, const ThetaDataDxConfig* config);
+ThetaDataDxMarketDataClient* thetadatadx_market_data_connect_from_file(const char* path, const ThetaDataDxConfig* config);
 
 /** Release a historical client handle.
- *  @param client Handle from a thetadatadx_historical_connect* call; no-op when
+ *  @param client Handle from a thetadatadx_market_data_connect* call; no-op when
  *                NULL. Call exactly once. */
-void thetadatadx_historical_free(ThetaDataDxHistoricalClient* client);
+void thetadatadx_market_data_free(ThetaDataDxMarketDataClient* client);
 
 /* ── String free ── */
 
@@ -2616,7 +2616,7 @@ ThetaDataDxSubscriptionArray* thetadatadx_client_active_full_subscriptions(const
  *  @param handle The unified handle.
  *  @return A borrowed historical client pointer owned by the unified handle;
  *          do NOT free it. */
-const ThetaDataDxHistoricalClient* thetadatadx_client_historical(const ThetaDataDxClient* handle);
+const ThetaDataDxMarketDataClient* thetadatadx_client_market_data(const ThetaDataDxClient* handle);
 
 /** Stop streaming on the unified client. Historical remains available.
  *  Returns asynchronously: in-flight events continue draining through the

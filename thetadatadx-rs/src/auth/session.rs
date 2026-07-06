@@ -5,7 +5,7 @@
 //! `Unauthenticated` mid-session (token expired, server restart, etc.)
 //! we re-authenticate and swap the UUID in place so every in-flight and
 //! future request switches to the new token without rebuilding the
-//! whole `HistoricalClient`.
+//! whole `MarketDataClient`.
 //!
 //! # Concurrency
 //!
@@ -31,7 +31,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 use super::{authenticate_at, Credentials};
-use crate::config::HistoricalEnvironment;
+use crate::config::MarketDataEnvironment;
 use crate::error::Error;
 
 /// Opaque handle to a shared, mutable session UUID.
@@ -75,7 +75,7 @@ struct Inner {
     nexus_url: String,
     /// Target server environment the token was issued for. Reused on
     /// refresh so a staging session re-authenticates against staging.
-    environment: HistoricalEnvironment,
+    environment: MarketDataEnvironment,
     /// Credentials used for refresh. Clone is cheap (`Zeroizing<String>`
     /// inside) so we keep an owned copy rather than reaching back into
     /// the caller-provided handle every refresh.
@@ -136,7 +136,7 @@ impl SessionToken {
     pub fn new(
         uuid: String,
         nexus_url: String,
-        environment: HistoricalEnvironment,
+        environment: MarketDataEnvironment,
         creds: Credentials,
     ) -> Self {
         Self {
@@ -330,7 +330,7 @@ mod tests {
         SessionToken::new(
             uuid.to_string(),
             "https://nexus.example.invalid/auth".to_string(),
-            HistoricalEnvironment::Prod,
+            MarketDataEnvironment::Prod,
             fake_creds(),
         )
     }

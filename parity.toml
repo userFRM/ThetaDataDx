@@ -29,7 +29,7 @@ cpp = true
 name = "Client"
 python = true
 typescript = true
-cpp = true          # exposed as `thetadatadx::Client` (unified); `thetadatadx::HistoricalClient` is the historical-only sibling
+cpp = true          # exposed as `thetadatadx::Client` (unified); `thetadatadx::MarketDataClient` is the historical-only sibling
 
 [[class]]
 name = "AsyncClient"
@@ -44,16 +44,16 @@ typescript = true   # standalone FPSS-only napi class over `thetadatadx::fpss::S
 cpp = true
 
 [[class]]
-name = "HistoricalClient"
+name = "MarketDataClient"
 python = true
 typescript = true   # standalone historical-only napi class; generated historical surface, no streaming methods
-cpp = true          # standalone historical-only client: `thetadatadx::HistoricalClient`
+cpp = true          # standalone historical-only client: `thetadatadx::MarketDataClient`
 
 [[class]]
-name = "HistoricalView"
-python = true       # returned by the `client.historical` getter
-typescript = true   # returned by the `client.historical` getter
-cpp = true          # returned by `client.historical()`; exposed as `thetadatadx::Historical`
+name = "MarketDataView"
+python = true       # returned by the `client.market_data` getter
+typescript = true   # returned by the `client.market_data` getter
+cpp = true          # returned by `client.market_data()`; exposed as `thetadatadx::Historical`
 
 [[class]]
 name = "StreamView"
@@ -285,7 +285,7 @@ python = true
 typescript = true
 cpp = true
 
-# ─── HistoricalConfig cross-binding setters ────────────────────────────
+# ─── MarketDataConfig cross-binding setters ────────────────────────────
 #
 # Tuning knobs on the historical sub-config exposed across every binding.
 # `warn_on_buffered_threshold_bytes` / `request_timeout_secs` are bound
@@ -295,13 +295,13 @@ cpp = true
 # internally from the subscription tier, not exposed as a caller knob.
 
 [[class]]
-name = "HistoricalConfig.warn_on_buffered_threshold_bytes"
+name = "MarketDataConfig.warn_on_buffered_threshold_bytes"
 python = true
 typescript = true
 cpp = true
 
 [[class]]
-name = "HistoricalConfig.request_timeout_secs"
+name = "MarketDataConfig.request_timeout_secs"
 python = true
 typescript = true
 cpp = true
@@ -506,7 +506,7 @@ cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `ThetaDataD
 
 # ─── Rust-only historical / streaming knobs (Gate 2 tightening / #595) ──
 #
-# Pub fields on `HistoricalConfig` / `StreamingConfig` that the binding
+# Pub fields on `MarketDataConfig` / `StreamingConfig` that the binding
 # sweep has not yet exposed on Python / TypeScript / C++. These are
 # deliberately Rust-only today — embedders that own the runtime can
 # mutate the field directly through the `DirectConfig` struct, but the
@@ -516,32 +516,32 @@ cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `ThetaDataD
 # tightening) is the umbrella issue under which the cross-binding
 # sweep for these fields would be planned.
 #
-# Two `HistoricalConfig` advanced overrides (`historical_host` /
-# `historical_port`): point the historical channel at a known host (e.g.
+# Two `MarketDataConfig` advanced overrides (`market_data_host` /
+# `market_data_port`): point the historical channel at a known host (e.g.
 # a refused endpoint in structural tests that prove the streaming surface
-# never opens it). Exposed on every binding: Python (`Config.historical_host`
-# / `.historical_port`), TypeScript (`Config.setHistoricalHost` /
-# `.setHistoricalPort`), and C++ (`set_historical_host` /
-# `set_historical_port` over the FFI `thetadatadx_config_set_historical_host` /
-# `thetadatadx_config_set_historical_port`). The dotted rows below capture
+# never opens it). Exposed on every binding: Python (`Config.market_data_host`
+# / `.market_data_port`), TypeScript (`Config.setMarketDataHost` /
+# `.setMarketDataPort`), and C++ (`set_market_data_host` /
+# `set_market_data_port` over the FFI `thetadatadx_config_set_market_data_host` /
+# `thetadatadx_config_set_market_data_port`). The dotted rows below capture
 # the binding state via the `setter = "..."` override.
 
 [[class]]
-name = "HistoricalConfig.host"
-python = true       # `Config.historical_host` advanced override
-typescript = true   # `Config.setHistoricalHost` / `historicalHost` napi setter+getter
-cpp = true          # `Config::set_historical_host` over `thetadatadx_config_set_historical_host`
-setter = "historical_host"
+name = "MarketDataConfig.host"
+python = true       # `Config.market_data_host` advanced override
+typescript = true   # `Config.setMarketDataHost` / `marketDataHost` napi setter+getter
+cpp = true          # `Config::set_market_data_host` over `thetadatadx_config_set_market_data_host`
+setter = "market_data_host"
 
 [[class]]
-name = "HistoricalConfig.port"
-python = true       # `Config.historical_port` advanced override
-typescript = true   # `Config.setHistoricalPort` / `historicalPort` napi setter+getter
-cpp = true          # `Config::set_historical_port` over `thetadatadx_config_set_historical_port`
-setter = "historical_port"
+name = "MarketDataConfig.port"
+python = true       # `Config.market_data_port` advanced override
+typescript = true   # `Config.setMarketDataPort` / `marketDataPort` napi setter+getter
+cpp = true          # `Config::set_market_data_port` over `thetadatadx_config_set_market_data_port`
+setter = "market_data_port"
 
 [[class]]
-name = "HistoricalConfig.tls"
+name = "MarketDataConfig.tls"
 python = false
 typescript = false
 cpp = false
@@ -549,7 +549,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "HistoricalConfig.max_message_size"
+name = "MarketDataConfig.max_message_size"
 python = false
 typescript = false
 cpp = false
@@ -557,7 +557,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "HistoricalConfig.keepalive_secs"
+name = "MarketDataConfig.keepalive_secs"
 python = false
 typescript = false
 cpp = false
@@ -565,7 +565,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "HistoricalConfig.keepalive_timeout_secs"
+name = "MarketDataConfig.keepalive_timeout_secs"
 python = false
 typescript = false
 cpp = false
@@ -573,7 +573,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "HistoricalConfig.window_size_kb"
+name = "MarketDataConfig.window_size_kb"
 python = false
 typescript = false
 cpp = false
@@ -581,7 +581,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "HistoricalConfig.connection_window_size_kb"
+name = "MarketDataConfig.connection_window_size_kb"
 python = false
 typescript = false
 cpp = false
@@ -589,7 +589,7 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "HistoricalConfig.connect_timeout_secs"
+name = "MarketDataConfig.connect_timeout_secs"
 python = false
 typescript = false
 cpp = false
@@ -936,27 +936,27 @@ ffi = true
 # ── Client (the unified entry-point client) ──
 #
 # The unified `Client` exposes its data surfaces through three view
-# accessors — `historical`, `stream`, and `flatFiles` — each returning a
+# accessors — `marketData`, `stream`, and `flatFiles` — each returning a
 # cheap handle clone over the inner client. They are symmetric across
 # Python (`#[getter]`), TypeScript (`#[napi(getter)]`), C++ (a member
 # accessor), and Rust (`Client::flat_files()` returning a borrowed
 # `FlatFiles` view), and the reverse-orphan scan below fails if any
 # binding drops or renames one without the matrix recording it. The
 # `flatFiles` row carries the Rust column so the Rust core accessor is
-# machine-checked alongside the other three; `historical` / `stream`
+# machine-checked alongside the other three; `marketData` / `stream`
 # stay on the existing three-binding columns.
 
 [[method]]
 class = "Client"
-name = "historical"
+name = "marketData"
 python = true
 typescript = true
 cpp = true
-rust = true         # `Client::historical()` view accessor
+rust = true         # `Client::market_data()` view accessor
 # Zero-arg accessor; the returned historical view IS the cross-binding
 # contract (a rename / drop of the view trips the gate).
 [method.signature]
-returns = "HistoricalView"
+returns = "MarketDataView"
 
 [[method]]
 class = "Client"
@@ -999,12 +999,12 @@ returns = "()"
 # streaming, so this releases the gRPC channel pool with no drain; present on
 # every binding so the base/historical lifecycle is uniform.
 [[method]]
-class = "HistoricalClient"
+class = "MarketDataClient"
 name = "close"
-python = true       # `HistoricalClient.close()` + `with` / `async with` context manager
+python = true       # `MarketDataClient.close()` + `with` / `async with` context manager
 typescript = true   # napi `close(): void` + `[Symbol.dispose]` / `[Symbol.asyncDispose]`
-cpp = true          # `HistoricalClient::close()` (explicit form of the RAII destructor)
-rust = true         # `HistoricalClient::close()`
+cpp = true          # `MarketDataClient::close()` (explicit form of the RAII destructor)
+rust = true         # `MarketDataClient::close()`
 [method.signature]
 returns = "()"
 
@@ -1045,10 +1045,10 @@ skip_langs = ["ts_napi"]
 #     returning a `ClientBuilder`, so the `builder` row carries the `rust`
 #     and `cpp` columns.
 #   - TypeScript exposes the options-object factory `Client.connectWith({
-#     apiKey, historicalType, ... })` — the idiomatic JS shape — tracked by the
+#     apiKey, marketDataType, ... })` — the idiomatic JS shape — tracked by the
 #     `connectWith` row.
 #   - Python reaches the same surface through the `Client(api_key=...,
-#     historical_type=...)` constructor kwargs (a keyword constructor, not a
+#     market_data_type=...)` constructor kwargs (a keyword constructor, not a
 #     named method), so it rides the existing `__new__` constructor rather
 #     than a `[[method]]` row; both `builder` and `connectWith` are
 #     therefore absent on the Python column.
@@ -1072,7 +1072,7 @@ returns = "ClientBuilder"
 class = "Client"
 name = "connectWith"
 python = false      # Python uses the `Client(api_key=...)` constructor kwargs
-typescript = true   # `Client.connectWith({ apiKey, historicalType, ... })` napi factory
+typescript = true   # `Client.connectWith({ apiKey, marketDataType, ... })` napi factory
 cpp = false         # C++ uses the `Client::builder()` fluent builder
 rust = false        # Rust uses the `Client::builder()` fluent builder
 # TypeScript-only inline factory: options object in, connected `Client` out.
@@ -1205,7 +1205,7 @@ rust_params = ["FlatFileSecType", "FlatFileReqType", "String"]
 # The blob-to-disk helper writes a flat-file blob straight to a path in the vendor
 # wire format (csv / jsonl) without decoding into rows. Its home class and method
 # spelling diverge per binding: Python exposes it on the unified `Client` as
-# `flatfile_to_path` (one word), TypeScript on `Client` (and `HistoricalClient`)
+# `flatfile_to_path` (one word), TypeScript on `Client` (and `MarketDataClient`)
 # as `flatFileToPath`, C++ on the `FlatFiles` namespace as `to_path`, and the Rust
 # core as `FlatFiles::to_path` on the `Client::flat_files()` view. A single row
 # pins all four; the per-binding home-class + name override below routes the
@@ -1865,7 +1865,7 @@ cpp = true
 returns = "Config"
 
 # Dotenv sourcing for the configuration: read the cluster selector
-# (`THETADATA_HISTORICAL_TYPE`) and the documented host overrides from a
+# (`THETADATA_MARKET_DATA_TYPE`) and the documented host overrides from a
 # `.env`-format file. The mirror of `Credentials.fromDotenv` on the Config
 # class, so a single `.env` file serves both the credential and the
 # environment selection. Every binding exposes it: Python (`from_dotenv`
@@ -1940,23 +1940,23 @@ cpp_returns = "i64"
 # The historical (MDDS) and streaming (FPSS) environments are read back
 # through two independent getters. The two channels are selected
 # independently: the production / stage / dev presets (and the
-# `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` dotenv keys) set each
-# channel, and these getters read each one back. `historicalEnvironment`
+# `THETADATA_MARKET_DATA_TYPE` / `THETADATA_STREAMING_TYPE` dotenv keys) set each
+# channel, and these getters read each one back. `marketDataEnvironment`
 # reads a `"PROD"` / `"STAGE"` string, the same selector spelling the
-# inline client takes as `historicalType` / `historical_type`; `streamingEnvironment`
+# inline client takes as `marketDataType` / `market_data_type`; `streamingEnvironment`
 # reads a `"PROD"` / `"DEV"` string, matching `streamingType` / `streaming_type`.
-# Each is exposed on every binding: Python (`Config.historical_environment`
+# Each is exposed on every binding: Python (`Config.market_data_environment`
 # / `Config.streaming_environment` properties), TypeScript
-# (`Config.historicalEnvironment` / `Config.streamingEnvironment`
-# getters), C++ (`Config::get_historical_environment()` /
+# (`Config.marketDataEnvironment` / `Config.streamingEnvironment`
+# getters), C++ (`Config::get_market_data_environment()` /
 # `Config::get_streaming_environment()` over the FFI
-# `thetadatadx_config_get_historical_environment` /
+# `thetadatadx_config_get_market_data_environment` /
 # `thetadatadx_config_get_streaming_environment` symbols). There is no
 # matching setter row: each selector is chosen by the `production` /
 # `stage` / `dev` factories, not a free-standing field write.
 [[method]]
 class = "Config"
-name = "historicalEnvironment"
+name = "marketDataEnvironment"
 python = true
 typescript = true
 cpp = true
@@ -3590,10 +3590,10 @@ cpp = true
 # guarantee — previously asserted only transitively (via the async / stream
 # companions on the managed bindings) and not at all on the C-ABI base.
 #
-#   rust        — `HistoricalClient::<endpoint>` buffered method, generated
+#   rust        — `MarketDataClient::<endpoint>` buffered method, generated
 #                 from the registry of record (`endpoint_surface.toml`).
 #   python      — `<Endpoint>Builder.list()` collect terminal.
-#   typescript  — the buffered `<endpoint>` method on `HistoricalView`
+#   typescript  — the buffered `<endpoint>` method on `MarketDataView`
 #                 (itself async-returning, so the buffered and async surfaces
 #                 coincide there).
 #   cpp         — `Historical::<endpoint>(...)` blocking member.
@@ -4123,7 +4123,7 @@ cpp = true
 ffi = true
 
 [[from_file]]
-name = "HistoricalClient"
+name = "MarketDataClient"
 python = true
 typescript = true
 cpp = true
@@ -4158,7 +4158,7 @@ cpp = true
 ffi = true
 
 [[connect]]
-name = "HistoricalClient"
+name = "MarketDataClient"
 python = true
 typescript = true
 cpp = true
@@ -4206,10 +4206,10 @@ params = ["*const ThetaDataDxClient", "usize", "u64", "i32", "usize"]
 returns = "*mut ThetaDataDxRecordBatchStream"
 
 [[ffi_symbol]]
-name = "client_historical"
+name = "client_market_data"
 [ffi_symbol.signature]
 params = ["*const ThetaDataDxClient"]
-returns = "*const ThetaDataDxHistoricalClient"
+returns = "*const ThetaDataDxMarketDataClient"
 
 [[ffi_symbol]]
 name = "record_batch_stream_next_ipc"

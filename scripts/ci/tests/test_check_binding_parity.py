@@ -151,7 +151,7 @@ def test_missing_on_ffi_under_cpp_true_trips() -> None:
 def test_python_only_no_ffi_required() -> None:
     rows = [
         {
-            "name": "HistoricalConfig.host",
+            "name": "MarketDataConfig.host",
             "python": True,
             "typescript": False,
             "cpp": False,
@@ -286,21 +286,21 @@ def test_explicit_widened_abi_accepted() -> None:
 
 
 def test_setter_override_resolves_alternate_name(tmpdir: pathlib.Path) -> None:
-    """`HistoricalConfig.host` binds on Python as `set_historical_host`
-    (with the `historical_` prefix). The row's `setter = "historical_host"`
+    """`MarketDataConfig.host` binds on Python as `set_market_data_host`
+    (with the `historical_` prefix). The row's `setter = "market_data_host"`
     field overrides the default `host` derivation and the gate accepts
     the binding.
     """
     rows = [
         {
-            "name": "HistoricalConfig.host",
+            "name": "MarketDataConfig.host",
             "python": True,
             "typescript": False,
             "cpp": False,
-            "setter": "historical_host",
+            "setter": "market_data_host",
         }
     ]
-    py_setters = {"historical_host"}
+    py_setters = {"market_data_host"}
     errors = cbp._check_dotted_rows(rows, py_setters, set(), set(), set())
     assert errors == [], f"setter override must resolve; got {errors!r}"
 
@@ -346,12 +346,12 @@ def test_surface_vocab_flags_embedded_impl_token() -> None:
 
 def test_surface_vocab_allows_vendor_protocol_names() -> None:
     """Vendor protocol names (mdds / fpss) are allow-listed; the
-    `HistoricalClient` class and `historical_host` / `streaming_ring_size`
+    `MarketDataClient` class and `market_data_host` / `streaming_ring_size`
     setters must NOT trip.
     """
     errors = cbp._check_public_surface_vocab(
-        {"HistoricalClient", "StreamingClient"}, set(), set(),
-        {"historical_host", "historical_port", "streaming_ring_size"}, set(), set(), set(),
+        {"MarketDataClient", "StreamingClient"}, set(), set(),
+        {"market_data_host", "market_data_port", "streaming_ring_size"}, set(), set(), set(),
         {}, {}, {},
     )
     assert errors == [], f"vendor protocol names must be clean; got {errors!r}"
@@ -398,8 +398,8 @@ def test_setter_set_parity_missing_on_ts_trips() -> None:
 def test_setter_set_parity_exemption_honoured() -> None:
     """A Python-only knob in the exemption map does NOT trip."""
     errors = cbp._check_setter_set_parity(
-        {"historical_host", "shared"}, {"shared"}, {"shared"}, {"shared"},
-        exempt={"historical_host": "Python-only advanced override"},
+        {"market_data_host", "shared"}, {"shared"}, {"shared"}, {"shared"},
+        exempt={"market_data_host": "Python-only advanced override"},
     )
     assert errors == [], f"exempted Python-only knob must not trip; got {errors!r}"
 
@@ -525,9 +525,9 @@ def test_connect_with_field_collector_camelizes() -> None:
 
 def test_connect_with_field_roster_missing_field_trips() -> None:
     """A dropped/renamed connectWith field trips."""
-    actual = set(cbp.TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"historicalType"}
+    actual = set(cbp.TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"marketDataType"}
     errors = cbp._check_typescript_connect_with_field_roster(actual)
-    assert any("historicalType" in e and "missing" in e for e in errors), (
+    assert any("marketDataType" in e and "missing" in e for e in errors), (
         f"a missing connectWith field must trip; got {errors!r}"
     )
 
@@ -739,7 +739,7 @@ def test_utility_roster_live_complete() -> None:
 def test_from_file_parity_all_bound_passes() -> None:
     rows = [
         {
-            "name": "HistoricalClient",
+            "name": "MarketDataClient",
             "python": True,
             "typescript": True,
             "cpp": True,
@@ -747,7 +747,7 @@ def test_from_file_parity_all_bound_passes() -> None:
         }
     ]
     errors = cbp._check_from_file_rows(
-        rows, {"HistoricalClient"}, {"HistoricalClient"}, {"HistoricalClient"}, {"historical"}
+        rows, {"MarketDataClient"}, {"MarketDataClient"}, {"MarketDataClient"}, {"market_data"}
     )
     assert errors == [], f"all-bound from_file row must be silent; got {errors!r}"
 
@@ -1045,7 +1045,7 @@ def test_historical_base_live_sources_clean() -> None:
         cbp._collect_rust_buffered_endpoints(cbp.ENDPOINT_SURFACE_TOML),
         cbp._collect_python_buffered_endpoints(cbp.PY_SRC),
         cbp._collect_typescript_async_endpoints(ts_methods),
-        cpp_methods.get(cbp._cpp_class_for("HistoricalView"), set()),
+        cpp_methods.get(cbp._cpp_class_for("MarketDataView"), set()),
         cbp._collect_cabi_base_endpoints(cbp.ENDPOINT_WITH_OPTIONS_INC),
         cbp._collect_ffi_base_endpoints(cbp.FFI_SRC),
     )

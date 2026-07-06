@@ -218,7 +218,7 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
 
 /// Files whose generated region is spliced between marker comments while
 /// the rest of the file stays hand-maintained. Today this carries only the
-/// Python type stub's `HistoricalView` endpoint surface, projected from the
+/// Python type stub's `MarketDataView` endpoint surface, projected from the
 /// same `endpoint_surface.toml` that drives the runtime `#[pymethods]`.
 fn render_spliced_files() -> Result<Vec<SplicedSourceFile>, Box<dyn std::error::Error>> {
     let parsed = load_endpoint_specs()?;

@@ -35,7 +35,7 @@ pub(crate) const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 /// through a closed sum of the two supported pyclasses rather than
 /// duck-typed Python attribute lookup. The fluent `__getattr__` proxy
 /// for non-lifecycle attributes still goes through PyAny — `subscribe`
-/// and the historical surface live on `Client` only, so the
+/// and the market-data surface live on `Client` only, so the
 /// proxy carries that asymmetry rather than enumerating it here.
 pub(crate) enum StreamableHandle {
     Unified(Py<crate::Client>),

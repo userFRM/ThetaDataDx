@@ -8,7 +8,7 @@ exposes:
 - Clients: :class:`Client` (historical plus on-demand
   streaming), :class:`AsyncClient` (``await``-based
   historical), :class:`StreamingClient` (streaming only), and
-  :class:`HistoricalClient` (historical only).
+  :class:`MarketDataClient` (historical only).
 - A fluent subscription surface: :class:`Contract`,
   :class:`Subscription`, and :class:`SecType`.
 - Real-time event types delivered to the streaming callback
@@ -168,7 +168,7 @@ class Credentials:
 
 @final
 class Config:
-    """Connection configuration: historical host / streaming hosts / reconnect policy."""
+    """Connection configuration: market-data host / streaming hosts / reconnect policy."""
 
     @staticmethod
     def production() -> Config:
@@ -189,17 +189,17 @@ class Config:
     def from_dotenv(path: str) -> Config:
         """Source the target environment from a ``.env``-format file.
 
-        ``THETADATA_HISTORICAL_TYPE`` (``PROD`` / ``STAGE``) selects the
-        environment; ``THETADATA_HISTORICAL_HOST`` /
+        ``THETADATA_MARKET_DATA_TYPE`` (``PROD`` / ``STAGE``) selects the
+        environment; ``THETADATA_MARKET_DATA_HOST`` /
         ``THETADATA_STREAMING_HOST`` override the hosts. Reads the same
         file and keys as :meth:`Credentials.from_dotenv`, so one ``.env``
-        can carry both ``THETADATA_API_KEY`` and ``THETADATA_HISTORICAL_TYPE``.
+        can carry both ``THETADATA_API_KEY`` and ``THETADATA_MARKET_DATA_TYPE``.
         """
         ...
 
-    historical_host: str
+    market_data_host: str
     """Hostname of the historical-data server."""
-    historical_port: int
+    market_data_port: int
     """TCP port of the historical-data server."""
     warn_on_buffered_threshold_bytes: int
     """Byte ceiling above which a buffered (non-``.stream()``) historical response logs a warning pointing the caller at the streaming surface. ``0`` disables the warning; the default is ``100 * 1024 * 1024`` (100 MiB). The data is still delivered."""
@@ -236,15 +236,15 @@ class Config:
     worker_threads: Optional[int]
     """Async worker-thread count for the embedded runtime. ``None`` defers to the default sizing; an ``int`` (including ``0``, which clamps to ``1``) pins the worker count."""
     retry_initial_delay_ms: int
-    """Initial delay, in milliseconds, of the historical-request retry back-off (default 250)."""
+    """Initial delay, in milliseconds, of the market-data-request retry back-off (default 250)."""
     retry_max_delay_ms: int
-    """Ceiling, in milliseconds, of the historical-request retry back-off (default 30_000)."""
+    """Ceiling, in milliseconds, of the market-data-request retry back-off (default 30_000)."""
     retry_max_attempts: int
-    """Maximum historical-request retry attempts (default 20)."""
+    """Maximum market-data-request retry attempts (default 20)."""
     retry_max_elapsed_secs: int
-    """Wall-clock envelope, in seconds, bounding the historical-request retry loop (default 300; ``0`` disables the envelope)."""
+    """Wall-clock envelope, in seconds, bounding the market-data-request retry loop (default 300; ``0`` disables the envelope)."""
     retry_jitter: bool
-    """Whether jitter is applied to historical-request retry delays (default ``True``)."""
+    """Whether jitter is applied to market-data-request retry delays (default ``True``)."""
     flatfiles_max_attempts: int
     """Maximum retry attempts for the flat-file driver (default 10, validated ``1..=100``)."""
     flatfiles_initial_backoff_secs: int
@@ -286,11 +286,11 @@ class Config:
     flush_mode: Literal["batched", "immediate"]
     """Streaming write-flush policy. ``"batched"`` (default) flushes on the heartbeat (~100 ms); ``"immediate"`` flushes after every wire write. The setter accepts the same two strings case-insensitively and raises ``ValueError`` otherwise."""
     @property
-    def historical_environment(self) -> Literal["PROD", "STAGE"]:
-        """Target historical environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The historical and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_HISTORICAL_TYPE`` key on :meth:`Config.from_dotenv`) set the historical channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``historical_type`` string the inline :class:`Client` constructor accepts."""
+    def market_data_environment(self) -> Literal["PROD", "STAGE"]:
+        """Target market-data environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The historical and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the market-data channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``market_data_type`` string the inline :class:`Client` constructor accepts."""
     @property
     def streaming_environment(self) -> Literal["PROD", "DEV"]:
-        """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster or ``"DEV"`` for the dev cluster. The streaming and historical channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
+        """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster or ``"DEV"`` for the dev cluster. The streaming and market-data channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
     consumer_cpu: Optional[int]
     """CPU core to pin the streaming consumer thread to; ``None`` (default) leaves it under the OS scheduler. An out-of-range or offline core is a best-effort no-op."""
 
@@ -1364,8 +1364,8 @@ InterestRateTickList = Any
 InterestRateHistoryEodBuilder = Any
 
 @final
-class HistoricalView:
-    """Historical-data sub-namespace returned by :attr:`Client.historical`.
+class MarketDataView:
+    """Historical-data sub-namespace returned by :attr:`Client.market_data`.
 
     Exposes every historical / list / snapshot / at-time endpoint as a
     method: the synchronous call, its ``*_async`` awaitable companion,
@@ -5012,7 +5012,7 @@ class StreamView:
         ...
 
     def stop_streaming(self) -> None:
-        """Stop streaming while keeping the historical client usable.
+        """Stop streaming while keeping the market-data client usable.
 
         Clears the registered callback. To resume, call
         :meth:`start_streaming` again with a freshly bound callable;
@@ -5189,7 +5189,7 @@ class Client:
         api_key: Optional[str] = None,
         email: Optional[str] = None,
         password: Optional[str] = None,
-        historical_type: Optional[str] = None,
+        market_data_type: Optional[str] = None,
         streaming_type: Optional[str] = None,
     ) -> Client: ...
 
@@ -5201,14 +5201,14 @@ class Client:
         api_key: Optional[str] = None,
         email: Optional[str] = None,
         password: Optional[str] = None,
-        historical_type: Optional[str] = None,
+        market_data_type: Optional[str] = None,
         streaming_type: Optional[str] = None,
     ) -> None:
-        """Connect to ThetaData and open the historical channel.
+        """Connect to ThetaData and open the market-data channel.
 
         The API key is first-class and directly passed:
         ``Client(api_key="td1_...")`` (optionally with
-        ``historical_type="STAGE"``). Email + password is the parallel inline
+        ``market_data_type="STAGE"``). Email + password is the parallel inline
         form: ``Client(email="user@example.com", password="secret")``. The
         lower-level typed path stays a superset:
         ``Client(credentials=creds, config=cfg)`` (and the positional
@@ -5217,8 +5217,8 @@ class Client:
         Exactly one authentication argument must be supplied — ``api_key``,
         the ``email`` + ``password`` pair, or ``credentials``. Passing
         none, or two different ones, raises ``ConfigError`` before any
-        network round-trip. ``historical_type`` (``"PROD"`` / ``"STAGE"``,
-        case-insensitive) selects the historical environment and
+        network round-trip. ``market_data_type`` (``"PROD"`` / ``"STAGE"``,
+        case-insensitive) selects the market-data environment and
         ``streaming_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
         streaming environment, independently; ``config`` supplies a full
         :class:`Config` whose environments and hosts win. Streaming is not
@@ -5231,12 +5231,12 @@ class Client:
             api_key: Inline API key.
             email: Inline account email, paired with ``password``.
             password: Inline account password, paired with ``email``.
-            historical_type: Historical environment selector (``"PROD"`` / ``"STAGE"``).
+            market_data_type: Market-data environment selector (``"PROD"`` / ``"STAGE"``).
             streaming_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
 
         Raises:
             ConfigError: If no authentication argument is given, two
-                different ones are given, or ``historical_type`` / ``streaming_type``
+                different ones are given, or ``market_data_type`` / ``streaming_type``
                 is invalid.
             ThetaDataError: If authentication or the connection fails.
         """
@@ -5246,7 +5246,7 @@ class Client:
     def from_env(
         config: Optional[Config] = None,
         *,
-        historical_type: Optional[str] = None,
+        market_data_type: Optional[str] = None,
         streaming_type: Optional[str] = None,
     ) -> Client:
         """Connect with the API key sourced strictly from the environment.
@@ -5259,7 +5259,7 @@ class Client:
         Args:
             config: Connection configuration; defaults to
                 ``Config.production()`` when omitted.
-            historical_type: Historical environment selector (``"PROD"`` / ``"STAGE"``).
+            market_data_type: Market-data environment selector (``"PROD"`` / ``"STAGE"``).
             streaming_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
 
         Returns:
@@ -5267,7 +5267,7 @@ class Client:
 
         Raises:
             ConfigError: If ``THETADATA_API_KEY`` is unset or empty, or
-                ``historical_type`` / ``streaming_type`` is invalid.
+                ``market_data_type`` / ``streaming_type`` is invalid.
             ThetaDataError: If the connection fails.
         """
         ...
@@ -5277,7 +5277,7 @@ class Client:
         path: str,
         config: Optional[Config] = None,
         *,
-        historical_type: Optional[str] = None,
+        market_data_type: Optional[str] = None,
         streaming_type: Optional[str] = None,
     ) -> Client:
         """Connect with the credential (and optionally the environments)
@@ -5286,16 +5286,16 @@ class Client:
         ``THETADATA_API_KEY`` selects an API key; otherwise
         ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
         password credentials. When ``config`` is omitted the same file is
-        also read for ``THETADATA_HISTORICAL_TYPE`` and ``THETADATA_STREAMING_TYPE``,
+        also read for ``THETADATA_MARKET_DATA_TYPE`` and ``THETADATA_STREAMING_TYPE``,
         so one ``.env`` can carry both the credential and the
-        environments. An explicit ``config``, ``historical_type``, or
+        environments. An explicit ``config``, ``market_data_type``, or
         ``streaming_type`` overrides the file's environment selection.
 
         Args:
             path: Path to the ``.env`` file to read.
             config: Connection configuration overriding the file's
                 environment selection.
-            historical_type: Historical environment selector (``"PROD"`` /
+            market_data_type: Market-data environment selector (``"PROD"`` /
                 ``"STAGE"``) overriding the file's selection.
             streaming_type: Streaming environment selector (``"PROD"`` /
                 ``"DEV"``) overriding the file's selection.
@@ -5332,11 +5332,11 @@ class Client:
 
     # Data sub-namespaces.
     @property
-    def historical(self) -> HistoricalView:
+    def market_data(self) -> MarketDataView:
         """Historical-data sub-namespace.
 
         Every historical / list / snapshot / at-time endpoint is reached
-        through this view, e.g. ``client.historical.stock_eod(...)`` and
+        through this view, e.g. ``client.market_data.stock_eod(...)`` and
         the ``*_async`` / ``*_builder`` companions. Returns a fresh view
         over a cheap handle clone on each access.
         """
@@ -5592,7 +5592,7 @@ class AsyncClient:
 @final
 class StreamingClient:
     """Streaming-only client — opens the real-time feed and never the
-    historical channel."""
+    market-data channel."""
 
     def __init__(self, creds: Credentials, config: Config) -> None:
         """Create a streaming-only client with ``creds`` and ``config``.
@@ -5812,8 +5812,8 @@ class StreamingClient:
 
 
 @final
-class HistoricalClient:
-    """Historical-only client — the streaming surface is blocked.
+class MarketDataClient:
+    """Market-data-only client — the streaming surface is blocked.
 
     Exposes the same historical endpoints as :class:`Client`
     and never opens the real-time feed. Any streaming method (e.g.
@@ -5822,7 +5822,7 @@ class HistoricalClient:
     """
 
     def __init__(self, creds: Credentials, config: Config) -> None:
-        """Connect a historical-only client with ``creds`` and ``config``.
+        """Connect a market-data-only client with ``creds`` and ``config``.
 
         Args:
             creds: Account credentials.
@@ -5837,8 +5837,8 @@ class HistoricalClient:
     def from_file(
         path: str,
         config: Optional[Config] = None,
-    ) -> HistoricalClient:
-        """Construct a historical-only client from a credentials file.
+    ) -> MarketDataClient:
+        """Construct a market-data-only client from a credentials file.
 
         Args:
             path: Path to a two-line credentials file.
@@ -5846,7 +5846,7 @@ class HistoricalClient:
                 ``Config.production()`` when omitted.
 
         Returns:
-            A connected :class:`HistoricalClient`.
+            A connected :class:`MarketDataClient`.
 
         Raises:
             ThetaDataError: If the file cannot be read or the connection
@@ -5855,27 +5855,27 @@ class HistoricalClient:
         ...
 
     def __repr__(self) -> str:
-        """Return a representation of the historical client."""
+        """Return a representation of the market-data client."""
         ...
 
     def close(self) -> None:
-        """Deterministically close the historical client.
+        """Deterministically close the market-data client.
 
-        The historical-only surface never opens streaming, so this releases
+        The market-data-only surface never opens streaming, so this releases
         the gRPC channel pool with no drain. Idempotent. Prefer the context
-        manager (``with HistoricalClient(...) as c:``) so this runs on block
+        manager (``with MarketDataClient(...) as c:``) so this runs on block
         exit.
         """
         ...
 
-    def __enter__(self) -> "HistoricalClient": ...
+    def __enter__(self) -> "MarketDataClient": ...
     def __exit__(
         self,
         exc_type: Optional[type] = None,
         exc_value: Optional[BaseException] = None,
         traceback: Optional[object] = None,
     ) -> bool: ...
-    async def __aenter__(self) -> "HistoricalClient": ...
+    async def __aenter__(self) -> "MarketDataClient": ...
     async def __aexit__(
         self,
         exc_type: Optional[type] = None,

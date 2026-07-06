@@ -34,7 +34,7 @@ use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{set_error, set_error_from};
-use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxHistoricalClient};
+use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxMarketDataClient};
 use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
 /// Lock a `Mutex`, recovering the guard through poisoning rather than
@@ -1124,24 +1124,24 @@ pub unsafe extern "C" fn thetadatadx_client_active_full_subscriptions(
     })
 }
 
-/// Borrow the historical client from a unified handle.
+/// Borrow the market-data client from a unified handle.
 ///
-/// Returns a `*const ThetaDataDxHistoricalClient` that can be passed to all `thetadatadx_stock_*`,
+/// Returns a `*const ThetaDataDxMarketDataClient` that can be passed to all `thetadatadx_stock_*`,
 /// `thetadatadx_option_*`, `thetadatadx_index_*`, `thetadatadx_calendar_*`, and `thetadatadx_interest_rate_*`
-/// functions. This avoids a second `thetadatadx_historical_connect()` call and reuses
+/// functions. This avoids a second `thetadatadx_market_data_connect()` call and reuses
 /// the same authenticated session.
 ///
-/// The returned pointer is **NOT owned** -- do NOT call `thetadatadx_historical_free`
+/// The returned pointer is **NOT owned** -- do NOT call `thetadatadx_market_data_free`
 /// on it. It is valid as long as the `ThetaDataDxClient` handle is alive.
 ///
 /// # Safety
 ///
-/// This cast is sound because `ThetaDataDxHistoricalClient` is `#[repr(transparent)]` over
-/// `HistoricalClient`, and `Client` Derefs to `&HistoricalClient`.
+/// This cast is sound because `ThetaDataDxMarketDataClient` is `#[repr(transparent)]` over
+/// `MarketDataClient`, and `Client` Derefs to `&MarketDataClient`.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_client_historical(
+pub unsafe extern "C" fn thetadatadx_client_market_data(
     handle: *const ThetaDataDxClient,
-) -> *const ThetaDataDxHistoricalClient {
+) -> *const ThetaDataDxMarketDataClient {
     ffi_boundary!(std::ptr::null(), {
         if handle.is_null() {
             set_error("unified handle is null");
@@ -1149,10 +1149,10 @@ pub unsafe extern "C" fn thetadatadx_client_historical(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        // ThetaDataDxHistoricalClient is #[repr(transparent)] over HistoricalClient, so this cast is safe.
-        let mdds_ref: &thetadatadx::mdds::HistoricalClient = handle.inner.historical();
-        std::ptr::from_ref::<thetadatadx::mdds::HistoricalClient>(mdds_ref)
-            .cast::<ThetaDataDxHistoricalClient>()
+        // ThetaDataDxMarketDataClient is #[repr(transparent)] over MarketDataClient, so this cast is safe.
+        let mdds_ref: &thetadatadx::mdds::MarketDataClient = handle.inner.market_data();
+        std::ptr::from_ref::<thetadatadx::mdds::MarketDataClient>(mdds_ref)
+            .cast::<ThetaDataDxMarketDataClient>()
     })
 }
 

@@ -111,13 +111,13 @@ TEST_CASE("Config::from_dotenv selects the staging environment from a .env file"
     const std::string path = unique_dotenv_path();
     {
         std::ofstream out(path);
-        out << "# select staging\nTHETADATA_HISTORICAL_TYPE=STAGE\n";
+        out << "# select staging\nTHETADATA_MARKET_DATA_TYPE=STAGE\n";
     }
     auto config = thetadatadx::Config::from_dotenv(path);
     REQUIRE(config.get() != nullptr);
     // A staging `.env` resolves to the staging historical host, distinct
     // from the production host a prod `.env` (or no selector) yields.
-    REQUIRE(config.get_historical_host() == "mdds-stage.thetadata.us");
+    REQUIRE(config.get_market_data_host() == "mdds-stage.thetadata.us");
     std::remove(path.c_str());
 }
 
@@ -132,7 +132,7 @@ TEST_CASE("Config::from_dotenv with only an API key yields the production enviro
     REQUIRE(config.get() != nullptr);
     // No cluster selector in the file: the prod default stays in force and
     // differs from the staging host a `STAGE` selector would produce.
-    REQUIRE(config.get_historical_host() == "mdds-01.thetadata.us");
+    REQUIRE(config.get_market_data_host() == "mdds-01.thetadata.us");
     std::remove(path.c_str());
 }
 
@@ -177,20 +177,20 @@ TEST_CASE("Config consumer_cpu round-trip", "[lifecycle][offline]") {
 // cross-binding lifecycle surface is enforced without a live connection.
 TEST_CASE("base clients expose a deterministic close()", "[lifecycle][offline]") {
     void (thetadatadx::Client::*unified_close)() = &thetadatadx::Client::close;
-    void (thetadatadx::HistoricalClient::*historical_close)() =
-        &thetadatadx::HistoricalClient::close;
+    void (thetadatadx::MarketDataClient::*historical_close)() =
+        &thetadatadx::MarketDataClient::close;
     REQUIRE(unified_close != nullptr);
     REQUIRE(historical_close != nullptr);
 }
 
-TEST_CASE("HistoricalClient::connect succeeds against the production server", "[lifecycle][live]") {
+TEST_CASE("MarketDataClient::connect succeeds against the production server", "[lifecycle][live]") {
     const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
     if (creds_path.empty()) {
         SKIP("THETADATADX_LIVE_CREDS not set");
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();
-    REQUIRE_NOTHROW(thetadatadx::HistoricalClient::connect(creds, config));
+    REQUIRE_NOTHROW(thetadatadx::MarketDataClient::connect(creds, config));
 }
 
 TEST_CASE("close() is idempotent and safe before destruction", "[lifecycle][live]") {
@@ -209,7 +209,7 @@ TEST_CASE("close() is idempotent and safe before destruction", "[lifecycle][live
 
     // Historical-only client: same idempotent-close contract, no streaming to
     // drain.
-    auto historical = thetadatadx::HistoricalClient::connect(creds, config);
+    auto historical = thetadatadx::MarketDataClient::connect(creds, config);
     REQUIRE_NOTHROW(historical.close());
     REQUIRE_NOTHROW(historical.close());
 }
@@ -226,7 +226,7 @@ TEST_CASE("close() releases the handle deterministically", "[lifecycle][live]") 
     // close() RELEASES the client handle, so the client is unusable afterward.
     // The public raw-handle accessor going null is the deterministic-release
     // proof — the historical gRPC channel pool is freed at close, not at some
-    // later GC. `HistoricalClient` releases through the same `handle_.reset()`
+    // later GC. `MarketDataClient` releases through the same `handle_.reset()`
     // path (its handle accessor is private, so the idempotent-close case above
     // is its observable pin).
     auto client = thetadatadx::Client::connect(creds, config);

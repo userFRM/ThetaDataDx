@@ -2,8 +2,8 @@
 //!
 //! Two groups:
 //!
-//! * Compatibility set (`THETADATA_HISTORICAL_HOST`,
-//!   `THETADATA_HISTORICAL_PORT`, `THETADATA_EMAIL`, `THETADATA_PASSWORD`)
+//! * Compatibility set (`THETADATA_MARKET_DATA_HOST`,
+//!   `THETADATA_MARKET_DATA_PORT`, `THETADATA_EMAIL`, `THETADATA_PASSWORD`)
 //!   — environment variable names operators use to configure the
 //!   historical endpoint; setting them steers an existing shell config
 //!   without a code change.
@@ -21,31 +21,31 @@
 //! Precedence is documented on `DirectConfig`: explicit builder setter >
 //! env var > hardcoded default.
 
-use super::{DirectConfig, HistoricalEnvironment, StreamingEnvironment};
+use super::{DirectConfig, MarketDataEnvironment, StreamingEnvironment};
 use crate::error::Error;
 
-/// Historical environment selector (`PROD` / `STAGE`, case-insensitive).
-/// `STAGE` points the historical host and the auth marker at the staging
+/// Market-data environment selector (`PROD` / `STAGE`, case-insensitive).
+/// `STAGE` points the market-data host and the auth marker at the staging
 /// environment; `PROD` (or unset) keeps production. The streaming channel is
 /// selected separately via [`ENV_STREAMING_TYPE`]. An explicit
-/// `THETADATA_HISTORICAL_HOST` is recorded first and the environment selected
+/// `THETADATA_MARKET_DATA_HOST` is recorded first and the environment selected
 /// last, so the explicit host patches the selected environment's cluster
 /// rather than being overwritten by it. An unrecognized value (including
-/// `DEV`, which the historical channel does not support) is a hard error
+/// `DEV`, which the market-data channel does not support) is a hard error
 /// naming the valid set, never a silent fallback.
-pub const ENV_HISTORICAL_TYPE: &str = "THETADATA_HISTORICAL_TYPE";
+pub const ENV_MARKET_DATA_TYPE: &str = "THETADATA_MARKET_DATA_TYPE";
 
 /// Streaming environment selector (`PROD` / `DEV`, case-insensitive). `DEV`
 /// points the streaming channel at the dev replay cluster; `PROD` (or unset)
-/// keeps production. It never affects auth or the historical channel. An
+/// keeps production. It never affects auth or the market-data channel. An
 /// unrecognized value (including `STAGE`, which the streaming channel does not
 /// support) is a hard error naming the valid set, never a silent fallback.
 pub const ENV_STREAMING_TYPE: &str = "THETADATA_STREAMING_TYPE";
 
 /// Historical host.
-pub const ENV_HISTORICAL_HOST: &str = "THETADATA_HISTORICAL_HOST";
+pub const ENV_MARKET_DATA_HOST: &str = "THETADATA_MARKET_DATA_HOST";
 /// Historical port.
-pub const ENV_HISTORICAL_PORT: &str = "THETADATA_HISTORICAL_PORT";
+pub const ENV_MARKET_DATA_PORT: &str = "THETADATA_MARKET_DATA_PORT";
 /// Nexus auth base URL override.
 pub const ENV_NEXUS_URL: &str = "THETADATA_NEXUS_URL";
 /// Streaming hostname override. Replaces the host of the primary streaming
@@ -127,21 +127,21 @@ where
 {
     // Record the explicit host/port/url/client_type overrides into the typed
     // override fields FIRST, then select the environments LAST:
-    // `apply_historical_environment` / `apply_streaming_environment` rebuild the
+    // `apply_market_data_environment` / `apply_streaming_environment` rebuild the
     // cluster routing from the selected environment and patch the recorded host
     // overrides on top, so an explicit host:port always wins over the
     // environment default while the environment's failover hosts are preserved.
     // Recording before selecting is what lets the override survive the
-    // environment rewrite (and a later `with_historical_environment` /
+    // environment rewrite (and a later `with_market_data_environment` /
     // `with_streaming_environment` switch).
-    if let Some(host) = get(ENV_HISTORICAL_HOST) {
-        cfg.set_historical_host_override(host);
+    if let Some(host) = get(ENV_MARKET_DATA_HOST) {
+        cfg.set_market_data_host_override(host);
     }
-    if let Some(port_str) = get(ENV_HISTORICAL_PORT) {
+    if let Some(port_str) = get(ENV_MARKET_DATA_PORT) {
         match port_str.parse::<u16>() {
-            Ok(port) if port > 0 => cfg.historical.port = port,
+            Ok(port) if port > 0 => cfg.market_data.port = port,
             _ => tracing::warn!(
-                env = ENV_HISTORICAL_PORT,
+                env = ENV_MARKET_DATA_PORT,
                 value = %port_str,
                 "{}",
                 source.malformed_value()
@@ -149,7 +149,7 @@ where
         }
     }
     // Nexus auth URL and client_type are cluster-bound auth knobs: an operator
-    // that redirects the cluster (`THETADATA_HISTORICAL_TYPE=STAGE`) and supplies a
+    // that redirects the cluster (`THETADATA_MARKET_DATA_TYPE=STAGE`) and supplies a
     // staging `THETADATA_NEXUS_URL` in the same source expects auth to follow
     // the cluster, not keep POSTing production. Environment selection routes
     // only the historical + streaming hosts (it does not touch `auth`), so the
@@ -193,24 +193,24 @@ where
     // applying the overrides recorded above. A blank value reads as unset (via
     // `get`); an UNRECOGNIZED value is a hard error naming the valid set
     // (never a silent fallback), so a stale or typo'd selector — including a
-    // cross-channel value like `THETADATA_HISTORICAL_TYPE=DEV` or
+    // cross-channel value like `THETADATA_MARKET_DATA_TYPE=DEV` or
     // `THETADATA_STREAMING_TYPE=STAGE` — fails loud instead of quietly keeping the
     // wrong cluster. When a selector is absent we re-apply the CURRENT
     // environment so a host override recorded above patches the existing
     // cluster.
-    let historical = match get(ENV_HISTORICAL_TYPE) {
-        Some(value) => HistoricalEnvironment::parse(&value).ok_or_else(|| {
+    let market_data = match get(ENV_MARKET_DATA_TYPE) {
+        Some(value) => MarketDataEnvironment::parse(&value).ok_or_else(|| {
             Error::config_invalid(
-                ENV_HISTORICAL_TYPE,
+                ENV_MARKET_DATA_TYPE,
                 format!(
-                    "{} {ENV_HISTORICAL_TYPE}={value:?} is not a historical environment; expected \"PROD\" or \"STAGE\"",
+                    "{} {ENV_MARKET_DATA_TYPE}={value:?} is not a market-data environment; expected \"PROD\" or \"STAGE\"",
                     source.label()
                 ),
             )
         })?,
-        None => cfg.historical_environment,
+        None => cfg.market_data_environment,
     };
-    cfg.apply_historical_environment(historical);
+    cfg.apply_market_data_environment(market_data);
 
     let streaming = match get(ENV_STREAMING_TYPE) {
         Some(value) => StreamingEnvironment::parse(&value).ok_or_else(|| {
@@ -249,8 +249,8 @@ pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) -> Result<(), Error> {
 /// `.env` file on top of the receiver.
 ///
 /// This is the `.env`-file analogue of [`apply_env_overrides`]: it reads the
-/// **same** keys with the **same** precedence (`THETADATA_HISTORICAL_TYPE` first to
-/// set the cluster default, then an explicit `THETADATA_HISTORICAL_HOST` /
+/// **same** keys with the **same** precedence (`THETADATA_MARKET_DATA_TYPE` first to
+/// set the cluster default, then an explicit `THETADATA_MARKET_DATA_HOST` /
 /// `THETADATA_STREAMING_HOST` wins over that default) but sources the values
 /// from the `(key, value)` pairs a `.env` file parsed to, rather than from the
 /// process environment. Both paths run the identical [`apply_overrides`] body,
@@ -319,28 +319,28 @@ mod tests {
 
     #[test]
     fn valid_selectors_route_each_channel() {
-        let cfg = apply(&[(ENV_HISTORICAL_TYPE, "STAGE"), (ENV_STREAMING_TYPE, "DEV")])
+        let cfg = apply(&[(ENV_MARKET_DATA_TYPE, "STAGE"), (ENV_STREAMING_TYPE, "DEV")])
             .expect("PROD/STAGE + PROD/DEV are valid selectors");
-        assert_eq!(cfg.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(cfg.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(cfg.streaming_environment, StreamingEnvironment::Dev);
     }
 
     #[test]
     fn absent_selectors_leave_the_baseline_untouched() {
         let cfg = apply(&[]).expect("no selectors is a no-op");
-        assert_eq!(cfg.historical_environment, HistoricalEnvironment::Prod);
+        assert_eq!(cfg.market_data_environment, MarketDataEnvironment::Prod);
         assert_eq!(cfg.streaming_environment, StreamingEnvironment::Prod);
     }
 
     #[test]
     fn cross_channel_historical_selector_fails_loud() {
-        // The historical channel has no dev cluster: a stale/cross-channel
+        // The market-data channel has no dev cluster: a stale/cross-channel
         // value must NOT silently fall back to a default — it is a typed error
         // that names the key and the valid set.
-        let err = apply(&[(ENV_HISTORICAL_TYPE, "DEV")])
+        let err = apply(&[(ENV_MARKET_DATA_TYPE, "DEV")])
             .expect_err("HISTORICAL_TYPE=DEV must fail loud, never fall back");
         let msg = err.to_string();
-        assert!(msg.contains(ENV_HISTORICAL_TYPE), "names the key: {msg}");
+        assert!(msg.contains(ENV_MARKET_DATA_TYPE), "names the key: {msg}");
         assert!(
             msg.contains("PROD") && msg.contains("STAGE"),
             "names the valid set: {msg}"
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn a_typoed_selector_fails_loud() {
-        assert!(apply(&[(ENV_HISTORICAL_TYPE, "prdo")]).is_err());
+        assert!(apply(&[(ENV_MARKET_DATA_TYPE, "prdo")]).is_err());
         assert!(
             apply(&[(ENV_STREAMING_TYPE, "")]).is_ok(),
             "blank reads as unset"
@@ -389,11 +389,11 @@ mod tests {
         // host override, so the `.env` path trims it just like the process-env
         // path does.
         let pairs = crate::auth::dotenv::parse(
-            "THETADATA_HISTORICAL_HOST=\"  historical.example.test  \"\n",
+            "THETADATA_MARKET_DATA_HOST=\"  historical.example.test  \"\n",
         );
         let mut cfg = DirectConfig::production_defaults();
         apply_dotenv_overrides(&mut cfg, &pairs).expect("valid host override");
-        assert_eq!(cfg.historical.host, "historical.example.test");
+        assert_eq!(cfg.market_data.host, "historical.example.test");
     }
 
     #[test]
@@ -401,11 +401,11 @@ mod tests {
         // Recording the host before selecting the environment is what lets an
         // explicit host patch the selected cluster rather than be overwritten.
         let cfg = apply(&[
-            (ENV_HISTORICAL_TYPE, "STAGE"),
-            (ENV_HISTORICAL_HOST, "historical.example.test"),
+            (ENV_MARKET_DATA_TYPE, "STAGE"),
+            (ENV_MARKET_DATA_HOST, "historical.example.test"),
         ])
         .expect("valid selector + explicit host");
-        assert_eq!(cfg.historical_environment, HistoricalEnvironment::Stage);
-        assert_eq!(cfg.historical.host, "historical.example.test");
+        assert_eq!(cfg.market_data_environment, MarketDataEnvironment::Stage);
+        assert_eq!(cfg.market_data.host, "historical.example.test");
     }
 }

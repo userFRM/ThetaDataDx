@@ -29,17 +29,17 @@ Produces:
 |--------|--------|------|
 | `ThetaDataDxCredentials` | `thetadatadx_credentials_from_email`, `thetadatadx_credentials_from_file`, `thetadatadx_credentials_from_api_key`, `thetadatadx_credentials_from_api_key_with_email`, `thetadatadx_credentials_from_env_or_file`, `thetadatadx_credentials_from_dotenv` | `thetadatadx_credentials_free` |
 | `ThetaDataDxConfig` | `thetadatadx_config_production`, `thetadatadx_config_dev` | `thetadatadx_config_free` |
-| `ThetaDataDxHistoricalClient` | `thetadatadx_historical_connect` | `thetadatadx_historical_free` |
+| `ThetaDataDxMarketDataClient` | `thetadatadx_market_data_connect` | `thetadatadx_market_data_free` |
 | `ThetaDataDxClient` | `thetadatadx_client_connect` | `thetadatadx_client_free` |
 | `ThetaDataDxStreamHandle` | `thetadatadx_streaming_connect` | `thetadatadx_streaming_free` |
 
 Credentials accept either an API key or an email/password pair. `thetadatadx_credentials_from_api_key` (and `thetadatadx_credentials_from_api_key_with_email`) take a key the caller generated from the ThetaData user portal; `thetadatadx_credentials_from_env_or_file` reads the key from the `THETADATA_API_KEY` environment variable when it is set and non-empty, otherwise falls back to the two-line creds file at the given path. `thetadatadx_credentials_from_dotenv` reads the same `THETADATA_API_KEY` (or a `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair) from a `.env`-format file.
 
-### Historical (via ThetaDataDxHistoricalClient or ThetaDataDxClient)
+### Historical (via ThetaDataDxMarketDataClient or ThetaDataDxClient)
 
-Every historical endpoint is available as `thetadatadx_stock_*`, `thetadatadx_option_*`, `thetadatadx_index_*`, `thetadatadx_calendar_*`, `thetadatadx_interest_rate_*` functions. Each takes a `*const ThetaDataDxHistoricalClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `ThetaDataDxEodTickArray`, `ThetaDataDxOhlcTickArray`). Callers must free with the corresponding `thetadatadx_*_array_free` function. List endpoints return `ThetaDataDxStringArray` (freed with `thetadatadx_string_array_free`).
+Every historical endpoint is available as `thetadatadx_stock_*`, `thetadatadx_option_*`, `thetadatadx_index_*`, `thetadatadx_calendar_*`, `thetadatadx_interest_rate_*` functions. Each takes a `*const ThetaDataDxMarketDataClient` handle and returns a typed `#[repr(C)]` struct array (e.g. `ThetaDataDxEodTickArray`, `ThetaDataDxOhlcTickArray`). Callers must free with the corresponding `thetadatadx_*_array_free` function. List endpoints return `ThetaDataDxStringArray` (freed with `thetadatadx_string_array_free`).
 
-`thetadatadx_client_historical()` returns a borrowed `*const ThetaDataDxHistoricalClient` from a unified handle - same session, no double auth.
+`thetadatadx_client_market_data()` returns a borrowed `*const ThetaDataDxMarketDataClient` from a unified handle - same session, no double auth.
 
 ### Streaming (via ThetaDataDxClient)
 
@@ -82,13 +82,13 @@ All functions that can fail return null on error. Call `thetadatadx_last_error()
 - List endpoints return `ThetaDataDxStringArray` - free with `thetadatadx_string_array_free`.
 - `thetadatadx_streaming_active_subscriptions` returns `*mut ThetaDataDxSubscriptionArray` - free with `thetadatadx_subscription_array_free`.
 - `thetadatadx_last_error()` returns a borrowed pointer - do NOT free it.
-- `thetadatadx_client_historical()` returns a borrowed pointer - do NOT free it.
+- `thetadatadx_client_market_data()` returns a borrowed pointer - do NOT free it.
 
 ## Safety
 
 - All functions check for null handles before dereferencing.
 - Mutex locks use poison recovery (`unwrap_or_else(|e| e.into_inner())`).
-- `ThetaDataDxHistoricalClient` is `#[repr(transparent)]` over `HistoricalClient` for safe pointer casting.
+- `ThetaDataDxMarketDataClient` is `#[repr(transparent)]` over `MarketDataClient` for safe pointer casting.
 
 ### Panic boundary
 

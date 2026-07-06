@@ -181,7 +181,7 @@
     }
 
     /// Set the wall-clock envelope (seconds) for one
-    /// historical-channel retry sequence. 0 disables. Default 300.
+    /// market-data-channel retry sequence. 0 disables. Default 300.
     void set_retry_max_elapsed_secs(std::uint64_t secs) {
         thetadatadx_config_set_retry_max_elapsed_secs(handle_.get(), secs);
     }
@@ -307,16 +307,16 @@
         return out;
     }
 
-    /// Set the historical gRPC port. Companion to
-    /// @c set_historical_host.
-    void set_historical_port(std::uint16_t port) {
-        thetadatadx_config_set_historical_port(handle_.get(), port);
+    /// Set the market-data gRPC port. Companion to
+    /// @c set_market_data_host.
+    void set_market_data_port(std::uint16_t port) {
+        thetadatadx_config_set_market_data_port(handle_.get(), port);
     }
 
-    /// Current historical gRPC port. Returns 0 on a null handle.
-    std::uint16_t get_historical_port() const {
+    /// Current market-data gRPC port. Returns 0 on a null handle.
+    std::uint16_t get_market_data_port() const {
         std::uint16_t out{};
-        thetadatadx_config_get_historical_port(handle_.get(), &out);
+        thetadatadx_config_get_market_data_port(handle_.get(), &out);
         return out;
     }
 
@@ -480,20 +480,20 @@
         return s.str();
     }
 
-    /// Set the historical gRPC host. Defaults to the upstream
-    /// production endpoint; redirect the historical channel at a known
+    /// Set the market-data gRPC host. Defaults to the upstream
+    /// production endpoint; redirect the market-data channel at a known
     /// host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI
     /// rejects the value (null handle or non-UTF-8 input).
-    void set_historical_host(const std::string& host) {
-        if (thetadatadx_config_set_historical_host(handle_.get(), host.c_str()) != 0) {
+    void set_market_data_host(const std::string& host) {
+        if (thetadatadx_config_set_market_data_host(handle_.get(), host.c_str()) != 0) {
             detail::throw_last_ffi_error();
         }
     }
 
-    /// Current historical gRPC host. Returns an empty string if
+    /// Current market-data gRPC host. Returns an empty string if
     /// the FFI getter returns null (null handle or interior-NUL value).
-    std::string get_historical_host() const {
-        detail::FfiString s(thetadatadx_config_get_historical_host(handle_.get()));
+    std::string get_market_data_host() const {
+        detail::FfiString s(thetadatadx_config_get_market_data_host(handle_.get()));
         return s.str();
     }
 

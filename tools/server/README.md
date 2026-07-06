@@ -34,7 +34,7 @@ thetadatadx-server --creds creds.txt
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD --config config.toml
 
 # With a specific streaming region (the historical region is selected the same
-# way with --historical-region)
+# way with --market-data-region)
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD --streaming-region dev
 ```
 
@@ -51,7 +51,7 @@ The server starts:
 | `--password` | | ThetaData password (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file (email line 1, password line 2) |
 | `--config` | | Path to TOML config file |
-| `--historical-region` | `production` | Historical region: `production` or `stage` |
+| `--market-data-region` | `production` | Historical region: `production` or `stage` |
 | `--streaming-region` | `production` | Streaming region: `production` or `dev` |
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
@@ -105,7 +105,7 @@ Mirrored 1:1 from the JVM terminal — unauthenticated `GET`, bare `text/plain` 
 ```
 GET /v3/terminal/shutdown       # "OK"; kills the server process
 GET /v3/terminal/fpss/status    # streaming channel health: CONNECTED / DISCONNECTED
-GET /v3/terminal/mdds/status    # historical channel health: CONNECTED / DISCONNECTED
+GET /v3/terminal/mdds/status    # market-data channel health: CONNECTED / DISCONNECTED
 ```
 
 ### Response format

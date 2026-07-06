@@ -216,7 +216,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("#[no_mangle]\n");
     write!(
         out,
-        "pub unsafe extern \"C\" fn thetadatadx_{}_with_options(\n    client: *const ThetaDataDxHistoricalClient",
+        "pub unsafe extern \"C\" fn thetadatadx_{}_with_options(\n    client: *const ThetaDataDxMarketDataClient",
         endpoint.name
     )
     .unwrap();
@@ -410,7 +410,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("#[no_mangle]\n");
     write!(
         out,
-        "pub unsafe extern \"C\" fn thetadatadx_{}_stream(\n    client: *const ThetaDataDxHistoricalClient",
+        "pub unsafe extern \"C\" fn thetadatadx_{}_stream(\n    client: *const ThetaDataDxMarketDataClient",
         endpoint.name
     )
     .unwrap();
@@ -503,7 +503,7 @@ pub(super) fn render_c_stream_decls(endpoints: &[GeneratedEndpoint]) -> String {
         let params = method_params(endpoint);
         write!(
             out,
-            "extern int32_t thetadatadx_{}_stream(const ThetaDataDxHistoricalClient* client",
+            "extern int32_t thetadatadx_{}_stream(const ThetaDataDxMarketDataClient* client",
             endpoint.name
         )
         .unwrap();

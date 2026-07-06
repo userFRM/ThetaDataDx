@@ -1,7 +1,7 @@
 //! Standalone Python `StreamingClient` pyclass.
 //!
-//! Opens ONLY the streaming TLS transport, no historical channel, no Nexus
-//! HTTP auth, no Treasury / Calendar / OHLCVC historical surface.
+//! Opens ONLY the streaming TLS transport, no market-data channel, no Nexus
+//! HTTP auth, no Treasury / Calendar / OHLCVC market-data surface.
 //! Mirrors the C++ `thetadatadx::StreamingClient` (`thetadatadx-cpp/include/thetadatadx.hpp`)
 //! and the standalone C ABI entry points (`thetadatadx_client_*` in
 //! `thetadatadx-ffi/src/streaming.rs`), letting Python users run a streaming-only
@@ -17,7 +17,7 @@
 //! The cross-binding contract here matches the standalone C ABI:
 //! `thetadatadx_client_connect` accepts a `ThetaDataDxCredentials` handle without
 //! touching Nexus. Run the bundled [`crate::Client`] (which
-//! does authenticate against Nexus) when you need the historical surface and
+//! does authenticate against Nexus) when you need the market-data surface and
 //! Nexus session machinery side-by-side.
 //!
 //! # Lifecycle
@@ -111,7 +111,7 @@ impl FpssParams {
 
 /// Standalone streaming-only client.
 ///
-/// Opens ONLY the streaming TLS transport, no historical channel, no Nexus
+/// Opens ONLY the streaming TLS transport, no market-data channel, no Nexus
 /// HTTP authentication. Use when a parallel historical process is already
 /// running in the same environment and you need to test streaming without
 /// the bundled [`crate::Client`] taking over the Nexus
@@ -333,7 +333,7 @@ impl StreamingClient {
     /// the handle, `thetadatadx_client_set_callback` opens the network) so the
     /// same observable behaviour applies across every binding.
     ///
-    /// No historical channel is opened. No Nexus HTTP request is issued.
+    /// No market-data channel is opened. No Nexus HTTP request is issued.
     /// A parallel historical process under the same credentials is unaffected
     /// by this constructor.
     #[new]
@@ -367,7 +367,7 @@ impl StreamingClient {
     ///
     /// Parity with `Client.from_file()`,
     /// `AsyncClient.from_file()`, and
-    /// `HistoricalClient.from_file()` — every standalone Python client
+    /// `MarketDataClient.from_file()` — every standalone Python client
     /// surfaces the same one-shot constructor shape.
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]

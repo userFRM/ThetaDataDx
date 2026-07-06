@@ -24,7 +24,7 @@
 //!
 //! # Memory model
 //!
-//! - Opaque handles (`*mut ThetaDataDxHistoricalClient`, `*mut ThetaDataDxCredentials`, etc.) are heap-allocated
+//! - Opaque handles (`*mut ThetaDataDxMarketDataClient`, `*mut ThetaDataDxCredentials`, etc.) are heap-allocated
 //!   via `Box::into_raw` and freed via the corresponding `thetadatadx_*_free` function.
 //! - Tick arrays are returned as `#[repr(C)]` structs with a `data` pointer and `len`.
 //!   They MUST be freed with the corresponding `thetadatadx_*_array_free` function.

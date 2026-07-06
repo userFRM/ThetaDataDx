@@ -679,17 +679,17 @@ envelope (attempt budget only). Default `300`.
 """
 cpp_doc = """
 Set the wall-clock envelope (seconds) for one
-historical-channel retry sequence. 0 disables. Default 300.
+market-data-channel retry sequence. 0 disables. Default 300.
 """
 py_doc = """
 Set the wall-clock envelope (seconds) for one
-historical-channel retry sequence, measured from the first
+market-data-channel retry sequence, measured from the first
 attempt. ``0`` disables the envelope (attempt budget only).
 Default ``300``.
 """
 ts_doc = """
 Set the wall-clock envelope (seconds) for one
-historical-channel retry sequence, measured from the first
+market-data-channel retry sequence, measured from the first
 attempt. `0n` disables the envelope (attempt budget only).
 Default `300n`.
 """
@@ -784,12 +784,12 @@ cpp_doc = """
 Initial backoff delay (ms) for the historical retry policy. Default 250.
 """
 py_doc = """
-Set the initial backoff delay (ms) for the historical-channel retry policy.
+Set the initial backoff delay (ms) for the market-data-channel retry policy.
 Default ``250``. Subsequent retries double from here, capped
 at :attr:`retry_max_delay_ms`.
 """
 ts_doc = """
-Set the initial backoff delay (ms) for the historical-channel retry policy.
+Set the initial backoff delay (ms) for the market-data-channel retry policy.
 Default `250n`. Subsequent retries double from here, capped at
 `retryMaxDelayMs`.
 """
@@ -813,7 +813,7 @@ Upper-bound backoff delay (ms). Default 30_000 (30 s).
 """
 py_doc = """
 Set the upper-bound backoff delay (ms) for the
-historical-channel retry policy. Default ``30_000`` (30 s).
+market-data-channel retry policy. Default ``30_000`` (30 s).
 """
 ts_doc = """
 Set the upper-bound backoff delay (ms) for the historical retry
@@ -838,12 +838,12 @@ cpp_doc = """
 Total attempt budget. 1 disables retry. Default 20.
 """
 py_doc = """
-Set the total attempt budget for the historical-channel retry policy. ``1``
+Set the total attempt budget for the market-data-channel retry policy. ``1``
 disables retry (single call only); higher values permit retries
 up to ``max_attempts - 1`` after the initial call. Default ``20``.
 """
 ts_doc = """
-Set the total attempt budget for the historical-channel retry policy. `1`
+Set the total attempt budget for the market-data-channel retry policy. `1`
 disables retry; higher values permit retries up to
 `maxAttempts - 1` after the initial call. Default `20`.
 """
@@ -886,13 +886,13 @@ cpp_doc = """
 AWS-style full jitter toggle. Default true.
 """
 py_doc = """
-Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
 ``True``. ``False`` gives the deterministic backoff schedule
 ``min(max_delay, initial * 2^attempt)``, useful for tests that
 need to assert exact timings.
 """
 ts_doc = """
-Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+Toggle AWS-style full-jitter on the market-data-channel retry policy. Default
 `true`. `false` gives the deterministic backoff schedule
 `min(max_delay, initial * 2^attempt)`, useful for tests that
 need to assert exact timings.
@@ -1211,24 +1211,24 @@ Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt).
 """
 
 [[accessor]]
-symbol = "thetadatadx_config_set_historical_port"
+symbol = "thetadatadx_config_set_market_data_port"
 kind = "set"
 param = "port"
 abi_type = "u16"
-path = "historical.port"
+path = "market_data.port"
 doc = """
-Set the historical gRPC port on a config handle.
+Set the market-data gRPC port on a config handle.
 """
 cpp_doc = """
-Set the historical gRPC port. Companion to
-@c set_historical_host.
+Set the market-data gRPC port. Companion to
+@c set_market_data_host.
 """
 py_doc = """
-Override the historical gRPC port. Companion to `historical_host` —
+Override the market-data gRPC port. Companion to `market_data_host` —
 same rationale and same test-only usage.
 """
 ts_doc = """
-Override the historical data port. Companion to `setHistoricalHost` —
+Override the historical data port. Companion to `setMarketDataHost` —
 same test-only rationale. Rejects values outside the `0..=65535`
 port range.
 """
@@ -1236,27 +1236,27 @@ py_param = "port"
 ts_param = "port"
 
 [[accessor]]
-symbol = "thetadatadx_config_get_historical_port"
+symbol = "thetadatadx_config_get_market_data_port"
 kind = "get"
 param = "out_port"
 abi_type = "u16"
-path = "historical.port"
+path = "market_data.port"
 out_safety = """
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
 """
 doc = """
-Read the configured historical gRPC port. Writes the value
+Read the configured market-data gRPC port. Writes the value
 into `*out_port`. Returns `0` on success, `-1` if either pointer is
 null.
 """
 cpp_doc = """
-Current historical gRPC port. Returns 0 on a null handle.
+Current market-data gRPC port. Returns 0 on a null handle.
 """
 py_doc = """
-Current historical gRPC port.
+Current market-data gRPC port.
 """
 ts_doc = """
-Current historical gRPC port.
+Current market-data gRPC port.
 """
 
 [[accessor]]
@@ -1264,7 +1264,7 @@ symbol = "thetadatadx_config_set_warn_on_buffered_threshold_bytes"
 kind = "set"
 param = "n"
 abi_type = "usize"
-path = "historical.warn_on_buffered_threshold_bytes"
+path = "market_data.warn_on_buffered_threshold_bytes"
 doc = """
 Set the `warn_on_buffered_threshold_bytes` ceiling on a config
 handle. Streaming endpoints log a `tracing::warn!` when a
@@ -1317,7 +1317,7 @@ symbol = "thetadatadx_config_get_warn_on_buffered_threshold_bytes"
 kind = "get"
 param = "out_n"
 abi_type = "usize"
-path = "historical.warn_on_buffered_threshold_bytes"
+path = "market_data.warn_on_buffered_threshold_bytes"
 out_safety = """
         // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
 """
@@ -1346,7 +1346,7 @@ symbol = "thetadatadx_config_set_request_timeout_secs"
 kind = "set"
 param = "secs"
 abi_type = "u64"
-path = "historical.request_timeout_secs"
+path = "market_data.request_timeout_secs"
 doc = """
 Set the default per-request deadline (seconds) for historical queries
 on a config handle.
@@ -1397,7 +1397,7 @@ symbol = "thetadatadx_config_get_request_timeout_secs"
 kind = "get"
 param = "out"
 abi_type = "u64"
-path = "historical.request_timeout_secs"
+path = "market_data.request_timeout_secs"
 doc = """
 Read the current historical `request_timeout_secs` setting (default
 `300`). A stored `0` is floored to the `300`-second default at request
@@ -1781,8 +1781,8 @@ Reads the default-limits value when the policy is not `Auto`.
 #
 # UTF-8 `String` fields. The FFI setter validates a non-null UTF-8
 # `*const c_char`; the getter returns a heap-owned `*mut c_char` the
-# caller frees with `thetadatadx_string_free`. `historical_host` routes
-# through the `set_historical_host` / `historical_host` methods rather
+# caller frees with `thetadatadx_string_free`. `market_data_host` routes
+# through the `set_market_data_host` / `market_data_host` methods rather
 # than a direct field assignment.
 
 [[accessor]]
@@ -1910,14 +1910,14 @@ Current `auth.client_type` value.
 """
 
 [[accessor]]
-symbol = "thetadatadx_config_set_historical_host"
+symbol = "thetadatadx_config_set_market_data_host"
 kind = "set"
 shape = "string"
 param = "host"
 abi_type = "string"
-setter_call = "set_historical_host"
+setter_call = "set_market_data_host"
 doc = """
-Set the historical gRPC host on a config handle.
+Set the market-data gRPC host on a config handle.
 
 `host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
 Returns `0` on success, `-1` if `config` is null or `host` is
@@ -1925,32 +1925,32 @@ null / not valid UTF-8 (the diagnostic is written to thread-local
 storage retrievable via `thetadatadx_last_error()`).
 """
 cpp_doc = """
-Set the historical gRPC host. Defaults to the upstream
-production endpoint; redirect the historical channel at a known
+Set the market-data gRPC host. Defaults to the upstream
+production endpoint; redirect the market-data channel at a known
 host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI
 rejects the value (null handle or non-UTF-8 input).
 """
 py_doc = """
-Override the historical gRPC host. Used by structural tests that
-need to point the historical channel at a known-refused endpoint
+Override the market-data gRPC host. Used by structural tests that
+need to point the market-data channel at a known-refused endpoint
 to prove the streaming-only surface never opens it; production
 code paths should keep the `Config::production()` default.
 """
 ts_doc = """
-Override the historical gRPC host. Companion to `setHistoricalPort`.
+Override the market-data gRPC host. Companion to `setMarketDataPort`.
 """
 py_param = "host"
 ts_param = "host"
 
 [[accessor]]
-symbol = "thetadatadx_config_get_historical_host"
+symbol = "thetadatadx_config_get_market_data_host"
 kind = "get"
 shape = "string"
 param = "out"
 abi_type = "string"
-getter_call = "historical_host"
+getter_call = "market_data_host"
 doc = """
-Read the current historical gRPC host.
+Read the current market-data gRPC host.
 
 On success, returns a heap-owned NUL-terminated C string the caller
 MUST release with `thetadatadx_string_free`. Returns null if `config` is
@@ -1958,14 +1958,14 @@ null or the stored value contains an interior NUL (the diagnostic is
 written to `thetadatadx_last_error()`).
 """
 cpp_doc = """
-Current historical gRPC host. Returns an empty string if
+Current market-data gRPC host. Returns an empty string if
 the FFI getter returns null (null handle or interior-NUL value).
 """
 py_doc = """
-Current historical gRPC host.
+Current market-data gRPC host.
 """
 ts_doc = """
-Current historical gRPC host.
+Current market-data gRPC host.
 """
 
 # ── Enum config fields (enum) ───────────────────────────────────────

@@ -1,4 +1,4 @@
-//! Endpoint registry -- single source of truth for all `HistoricalClient` endpoints.
+//! Endpoint registry -- single source of truth for all `MarketDataClient` endpoints.
 //!
 //! Used by the CLI and MCP server to auto-generate commands and tool
 //! definitions. When `ThetaData` adds a new proto RPC, the build script parses
@@ -7,7 +7,7 @@
 //! # Design
 //!
 //! Each entry is a `const` descriptor (`EndpointMeta`) that captures:
-//! - Method name on `HistoricalClient` (e.g. `"stock_history_eod"`)
+//! - Method name on `MarketDataClient` (e.g. `"stock_history_eod"`)
 //! - Human description
 //! - Category / subcategory for grouping
 //! - Parameter list with types
@@ -15,7 +15,7 @@
 //!
 //! Streaming endpoints (`*_stream`) are excluded because they use a callback
 //! API (`FnMut(&[T])`) that does not map to CLI/MCP output semantics. They
-//! remain available on `HistoricalClient` for programmatic use.
+//! remain available on `MarketDataClient` for programmatic use.
 
 // Items in this module are split into two groups:
 //
@@ -49,7 +49,7 @@ pub struct ParamMeta {
 #[cfg(feature = "__internal")]
 #[derive(Debug, Clone)]
 pub struct EndpointMeta {
-    /// Method name on `HistoricalClient` (e.g. `"stock_history_eod"`).
+    /// Method name on `MarketDataClient` (e.g. `"stock_history_eod"`).
     pub name: &'static str,
     /// Human-readable description.
     pub description: &'static str,

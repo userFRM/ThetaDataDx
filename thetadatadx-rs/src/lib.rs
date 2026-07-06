@@ -21,7 +21,7 @@
 //! let client = Client::connect(&creds, DirectConfig::production()).await?;
 //!
 //! // Historical — every query endpoint on the `historical` surface
-//! let ticks = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+//! let ticks = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
 //! // Real-time streaming — on the `stream` surface
 //! client.stream().start_streaming(|event: &StreamEvent| {
@@ -66,16 +66,16 @@
 //! `poll_batch(FnMut)` and `for_each(FnMut)` are the closure-driven
 //! shapes.
 //!
-//! For historical-only workloads, build a [`historical::HistoricalClient`]
+//! For market-data-only workloads, build a [`market_data::MarketDataClient`]
 //! directly and query endpoints on it:
 //!
 //! ```rust,no_run
-//! use thetadatadx::historical::HistoricalClient;
+//! use thetadatadx::market_data::MarketDataClient;
 //! use thetadatadx::{Credentials, DirectConfig};
 //!
 //! # async fn doc() -> Result<(), thetadatadx::Error> {
 //! let creds = Credentials::from_file("creds.txt")?;
-//! let client = HistoricalClient::connect(&creds, DirectConfig::production()).await?;
+//! let client = MarketDataClient::connect(&creds, DirectConfig::production()).await?;
 //!
 //! let eod = client.stock_history_eod("AAPL", "20240101", "20240301").await?;
 //! println!("{} EOD ticks", eod.len());
@@ -122,7 +122,7 @@ pub(crate) mod lifecycle;
 
 // The `grpc` module hosts the transport infrastructure (Channel, ChannelPool,
 // Status, ServerStreaming). The user-facing path is
-// `HistoricalClient::for_each_chunk(ServerStreaming<..>)`; the remainder is
+// `MarketDataClient::for_each_chunk(ServerStreaming<..>)`; the remainder is
 // consumed by the SDK's own integration tests and benches.
 //
 // In shipped builds (default features) the module is `pub(crate)` so none
@@ -275,7 +275,7 @@ pub use backoff::JitterMode;
 pub use client::{Client, ConnectionStatus, FlatFiles, StreamSurface, SubscriptionInfo};
 pub use client_builder::ClientBuilder;
 pub use config::{
-    DirectConfig, FlatFilesConfig, HistoricalEnvironment, HostSelectionPolicy,
+    DirectConfig, FlatFilesConfig, HostSelectionPolicy, MarketDataEnvironment,
     ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
     StreamingEnvironment, StreamingFlushMode,
 };
@@ -380,26 +380,26 @@ pub mod streaming {
 }
 
 // ─── Historical queries ──────────────────────────────────────────────────────
-// The canonical historical surface lives in the [`historical`] module: build a
-// standalone [`historical::HistoricalClient`], or reach the same query surface
-// through [`Client::historical`] on the unified client.
+// The canonical market-data surface lives in the [`market_data`] module: build a
+// standalone [`market_data::MarketDataClient`], or reach the same query surface
+// through [`Client::market_data`] on the unified client.
 
 /// Standalone historical-query client.
 ///
-/// `HistoricalClient` and its [`SubscriptionTier`] are also re-exported at the
-/// crate root so both `thetadatadx::HistoricalClient` and
-/// `thetadatadx::historical::HistoricalClient` resolve.
-pub use mdds::{HistoricalClient, SubscriptionTier};
+/// `MarketDataClient` and its [`SubscriptionTier`] are also re-exported at the
+/// crate root so both `thetadatadx::MarketDataClient` and
+/// `thetadatadx::market_data::MarketDataClient` resolve.
+pub use mdds::{MarketDataClient, SubscriptionTier};
 
 /// Historical-query consumer surface.
 ///
-/// `thetadatadx::historical` is the canonical path for the standalone
+/// `thetadatadx::market_data` is the canonical path for the standalone
 /// historical-query client, the counterpart to [`streaming`].
-/// Build a [`HistoricalClient`] directly, or reach the same query surface
-/// through [`Client::historical`](crate::Client::historical) on the unified
+/// Build a [`MarketDataClient`] directly, or reach the same query surface
+/// through [`Client::market_data`](crate::Client::market_data) on the unified
 /// client.
-pub mod historical {
-    pub use crate::mdds::{HistoricalClient, SubscriptionTier};
+pub mod market_data {
+    pub use crate::mdds::{MarketDataClient, SubscriptionTier};
 }
 
 // ─── Flat-file bulk pulls ─────────────────────────────────────────────────────

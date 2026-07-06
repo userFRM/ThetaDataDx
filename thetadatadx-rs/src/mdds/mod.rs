@@ -1,6 +1,6 @@
 //! MDDS (Market Data Distribution Server) gRPC client.
 //!
-//! [`HistoricalClient`] authenticates against the Nexus HTTP API, opens a gRPC
+//! [`MarketDataClient`] authenticates against the Nexus HTTP API, opens a gRPC
 //! channel to the MDDS server, and exposes typed methods for every historical
 //! data endpoint. Macro-driven builder patterns (`list_endpoint!`,
 //! `parsed_endpoint!`) live in the in-crate `macros` module and are applied
@@ -13,7 +13,7 @@
 //!                                              |
 //!              +-------------------------------+
 //!              |
-//!       HistoricalClient
+//!       MarketDataClient
 //!        |-- mdds_stub: BetaThetaTerminalClient  (gRPC, historical data)
 //!        \-- session_uuid: String                (UUID in every QueryInfo)
 //! ```
@@ -27,7 +27,7 @@
 //! This module mirrors the [`crate::fpss`] layout for symmetry between the two
 //! upstream services:
 //!
-//! - `client` — [`HistoricalClient`] struct, `connect`, transport/session state
+//! - `client` — [`MarketDataClient`] struct, `connect`, transport/session state
 //! - `stream` — gRPC response stream helpers (`collect_stream`, `for_each_chunk`)
 //! - `validate` — runtime parameter validators invoked by generated macros
 //! - `endpoints` — generated endpoint method bodies (`include!` sites);
@@ -53,7 +53,7 @@ mod tier;
 pub(crate) mod validate;
 pub(crate) mod wire_semantics;
 
-pub use client::HistoricalClient;
+pub use client::MarketDataClient;
 pub use tier::SubscriptionTier;
 
 #[cfg(test)]

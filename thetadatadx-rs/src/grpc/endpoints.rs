@@ -18,7 +18,7 @@ use super::channel::{Channel, ChannelError};
 
 /// `client = "terminal"` is the only static entry the wire
 /// `query_parameters` map carries; the macro-driven [`crate::mdds`]
-/// endpoints set the same value (see `HistoricalClient::build_query_info`).
+/// endpoints set the same value (see `MarketDataClient::build_query_info`).
 const CLIENT_PARAMETER_VALUE: &str = "terminal";
 
 /// Issue `BetaThetaTerminal::GetStockListSymbols` over `channel` and
@@ -26,7 +26,7 @@ const CLIENT_PARAMETER_VALUE: &str = "terminal";
 ///
 /// `session_uuid` and `client_type` thread through the
 /// `QueryInfo.auth_token.session_uuid` and `QueryInfo.client_type`
-/// wire fields — see [`crate::HistoricalClient`] for how they are
+/// wire fields — see [`crate::MarketDataClient`] for how they are
 /// obtained from the Nexus auth response.
 ///
 /// # Errors
@@ -64,8 +64,8 @@ pub async fn stock_list_symbols(
 }
 
 /// Drain `stream` into a single merged `DataTable`. Mirrors the
-/// `collect_stream` helper on [`crate::HistoricalClient`] but operates
-/// on a raw [`crate::grpc::ServerStreaming`] without an `HistoricalClient`.
+/// `collect_stream` helper on [`crate::MarketDataClient`] but operates
+/// on a raw [`crate::grpc::ServerStreaming`] without an `MarketDataClient`.
 ///
 /// Each chunk's zstd + protobuf decode runs inline on the caller's
 /// task — the production decode shape.
@@ -115,9 +115,9 @@ pub async fn collect_stream(
 }
 
 /// Bench-only helpers that issue representative MDDS RPCs through the
-/// transport without going through the macro-generated `HistoricalClient`
+/// transport without going through the macro-generated `MarketDataClient`
 /// surface. Exists so the transport benches can drive 1–2 endpoints
-/// without re-implementing the full `HistoricalClient::connect` auth
+/// without re-implementing the full `MarketDataClient::connect` auth
 /// handshake just to time an RPC.
 ///
 /// # Errors

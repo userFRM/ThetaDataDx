@@ -1,8 +1,8 @@
-//! Exponential-backoff retry policy for transient gRPC errors on the historical channel.
+//! Exponential-backoff retry policy for transient gRPC errors on the market-data channel.
 
 use std::time::Duration;
 
-/// Exponential-backoff retry policy for transient gRPC errors on the historical channel.
+/// Exponential-backoff retry policy for transient gRPC errors on the market-data channel.
 ///
 /// Only wired on status codes `Unavailable`, `DeadlineExceeded`, and
 /// `ResourceExhausted`. Permission / credential failures route through

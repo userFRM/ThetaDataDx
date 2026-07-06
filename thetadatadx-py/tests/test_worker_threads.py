@@ -45,7 +45,7 @@ try:
     # `cfg.runtime` before the connect handshake runs. The connect itself
     # is expected to fail on throwaway credentials — we only care that the
     # runtime was built at the configured size.
-    client.HistoricalClient(client.Credentials("nobody@example.invalid", "x"), cfg)
+    client.MarketDataClient(client.Credentials("nobody@example.invalid", "x"), cfg)
 except Exception:
     pass
 

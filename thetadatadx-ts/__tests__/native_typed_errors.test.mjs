@@ -361,7 +361,7 @@ describe('timeoutMs input-validation parity (native)', () => {
       }
 
       await assert.rejects(
-        () => client.historical.stockSnapshotQuote('AAPL', { timeoutMs: value }),
+        () => client.marketData.stockSnapshotQuote('AAPL', { timeoutMs: value }),
         (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
         `a ${label} timeoutMs must reject as InvalidParameterError, not coerce`,
       );
@@ -378,7 +378,7 @@ describe('timeoutMs input-validation parity (native)', () => {
     }
 
     await assert.rejects(
-      () => client.historical.stockListSymbols({ timeoutMs: -1 }),
+      () => client.marketData.stockListSymbols({ timeoutMs: -1 }),
       (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
       'a negative timeoutMs must reject on the string-list path too',
     );
@@ -397,7 +397,7 @@ describe('timeoutMs input-validation parity (native)', () => {
     // client. The round-trip may surface a data/network error, but it must
     // never be an InvalidParameterError from the deadline guard.
     try {
-      await client.historical.stockSnapshotQuote('AAPL', { timeoutMs: 5000 });
+      await client.marketData.stockSnapshotQuote('AAPL', { timeoutMs: 5000 });
     } catch (err) {
       assert.ok(
         !(err instanceof mod.InvalidParameterError),
@@ -439,7 +439,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
       }
 
       await assert.rejects(
-        () => client.historical.optionListContracts('quote', '20240101', { symbol: 'AAPL', maxDte: value }),
+        () => client.marketData.optionListContracts('quote', '20240101', { symbol: 'AAPL', maxDte: value }),
         (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
         `a ${label} maxDte must reject as InvalidParameterError, not wrap through ToInt32`,
       );
@@ -455,7 +455,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
       }
 
       await assert.rejects(
-        () => client.historical.optionSnapshotQuote('AAPL', '20240119', { strikeRange: value }),
+        () => client.marketData.optionSnapshotQuote('AAPL', '20240119', { strikeRange: value }),
         (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
         `a ${label} strikeRange must reject as InvalidParameterError, not wrap through ToInt32`,
       );
@@ -475,7 +475,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
     // core client. The round-trip may surface a data/network error, but it
     // must never be an InvalidParameterError from the query-param guard.
     try {
-      await client.historical.optionListContracts('quote', '20240101', { symbol: 'AAPL', maxDte: 30 });
+      await client.marketData.optionListContracts('quote', '20240101', { symbol: 'AAPL', maxDte: 30 });
     } catch (err) {
       assert.ok(
         !(err instanceof mod.InvalidParameterError),

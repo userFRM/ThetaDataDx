@@ -2,7 +2,7 @@
 //! when the consuming builder's internal validation rejects a previously
 //! raw-set tuning knob.
 //!
-//! `thetadatadx_config_with_historical_environment` /
+//! `thetadatadx_config_with_market_data_environment` /
 //! `_with_streaming_environment` run `DirectConfig::with_*_environment`, which
 //! ends in `validate().expect(...)` and panics if a knob set earlier via a raw
 //! setter (no validation) is out of range. The `ffi_boundary!` wrapper catches
@@ -19,20 +19,20 @@
 use std::ffi::{CStr, CString};
 
 use thetadatadx_ffi::{
-    thetadatadx_config_free, thetadatadx_config_get_historical_host, thetadatadx_config_production,
-    thetadatadx_config_set_flatfiles_connect_timeout_secs, thetadatadx_config_set_historical_host,
-    thetadatadx_config_with_historical_environment, thetadatadx_config_with_streaming_environment,
-    thetadatadx_string_free,
+    thetadatadx_config_free, thetadatadx_config_get_market_data_host,
+    thetadatadx_config_production, thetadatadx_config_set_flatfiles_connect_timeout_secs,
+    thetadatadx_config_set_market_data_host, thetadatadx_config_with_market_data_environment,
+    thetadatadx_config_with_streaming_environment, thetadatadx_string_free,
 };
 
-/// Read `thetadatadx_config_get_historical_host` into an owned String, freeing
+/// Read `thetadatadx_config_get_market_data_host` into an owned String, freeing
 /// the heap-owned C string the getter returns.
 fn read_historical_host(config: *const thetadatadx_ffi::ThetaDataDxConfig) -> String {
     // SAFETY: callers pass a live, non-null config handle; the getter returns a
     // heap-owned NUL-terminated C string that must be freed with
     // `thetadatadx_string_free` after copying.
     unsafe {
-        let ptr = thetadatadx_config_get_historical_host(config);
+        let ptr = thetadatadx_config_get_market_data_host(config);
         assert!(!ptr.is_null(), "historical host getter returned null");
         let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
         thetadatadx_string_free(ptr);
@@ -49,7 +49,7 @@ fn historical_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     let custom = CString::new("custom.example.test").unwrap();
     // SAFETY: `config` is the live handle from production() above; `custom`
     // outlives this call and is a NUL-terminated C string from CString.
-    let rc = unsafe { thetadatadx_config_set_historical_host(config, custom.as_ptr()) };
+    let rc = unsafe { thetadatadx_config_set_market_data_host(config, custom.as_ptr()) };
     assert_eq!(rc, 0, "setting the custom host should succeed");
     assert_eq!(read_historical_host(config), "custom.example.test");
 
@@ -62,7 +62,7 @@ fn historical_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     // The setter must catch the panic and return -1...
     // SAFETY: `config` is live; the i32 selector (1 == STAGE) is the only other
     // argument and carries no pointer.
-    let rc = unsafe { thetadatadx_config_with_historical_environment(config, 1) };
+    let rc = unsafe { thetadatadx_config_with_market_data_environment(config, 1) };
     assert_eq!(
         rc, -1,
         "an out-of-range knob must make the env setter fail, not panic across the boundary",
@@ -89,7 +89,7 @@ fn streaming_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     let custom = CString::new("custom.example.test").unwrap();
     // SAFETY: `config` is the live handle from production() above; `custom`
     // outlives this call and is a NUL-terminated C string from CString.
-    let rc = unsafe { thetadatadx_config_set_historical_host(config, custom.as_ptr()) };
+    let rc = unsafe { thetadatadx_config_set_market_data_host(config, custom.as_ptr()) };
     assert_eq!(rc, 0);
 
     // SAFETY: `config` is still the live handle; this setter raw-writes a u64

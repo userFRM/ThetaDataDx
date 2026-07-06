@@ -85,7 +85,7 @@ async fn pull_decoded(
 
 /// Parse the string args, pull + decode the blob off the libuv thread, and
 /// write the requested format to `path`. Shared verbatim by `Client` and
-/// `HistoricalClient` — both hold an `Arc<thetadatadx::Client>` and open the
+/// `MarketDataClient` — both hold an `Arc<thetadatadx::Client>` and open the
 /// same data channel, so the napi methods only forward to this.
 async fn flat_file_to_path_impl(
     client: &Arc<thetadatadx::Client>,
@@ -256,7 +256,7 @@ impl FlatFilesNamespace {
 
 // ── Client napi extension ─────────────────────────────────────────
 
-use crate::{Client, HistoricalClient};
+use crate::{Client, MarketDataClient};
 
 #[napi]
 impl Client {
@@ -292,12 +292,12 @@ impl Client {
     }
 }
 
-// ── HistoricalClient napi extension ────────────────────────────────
+// ── MarketDataClient napi extension ────────────────────────────────
 
 #[napi]
-impl HistoricalClient {
+impl MarketDataClient {
     /// FLATFILES namespace handle. Cheap — shares the underlying client connection.
-    /// The historical-only client opens the same data channel as the unified
+    /// The market-data-only client opens the same data channel as the unified
     /// client, so the full flat-file surface is reachable here unchanged.
     #[napi(getter, js_name = "flatFiles")]
     pub fn flat_files(&self) -> napi::Result<FlatFilesNamespace> {

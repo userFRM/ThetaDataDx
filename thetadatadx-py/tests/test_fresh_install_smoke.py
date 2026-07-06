@@ -31,7 +31,7 @@ PUBLIC_CLASSES = [
     "Client",
     "AsyncClient",
     "StreamingClient",
-    "HistoricalClient",
+    "MarketDataClient",
     # Streaming sessions
     "StreamingSession",
     # Fluent surface

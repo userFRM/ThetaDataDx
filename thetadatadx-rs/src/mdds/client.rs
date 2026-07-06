@@ -1,8 +1,8 @@
-//! `HistoricalClient` struct, connection lifecycle, and session/transport state.
+//! `MarketDataClient` struct, connection lifecycle, and session/transport state.
 //!
 //! This module owns the MDDS client type: its fields (session UUID,
 //! channel, config, request semaphore, subscription tiers), its
-//! [`connect`](HistoricalClient::connect) constructor, and the small read-only
+//! [`connect`](MarketDataClient::connect) constructor, and the small read-only
 //! getters (`session_uuid`, `config`, `stock_tier`, `options_tier`, `channel`)
 //! that expose client state to callers.
 //!
@@ -41,12 +41,12 @@ const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// let creds = Credentials::from_file("creds.txt")?;
 /// let client = Client::connect(&creds, DirectConfig::production()).await?;
 ///
-/// let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
+/// let eod = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?;
 /// println!("{} EOD ticks", eod.len());
 /// # Ok(())
 /// # }
 /// ```
-pub struct HistoricalClient {
+pub struct MarketDataClient {
     /// Shared, mutable session token. Every request reads the current
     /// UUID via this handle; `Unauthenticated` responses trigger a
     /// single-shot refresh that swaps the UUID in place. See
@@ -86,7 +86,7 @@ pub struct HistoricalClient {
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
 
-impl HistoricalClient {
+impl MarketDataClient {
     /// Connect to `ThetaData` servers directly (no JVM terminal needed).
     ///
     /// 1. Authenticates against the Nexus HTTP API to obtain a session UUID.
@@ -103,7 +103,7 @@ impl HistoricalClient {
         // `connect_with_api_key`, the builder's `EnvSource::Config`, and this
         // constructor directly). The typed construction paths do not all run
         // `validate`, so a hand-built config could otherwise drive the
-        // historical channel with an out-of-range `max_message_size` (an
+        // market-data channel with an out-of-range `max_message_size` (an
         // unbounded decode budget) or a zero port. Mirrors the streaming-side
         // re-check at `StreamingClient::connect`. Idempotent when the caller
         // already validated.
@@ -118,11 +118,14 @@ impl HistoricalClient {
         // the same downgrade applied to `auth/nexus.rs`.
         tracing::info!("authenticating with Nexus API");
         tracing::trace!(nexus_url = %config.auth.nexus_url, "Nexus auth URL");
-        // Auth is driven by the historical (MDDS) environment only; the
+        // Auth is driven by the market-data (MDDS) environment only; the
         // streaming environment never affects the auth marker.
-        let auth_resp =
-            auth::authenticate_at(&config.auth.nexus_url, creds, config.historical_environment)
-                .await?;
+        let auth_resp = auth::authenticate_at(
+            &config.auth.nexus_url,
+            creds,
+            config.market_data_environment,
+        )
+        .await?;
         let session_uuid = auth_resp.session_id.clone();
 
         tracing::debug!(
@@ -131,13 +134,13 @@ impl HistoricalClient {
         );
 
         // Step 2: Open the gRPC channel pool to MDDS.
-        let host = config.historical.host.clone();
-        let port = config.historical.port;
-        tracing::debug!(host = %host, port, tls = config.historical.tls, "connecting to MDDS");
+        let host = config.market_data.host.clone();
+        let port = config.market_data.port;
+        tracing::debug!(host = %host, port, tls = config.market_data.tls, "connecting to MDDS");
 
         let pool_size = effective_pool_size(&auth_resp);
         let channels =
-            open_channel_pool(&host, port, config.historical.tls, pool_size, &config).await?;
+            open_channel_pool(&host, port, config.market_data.tls, pool_size, &config).await?;
         tracing::info!(
             pool_size,
             "MDDS channel pool connected ({} h2 connections)",
@@ -182,7 +185,7 @@ impl HistoricalClient {
         let session = SessionToken::new(
             session_uuid,
             config.auth.nexus_url.clone(),
-            config.historical_environment,
+            config.market_data_environment,
             creds.clone(),
         );
         let client_type = config.auth.client_type.clone();
@@ -247,21 +250,21 @@ impl HistoricalClient {
         &self.config
     }
 
-    /// Deterministically tear the historical client down.
+    /// Deterministically tear the market-data client down.
     ///
-    /// The historical client owns only the `Arc`-backed gRPC channel pool —
+    /// The market-data client owns only the `Arc`-backed gRPC channel pool —
     /// a set of idle HTTP/2 connections with no worker thread and no streaming
     /// state machine — so there is nothing to signal or join here: the pool's
     /// connections are released when the last client handle is dropped (RAII).
-    /// This method exists so the historical surface matches the unified
+    /// This method exists so the market-data surface matches the unified
     /// [`crate::Client::close`] across every binding (`close()` /
     /// context-manager exit / destructor); the deterministic point of release
     /// is the binding dropping its owning handle on `close`. Idempotent.
     pub fn close(&self) {
         // No streaming dispatcher and no owned worker thread: the channel pool
         // releases on handle drop. Kept as an explicit no-op so the base/
-        // historical lifecycle surface is uniform across bindings rather than
-        // silently absent on the historical-only path.
+        // market-data lifecycle surface is uniform across bindings rather than
+        // silently absent on the market-data-only path.
     }
 
     /// Return the session UUID. Reads through the shared session token
@@ -326,7 +329,7 @@ impl HistoricalClient {
         let session = SessionToken::new(
             "00000000-0000-0000-0000-000000000000".to_string(),
             config.auth.nexus_url.clone(),
-            config.historical_environment,
+            config.market_data_environment,
             creds,
         );
         let mut query_parameters = HashMap::new();
@@ -379,7 +382,7 @@ fn effective_pool_size(auth_resp: &crate::auth::nexus::AuthResponse) -> usize {
 /// failure on the first call fails the whole pool fast rather than
 /// leaving a half-built pool behind.
 ///
-/// Each channel is built with `config.historical.max_message_size` so the
+/// Each channel is built with `config.market_data.max_message_size` so the
 /// configured per-frame ceiling propagates to every RPC dispatched on
 /// the pool — oversized response frames are rejected by the decode
 /// layer rather than buffered past the configured bound.
@@ -396,26 +399,26 @@ async fn open_channel_pool(
     pool_size: usize,
     config: &DirectConfig,
 ) -> Result<ChannelPool, Error> {
-    let connect_timeout = Duration::from_secs(config.historical.connect_timeout_secs);
-    let max_message_size = config.historical.max_message_size;
+    let connect_timeout = Duration::from_secs(config.market_data.connect_timeout_secs);
+    let max_message_size = config.market_data.max_message_size;
     // HTTP/2 session tuning from the operator's config: flow-control
     // windows (`window_size_kb` / `connection_window_size_kb`, already
     // clamped to [64, 1024] KB by `DirectConfig::validate`) and the
     // keepalive cadence (`keepalive_secs` / `keepalive_timeout_secs`).
     let tuning = ChannelTuning {
         initial_stream_window_size: u32::try_from(
-            config.historical.window_size_kb.saturating_mul(1024),
+            config.market_data.window_size_kb.saturating_mul(1024),
         )
         .unwrap_or(u32::MAX),
         initial_connection_window_size: u32::try_from(
             config
-                .historical
+                .market_data
                 .connection_window_size_kb
                 .saturating_mul(1024),
         )
         .unwrap_or(u32::MAX),
-        keepalive_interval: Duration::from_secs(config.historical.keepalive_secs.max(1)),
-        keepalive_timeout: Duration::from_secs(config.historical.keepalive_timeout_secs.max(1)),
+        keepalive_interval: Duration::from_secs(config.market_data.keepalive_secs.max(1)),
+        keepalive_timeout: Duration::from_secs(config.market_data.keepalive_timeout_secs.max(1)),
     };
     // `rustls::ClientConfig` is designed for `Arc` sharing across
     // connections — the root store + ALPN list are immutable after
@@ -452,7 +455,7 @@ async fn open_channel_pool(
                     kind: crate::error::TransportErrorKind::ConnectionClosed,
                     message: format!(
                         "tls connect to {host}:{port} timed out after {}s",
-                        config.historical.connect_timeout_secs
+                        config.market_data.connect_timeout_secs
                     ),
                 }
             })?
@@ -470,7 +473,7 @@ async fn open_channel_pool(
                     kind: crate::error::TransportErrorKind::ConnectionClosed,
                     message: format!(
                         "h2c connect to {host}:{port} timed out after {}s",
-                        config.historical.connect_timeout_secs
+                        config.market_data.connect_timeout_secs
                     ),
                 }
             })?
@@ -610,8 +613,8 @@ mod connect_timeout_tests {
         let mut config = DirectConfig::production_defaults();
         // Short, deterministic deadline; TLS so the handshake blocks on the
         // peer's first flight rather than resolving optimistically.
-        config.historical.connect_timeout_secs = 1;
-        config.historical.tls = true;
+        config.market_data.connect_timeout_secs = 1;
+        config.market_data.tls = true;
 
         let result = open_channel_pool(&addr.ip().to_string(), addr.port(), true, 1, &config).await;
 

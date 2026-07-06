@@ -118,7 +118,7 @@ describe('StreamingClient carries the full streaming surface', () => {
 describe('StreamingClient never exposes the MDDS / historical surface', () => {
   // FPSS-only: no historical / list / snapshot / at-time / calendar
   // method may appear. An FPSS client that surfaced these would imply an
-  // MDDS channel it never opens. This is the inverse of the HistoricalClient
+  // MDDS channel it never opens. This is the inverse of the MarketDataClient
   // FPSS-free guard — together they pin the two standalone surfaces apart.
   it('declares no historical data-fetch families', () => {
     const familyRe =

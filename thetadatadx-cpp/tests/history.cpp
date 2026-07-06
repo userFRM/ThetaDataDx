@@ -29,7 +29,7 @@ TEST_CASE("stock_history_eod returns a non-empty vector for a known active symbo
     }
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();
-    auto client = thetadatadx::HistoricalClient::connect(creds, config);
+    auto client = thetadatadx::MarketDataClient::connect(creds, config);
     auto eod = client.stock_history_eod("AAPL", "20240101", "20240131");
     REQUIRE_FALSE(eod.empty());
     // First decoded tick must carry a plausible YYYYMMDD date —

@@ -14,25 +14,25 @@ except ImportError:
 
 def test_production_reads_back_prod_on_both_channels():
     cfg = client.Config.production()
-    assert cfg.historical_environment == "PROD"
+    assert cfg.market_data_environment == "PROD"
     assert cfg.streaming_environment == "PROD"
 
 
 def test_stage_selects_historical_staging_and_leaves_streaming_on_prod():
     cfg = client.Config.stage()
-    assert cfg.historical_environment == "STAGE"
+    assert cfg.market_data_environment == "STAGE"
     assert cfg.streaming_environment == "PROD"
 
 
 def test_dev_selects_streaming_dev_and_leaves_historical_on_prod():
     cfg = client.Config.dev()
-    assert cfg.historical_environment == "PROD"
+    assert cfg.market_data_environment == "PROD"
     assert cfg.streaming_environment == "DEV"
 
 
 def test_environment_getters_are_read_only():
     cfg = client.Config.production()
     with pytest.raises(AttributeError):
-        cfg.historical_environment = "STAGE"
+        cfg.market_data_environment = "STAGE"
     with pytest.raises(AttributeError):
         cfg.streaming_environment = "DEV"

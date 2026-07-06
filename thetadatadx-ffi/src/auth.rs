@@ -1,11 +1,11 @@
 //! Credentials, config, and historical-client lifecycle: `thetadatadx_credentials_*`,
-//! `thetadatadx_config_*`, `thetadatadx_historical_connect` / `thetadatadx_historical_free`.
+//! `thetadatadx_config_*`, `thetadatadx_market_data_connect` / `thetadatadx_market_data_free`.
 
 use std::os::raw::c_char;
 use std::ptr;
 
 use crate::error::{cstr_to_str, set_error, set_error_from};
-use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxHistoricalClient};
+use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxMarketDataClient};
 
 // ── Credentials ──
 
@@ -197,7 +197,7 @@ pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     })
 }
 
-/// Select the historical environment on a config handle in place.
+/// Select the market-data environment on a config handle in place.
 ///
 /// `kind` is `0` for production or `1` for staging. The historical and
 /// streaming channels are selected independently, so this leaves the
@@ -205,7 +205,7 @@ pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
 /// `thetadatadx_last_error` set when `config` is null or when `kind` is
 /// outside the documented `{0, 1}` set.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
+pub unsafe extern "C" fn thetadatadx_config_with_market_data_environment(
     config: *mut ThetaDataDxConfig,
     kind: i32,
 ) -> i32 {
@@ -215,11 +215,11 @@ pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
             return -1;
         }
         let environment = match kind {
-            0 => thetadatadx::HistoricalEnvironment::Prod,
-            1 => thetadatadx::HistoricalEnvironment::Stage,
+            0 => thetadatadx::MarketDataEnvironment::Prod,
+            1 => thetadatadx::MarketDataEnvironment::Stage,
             other => {
                 set_error(&format!(
-                    "historical environment selector must be 0 (PROD) or 1 (STAGE); got {other}"
+                    "market-data environment selector must be 0 (PROD) or 1 (STAGE); got {other}"
                 ));
                 return -1;
             }
@@ -227,7 +227,7 @@ pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
         // SAFETY: config is a non-null `*mut ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces an exclusive reference valid for the call duration.
         let config = unsafe { &mut *config };
         // Run the consuming builder on a CLONE and store back only on success.
-        // `with_historical_environment` ends in `validate().expect(...)`, which
+        // `with_market_data_environment` ends in `validate().expect(...)`, which
         // panics if a previously raw-set tuning knob is out of range; the
         // `ffi_boundary!` wrapper catches that and returns -1. The assignment
         // below only happens if the right-hand side completed without panicking,
@@ -237,7 +237,7 @@ pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
         config.inner = config
             .inner
             .clone()
-            .with_historical_environment(environment);
+            .with_market_data_environment(environment);
         0
     })
 }
@@ -245,8 +245,8 @@ pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
 /// Select the streaming environment on a config handle in place.
 ///
 /// `kind` is `0` for production or `1` for dev. The streaming and
-/// historical channels are selected independently, so this leaves the
-/// historical channel and the auth marker untouched. Returns `0` on
+/// market-data channels are selected independently, so this leaves the
+/// market-data channel and the auth marker untouched. Returns `0` on
 /// success. Returns `-1` with `thetadatadx_last_error` set when `config`
 /// is null or when `kind` is outside the documented `{0, 1}` set.
 #[no_mangle]
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
         // SAFETY: config is a non-null `*mut ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces an exclusive reference valid for the call duration.
         let config = unsafe { &mut *config };
         // Run the consuming builder on a CLONE and store back only on success
-        // (see `thetadatadx_config_with_historical_environment` for the
+        // (see `thetadatadx_config_with_market_data_environment` for the
         // wiping-bug rationale): `with_streaming_environment` panics on an
         // out-of-range tuning knob via `validate().expect(...)`, and assigning
         // only after the RHS completes leaves the original config intact on the
@@ -285,13 +285,13 @@ pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
 /// Source a config handle from a `.env`-format file.
 ///
 /// Starts from the production configuration and applies the cluster keys
-/// carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
+/// carried by the file: `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`,
 /// case-insensitive) selects the environment, and the optional
-/// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys override the
+/// `THETADATA_MARKET_DATA_HOST` / `THETADATA_STREAMING_HOST` keys override the
 /// hosts (an explicit host wins over the environment default). This is the
 /// same file format and the same keys `thetadatadx_credentials_from_dotenv`
 /// reads, so one `.env` can carry both `THETADATA_API_KEY` and
-/// `THETADATA_HISTORICAL_TYPE`.
+/// `THETADATA_MARKET_DATA_TYPE`.
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
 #[no_mangle]
@@ -321,17 +321,17 @@ pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig)
     })
 }
 
-/// Read the historical environment carried by the config.
+/// Read the market-data environment carried by the config.
 ///
 /// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
 /// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
 /// historical and streaming environments are selected independently: the
-/// `production` / `stage` / `dev` presets (and the `THETADATA_HISTORICAL_TYPE`
-/// dotenv key) set the historical channel, and this is the readback of
+/// `production` / `stage` / `dev` presets (and the `THETADATA_MARKET_DATA_TYPE`
+/// dotenv key) set the market-data channel, and this is the readback of
 /// that selection. Returns null if `config` is null (the diagnostic is
 /// written to `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_historical_environment(
+pub unsafe extern "C" fn thetadatadx_config_get_market_data_environment(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
@@ -341,13 +341,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_environment(
         }
         // SAFETY: see `thetadatadx_config_get_flush_mode`.
         let config = unsafe { &*config };
-        // `HistoricalEnvironment::as_str` is a `'static` label free of
+        // `MarketDataEnvironment::as_str` is a `'static` label free of
         // interior NULs, so `CString::new` never fails here.
-        match std::ffi::CString::new(config.inner.historical_environment().as_str()) {
+        match std::ffi::CString::new(config.inner.market_data_environment().as_str()) {
             Ok(c) => c.into_raw(),
             Err(e) => {
                 set_error(&format!(
-                    "historical environment label contains an interior NUL: {e}"
+                    "market-data environment label contains an interior NUL: {e}"
                 ));
                 ptr::null_mut()
             }
@@ -359,7 +359,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_environment(
 ///
 /// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
 /// `"DEV"`) the caller MUST release with `thetadatadx_string_free`. The
-/// streaming and historical environments are selected independently: the
+/// streaming and market-data environments are selected independently: the
 /// `production` / `stage` / `dev` presets (and the `THETADATA_STREAMING_TYPE`
 /// dotenv key) set the streaming channel, and this is the readback of that
 /// selection. Returns null if `config` is null (the diagnostic is written
@@ -774,8 +774,8 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
 // validated `*const c_char`, the getter returns an owned `*mut c_char` the
 // caller frees with `thetadatadx_string_free`.
 
-// `DirectConfig` historical endpoint overrides (`historical_host` string
-// via `set_historical_host`, `historical_port` `u16`) are the generated
+// `DirectConfig` historical endpoint overrides (`market_data_host` string
+// via `set_market_data_host`, `market_data_port` `u16`) are the generated
 // `string` / scalar accessors in config_surface.toml.
 
 // The uniform static config accessors — scalar / duration setters and
@@ -787,17 +787,17 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
 // and the reconnect-policy callback) stay hand-written.
 include!("config_accessors.rs");
 
-// ── HistoricalClient ──
+// ── MarketDataClient ──
 
-/// Connect a historical client to `ThetaData` servers
+/// Connect a market-data client to `ThetaData` servers
 /// (authenticates via Nexus API).
 ///
 /// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_historical_connect(
+pub unsafe extern "C" fn thetadatadx_market_data_connect(
     creds: *const ThetaDataDxCredentials,
     config: *const ThetaDataDxConfig,
-) -> *mut ThetaDataDxHistoricalClient {
+) -> *mut ThetaDataDxMarketDataClient {
     ffi_boundary!(ptr::null_mut(), {
         crate::ensure_crypto_provider();
         if creds.is_null() {
@@ -813,9 +813,9 @@ pub unsafe extern "C" fn thetadatadx_historical_connect(
         // SAFETY: config is a non-null pointer returned by thetadatadx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
         match crate::runtime_from_config(&config.inner.runtime).block_on(
-            thetadatadx::mdds::HistoricalClient::connect(&creds.inner, config.inner.clone()),
+            thetadatadx::mdds::MarketDataClient::connect(&creds.inner, config.inner.clone()),
         ) {
-            Ok(client) => Box::into_raw(Box::new(ThetaDataDxHistoricalClient { inner: client })),
+            Ok(client) => Box::into_raw(Box::new(ThetaDataDxMarketDataClient { inner: client })),
             Err(e) => {
                 set_error_from(&e);
                 ptr::null_mut()
@@ -824,22 +824,22 @@ pub unsafe extern "C" fn thetadatadx_historical_connect(
     })
 }
 
-/// Connect a historical client, loading credentials from a file
+/// Connect a market-data client, loading credentials from a file
 /// (line 1 = email, line 2 = password) instead of a credentials handle.
 ///
 /// One-call equivalent of `thetadatadx_credentials_from_file` followed by
-/// `thetadatadx_historical_connect`: the credentials are opened from `path`,
+/// `thetadatadx_market_data_connect`: the credentials are opened from `path`,
 /// consumed for the connect, and freed internally. The returned handle
 /// and its ownership / free convention are identical to
-/// `thetadatadx_historical_connect` (free with `thetadatadx_historical_free`).
+/// `thetadatadx_market_data_connect` (free with `thetadatadx_market_data_free`).
 ///
 /// Returns null on argument validation or connection/auth failure
 /// (check `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_historical_connect_from_file(
+pub unsafe extern "C" fn thetadatadx_market_data_connect_from_file(
     path: *const c_char,
     config: *const ThetaDataDxConfig,
-) -> *mut ThetaDataDxHistoricalClient {
+) -> *mut ThetaDataDxMarketDataClient {
     ffi_boundary!(ptr::null_mut(), {
         // SAFETY: `path` is a NUL-terminated C string valid for the call;
         // `thetadatadx_credentials_from_file` validates non-null + UTF-8 and sets
@@ -849,20 +849,20 @@ pub unsafe extern "C" fn thetadatadx_historical_connect_from_file(
             return ptr::null_mut();
         }
         // SAFETY: `creds` was just allocated by `thetadatadx_credentials_from_file`
-        // and is owned by this function; `thetadatadx_historical_connect` borrows
+        // and is owned by this function; `thetadatadx_market_data_connect` borrows
         // it and we free it unconditionally below.
-        let client = unsafe { thetadatadx_historical_connect(creds, config) };
+        let client = unsafe { thetadatadx_market_data_connect(creds, config) };
         // SAFETY: `creds` is the non-null handle checked above;
-        // `thetadatadx_historical_connect` only borrowed it, so this scope still
+        // `thetadatadx_market_data_connect` only borrowed it, so this scope still
         // owns it and frees it exactly once.
         unsafe { thetadatadx_credentials_free(creds) };
         client
     })
 }
 
-/// Free a historical client handle.
+/// Free a market-data client handle.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_historical_free(client: *mut ThetaDataDxHistoricalClient) {
+pub unsafe extern "C" fn thetadatadx_market_data_free(client: *mut ThetaDataDxMarketDataClient) {
     ffi_boundary!((), {
         if !client.is_null() {
             // SAFETY: the pointer was returned by Box::into_raw / thetadatadx_*_new and has not been freed; ownership returns to Rust.
@@ -877,7 +877,7 @@ mod pool_sizing_tests {
     //!
     //! Each test allocates a fresh `ThetaDataDxConfig` via `thetadatadx_config_production`,
     //! calls the setter under test, then reads the underlying Rust
-    //! `HistoricalConfig` to confirm the value round-tripped.
+    //! `MarketDataConfig` to confirm the value round-tripped.
 
     #[test]
     fn flush_mode_round_trips() {
@@ -910,7 +910,7 @@ mod pool_sizing_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            // Default seeded at 100 MiB by `HistoricalConfig::default()`.
+            // Default seeded at 100 MiB by `MarketDataConfig::default()`.
             let mut current: usize = 0;
             assert_eq!(
                 super::thetadatadx_config_get_warn_on_buffered_threshold_bytes(cfg, &mut current),
@@ -920,7 +920,7 @@ mod pool_sizing_tests {
             // Override.
             super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 50 * 1024 * 1024);
             assert_eq!(
-                (*cfg).inner.historical.warn_on_buffered_threshold_bytes,
+                (*cfg).inner.market_data.warn_on_buffered_threshold_bytes,
                 50 * 1024 * 1024
             );
             assert_eq!(
@@ -930,7 +930,7 @@ mod pool_sizing_tests {
             assert_eq!(current, 50 * 1024 * 1024);
             // Disable.
             super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(cfg, 0);
-            assert_eq!((*cfg).inner.historical.warn_on_buffered_threshold_bytes, 0);
+            assert_eq!((*cfg).inner.market_data.warn_on_buffered_threshold_bytes, 0);
             // Null-pointer guards: setter is a no-op (matches the
             // ffi_boundary `()` return); getter returns -1.
             super::thetadatadx_config_set_warn_on_buffered_threshold_bytes(std::ptr::null_mut(), 4);
@@ -951,7 +951,7 @@ mod pool_sizing_tests {
         assert!(!cfg.is_null());
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
-            // Default seeded at 300s by `HistoricalConfig::default()`.
+            // Default seeded at 300s by `MarketDataConfig::default()`.
             let mut current: u64 = 0;
             assert_eq!(
                 super::thetadatadx_config_get_request_timeout_secs(cfg, &mut current),
@@ -960,7 +960,7 @@ mod pool_sizing_tests {
             assert_eq!(current, 300);
             // Override.
             super::thetadatadx_config_set_request_timeout_secs(cfg, 45);
-            assert_eq!((*cfg).inner.historical.request_timeout_secs, 45);
+            assert_eq!((*cfg).inner.market_data.request_timeout_secs, 45);
             assert_eq!(
                 super::thetadatadx_config_get_request_timeout_secs(cfg, &mut current),
                 0
@@ -968,7 +968,7 @@ mod pool_sizing_tests {
             assert_eq!(current, 45);
             // Disable (no default deadline).
             super::thetadatadx_config_set_request_timeout_secs(cfg, 0);
-            assert_eq!((*cfg).inner.historical.request_timeout_secs, 0);
+            assert_eq!((*cfg).inner.market_data.request_timeout_secs, 0);
             // Null-pointer guards: setter is a no-op (matches the
             // ffi_boundary `()` return); getter returns -1.
             super::thetadatadx_config_set_request_timeout_secs(std::ptr::null_mut(), 4);
@@ -1171,7 +1171,7 @@ mod reconnect_setter_tests {
             super::thetadatadx_config_set_reconnect_stable_window_secs(cfg, 60);
 
             // Historical tuning mutations survived the reconnect setter sequence.
-            let mdds = &(*cfg).inner.historical;
+            let mdds = &(*cfg).inner.market_data;
             assert_eq!(mdds.warn_on_buffered_threshold_bytes, 8 * 1024 * 1024);
 
             // Reconnect mutations landed on `Auto(limits)`.
@@ -1768,7 +1768,7 @@ mod auth_metrics_setter_tests {
     fn environment_reads_back_the_selected_clusters_via_getters() {
         // The readback getters mirrored across the bindings. The two
         // channels are selected independently: the stage preset moves the
-        // historical channel to staging while streaming stays on
+        // market-data channel to staging while streaming stays on
         // production, the dev preset moves the streaming channel to dev
         // while historical stays on production, and production keeps both.
         let staged = super::thetadatadx_config_stage();
@@ -1776,24 +1776,26 @@ mod auth_metrics_setter_tests {
         let dev = super::thetadatadx_config_dev();
         // SAFETY: all three handles were just returned by the config constructors.
         unsafe {
-            let got = take_owned(super::thetadatadx_config_get_historical_environment(staged));
+            let got = take_owned(super::thetadatadx_config_get_market_data_environment(
+                staged,
+            ));
             assert_eq!(got.as_deref(), Some("STAGE"));
             let got = take_owned(super::thetadatadx_config_get_streaming_environment(staged));
             assert_eq!(got.as_deref(), Some("PROD"));
 
-            let got = take_owned(super::thetadatadx_config_get_historical_environment(prod));
+            let got = take_owned(super::thetadatadx_config_get_market_data_environment(prod));
             assert_eq!(got.as_deref(), Some("PROD"));
             let got = take_owned(super::thetadatadx_config_get_streaming_environment(prod));
             assert_eq!(got.as_deref(), Some("PROD"));
 
-            let got = take_owned(super::thetadatadx_config_get_historical_environment(dev));
+            let got = take_owned(super::thetadatadx_config_get_market_data_environment(dev));
             assert_eq!(got.as_deref(), Some("PROD"));
             let got = take_owned(super::thetadatadx_config_get_streaming_environment(dev));
             assert_eq!(got.as_deref(), Some("DEV"));
 
             // A null handle yields null on both getters.
             assert!(
-                super::thetadatadx_config_get_historical_environment(std::ptr::null()).is_null()
+                super::thetadatadx_config_get_market_data_environment(std::ptr::null()).is_null()
             );
             assert!(
                 super::thetadatadx_config_get_streaming_environment(std::ptr::null()).is_null()
@@ -1812,31 +1814,31 @@ mod auth_metrics_setter_tests {
         // SAFETY: handle just returned by thetadatadx_config_production.
         unsafe {
             assert_eq!(
-                super::thetadatadx_config_with_historical_environment(cfg, 1),
+                super::thetadatadx_config_with_market_data_environment(cfg, 1),
                 0
             );
             assert_eq!(
                 super::thetadatadx_config_with_streaming_environment(cfg, 1),
                 0
             );
-            let got = take_owned(super::thetadatadx_config_get_historical_environment(cfg));
+            let got = take_owned(super::thetadatadx_config_get_market_data_environment(cfg));
             assert_eq!(got.as_deref(), Some("STAGE"));
             let got = take_owned(super::thetadatadx_config_get_streaming_environment(cfg));
             assert_eq!(got.as_deref(), Some("DEV"));
             // An out-of-range selector is rejected and leaves the config unchanged.
             assert_eq!(
-                super::thetadatadx_config_with_historical_environment(cfg, 2),
+                super::thetadatadx_config_with_market_data_environment(cfg, 2),
                 -1
             );
             assert_eq!(
                 super::thetadatadx_config_with_streaming_environment(cfg, 9),
                 -1
             );
-            let got = take_owned(super::thetadatadx_config_get_historical_environment(cfg));
+            let got = take_owned(super::thetadatadx_config_get_market_data_environment(cfg));
             assert_eq!(got.as_deref(), Some("STAGE"));
             // A null handle is rejected.
             assert_eq!(
-                super::thetadatadx_config_with_historical_environment(std::ptr::null_mut(), 0),
+                super::thetadatadx_config_with_market_data_environment(std::ptr::null_mut(), 0),
                 -1
             );
             super::thetadatadx_config_free(cfg);

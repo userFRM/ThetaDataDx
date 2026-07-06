@@ -2,12 +2,12 @@
 /* eslint-disable */
 export declare class Client {
   /**
-   * Historical-data sub-namespace: `client.historical.stockHistoryEOD(...)`.
+   * Historical-data sub-namespace: `client.market_data.stockHistoryEOD(...)`.
    *
-   * Returns a fresh [`HistoricalView`] that shares the underlying
+   * Returns a fresh [`MarketDataView`] that shares the underlying
    * client connection. No auth round-trip, no streaming-state mutation.
    */
-  get historical(): HistoricalView
+  get marketData(): MarketDataView
   /**
    * Real-time-streaming sub-namespace: `client.stream.subscribe(...)`,
    * `client.stream.startStreaming(cb)`, …
@@ -59,7 +59,7 @@ export declare class Client {
    * field.
    *
    * ```js
-   * const staged = await Client.connectWith({ apiKey: "td1_...", historicalType: "STAGE" });
+   * const staged = await Client.connectWith({ apiKey: "td1_...", marketDataType: "STAGE" });
    * const withLogin = await Client.connectWith({ email: "u@e.com", password: "secret" });
    * const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
    * ```
@@ -67,7 +67,7 @@ export declare class Client {
    * Exactly one authentication field must be set: `apiKey`,
    * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
    * or `credentialsFile`. Passing none, or two different ones, rejects
-   * with a `ConfigError` before any network round-trip. `historicalType`
+   * with a `ConfigError` before any network round-trip. `marketDataType`
    * (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
    * environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
    * the streaming environment, independently. For a pre-built full
@@ -146,15 +146,15 @@ export declare class Config {
    * Source the target environment from a `.env`-format file.
    *
    * Starts from the production config and applies the cluster keys
-   * carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
+   * carried by the file: `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`,
    * case-insensitive) selects the environment, and the optional
-   * `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
+   * `THETADATA_MARKET_DATA_HOST` / `THETADATA_STREAMING_HOST` keys
    * override the hosts (an explicit host wins over the environment
    * default).
    *
    * Reads the same file format and keys as `Credentials.fromDotenv`, so
    * a single `.env` file can carry both `THETADATA_API_KEY` and
-   * `THETADATA_HISTORICAL_TYPE`.
+   * `THETADATA_MARKET_DATA_TYPE`.
    */
   static fromDotenv(path: string): Config
   /**
@@ -219,11 +219,11 @@ export declare class Config {
    * `"PROD"` for the production cluster or `"STAGE"` for staging. The
    * historical and streaming channels are selected independently;
    * `Config.production()` / `Config.stage()` (and the
-   * `THETADATA_HISTORICAL_TYPE` key on `Config.fromDotenv`) set the historical
+   * `THETADATA_MARKET_DATA_TYPE` key on `Config.fromDotenv`) set the historical
    * channel, and this is the readback of that selection. Mirrors the
-   * `historicalType` string the inline `Client.connectWith` factory accepts.
+   * `marketDataType` string the inline `Client.connectWith` factory accepts.
    */
-  get historicalEnvironment(): string
+  get marketDataEnvironment(): string
   /**
    * Target streaming environment carried by this configuration:
    * `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
@@ -438,13 +438,13 @@ export declare class Config {
   /** Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt). */
   get flatfilesReadTimeoutSecs(): bigint
   /**
-   * Override the historical data port. Companion to `setHistoricalHost` —
+   * Override the historical data port. Companion to `setMarketDataHost` —
    * same test-only rationale. Rejects values outside the `0..=65535`
    * port range.
    */
-  setHistoricalPort(port: number): void
+  setMarketDataPort(port: number): void
   /** Current historical gRPC port. */
-  get historicalPort(): number
+  get marketDataPort(): number
   /**
    * Set the warning threshold (in bytes) for buffered (non-streaming)
    * historical responses. Endpoints whose decoded total exceeds this
@@ -561,10 +561,10 @@ export declare class Config {
   setClientType(clientType: string): void
   /** Current `auth.client_type` value. */
   get clientType(): string
-  /** Override the historical gRPC host. Companion to `setHistoricalPort`. */
-  setHistoricalHost(host: string): void
+  /** Override the historical gRPC host. Companion to `setMarketDataPort`. */
+  setMarketDataHost(host: string): void
   /** Current historical gRPC host. */
-  get historicalHost(): string
+  get marketDataHost(): string
   /**
    * Set the streaming write-flush policy.
    *
@@ -808,12 +808,12 @@ export declare class FlatFilesNamespace {
  * unified `Client` when you need both surfaces.
  *
  * ```ts
- * import { HistoricalClient } from "thetadatadx";
- * const historical = await HistoricalClient.connectFromFile("creds.txt");
+ * import { MarketDataClient } from "thetadatadx";
+ * const historical = await MarketDataClient.connectFromFile("creds.txt");
  * const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
  * ```
  */
-export declare class HistoricalClient {
+export declare class MarketDataClient {
   /**
    * Connect to ThetaData with a `Credentials` handle and open the
    * historical data channel. Historical only — this client never
@@ -826,19 +826,19 @@ export declare class HistoricalClient {
    *
    * `async` for the same reason as [`Client::connect`]: the channel open
    * plus authentication handshake run off the libuv thread and the
-   * method returns a `Promise<HistoricalClient>`, so the Node event loop
+   * method returns a `Promise<MarketDataClient>`, so the Node event loop
    * is never frozen for the handshake.
    */
-  static connect(creds: Credentials, config?: Config | undefined | null): Promise<HistoricalClient>
+  static connect(creds: Credentials, config?: Config | undefined | null): Promise<MarketDataClient>
   /**
    * Connect with a credentials file (line 1 = email, line 2 =
    * password). Convenience wrapper over `Credentials.fromFile` +
    * `connect`. Historical only. Pass an optional
    * `Config` to override the production-default endpoint.
    *
-   * `async` for the same reason as [`HistoricalClient::connect`].
+   * `async` for the same reason as [`MarketDataClient::connect`].
    */
-  static connectFromFile(path: string, config?: Config | undefined | null): Promise<HistoricalClient>
+  static connectFromFile(path: string, config?: Config | undefined | null): Promise<MarketDataClient>
   /**
    * Deterministically close the historical client.
    *
@@ -848,7 +848,7 @@ export declare class HistoricalClient {
    * co-owns it and making the client UNUSABLE (every endpoint call rejects
    * with "client is closed"). Matches the unified `Client` lifecycle across
    * every binding. Idempotent — a second close finds an empty slot. Prefer the
-   * `using` declaration (`using c = await HistoricalClient.connect(...)`) so
+   * `using` declaration (`using c = await MarketDataClient.connect(...)`) so
    * `close()` runs on scope exit through `[Symbol.dispose]`.
    */
   close(): void
@@ -1756,7 +1756,7 @@ export declare class HistoricalClient {
 
 /**
  * User-facing historical-data sub-namespace returned by the
- * `client.historical` getter.
+ * `client.market_data` getter.
  *
  * A lightweight handle that shares the underlying client connection;
  * constructing it performs no auth round-trip and mutates no streaming
@@ -1764,7 +1764,7 @@ export declare class HistoricalClient {
  * from a single declarative surface definition, so the surface stays a
  * single generated source of truth.
  */
-export declare class HistoricalView {
+export declare class MarketDataView {
   /**
    * List all available stock ticker symbols.
    *
@@ -3469,7 +3469,7 @@ export interface ClientConnectOptions {
    * streaming channels are selected independently. For full host-level
    * control, build a `Config` and use `Client.connect(creds, config)`.
    */
-  historicalType?: string
+  marketDataType?: string
   /**
    * Streaming environment selector (`"PROD"` / `"DEV"`,
    * case-insensitive). Defaults to production. Selected independently of

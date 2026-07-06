@@ -1,14 +1,14 @@
-//! gRPC response-stream helpers on [`HistoricalClient`].
+//! gRPC response-stream helpers on [`MarketDataClient`].
 //!
 //! MDDS RPCs are server-streaming: each call yields a
 //! [`crate::grpc::ServerStreaming`] of `ResponseData` messages whose
 //! payloads are zstd-compressed `DataTable` chunks. Two collection
 //! strategies are provided:
 //!
-//! - [`collect_stream`](HistoricalClient::collect_stream) (crate-private) — drains
+//! - [`collect_stream`](MarketDataClient::collect_stream) (crate-private) — drains
 //!   the stream into a single merged `DataTable`. Used by the generated list
 //!   and parsed endpoint macros where the caller expects a finite result.
-//! - [`for_each_chunk`](HistoricalClient::for_each_chunk) (public) — streams each
+//! - [`for_each_chunk`](MarketDataClient::for_each_chunk) (public) — streams each
 //!   chunk into a caller-supplied closure without materializing every row.
 //!   Used by the generated streaming builders and public enough for callers
 //!   processing multi-million-row responses.
@@ -23,7 +23,7 @@ use crate::error::Error;
 use crate::grpc::ServerStreaming;
 use crate::proto;
 
-use super::client::HistoricalClient;
+use super::client::MarketDataClient;
 
 pub(crate) fn chunk_columns<T: crate::columns::WireColumns>(
     table: &proto::DataTable,
@@ -40,7 +40,7 @@ pub(crate) fn chunk_columns<T: crate::columns::WireColumns>(
     }
 }
 
-impl HistoricalClient {
+impl MarketDataClient {
     /// Collect all streamed `ResponseData` chunks into a single `DataTable`.
     ///
     /// MDDS returns server-streaming responses where each chunk is a zstd-
@@ -126,7 +126,7 @@ impl HistoricalClient {
     ///
     /// ```rust,ignore
     /// // `ignore` here because the example needs a live authenticated
-    /// // `HistoricalClient` to open a server-streaming gRPC channel — no
+    /// // `MarketDataClient` to open a server-streaming gRPC channel — no
     /// // in-process fixture can stand in.
     /// let request = /* build your gRPC request */;
     /// // Bind the channel lease so its pre-dispatch reservation
@@ -276,8 +276,8 @@ impl HistoricalClient {
 }
 
 /// Decode one streamed `ResponseData` and apply the first-chunk header
-/// contract shared by [`HistoricalClient::for_each_chunk`] and
-/// [`HistoricalClient::for_each_chunk_async`]: record the first non-empty
+/// contract shared by [`MarketDataClient::for_each_chunk`] and
+/// [`MarketDataClient::for_each_chunk_async`]: record the first non-empty
 /// header row into `saved_headers`, and reject a later chunk whose
 /// non-empty headers drift from it
 /// (`decode::DecodeError::ChunkHeaderDrift`). The caller resolves which

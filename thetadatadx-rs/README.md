@@ -205,7 +205,7 @@ let path = thetadatadx::flatfile_request(
 With the `polars` or `arrow` feature enabled, any history result converts to a dataframe over the Arrow C Data Interface — zero-copy, no row-by-row iteration:
 
 ```rust
-let df = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?.to_polars()?;
+let df = client.market_data().stock_history_eod("AAPL", "20240101", "20240301").await?.to_polars()?;
 ```
 
 ## Errors

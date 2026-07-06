@@ -1,7 +1,7 @@
 /// Merge a list of prost-encoded `proto::ResponseData` frames into the same
 /// single `DataTable` the live gRPC collector would produce.
 ///
-/// Mirrors `HistoricalClient::collect_stream`: each chunk is prost-decoded, then
+/// Mirrors `MarketDataClient::collect_stream`: each chunk is prost-decoded, then
 /// the zstd payload is decompressed and the rows are concatenated. Headers
 /// are taken from the first chunk that carries them (matches collect_stream
 /// semantics).

@@ -875,23 +875,23 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_read_timeout_secs(
     })
 }
 
-/// Set the historical gRPC port on a config handle.
+/// Set the market-data gRPC port on a config handle.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_historical_port(
+pub unsafe extern "C" fn thetadatadx_config_set_market_data_port(
     config: *mut ThetaDataDxConfig,
     port: u16,
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.historical.port = port;
+        config.inner.market_data.port = port;
     })
 }
 
-/// Read the configured historical gRPC port. Writes the value
+/// Read the configured market-data gRPC port. Writes the value
 /// into `*out_port`. Returns `0` on success, `-1` if either pointer is
 /// null.
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_historical_port(
+pub unsafe extern "C" fn thetadatadx_config_get_market_data_port(
     config: *const ThetaDataDxConfig,
     out_port: *mut u16,
 ) -> i32 {
@@ -904,7 +904,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_port(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
         unsafe {
-            *out_port = config.inner.historical.port;
+            *out_port = config.inner.market_data.port;
         }
         0
     })
@@ -925,7 +925,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_warn_on_buffered_threshold_bytes
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.historical.warn_on_buffered_threshold_bytes = n;
+        config.inner.market_data.warn_on_buffered_threshold_bytes = n;
     })
 }
 
@@ -947,7 +947,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes
         let config = unsafe { &*config };
         // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
         unsafe {
-            *out_n = config.inner.historical.warn_on_buffered_threshold_bytes;
+            *out_n = config.inner.market_data.warn_on_buffered_threshold_bytes;
         }
         0
     })
@@ -970,7 +970,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_request_timeout_secs(
 ) {
     ffi_boundary!((), {
         let config = require_config_mut!(config);
-        config.inner.historical.request_timeout_secs = secs;
+        config.inner.market_data.request_timeout_secs = secs;
     })
 }
 
@@ -994,7 +994,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_request_timeout_secs(
         let config = unsafe { &*config };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
-            *out = config.inner.historical.request_timeout_secs;
+            *out = config.inner.market_data.request_timeout_secs;
         }
         0
     })
@@ -1397,14 +1397,14 @@ pub unsafe extern "C" fn thetadatadx_config_get_client_type(
     })
 }
 
-/// Set the historical gRPC host on a config handle.
+/// Set the market-data gRPC host on a config handle.
 ///
 /// `host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
 /// Returns `0` on success, `-1` if `config` is null or `host` is
 /// null / not valid UTF-8 (the diagnostic is written to thread-local
 /// storage retrievable via `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_historical_host(
+pub unsafe extern "C" fn thetadatadx_config_set_market_data_host(
     config: *mut ThetaDataDxConfig,
     host: *const c_char,
 ) -> i32 {
@@ -1417,29 +1417,29 @@ pub unsafe extern "C" fn thetadatadx_config_set_historical_host(
         let host = match unsafe { cstr_to_str(host) } {
             Ok(Some(s)) => s,
             Ok(None) => {
-                set_error("historical_host is null");
+                set_error("market_data_host is null");
                 return -1;
             }
             Err(e) => {
-                set_error(&format!("historical_host is not valid UTF-8: {e}"));
+                set_error(&format!("market_data_host is not valid UTF-8: {e}"));
                 return -1;
             }
         };
         // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
-        config.inner.set_historical_host(host.to_string());
+        config.inner.set_market_data_host(host.to_string());
         0
     })
 }
 
-/// Read the current historical gRPC host.
+/// Read the current market-data gRPC host.
 ///
 /// On success, returns a heap-owned NUL-terminated C string the caller
 /// MUST release with `thetadatadx_string_free`. Returns null if `config` is
 /// null or the stored value contains an interior NUL (the diagnostic is
 /// written to `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_historical_host(
+pub unsafe extern "C" fn thetadatadx_config_get_market_data_host(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
@@ -1449,10 +1449,10 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_host(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        match std::ffi::CString::new(config.inner.historical_host()) {
+        match std::ffi::CString::new(config.inner.market_data_host()) {
             Ok(c) => c.into_raw(),
             Err(e) => {
-                set_error(&format!("historical_host contains an interior NUL: {e}"));
+                set_error(&format!("market_data_host contains an interior NUL: {e}"));
                 ptr::null_mut()
             }
         }

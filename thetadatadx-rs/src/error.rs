@@ -178,7 +178,7 @@ pub enum DecompressErrorKind {
     },
     /// The peer-advertised decompressed size exceeded the
     /// `max_message_size` ceiling threaded from
-    /// [`crate::config::HistoricalConfig::max_message_size`]. A hostile peer
+    /// [`crate::config::MarketDataConfig::max_message_size`]. A hostile peer
     /// that sets `ResponseData.original_size = i32::MAX` (≈ 2 GiB) is
     /// rejected at this variant before any `Vec::resize` runs, so the
     /// decoder cannot be coerced into a runaway allocation.
@@ -188,7 +188,7 @@ pub enum DecompressErrorKind {
         /// for zstd; `compressed_data.len()` for the no-compress
         /// path).
         size: usize,
-        /// Configured ceiling — mirrors `HistoricalConfig::max_message_size`.
+        /// Configured ceiling — mirrors `MarketDataConfig::max_message_size`.
         max: usize,
     },
 }

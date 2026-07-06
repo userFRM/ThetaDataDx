@@ -415,7 +415,7 @@ impl SubscriptionAccess {
     /// is accessible when its Nexus tier decoded to a known value (FREE..=PRO);
     /// an omitted or unrecognized tier reads as no access.
     fn from_client(client: &Client) -> Self {
-        let hist = client.historical();
+        let hist = client.market_data();
         Self {
             stock: hist.stock_tier().is_some(),
             option: hist.options_tier().is_some(),
@@ -485,7 +485,7 @@ fn tool_definitions_for(access: Option<SubscriptionAccess>) -> Vec<Value> {
 fn tool_definitions() -> Vec<Value> {
     let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
 
-    // Registry-driven: every HistoricalClient endpoint
+    // Registry-driven: every MarketDataClient endpoint
     for ep in ENDPOINTS {
         let mut props = sonic_rs::Object::new();
         let mut required = Vec::new();
@@ -1227,7 +1227,7 @@ async fn execute_tool(
     })?;
 
     let converted_args = param!(convert_endpoint_args(args));
-    let output = match endpoint::invoke_endpoint(client.historical(), name, &converted_args).await {
+    let output = match endpoint::invoke_endpoint(client.market_data(), name, &converted_args).await {
         Ok(output) => output,
         Err(EndpointError::InvalidParams(message)) => {
             return Err(ToolError::InvalidParams(message));

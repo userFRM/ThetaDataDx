@@ -1,9 +1,9 @@
 //! C++ SDK emitter.
 //!
 //! Generates the EndpointRequestOptions header, per-endpoint method
-//! declarations and definitions on both the standalone `HistoricalClient`
-//! and the unified client's `Historical` view (returned by
-//! `client.historical()`), and the C-ABI-facing `_with_options` extern decl
+//! declarations and definitions on both the standalone `MarketDataClient`
+//! and the unified client's `MarketData` view (returned by
+//! `client.market_data()`), and the C-ABI-facing `_with_options` extern decl
 //! header.
 
 use std::fmt::Write as _;
@@ -93,7 +93,7 @@ pub(super) fn render_cpp_options(params: &[GeneratedParam]) -> String {
     out
 }
 
-/// Renders the `HistoricalClient` member-function declarations for every
+/// Renders the `MarketDataClient` member-function declarations for every
 /// non-streaming endpoint, including the singular-symbol overloads. Each
 /// blocking query is paired with an `<endpoint>_async` companion returning
 /// a `std::future<std::vector<Row>>` so callers can run the request off the
@@ -257,7 +257,7 @@ fn render_cpp_async_overload(
         "    /// returned future co-owns the FFI handle and may safely outlive the object\n",
     );
     out.push_str(
-        "    /// it was launched from — including a temporary `client.historical()` view.\n",
+        "    /// it was launched from — including a temporary `client.market_data()` view.\n",
     );
     out.push_str("    /// The handle is freed only once the last owner (this object or the\n");
     out.push_str("    /// in-flight future) drops, so there is no dangling-`this` window.\n");
@@ -307,7 +307,7 @@ fn cpp_stream_signature(endpoint: &GeneratedEndpoint, default_options: bool) -> 
 }
 
 /// Emit the `<endpoint>_stream(...)` server-stream method *declarations* on the
-/// C++ `Historical` view (returned by `client.historical()`), included in the
+/// C++ `MarketData` view (returned by `client.market_data()`), included in the
 /// class body via `thetadatadx-cpp/include/historical_stream.hpp.inc`.
 ///
 /// Declarations only — the definitions live out-of-line in
@@ -369,8 +369,8 @@ pub(super) fn render_cpp_stream_decls(endpoints: &[GeneratedEndpoint]) -> String
 /// definitions, included in `thetadatadx.cpp` via
 /// `thetadatadx-cpp/src/historical_stream.cpp.inc`.
 ///
-/// Each borrows the historical `ThetaDataDxHistoricalClient*` from the unified handle
-/// (`thetadatadx_client_historical`), builds the same `EndpointRequestOptions` the
+/// Each borrows the historical `ThetaDataDxMarketDataClient*` from the unified handle
+/// (`thetadatadx_client_market_data`), builds the same `EndpointRequestOptions` the
 /// buffered methods take, erases the typed `handler` to a
 /// `std::function<void(const void*, size_t)>` that reinterprets each chunk
 /// pointer as the endpoint's tick type, and drives the C-ABI
@@ -394,12 +394,12 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
 
         writeln!(
             out,
-            "void Historical::{}_stream({}) const {{",
+            "void MarketData::{}_stream({}) const {{",
             endpoint.name,
             cpp_stream_signature(endpoint, false),
         )
         .unwrap();
-        out.push_str("    const ThetaDataDxHistoricalClient* hist = historical_handle();\n");
+        out.push_str("    const ThetaDataDxMarketDataClient* hist = market_data_handle();\n");
         out.push_str("    detail::FfiEndpointRequestOptions ffi_options(options);\n");
         // Clear any stale FFI error so a -1 return is attributed to this call.
         out.push_str("    thetadatadx_clear_error();\n");
@@ -420,7 +420,7 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
         for param in &method_params {
             write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
         }
-        out.push_str(", &Historical::stream_chunk_shim, &erased, &ffi_options.raw);\n");
+        out.push_str(", &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);\n");
         out.push_str("    if (rc != 0) {\n");
         out.push_str("        detail::throw_last_ffi_error();\n");
         out.push_str("    }\n");
@@ -430,13 +430,13 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
 }
 
 /// C++ classes that carry the buffered historical query surface. The
-/// standalone `HistoricalClient` owns a `ThetaDataDxHistoricalClient*` directly;
-/// the unified client's `Historical` view (returned by `client.historical()`)
-/// borrows the unified handle and derives the historical sub-handle. Both
-/// expose a private `historical_handle()` accessor, so the generated
+/// standalone `MarketDataClient` owns a `ThetaDataDxMarketDataClient*` directly;
+/// the unified client's `MarketData` view (returned by `client.market_data()`)
+/// borrows the unified handle and derives the market-data sub-handle. Both
+/// expose a private `market_data_handle()` accessor, so the generated
 /// definitions are identical apart from the qualifying class name and
 /// compile against either at zero per-method cost.
-const HISTORICAL_IMPL_CLASSES: &[&str] = &["HistoricalClient", "Historical"];
+const HISTORICAL_IMPL_CLASSES: &[&str] = &["MarketDataClient", "MarketData"];
 
 /// Renders the buffered historical query member-function definitions for
 /// every non-streaming endpoint onto each historical class, bridging each
@@ -552,7 +552,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
             endpoint.name
         )
         .unwrap();
-        out.push_str("(historical_handle()");
+        out.push_str("(market_data_handle()");
         for param in &method_params {
             if param.param_type == "Symbols" {
                 out.push_str(", symbol_ptrs.data(), symbol_ptrs.size()");
@@ -573,7 +573,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
             endpoint.name
         )
         .unwrap();
-        out.push_str("(historical_handle()");
+        out.push_str("(market_data_handle()");
         for param in &method_params {
             if param.param_type == "Symbols" {
                 out.push_str(", symbol_ptrs.data(), symbol_ptrs.size()");
@@ -600,7 +600,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
         endpoint.name
     )
     .unwrap();
-    out.push_str("(historical_handle()");
+    out.push_str("(market_data_handle()");
     for param in &method_params {
         if param.param_type == "Symbols" {
             out.push_str(", symbol_ptrs.data(), symbol_ptrs.size()");
@@ -644,7 +644,7 @@ pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoin
         let params = method_params(endpoint);
         write!(
             out,
-            "extern {} {}(const ThetaDataDxHistoricalClient* client",
+            "extern {} {}(const ThetaDataDxMarketDataClient* client",
             return_type, ffi_name
         )
         .unwrap();

@@ -107,13 +107,13 @@ def _default_workload() -> Callable[[], int]:
             t0 = time.perf_counter()
             while time.perf_counter() - t0 < duration:
                 # Trip into the Rust Mutex inside `Config` via the
-                # `historical_host` property getter. Each access acquires the
+                # `market_data_host` property getter. Each access acquires the
                 # std::sync::Mutex on `inner` then drops it. The
                 # Mutex-protected DirectConfig snapshot is read under
                 # the lock, then the GIL is reacquired only to wrap the
                 # returned String in a Py object — so a CPU peer thread
                 # can preempt the lock-holding thread between calls.
-                _ = config.historical_host
+                _ = config.market_data_host
                 n += 1
             return n
 

@@ -15,7 +15,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 // The wrapper patches the disposers onto the native `Client` /
-// `HistoricalClient` prototypes at import time and re-exports the native
+// `MarketDataClient` prototypes at import time and re-exports the native
 // classes, so importing it is enough to exercise both.
 let mod;
 try {
@@ -76,20 +76,20 @@ describe('close() releases the handle and makes the client unusable', () => {
     }
     const client = await mod.Client.connectFromFile(credsPath);
     client.close();
-    assert.throws(() => client.historical, /closed/, 'historical must throw after close');
+    assert.throws(() => client.marketData, /closed/, 'historical must throw after close');
     assert.throws(() => client.stream, /closed/, 'stream must throw after close');
     assert.throws(() => client.flatFiles, /closed/, 'flatFiles must throw after close');
     // Idempotent.
     assert.doesNotThrow(() => client.close());
   });
 
-  it('standalone HistoricalClient: endpoint call rejects after close (live)', async () => {
+  it('standalone MarketDataClient: endpoint call rejects after close (live)', async () => {
     const credsPath = process.env.THETADATADX_TEST_CREDS;
     if (!credsPath) {
       console.log('SKIP: set THETADATADX_TEST_CREDS=/path/to/creds.txt to enable this live test');
       return;
     }
-    const hist = await mod.HistoricalClient.connectFromFile(credsPath);
+    const hist = await mod.MarketDataClient.connectFromFile(credsPath);
     hist.close();
     await assert.rejects(
       hist.stockHistoryEOD('AAPL', '20240101', '20240301'),

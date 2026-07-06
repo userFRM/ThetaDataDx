@@ -2,7 +2,7 @@
 
 Locks the contract that the historical tuning properties exposed by
 ``Config`` (such as ``request_timeout_secs``) round-trip through the
-pyo3 binding to the underlying Rust ``HistoricalConfig`` correctly.
+pyo3 binding to the underlying Rust ``MarketDataConfig`` correctly.
 
 Live behaviour (the per-tier connection-pool concurrency limit
 resolved at connect time) is covered by the Rust unit tests under

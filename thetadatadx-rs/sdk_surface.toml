@@ -181,7 +181,7 @@ config_variant = "stage"
 [[methods]]
 name = "config_from_dotenv"
 kind = "config_from_dotenv"
-doc = "Source a configuration from a .env-format file. THETADATA_HISTORICAL_TYPE (PROD/STAGE) selects the environment; THETADATA_HISTORICAL_HOST / THETADATA_STREAMING_HOST override the hosts. The same .env can also carry THETADATA_API_KEY for the credential. Throws on failure."
+doc = "Source a configuration from a .env-format file. THETADATA_MARKET_DATA_TYPE (PROD/STAGE) selects the environment; THETADATA_MARKET_DATA_HOST / THETADATA_STREAMING_HOST override the hosts. The same .env can also carry THETADATA_API_KEY for the credential. Throws on failure."
 targets = ["cpp_lifecycle"]
 params = [{ name = "path", type = "string", doc = "Path to the .env file." }]
 

@@ -65,11 +65,11 @@ C++ ships as a header plus a small implementation file over a prebuilt library (
 ```python
 from thetadatadx import Client
 
-# Pass your API key directly. Use historical_type="STAGE" to target staging.
+# Pass your API key directly. Use market_data_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", date="20240315")
+greeks = client.market_data.option_history_greeks_first_order("SPY", "20260619", date="20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
@@ -130,7 +130,7 @@ with client.streaming(on_event) as session:
 import { Contract, Client } from 'thetadatadx';
 
 async function main() {
-  // Pass your API key directly. Add historicalType: "STAGE" to target staging.
+  // Pass your API key directly. Add marketDataType: "STAGE" to target staging.
   const client = await Client.connectWith({ apiKey: 'td1_...' });
 
   await client.stream.startStreaming((event) => {
@@ -188,7 +188,7 @@ int main() {
         .api_key("td1_...")
         .connect();
 
-    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
+    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f gamma=%+.4f\n",
                     t.strike, t.right, t.delta, t.gamma);
