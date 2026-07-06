@@ -235,8 +235,11 @@ impl std::fmt::Debug for AuthResponse {
 /// User info returned by the Nexus auth endpoint.
 ///
 /// The Nexus API returns per-asset subscription tiers encoded as integers:
-/// FREE=0, VALUE=1, STANDARD=2, PROFESSIONAL=3. These drive concurrency
-/// limits: `2^tier` concurrent historical requests per asset class.
+/// FREE=0, VALUE=1, STANDARD=2, PROFESSIONAL=3. Concurrency is account-wide,
+/// not per asset class: [`AuthUser::max_concurrent_requests`] takes the
+/// highest tier across asset classes and permits `2^tier` concurrent
+/// historical requests, matching the vendor's account-wide-by-highest-tier
+/// rule.
 ///
 /// `Debug` is implemented manually so `email` never lands in panic
 /// output / tracing diagnostics / FFI `repr()`. The subscription
