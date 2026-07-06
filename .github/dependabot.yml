@@ -17,6 +17,12 @@ updates:
     groups:
       patch-minor:
         update-types: ["patch", "minor"]
+    # The `thetadatadx-*` platform packages in optionalDependencies are this
+    # project's own napi binaries; their versions track the release and are
+    # set by scripts/release/bump_version.py, not dependabot. Bumping them to
+    # an as-yet-unpublished release version breaks the lockfile install.
+    ignore:
+      - dependency-name: "thetadatadx-*"
 
   - package-ecosystem: "npm"
     directory: "/docs-site"
