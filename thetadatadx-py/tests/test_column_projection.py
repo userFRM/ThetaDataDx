@@ -75,13 +75,22 @@ def test_option_trade_keeps_contract_id_drops_flags():
         assert flag not in cols, f"no gRPC trade response carries {flag}; got {cols}"
 
 
-def test_stock_eod_drops_contract_id_and_phantom_date():
-    _lst, cols = _columns("stock_history_eod")
+def test_stock_eod_keeps_trading_date_and_drops_contract_id():
+    lst, cols = _columns("stock_history_eod")
     for cid in ("expiration", "strike", "right"):
         assert cid not in cols, f"stock EOD must not carry {cid}; got {cols}"
-    # `created` wire column must not resurrect a phantom `date` via the alias.
-    assert "date" not in cols, f"stock EOD phantom date column leaked; got {cols}"
-    assert "created_ms_of_day" in cols
+    # The EOD wire sends one `created` Timestamp the schema splits into
+    # `created_ms_of_day` (time) AND `date` (YYYYMMDD). Both must survive the
+    # projection so the trading day is not lost: `created_ms_of_day` is a
+    # ~16:00 ET near-constant across rows, so without `date` the rows are
+    # indistinguishable. Mirrors the Rust `test_column_projection` stock-EOD
+    # assertions (thetadatadx-rs/tests/test_column_projection.rs).
+    assert "created_ms_of_day" in cols, f"got {cols}"
+    assert "date" in cols, f"stock EOD must keep the trading `date`; got {cols}"
+    dates = lst.to_arrow().column("date").to_pylist()
+    assert dates == [20240102, 20240103, 20240104, 20240105], (
+        f"date column must carry the distinct YYYYMMDD trading days; got {dates}"
+    )
 
 
 def test_hand_built_list_keeps_full_schema():
