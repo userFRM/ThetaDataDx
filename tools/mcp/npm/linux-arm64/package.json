@@ -1,6 +1,6 @@
 {
   "name": "thetadatadx-mcp-linux-arm64",
-  "version": "13.0.0-rc.16",
+  "version": "13.0.0-rc.17",
   "description": "thetadatadx-mcp prebuilt server binary for linux-arm64",
   "license": "Apache-2.0",
   "repository": {

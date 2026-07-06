@@ -42,9 +42,9 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 > The active release line is the **13.0.0 release candidate**. It carries the latest data coverage and fixes, and we recommend installing it. Grab the newest RC:
 >
 > ```bash
-> pip install --pre thetadatadx          # Python (pinned: pip install thetadatadx==13.0.0rc14)
-> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.16)
-> cargo add thetadatadx@13.0.0-rc.16     # Rust
+> pip install --pre thetadatadx          # Python (pinned: pip install thetadatadx==13.0.0rc17)
+> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.17)
+> cargo add thetadatadx@13.0.0-rc.17     # Rust
 > ```
 
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
@@ -200,7 +200,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.16"
+thetadatadx = "13.0.0-rc.17"
 ```
 
 ```rust
