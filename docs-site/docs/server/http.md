@@ -69,4 +69,4 @@ Mirrored 1:1 from the JVM terminal — unauthenticated `GET`, bare `text/plain` 
 
 ## Concurrency behavior
 
-Bursts queue, they don't fail. In-flight requests are capped at the HTTP edge (256) and by your [subscription tier's concurrency](/articles/concurrent-requests) inside the SDK; requests beyond either cap wait in order. Only genuine upstream exhaustion — after the SDK's own retries — surfaces as `503` with `Retry-After`. A client that disconnects or times out releases its slots immediately.
+Bursts queue, they don't fail. The HTTP edge admits up to 256 simultaneous requests; beyond that they queue and are served in order, and a client that disconnects or times out frees its place immediately. Genuine upstream exhaustion surfaces as `503` with `Retry-After`.

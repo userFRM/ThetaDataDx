@@ -102,7 +102,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 
 Every field above is available on all four language surfaces under the naming convention shown earlier; unknown values fail at configuration time, not at first request.
 
-Historical request concurrency is not in this table because it isn't configurable. The SDK sizes its historical connection pool automatically from your subscription tier at connect time. See [Concurrent Requests](/articles/concurrent-requests).
+Historical request concurrency is not in this table because it isn't configurable: it is set by your subscription tier. See [Concurrent Requests](/articles/concurrent-requests).
 
 ## Config file (Rust)
 
