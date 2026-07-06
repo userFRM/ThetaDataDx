@@ -1374,8 +1374,11 @@ pub unsafe extern "C" fn thetadatadx_client_panic_count(handle: *const ThetaData
 ///
 /// Returns `1` once the previous `thetadatadx_client_stop_streaming` /
 /// `_reconnect` session's event-dispatch consumer thread has finished
-/// firing the registered callback. Returns `0` on timeout or when no
-/// stream has been stopped on this handle.
+/// firing the registered callback, and also when no stream has ever been
+/// started or stopped on this handle (an idle handle has nothing to
+/// drain, so it is already quiesced). Returns `0` only on timeout. Note
+/// this differs from the standalone `thetadatadx_streaming_await_drain`,
+/// which returns `0` for the empty case.
 ///
 /// # When to call
 ///

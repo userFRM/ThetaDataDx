@@ -2631,8 +2631,10 @@ void thetadatadx_client_stop_streaming(const ThetaDataDxClient* handle);
  *  @param handle The unified handle.
  *  @param timeout_ms Maximum time to wait, in milliseconds.
  *  @return 1 once the previous session has finished firing the registered
- *          callback; 0 on timeout or when no stream has ever been started or
- *          stopped on this handle.
+ *          callback, or when no stream has ever been started or stopped on
+ *          this handle (an idle handle is already quiesced); 0 only on
+ *          timeout. Note the standalone thetadatadx_streaming_await_drain
+ *          returns 0 for the idle case instead.
  *  @note Must be called from a thread other than the streaming consumer. */
 int thetadatadx_client_await_drain(const ThetaDataDxClient* handle, uint64_t timeout_ms);
 
