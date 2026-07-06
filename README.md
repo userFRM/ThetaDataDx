@@ -1,3 +1,8 @@
+> [!IMPORTANT]
+> **Every release before 13.0.0 has been withdrawn.** No earlier version met the production-readiness bar, so all of them were removed from npm and PyPI and yanked from crates.io. **13.0.0 is the first fully production-ready release**, validated end to end against live production data across every endpoint. Install the stable `13.0.0` package below and pin `>=13.0.0`.
+>
+> Heads-up: a future release may move the SDKs to per-language package names (`thetadatadx-rs`, `thetadatadx-ts`, `thetadatadx-py`, `thetadatadx-cpp`) starting fresh at `0.1.0`.
+
 <p align="center">
   <img src="assets/logo.svg" alt="ThetaDataDx" width="100%" />
 </p>
