@@ -127,7 +127,7 @@ TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
 # The committed generated napi market-data surface. The `<endpoint>WithColumns`
 # reachability gate reads its `#[napi(js_name = ...)]` attributes directly (a
 # deterministic no-build source the napi compile lowers into `index.d.ts`).
-TS_HISTORICAL_METHODS_RS = TS_SRC / "_generated" / "market_data_methods.rs"
+TS_MARKET_DATA_METHODS_RS = TS_SRC / "_generated" / "market_data_methods.rs"
 CPP_HPP = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.hpp"
 CPP_H = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.h"
 FFI_SRC = REPO_ROOT / "thetadatadx-ffi" / "src"
@@ -8171,7 +8171,7 @@ def main(argv: list[str] | None = None) -> int:
     # from the committed generated napi source, the deterministic no-build
     # counterpart of the streaming / base families' `endpoint_surface.toml`.
     ts_with_columns = _collect_typescript_with_columns_endpoints(
-        TS_HISTORICAL_METHODS_RS
+        TS_MARKET_DATA_METHODS_RS
     )
     rust_columnar_buffered = _collect_rust_columnar_buffered_endpoints(
         ENDPOINT_SURFACE_TOML

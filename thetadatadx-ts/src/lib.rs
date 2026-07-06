@@ -838,7 +838,7 @@ pub struct Client {
 }
 
 /// User-facing market-data sub-namespace returned by the
-/// `client.market_data` getter.
+/// `client.marketData` getter.
 ///
 /// A lightweight handle that shares the underlying client connection;
 /// constructing it performs no auth round-trip and mutates no streaming
@@ -878,7 +878,7 @@ pub struct StreamView {
 
 #[napi]
 impl Client {
-    /// Market-data sub-namespace: `client.market_data.stockHistoryEOD(...)`.
+    /// Market-data sub-namespace: `client.marketData.stockHistoryEOD(...)`.
     ///
     /// Returns a fresh [`MarketDataView`] that shares the underlying
     /// client connection. No auth round-trip, no streaming-state mutation.
@@ -1206,8 +1206,8 @@ impl StreamView {
 /// the Nexus session at connect time.
 ///
 /// The full historical / list / snapshot / at-time / flat-files surface
-/// is identical to the unified client, so `market_dataClient.stockHistoryEOD(...)`
-/// behaves exactly like `client.stockHistoryEOD(...)`. The streaming and
+/// is identical to the unified client, so `marketDataClient.stockHistoryEOD(...)`
+/// behaves exactly like `client.marketData.stockHistoryEOD(...)`. The streaming and
 /// subscription methods are simply not present: there is no
 /// `startStreaming` / `subscribe` on this class, so a market-data-only handle
 /// cannot open a streaming slot. Use `StreamingClient` for streaming, or the
@@ -1216,7 +1216,7 @@ impl StreamView {
 /// ```ts
 /// import { MarketDataClient } from "thetadatadx";
 /// const marketData = await MarketDataClient.connectFromFile("creds.txt");
-/// const eod = await historical.stockHistoryEOD("AAPL", "20240101", "20240301");
+/// const eod = await marketData.stockHistoryEOD("AAPL", "20240101", "20240301");
 /// ```
 #[napi]
 pub struct MarketDataClient {

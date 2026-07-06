@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
         const auto t0 = std::chrono::steady_clock::now();
 
         client.market_data().option_history_trade_stream(
-            symbol, expiration, date,
+            symbol, expiration,
             [&](thetadatadx::Span<const thetadatadx::TradeTick> chunk) {
                 ++chunk_count;
                 if (chunk.size() > peak_chunk_rows) {
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
         const auto t2 = std::chrono::steady_clock::now();
         thetadatadx::MarketDataClient hist = thetadatadx::MarketDataClient::connect(creds, config);
         std::vector<thetadatadx::TradeTick> buffered = hist.option_history_trade(
-            symbol, expiration, date, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
+            symbol, expiration, thetadatadx::EndpointRequestOptions{}.with_timeout_ms(120000));
         const auto t3 = std::chrono::steady_clock::now();
         const auto buffered_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count();

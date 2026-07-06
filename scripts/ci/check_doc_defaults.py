@@ -229,24 +229,24 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
     canon["retry.max_elapsed_secs"] = _duration_secs(rp["max_elapsed"])
 
     # MddsConfig::production_defaults — byte / second knobs.
-    historical = _struct_literal_fields(
+    market_data = _struct_literal_fields(
         _block_after(
             _read(CONFIG_DIR / "mdds.rs", root), "fn production_defaults()"
         )
     )
-    canon["historical.connect_timeout_secs"] = _norm_int(historical["connect_timeout_secs"])
-    canon["historical.keepalive_secs"] = _norm_int(historical["keepalive_secs"])
-    canon["historical.keepalive_timeout_secs"] = _norm_int(historical["keepalive_timeout_secs"])
-    canon["historical.window_size_kb"] = _norm_int(historical["window_size_kb"])
-    canon["historical.connection_window_size_kb"] = _norm_int(
-        historical["connection_window_size_kb"]
+    canon["market_data.connect_timeout_secs"] = _norm_int(market_data["connect_timeout_secs"])
+    canon["market_data.keepalive_secs"] = _norm_int(market_data["keepalive_secs"])
+    canon["market_data.keepalive_timeout_secs"] = _norm_int(market_data["keepalive_timeout_secs"])
+    canon["market_data.window_size_kb"] = _norm_int(market_data["window_size_kb"])
+    canon["market_data.connection_window_size_kb"] = _norm_int(
+        market_data["connection_window_size_kb"]
     )
     # warn_on_buffered_threshold_bytes = 100 * 1024 * 1024 (100 MiB).
-    wob = historical["warn_on_buffered_threshold_bytes"]
+    wob = market_data["warn_on_buffered_threshold_bytes"]
     m = re.match(r"^([0-9_]+)\s*\*\s*1024\s*\*\s*1024$", wob)
     if not m:
         raise ValueError(f"unexpected warn-threshold literal: {wob!r}")
-    canon["historical.warn_on_buffered_threshold_mib"] = _norm_int(m.group(1))
+    canon["market_data.warn_on_buffered_threshold_mib"] = _norm_int(m.group(1))
 
     del streaming_src  # parsed lazily above; kept for future bound checks.
     return canon

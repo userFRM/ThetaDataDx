@@ -128,7 +128,8 @@ const rustPrintln = computed(() => {
 
 function hist(lang) {
   if (clientKind.value !== 'unified') return ''
-  return lang === 'rust' || lang === 'cpp' ? '.marketData()' : '.marketData'
+  const acc = lang === 'typescript' ? 'marketData' : 'market_data'
+  return lang === 'rust' || lang === 'cpp' ? `.${acc}()` : `.${acc}`
 }
 
 // Client construction, mapped to the real SDK surface. The unified `Client`

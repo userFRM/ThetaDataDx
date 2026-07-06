@@ -240,7 +240,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every endpoint is a camelCase method on `client.historical`. The full method list with JSDoc lives in `index.d.ts` and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every endpoint is a camelCase method on `client.marketData`. The full method list with JSDoc lives in `index.d.ts` and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 

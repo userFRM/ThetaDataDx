@@ -1228,7 +1228,7 @@ Override the market-data gRPC port. Companion to `market_data_host` —
 same rationale and same test-only usage.
 """
 ts_doc = """
-Override the historical data port. Companion to `setMarketDataHost` —
+Override the market-data gRPC port. Companion to `setMarketDataHost` —
 same test-only rationale. Rejects values outside the `0..=65535`
 port range.
 """

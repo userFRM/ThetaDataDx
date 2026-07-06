@@ -581,7 +581,7 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.flatfiles.read_timeout_secs))
     }
 
-    /// Override the historical data port. Companion to `setMarketDataHost` —
+    /// Override the market-data gRPC port. Companion to `setMarketDataHost` —
     /// same test-only rationale. Rejects values outside the `0..=65535`
     /// port range.
     #[napi(js_name = "setMarketDataPort")]
