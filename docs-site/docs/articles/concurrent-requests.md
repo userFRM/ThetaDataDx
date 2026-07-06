@@ -5,7 +5,7 @@ description: How many historical requests run in parallel per subscription tier.
 
 # Concurrent Requests
 
-Your requests are not rate-limited, but the number of historical requests **in flight at once** is capped by your subscription tier on each asset class:
+Your requests are not rate-limited, but the number of **concurrent** historical requests is capped by your subscription tier. Concurrency is account-wide and set by your **highest** subscription tier across asset classes:
 
 | Tier | Concurrent requests |
 |---|---:|
@@ -14,13 +14,9 @@ Your requests are not rate-limited, but the number of historical requests **in f
 | Standard | 4 |
 | Pro | 8 |
 
-## It's automatic
+## Fire your whole batch
 
-There is no knob to set. At connect time the SDK reads your tier from authentication and sizes its historical connection pool to match. A Pro account gets eight in-flight slots, Free gets one, and so on. You don't pass a value, you don't tune anything, and there's nothing to get wrong.
-
-Every historical call quietly takes a slot from that pool. Fire as many calls in parallel as you like, whether that's async tasks in Rust and Python, threads, or a process-wide backfill loop. Anything beyond your tier's slot count **queues in order and drains as slots free**. You never get a rejection for over-parallelism; the burst is absorbed as latency, not errors.
-
-So the idiomatic pattern is simply to launch your whole batch and let the pool pace it:
+You can issue more requests than your tier allows. The extra requests are **queued and run in order**, so a burst completes as fast as your tier permits without you managing anything. There is nothing to configure. The idiomatic pattern is to launch the whole batch and let it run at your tier's rate:
 
 ```python
 import asyncio
@@ -38,6 +34,6 @@ With a Pro subscription, eight of those requests run concurrently and the rest w
 
 ## When parallelism pays
 
-Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. It does nothing for one giant request, so split the request first ([Request Sizing](/articles/request-sizing)), then let your tier's slots work through the pieces.
+Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. It does nothing for one giant request, so split the request first ([Request Sizing](/articles/request-sizing)), then let your tier's capacity work through the pieces.
 
-One more queue exists upstream: if the servers themselves report exhaustion, the SDK retries with backoff before surfacing an error. Long-running bulk jobs should still expect occasional retries during peak hours; see [Data Issues?](/articles/data-issues) if a job stalls beyond that.
+If the service reports exhaustion during peak hours, the SDK retries with backoff before surfacing an error. Long-running bulk jobs should expect occasional retries at peak; see [Data Issues?](/articles/data-issues) if a job stalls beyond that.
