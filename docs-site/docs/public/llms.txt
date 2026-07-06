@@ -20,9 +20,6 @@
 /articles/trade-conditions — Trade Conditions: The full ThetaData trade-condition code table for the condition fields on trade rows.
 /changelog — Changelog
 /mcp — MCP Server: Give any Model Context Protocol client live access to every market-data endpoint.
-/migration/v11-to-v12 — Migrating from v11 to v12
-/migration/v12-to-v13 — Migrating from v12 to v13
-/migration/v9-to-v10 — Migrating from v9 to v10
 /reference/ — API Reference: Every endpoint, one page — signatures and runnable samples in Rust, Python, TypeScript, C++, and HTTP.
 /reference/calendar/on-date — On Date: Get calendar information for a specific date.
 /reference/calendar/open-today — Open Today: Check whether the market is open today.

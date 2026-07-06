@@ -104,9 +104,6 @@ export default defineConfig({
         collapsed: true,
         items: [
           { text: 'Changelog', link: '/changelog' },
-          { text: 'Migration: v12 → v13', link: '/migration/v12-to-v13' }, // VOCAB-OK: nav label for the migration guide whose canonical name names the transitioned versions
-          { text: 'Migration: v11 → v12', link: '/migration/v11-to-v12' }, // VOCAB-OK: same rationale
-          { text: 'Migration: v9 → v10 (historical)', link: '/migration/v9-to-v10' },
         ],
       },
     ],
