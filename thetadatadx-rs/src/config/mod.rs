@@ -1550,9 +1550,7 @@ mod tests {
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
         assert_eq!(
             config.streaming.hosts,
-            vec![
-                ("nj-a.thetadata.us".to_string(), 20200),
-            ]
+            vec![("nj-a.thetadata.us".to_string(), 20200),]
         );
         // Market-data stays on PRODUCTION — there is no dev market-data cluster.
         assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
@@ -1571,9 +1569,7 @@ mod tests {
         assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
         assert_eq!(
             config.streaming.hosts,
-            vec![
-                ("nj-a.thetadata.us".to_string(), 20200),
-            ]
+            vec![("nj-a.thetadata.us".to_string(), 20200),]
         );
         // And the mirror: market-data-prod + streaming-prod is the production
         // baseline, with neither channel pulling the other.
@@ -3048,9 +3044,7 @@ mod tests {
         assert_eq!(dev.market_data.host, "mdds-01.thetadata.us");
         assert_eq!(
             dev.streaming.hosts,
-            vec![
-                ("nj-a.thetadata.us".to_string(), 20200),
-            ]
+            vec![("nj-a.thetadata.us".to_string(), 20200),]
         );
 
         clear_env_matrix();
@@ -3072,12 +3066,7 @@ mod tests {
         }
         let config = DirectConfig::dev();
         // Primary patched; failover hosts are the dev cluster's, not prod's.
-        assert_eq!(
-            config.streaming.hosts,
-            vec![
-                ("myhost".to_string(), 20200),
-            ]
-        );
+        assert_eq!(config.streaming.hosts, vec![("myhost".to_string(), 20200),]);
         assert_eq!(config.streaming.hosts[0].0, "myhost");
         assert_eq!(
             &config.streaming.hosts[1..],
@@ -3103,9 +3092,7 @@ mod tests {
         let config = DirectConfig::dev();
         assert_eq!(
             config.streaming.hosts,
-            vec![
-                ("nj-a.thetadata.us".to_string(), 9999),
-            ],
+            vec![("nj-a.thetadata.us".to_string(), 9999),],
             "only the primary port is patched; the host cluster stays dev"
         );
         // The host cluster is unchanged from dev; only the primary port moved.

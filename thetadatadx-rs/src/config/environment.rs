@@ -265,9 +265,7 @@ mod tests {
     fn dev_streaming_uses_replay_hosts() {
         assert_eq!(
             StreamingEnvironment::Dev.hosts(),
-            vec![
-                ("nj-a.thetadata.us".to_string(), 20200),
-            ]
+            vec![("nj-a.thetadata.us".to_string(), 20200),]
         );
     }
 }
