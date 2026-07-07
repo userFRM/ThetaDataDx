@@ -248,7 +248,7 @@ tracing-subscriber = { version = "0.3.20", default-features = false, features = 
 # the library's `[dependencies]` entry; listed explicitly so test binaries
 # resolve it without relying on the lib's transitive graph).
 rand = "0.10"
-criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support", "async_tokio"] }
 # `futures::future::join_all` for the concurrent-burst bench.
 futures = "0.3"
 proptest = "1.5"

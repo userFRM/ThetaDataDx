@@ -2,7 +2,7 @@
 """Bump every user-visible version pin in lockstep.
 
 Usage:
-    scripts/release/bump_version.py 8.0.30
+    scripts/release/bump_version.py 9.9.9
 
 Reads the canonical version from ``thetadatadx-rs/Cargo.toml`` (only
 to print "from -> to" for context), then walks every file that pins a
@@ -20,7 +20,7 @@ got missed. Exits non-zero if anything is out of sync.
 
 This is the only supported way to bump the SDK version. Doing it by
 hand reliably misses ``thetadatadx-ts/`` files (lesson from npm being
-stuck at v8.0.26 across v8.0.27 / v8.0.28 / v8.0.29 releases).
+stuck at v9.9.6 across v9.9.7 / v9.9.8 / v9.9.9 releases).
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ SUB_LOCK_MANIFESTS = [
 
 def parse_semver(value: str) -> tuple[int, int, int]:
     # Accept an optional SemVer pre-release / build suffix (e.g.
-    # `13.0.0-rc.1`) so a release candidate can be bumped with the same
+    # `9.9.9-rc.1`) so a release candidate can be bumped with the same
     # tool. The numeric core is returned; the suffix rides through on the
     # version strings the bump writes. Cargo and npm take `-rc.1` as-is;
     # maturin normalises it to the PEP 440 form, and CMake (operator-set)
