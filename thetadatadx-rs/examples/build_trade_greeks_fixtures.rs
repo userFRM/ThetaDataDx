@@ -12,7 +12,7 @@
 //! the live server uses (Number for ints/dates, Price for prices/floats,
 //! Timestamp for timestamps).
 //!
-//! Run with: `cargo run -p thetadatadx --example build_trade_greeks_fixtures`
+//! Run with: `cargo run -p thetadatadx-rs --example build_trade_greeks_fixtures`
 //! Writes to `thetadatadx-rs/tests/fixtures/captures/option_history_trade_greeks_*.pb.zst`.
 //!
 //! This is a one-shot tool — once the fixtures are checked in, the

@@ -47,7 +47,7 @@ pub fn check_sdk_generated_files(repo_root: &Path) -> Result<(), Box<dyn std::er
         let actual = std::fs::read_to_string(&path)?;
         if actual.replace("\r\n", "\n") != file.contents {
             return Err(format!(
-                "generated SDK surface '{}' is stale; run `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh",
+                "generated SDK surface '{}' is stale; run `cargo run -p thetadatadx-rs --bin generate_sdk_surfaces` to refresh",
                 file.relative_path
             )
             .into());

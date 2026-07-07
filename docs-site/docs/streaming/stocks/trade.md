@@ -57,7 +57,7 @@ client.stream.unsubscribe(sub)
 <template #typescript>
 
 ```typescript
-import { Contract } from 'thetadatadx';
+import { Contract } from 'thetadatadx-ts';
 
 await client.stream.startStreaming((event) => {
   if (event.kind === 'trade') {

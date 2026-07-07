@@ -2,14 +2,14 @@
 """Bump every user-visible version pin in lockstep.
 
 Usage:
-    scripts/release/bump_version.py 8.0.30
+    scripts/release/bump_version.py 9.9.9
 
 Reads the canonical version from ``thetadatadx-rs/Cargo.toml`` (only
 to print "from -> to" for context), then walks every file that pins a
 version of the published artifact and rewrites it. Every npm
 ``package.json`` file (the TypeScript SDK launcher + its three platform
 packages, and the MCP server launcher + its five platform packages), the
-six member Cargo.toml files (thetadatadx + ffi + tools/mcp + tools/server
+six member Cargo.toml files (thetadatadx-rs + ffi + tools/mcp + tools/server
 + thetadatadx-py + thetadatadx-ts), and the ``optionalDependencies`` pins
 inside both ``package.json`` launchers. Cargo.lock files are refreshed via
 ``cargo update --workspace`` against every manifest that carries its own
@@ -20,7 +20,7 @@ got missed. Exits non-zero if anything is out of sync.
 
 This is the only supported way to bump the SDK version. Doing it by
 hand reliably misses ``thetadatadx-ts/`` files (lesson from npm being
-stuck at v8.0.26 across v8.0.27 / v8.0.28 / v8.0.29 releases).
+stuck at v9.9.6 across v9.9.7 / v9.9.8 / v9.9.9 releases).
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ SUB_LOCK_MANIFESTS = [
 
 def parse_semver(value: str) -> tuple[int, int, int]:
     # Accept an optional SemVer pre-release / build suffix (e.g.
-    # `13.0.0-rc.1`) so a release candidate can be bumped with the same
+    # `9.9.9-rc.1`) so a release candidate can be bumped with the same
     # tool. The numeric core is returned; the suffix rides through on the
     # version strings the bump writes. Cargo and npm take `-rc.1` as-is;
     # maturin normalises it to the PEP 440 form, and CMake (operator-set)
@@ -145,18 +145,18 @@ def main(argv: list[str]) -> int:
         bump_platform_package_json(platform_pkg, current, target)
         print(f"  bumped {platform_pkg.relative_to(ROOT)}")
 
-    # The MCP server ships to npm too (`npx -y thetadatadx-mcp`): a launcher
+    # The MCP server ships to npm too (`npx -y thetadatadx-mcp-server`): a launcher
     # package with per-platform binary packages as optionalDependencies,
     # mirroring the TypeScript SDK layout under `tools/mcp/npm/`.
     bump_root_package_json(
-        ROOT / "tools" / "mcp" / "npm" / "thetadatadx-mcp" / "package.json",
+        ROOT / "tools" / "mcp" / "npm" / "thetadatadx-mcp-server" / "package.json",
         current,
         target,
     )
-    print("  bumped tools/mcp/npm/thetadatadx-mcp/package.json (+ optionalDependencies)")
+    print("  bumped tools/mcp/npm/thetadatadx-mcp-server/package.json (+ optionalDependencies)")
 
     for platform_pkg in (ROOT / "tools" / "mcp" / "npm").glob("*/package.json"):
-        if platform_pkg.parent.name == "thetadatadx-mcp":
+        if platform_pkg.parent.name == "thetadatadx-mcp-server":
             continue  # the launcher package, bumped above
         bump_platform_package_json(platform_pkg, current, target)
         print(f"  bumped {platform_pkg.relative_to(ROOT)}")

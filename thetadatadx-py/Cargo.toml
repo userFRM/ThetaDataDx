@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-py"
-version = "13.0.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
@@ -21,7 +21,7 @@ doc = false
 
 [dependencies]
 # The native ThetaData implementation we're wrapping in Python bindings.
-thetadatadx = { path = "../thetadatadx-rs", features = ["arrow", "__internal"] }
+thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs", features = ["arrow", "__internal"] }
 
 # Direct prost dep for decoding `ResponseData` bytes in the
 # `decode_response_bytes` hook. Pinned to the same version the engine
@@ -98,7 +98,7 @@ libc = "0.2"
 # `HarnessPublishMode`) — gated out of the non-test build. Mirrors
 # `thetadatadx-ffi/Cargo.toml`. Same `arrow` / `__internal` feature set as the runtime dep.
 [dev-dependencies]
-thetadatadx = { path = "../thetadatadx-rs", features = ["arrow", "__internal", "__test-helpers"] }
+thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs", features = ["arrow", "__internal", "__test-helpers"] }
 
 # Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
 # in the root `Cargo.toml` (it has its own toolchain / feature footprint), so

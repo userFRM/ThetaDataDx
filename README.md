@@ -1,7 +1,5 @@
 > [!IMPORTANT]
-> **Every release before 13.0.0 has been withdrawn.** No earlier version met the production-readiness bar, so all of them were removed from npm and PyPI and yanked from crates.io. **13.0.0 is the first fully production-ready release**, validated end to end against live production data across every endpoint. Install the stable `13.0.0` package below and pin `>=13.0.0`.
->
-> Heads-up: a future release may move the SDKs to per-language package names (`thetadatadx-rs`, `thetadatadx-ts`, `thetadatadx-py`, `thetadatadx-cpp`) starting fresh at `0.1.0`.
+> **The SDK now ships under per-language package names, starting fresh at `0.1.0`:** `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm), and the in-repo `thetadatadx-cpp`. The API and import surface are unchanged — only the package names and the version differ. Install the packages below.
 
 <p align="center">
   <img src="assets/logo.svg" alt="ThetaDataDx" width="100%" />
@@ -16,10 +14,10 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 [![TypeScript SDK](https://github.com/userFRM/ThetaDataDx/actions/workflows/typescript.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/typescript.yml)
 [![Deploy Docs](https://github.com/userFRM/ThetaDataDx/actions/workflows/docs.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/docs.yml)
 
-[![Crates.io](https://img.shields.io/crates/v/thetadatadx.svg?logo=rust)](https://crates.io/crates/thetadatadx)
-[![PyPI](https://img.shields.io/pypi/v/thetadatadx?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx)
-[![npm](https://img.shields.io/npm/v/thetadatadx?logo=npm)](https://www.npmjs.com/package/thetadatadx)
-[![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx)
+[![Crates.io](https://img.shields.io/crates/v/thetadatadx-rs.svg?logo=rust)](https://crates.io/crates/thetadatadx-rs)
+[![PyPI](https://img.shields.io/pypi/v/thetadatadx-py?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx-py)
+[![npm](https://img.shields.io/npm/v/thetadatadx-ts?logo=npm)](https://www.npmjs.com/package/thetadatadx-ts)
+[![docs.rs](https://img.shields.io/docsrs/thetadatadx-rs?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg?logo=rust)](https://www.rust-lang.org)
@@ -41,21 +39,48 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 - **The same surface in every language**: identical methods and identical typed errors, Python through Rust.
 - **No terminal to run**: a direct connection to ThetaData; nothing to install and babysit locally.
 
+## Clients
+
+Three client shapes over the same engine and the same auth. Pick per workload — they are not layers, they are separate entry points:
+
+| Client | Connects to | Use it for |
+|---|---|---|
+| **`MarketDataClient`** | market-data (HTTP) only | history, snapshots, flat files. Never opens the real-time feed; a streaming call raises an error by design. |
+| **`StreamingClient`** | the real-time feed only | live trades, quotes, OHLCVC. Never touches market-data. |
+| **`Client`** (unified) | market-data on construct; the feed is lazy | both from one object. The feed is opened only when you call `start_streaming`, so a market-data-only workflow never touches it. |
+
+```python
+from thetadatadx import MarketDataClient, StreamingClient, Client, Credentials, Config
+
+md     = MarketDataClient(Credentials.from_file("creds.txt"), Config.production())  # market-data only
+stream = StreamingClient(Credentials.from_file("creds.txt"), Config.production())   # real-time feed only
+client = Client(api_key="td1_...")                                                 # both; feed stays closed until you stream
+```
+
+> [!TIP]
+> `MarketDataClient` and `StreamingClient` use independent channels and independent sessions, so you can run them in **separate processes or containers** with no shared state and nothing stealing the other's session. A market-data worker next to a streaming worker (or a `Config.stage()` market-data instance next to a `Config.dev()` streaming instance) is a first-class pattern, not a workaround.
+
+> [!IMPORTANT]
+> The real-time feed is a **single live session per account**. Run one `StreamingClient` (or one unified `Client` that streams) per account and fan out to your consumers in-process. Opening a second streaming session on the same account takes over the connection and drops the first. Market-data is unaffected: it is per-request, so it runs alongside streaming and across as many `MarketDataClient` instances as you like.
+
+> [!NOTE]
+> Market-data concurrency is **account-wide**, set by your highest subscription tier; multiple `MarketDataClient` instances share that one budget and extra requests queue and run in order. The real-time feed requires a paid subscription — FREE accounts get delayed market-data but no streaming.
+
 ## Install
 
 > [!IMPORTANT]
-> The supported release line is **13.0.0**. Install the stable package directly. Versions before 13.0.0 are unsupported and have been withdrawn from the registries — pin `>=13.0.0`.
+> Install the per-language packages at `0.1.0` below — `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), `thetadatadx-ts` (npm).
 >
 > ```bash
-> pip install thetadatadx            # Python
-> npm install thetadatadx            # TypeScript / Node.js
-> cargo add thetadatadx              # Rust
+> pip install thetadatadx-py            # Python
+> npm install thetadatadx-ts            # TypeScript / Node.js
+> cargo add thetadatadx-rs              # Rust
 > ```
 
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
 
 ```json
-{ "command": "npx", "args": ["-y", "thetadatadx-mcp"], "env": { "THETADATA_API_KEY": "your_key" } }
+{ "command": "npx", "args": ["-y", "thetadatadx-mcp-server"], "env": { "THETADATA_API_KEY": "your_key" } }
 ```
 
 C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](thetadatadx-cpp/).
@@ -132,7 +157,7 @@ with client.streaming(on_event) as session:
 ### TypeScript
 
 ```typescript
-import { Contract, Client } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx-ts';
 
 async function main() {
   // Pass your API key directly. Add marketDataType: "STAGE" to target staging.
@@ -168,7 +193,7 @@ await main();
 Other ways to construct the client:
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 
 // API key from the THETADATA_API_KEY environment variable, or from a .env file
 const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
@@ -205,7 +230,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0"
+thetadatadx-rs = "0.1.0"
 ```
 
 ```rust
@@ -236,7 +261,7 @@ no row-by-row iteration:
 
 ```python
 greeks.to_polars()   # polars.DataFrame
-greeks.to_pandas()   # pandas.DataFrame   (pip install "thetadatadx[pandas]")
+greeks.to_pandas()   # pandas.DataFrame   (pip install "thetadatadx-py[pandas]")
 greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 ```
 
@@ -314,13 +339,13 @@ common `ThetaDataError` base.
 
 | Path | Package | Purpose |
 |---|---|---|
-| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, decoders, and the network client in one crate |
-| [`thetadatadx-py`](thetadatadx-py/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
-| [`thetadatadx-ts`](thetadatadx-ts/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
+| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx-rs` (crates.io) | The Rust SDK: tick types, decoders, and the network client in one crate |
+| [`thetadatadx-py`](thetadatadx-py/) | `thetadatadx-py` (PyPI) | Python package with DataFrame adapters |
+| [`thetadatadx-ts`](thetadatadx-ts/) | `thetadatadx-ts` (npm) | TypeScript / Node.js package, prebuilt binaries |
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` (npm) | MCP server exposing every market-data endpoint to AI clients |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp-server` (npm) | MCP server exposing every market-data endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation
@@ -330,7 +355,7 @@ common `ThetaDataError` base.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp`.
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp-server`.
 
 ## Contributing
 

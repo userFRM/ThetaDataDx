@@ -443,9 +443,9 @@ fn python_tab(spec: &StreamSpec) -> String {
 
 fn typescript_tab(spec: &StreamSpec) -> String {
     let import = if spec.ts_sub.starts_with("SecType") {
-        "import { SecType } from 'thetadatadx';"
+        "import { SecType } from 'thetadatadx-ts';"
     } else {
-        "import { Contract } from 'thetadatadx';"
+        "import { Contract } from 'thetadatadx-ts';"
     };
     // Full-trade pages handle all three delivered events; every other page
     // narrows on its single event kind.

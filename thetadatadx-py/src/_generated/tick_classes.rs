@@ -1801,14 +1801,14 @@ impl CalendarDayList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::calendar_day_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::calendar_day_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -2026,14 +2026,14 @@ impl EodTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -2299,14 +2299,14 @@ impl GreeksAllTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -2619,14 +2619,14 @@ impl GreeksEodTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -2873,14 +2873,14 @@ impl GreeksFirstOrderTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -3098,14 +3098,14 @@ impl GreeksSecondOrderTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -3319,14 +3319,14 @@ impl GreeksThirdOrderTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -3527,14 +3527,14 @@ impl IndexPriceAtTimeTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -3704,14 +3704,14 @@ impl InterestRateTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::interest_rate_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::interest_rate_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -3908,14 +3908,14 @@ impl IvTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::iv_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::iv_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -4106,14 +4106,14 @@ impl MarketValueTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::market_value_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::market_value_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -4310,14 +4310,14 @@ impl OhlcTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::ohlc_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::ohlc_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -4500,14 +4500,14 @@ impl OpenInterestTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::open_interest_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::open_interest_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -4678,14 +4678,14 @@ impl OptionContractList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::option_contract_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::option_contract_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -4851,14 +4851,14 @@ impl PriceTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::price_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::price_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -5056,14 +5056,14 @@ impl QuoteTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -5344,14 +5344,14 @@ impl TradeGreeksAllTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -5614,14 +5614,14 @@ impl TradeGreeksFirstOrderTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -5852,14 +5852,14 @@ impl TradeGreeksImpliedVolatilityTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -6099,14 +6099,14 @@ impl TradeGreeksSecondOrderTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -6348,14 +6348,14 @@ impl TradeGreeksThirdOrderTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -6611,14 +6611,14 @@ impl TradeQuoteTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
@@ -6852,14 +6852,14 @@ impl TradeTickList {
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
-    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
+    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
-    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
+    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = slice_arrow::trade_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)

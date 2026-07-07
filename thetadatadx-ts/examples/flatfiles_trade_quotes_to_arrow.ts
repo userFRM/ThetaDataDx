@@ -8,7 +8,7 @@
 // Run with: `npx tsx flatfiles_trade_quotes_to_arrow.ts`
 // Requires: `npm i apache-arrow` (peer dep, not bundled by thetadatadx).
 
-import { Client } from "thetadatadx";
+import { Client } from "thetadatadx-ts";
 import { tableFromIPC } from "apache-arrow";
 
 async function main(): Promise<void> {

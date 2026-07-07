@@ -21,6 +21,6 @@ from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 
 try:
-    __version__ = _pkg_version("thetadatadx")
+    __version__ = _pkg_version("thetadatadx-py")
 except _PackageNotFoundError:
     __version__ = "unknown"

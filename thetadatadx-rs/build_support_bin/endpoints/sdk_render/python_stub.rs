@@ -46,7 +46,7 @@ pub(super) fn render_python_market_data_view_stub(endpoints: &[GeneratedEndpoint
     out.push('\n');
     out.push_str(
         "# Generated from endpoint_surface.toml; do not edit by hand. Run\n\
-         # `cargo run -p thetadatadx --bin generate_sdk_surfaces` to refresh.\n\
+         # `cargo run -p thetadatadx-rs --bin generate_sdk_surfaces` to refresh.\n\
          #\n\
          # The typed list wrappers and fluent builder classes returned below are\n\
          # registered at runtime by the compiled extension and resolve through\n\

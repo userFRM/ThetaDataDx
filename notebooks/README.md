@@ -9,13 +9,13 @@ Interactive Jupyter notebooks demonstrating the `thetadatadx` Python SDK. Each n
 ## Prerequisites
 
 ```bash
-pip install thetadatadx[all] jupyter matplotlib
+pip install thetadatadx-py[all] jupyter matplotlib
 ```
 
 The `[all]` extra installs both `pandas` and `polars` support. If you only need one:
 
 ```bash
-pip install thetadatadx[pandas] jupyter matplotlib
+pip install thetadatadx-py[pandas] jupyter matplotlib
 ```
 
 Notebook 106 additionally requires `ipywidgets`:

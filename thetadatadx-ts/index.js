@@ -70,15 +70,15 @@ function requireNative() {
   } else if (process.platform === 'android') {
     if (process.arch === 'arm64') {
       try {
-        return require('./thetadatadx.android-arm64.node')
+        return require('./thetadatadx-ts.android-arm64.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-android-arm64')
-        const bindingPackageVersion = require('thetadatadx-android-arm64/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-android-arm64')
+        const bindingPackageVersion = require('thetadatadx-ts-android-arm64/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -86,15 +86,15 @@ function requireNative() {
       }
     } else if (process.arch === 'arm') {
       try {
-        return require('./thetadatadx.android-arm-eabi.node')
+        return require('./thetadatadx-ts.android-arm-eabi.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-android-arm-eabi')
-        const bindingPackageVersion = require('thetadatadx-android-arm-eabi/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-android-arm-eabi')
+        const bindingPackageVersion = require('thetadatadx-ts-android-arm-eabi/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -107,15 +107,15 @@ function requireNative() {
     if (process.arch === 'x64') {
       if ((process.config && process.config.variables && process.config.variables.shlib_suffix === 'dll.a') || (process.config && process.config.variables && process.config.variables.node_target_type === 'shared_library')) {
         try {
-        return require('./thetadatadx.win32-x64-gnu.node')
+        return require('./thetadatadx-ts.win32-x64-gnu.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-win32-x64-gnu')
-        const bindingPackageVersion = require('thetadatadx-win32-x64-gnu/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-win32-x64-gnu')
+        const bindingPackageVersion = require('thetadatadx-ts-win32-x64-gnu/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -123,15 +123,15 @@ function requireNative() {
       }
       } else {
         try {
-        return require('./thetadatadx.win32-x64-msvc.node')
+        return require('./thetadatadx-ts.win32-x64-msvc.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-win32-x64-msvc')
-        const bindingPackageVersion = require('thetadatadx-win32-x64-msvc/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-win32-x64-msvc')
+        const bindingPackageVersion = require('thetadatadx-ts-win32-x64-msvc/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -140,15 +140,15 @@ function requireNative() {
       }
     } else if (process.arch === 'ia32') {
       try {
-        return require('./thetadatadx.win32-ia32-msvc.node')
+        return require('./thetadatadx-ts.win32-ia32-msvc.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-win32-ia32-msvc')
-        const bindingPackageVersion = require('thetadatadx-win32-ia32-msvc/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-win32-ia32-msvc')
+        const bindingPackageVersion = require('thetadatadx-ts-win32-ia32-msvc/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -156,15 +156,15 @@ function requireNative() {
       }
     } else if (process.arch === 'arm64') {
       try {
-        return require('./thetadatadx.win32-arm64-msvc.node')
+        return require('./thetadatadx-ts.win32-arm64-msvc.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-win32-arm64-msvc')
-        const bindingPackageVersion = require('thetadatadx-win32-arm64-msvc/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-win32-arm64-msvc')
+        const bindingPackageVersion = require('thetadatadx-ts-win32-arm64-msvc/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -175,15 +175,15 @@ function requireNative() {
     }
   } else if (process.platform === 'darwin') {
     try {
-      return require('./thetadatadx.darwin-universal.node')
+      return require('./thetadatadx-ts.darwin-universal.node')
     } catch (e) {
       loadErrors.push(e)
     }
     try {
-      const binding = require('thetadatadx-darwin-universal')
-      const bindingPackageVersion = require('thetadatadx-darwin-universal/package.json').version
-      if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-        throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+      const binding = require('thetadatadx-ts-darwin-universal')
+      const bindingPackageVersion = require('thetadatadx-ts-darwin-universal/package.json').version
+      if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+        throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
       }
       return binding
     } catch (e) {
@@ -191,15 +191,15 @@ function requireNative() {
     }
     if (process.arch === 'x64') {
       try {
-        return require('./thetadatadx.darwin-x64.node')
+        return require('./thetadatadx-ts.darwin-x64.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-darwin-x64')
-        const bindingPackageVersion = require('thetadatadx-darwin-x64/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-darwin-x64')
+        const bindingPackageVersion = require('thetadatadx-ts-darwin-x64/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -207,15 +207,15 @@ function requireNative() {
       }
     } else if (process.arch === 'arm64') {
       try {
-        return require('./thetadatadx.darwin-arm64.node')
+        return require('./thetadatadx-ts.darwin-arm64.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-darwin-arm64')
-        const bindingPackageVersion = require('thetadatadx-darwin-arm64/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-darwin-arm64')
+        const bindingPackageVersion = require('thetadatadx-ts-darwin-arm64/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -227,15 +227,15 @@ function requireNative() {
   } else if (process.platform === 'freebsd') {
     if (process.arch === 'x64') {
       try {
-        return require('./thetadatadx.freebsd-x64.node')
+        return require('./thetadatadx-ts.freebsd-x64.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-freebsd-x64')
-        const bindingPackageVersion = require('thetadatadx-freebsd-x64/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-freebsd-x64')
+        const bindingPackageVersion = require('thetadatadx-ts-freebsd-x64/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -243,15 +243,15 @@ function requireNative() {
       }
     } else if (process.arch === 'arm64') {
       try {
-        return require('./thetadatadx.freebsd-arm64.node')
+        return require('./thetadatadx-ts.freebsd-arm64.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-freebsd-arm64')
-        const bindingPackageVersion = require('thetadatadx-freebsd-arm64/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-freebsd-arm64')
+        const bindingPackageVersion = require('thetadatadx-ts-freebsd-arm64/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -264,15 +264,15 @@ function requireNative() {
     if (process.arch === 'x64') {
       if (isMusl()) {
         try {
-          return require('./thetadatadx.linux-x64-musl.node')
+          return require('./thetadatadx-ts.linux-x64-musl.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-x64-musl')
-          const bindingPackageVersion = require('thetadatadx-linux-x64-musl/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-x64-musl')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-x64-musl/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -280,15 +280,15 @@ function requireNative() {
         }
       } else {
         try {
-          return require('./thetadatadx.linux-x64-gnu.node')
+          return require('./thetadatadx-ts.linux-x64-gnu.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-x64-gnu')
-          const bindingPackageVersion = require('thetadatadx-linux-x64-gnu/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-x64-gnu')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-x64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -298,15 +298,15 @@ function requireNative() {
     } else if (process.arch === 'arm64') {
       if (isMusl()) {
         try {
-          return require('./thetadatadx.linux-arm64-musl.node')
+          return require('./thetadatadx-ts.linux-arm64-musl.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-arm64-musl')
-          const bindingPackageVersion = require('thetadatadx-linux-arm64-musl/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-arm64-musl')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-arm64-musl/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -314,15 +314,15 @@ function requireNative() {
         }
       } else {
         try {
-          return require('./thetadatadx.linux-arm64-gnu.node')
+          return require('./thetadatadx-ts.linux-arm64-gnu.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-arm64-gnu')
-          const bindingPackageVersion = require('thetadatadx-linux-arm64-gnu/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-arm64-gnu')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-arm64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -332,15 +332,15 @@ function requireNative() {
     } else if (process.arch === 'arm') {
       if (isMusl()) {
         try {
-          return require('./thetadatadx.linux-arm-musleabihf.node')
+          return require('./thetadatadx-ts.linux-arm-musleabihf.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-arm-musleabihf')
-          const bindingPackageVersion = require('thetadatadx-linux-arm-musleabihf/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-arm-musleabihf')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-arm-musleabihf/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -348,15 +348,15 @@ function requireNative() {
         }
       } else {
         try {
-          return require('./thetadatadx.linux-arm-gnueabihf.node')
+          return require('./thetadatadx-ts.linux-arm-gnueabihf.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-arm-gnueabihf')
-          const bindingPackageVersion = require('thetadatadx-linux-arm-gnueabihf/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-arm-gnueabihf')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-arm-gnueabihf/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -366,15 +366,15 @@ function requireNative() {
     } else if (process.arch === 'loong64') {
       if (isMusl()) {
         try {
-          return require('./thetadatadx.linux-loong64-musl.node')
+          return require('./thetadatadx-ts.linux-loong64-musl.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-loong64-musl')
-          const bindingPackageVersion = require('thetadatadx-linux-loong64-musl/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-loong64-musl')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-loong64-musl/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -382,15 +382,15 @@ function requireNative() {
         }
       } else {
         try {
-          return require('./thetadatadx.linux-loong64-gnu.node')
+          return require('./thetadatadx-ts.linux-loong64-gnu.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-loong64-gnu')
-          const bindingPackageVersion = require('thetadatadx-linux-loong64-gnu/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-loong64-gnu')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-loong64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -400,15 +400,15 @@ function requireNative() {
     } else if (process.arch === 'riscv64') {
       if (isMusl()) {
         try {
-          return require('./thetadatadx.linux-riscv64-musl.node')
+          return require('./thetadatadx-ts.linux-riscv64-musl.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-riscv64-musl')
-          const bindingPackageVersion = require('thetadatadx-linux-riscv64-musl/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-riscv64-musl')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-riscv64-musl/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -416,15 +416,15 @@ function requireNative() {
         }
       } else {
         try {
-          return require('./thetadatadx.linux-riscv64-gnu.node')
+          return require('./thetadatadx-ts.linux-riscv64-gnu.node')
         } catch (e) {
           loadErrors.push(e)
         }
         try {
-          const binding = require('thetadatadx-linux-riscv64-gnu')
-          const bindingPackageVersion = require('thetadatadx-linux-riscv64-gnu/package.json').version
-          if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-            throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+          const binding = require('thetadatadx-ts-linux-riscv64-gnu')
+          const bindingPackageVersion = require('thetadatadx-ts-linux-riscv64-gnu/package.json').version
+          if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+            throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
           }
           return binding
         } catch (e) {
@@ -433,15 +433,15 @@ function requireNative() {
       }
     } else if (process.arch === 'ppc64') {
       try {
-        return require('./thetadatadx.linux-ppc64-gnu.node')
+        return require('./thetadatadx-ts.linux-ppc64-gnu.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-linux-ppc64-gnu')
-        const bindingPackageVersion = require('thetadatadx-linux-ppc64-gnu/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-linux-ppc64-gnu')
+        const bindingPackageVersion = require('thetadatadx-ts-linux-ppc64-gnu/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -449,15 +449,15 @@ function requireNative() {
       }
     } else if (process.arch === 's390x') {
       try {
-        return require('./thetadatadx.linux-s390x-gnu.node')
+        return require('./thetadatadx-ts.linux-s390x-gnu.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-linux-s390x-gnu')
-        const bindingPackageVersion = require('thetadatadx-linux-s390x-gnu/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-linux-s390x-gnu')
+        const bindingPackageVersion = require('thetadatadx-ts-linux-s390x-gnu/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -469,15 +469,15 @@ function requireNative() {
   } else if (process.platform === 'openharmony') {
     if (process.arch === 'arm64') {
       try {
-        return require('./thetadatadx.openharmony-arm64.node')
+        return require('./thetadatadx-ts.openharmony-arm64.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-openharmony-arm64')
-        const bindingPackageVersion = require('thetadatadx-openharmony-arm64/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-openharmony-arm64')
+        const bindingPackageVersion = require('thetadatadx-ts-openharmony-arm64/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -485,15 +485,15 @@ function requireNative() {
       }
     } else if (process.arch === 'x64') {
       try {
-        return require('./thetadatadx.openharmony-x64.node')
+        return require('./thetadatadx-ts.openharmony-x64.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-openharmony-x64')
-        const bindingPackageVersion = require('thetadatadx-openharmony-x64/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-openharmony-x64')
+        const bindingPackageVersion = require('thetadatadx-ts-openharmony-x64/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -501,15 +501,15 @@ function requireNative() {
       }
     } else if (process.arch === 'arm') {
       try {
-        return require('./thetadatadx.openharmony-arm.node')
+        return require('./thetadatadx-ts.openharmony-arm.node')
       } catch (e) {
         loadErrors.push(e)
       }
       try {
-        const binding = require('thetadatadx-openharmony-arm')
-        const bindingPackageVersion = require('thetadatadx-openharmony-arm/package.json').version
-        if (bindingPackageVersion !== '13.0.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
-          throw new Error(`Native binding package version mismatch, expected 13.0.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
+        const binding = require('thetadatadx-ts-openharmony-arm')
+        const bindingPackageVersion = require('thetadatadx-ts-openharmony-arm/package.json').version
+        if (bindingPackageVersion !== '0.1.0' && process.env.NAPI_RS_ENFORCE_VERSION_CHECK && process.env.NAPI_RS_ENFORCE_VERSION_CHECK !== '0') {
+          throw new Error(`Native binding package version mismatch, expected 0.1.0 but got ${bindingPackageVersion}. You can reinstall dependencies to fix this issue.`)
         }
         return binding
       } catch (e) {
@@ -539,7 +539,7 @@ if (!nativeBinding || forceWasi) {
   let wasiBinding = null
   let wasiBindingError = null
   try {
-    wasiBinding = require('./thetadatadx.wasi.cjs')
+    wasiBinding = require('./thetadatadx-ts.wasi.cjs')
     nativeBinding = wasiBinding
   } catch (err) {
     if (forceWasi) {
@@ -548,7 +548,7 @@ if (!nativeBinding || forceWasi) {
   }
   if (!nativeBinding || forceWasi) {
     try {
-      wasiBinding = require('thetadatadx-wasm32-wasi')
+      wasiBinding = require('thetadatadx-ts-wasm32-wasi')
       nativeBinding = wasiBinding
     } catch (err) {
       if (forceWasi) {
@@ -592,7 +592,7 @@ module.exports.Config = nativeBinding.Config
 module.exports.ContractRef = nativeBinding.ContractRef
 // `Contract` is the public name for the fluent contract builder; it
 // aliases the `ContractRef` constructor so
-// `require('thetadatadx').Contract.stock(...)` resolves.
+// `require('thetadatadx-ts').Contract.stock(...)` resolves.
 module.exports.Contract = nativeBinding.ContractRef;
 module.exports.Credentials = nativeBinding.Credentials
 module.exports.FlatFileRowList = nativeBinding.FlatFileRowList

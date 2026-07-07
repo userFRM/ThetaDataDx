@@ -155,12 +155,14 @@ impl StreamingEnvironment {
         match self {
             StreamingEnvironment::Prod => super::StreamingConfig::production_defaults().hosts,
             // The dev replay cluster replays a random historical trading day in
-            // an infinite loop at maximum speed; see `DirectConfig::dev`.
-            StreamingEnvironment::Dev => vec![
-                ("nj-a.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20201),
-            ],
+            // an infinite loop at maximum speed; see `DirectConfig::dev`. The
+            // terminal's dev list also carries `test-server.thetadata.us`
+            // failover hosts, but those resolve only inside ThetaData's own
+            // network — an external SDK caller cannot reach them, so a shuffled
+            // connect that landed on one only logged a DNS failure before
+            // failing over. `nj-a.thetadata.us:20200` is the publicly
+            // reachable dev host.
+            StreamingEnvironment::Dev => vec![("nj-a.thetadata.us".to_string(), 20200)],
         }
     }
 }
@@ -263,11 +265,7 @@ mod tests {
     fn dev_streaming_uses_replay_hosts() {
         assert_eq!(
             StreamingEnvironment::Dev.hosts(),
-            vec![
-                ("nj-a.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20201),
-            ]
+            vec![("nj-a.thetadata.us".to_string(), 20200),]
         );
     }
 }

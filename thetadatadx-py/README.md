@@ -6,7 +6,7 @@
 
 The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
-[![PyPI](https://img.shields.io/pypi/v/thetadatadx?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx)
+[![PyPI](https://img.shields.io/pypi/v/thetadatadx-py?logo=python&logoColor=white)](https://pypi.org/project/thetadatadx-py)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org)
 [![Discord](https://img.shields.io/badge/Discord-community-5865F2.svg?logo=discord&logoColor=white)](https://discord.thetadata.us/)
@@ -26,12 +26,12 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 ## Install
 
 ```bash
-pip install thetadatadx
+pip install thetadatadx-py
 
-pip install thetadatadx[polars]   # Polars DataFrames
-pip install thetadatadx[pandas]   # pandas DataFrames (Arrow-backed)
-pip install thetadatadx[arrow]    # raw pyarrow.Table
-pip install thetadatadx[all]      # every optional adapter
+pip install thetadatadx-py[polars]   # Polars DataFrames
+pip install thetadatadx-py[pandas]   # pandas DataFrames (Arrow-backed)
+pip install thetadatadx-py[arrow]    # raw pyarrow.Table
+pip install thetadatadx-py[all]      # every optional adapter
 ```
 
 Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. Wheels use CPython's stable ABI (`abi3`), so one wheel per platform covers Python 3.12 and up; the free-threaded (`3.14t`) build runs with the GIL disabled and is selected automatically by `pip`.
@@ -89,7 +89,7 @@ Every result converts directly to a dataframe — no row-by-row iteration:
 
 ```python
 greeks.to_polars()   # polars.DataFrame
-greeks.to_pandas()   # pandas.DataFrame   (pip install thetadatadx[pandas])
+greeks.to_pandas()   # pandas.DataFrame   (pip install thetadatadx-py[pandas])
 greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 greeks.to_list()     # list[GreeksTick]
 ```

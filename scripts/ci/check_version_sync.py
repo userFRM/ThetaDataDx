@@ -5,8 +5,8 @@ The TypeScript SDK ships through npm and pins its version in
 ``thetadatadx-ts/package.json`` plus three per-platform packages under
 ``thetadatadx-ts/npm/`` plus three ``optionalDependencies`` entries.
 The Rust workspace bumps its Cargo.toml independently. When any of those
-fall out of sync (which happened across v8.0.27 / v8.0.28 / v8.0.29 and
-left npm stuck on v8.0.26 because the publish workflow keys off
+fall out of sync (which happened across v9.9.7 / v9.9.8 / v9.9.9 and
+left npm stuck on v9.9.6 because the publish workflow keys off
 ``package.json`` rather than ``Cargo.toml``), the npm package silently
 ages while git tags advance.
 
@@ -64,7 +64,7 @@ PY_CARGO = ROOT / "thetadatadx-py" / "Cargo.toml"
 
 # Accepted values for the `__version__` fallback in the Python SDK
 # `__init__.py`. `"unknown"` is the canonical sentinel — anything that
-# happens to look like a semver literal (e.g. `"10.0.0"`) drifts
+# happens to look like a semver literal (e.g. `"9.9.9"`) drifts
 # silently whenever `Cargo.toml` advances, so the gate warns the
 # operator immediately.
 PY_FALLBACK_OK = ("unknown",)
@@ -188,7 +188,7 @@ def cmake_project_version(path: Path) -> str | None:
     """Extract the `project(... VERSION x.y.z ...)` value from a
     CMakeLists.txt. U4 closure: the version-sync check previously
     returned clean even when `thetadatadx-cpp/CMakeLists.txt` still pinned
-    `VERSION 8.0.23` against a Cargo-side v10. Match the `VERSION
+    `VERSION 9.9.7` against a Cargo-side v9. Match the `VERSION
     x.y.z` substring inside the `project(...)` call so a future CMake
     drift fails this gate.
     """
@@ -239,8 +239,8 @@ def openapi_info_version(path: Path) -> str | None:
 # version and a doc pin silently aged the docs across v9 → v10, and again
 # across the rc series: `thetadatadx-rs/README.md` ships verbatim to
 # docs.rs (it is the crate's `readme = "README.md"`) yet a hand-picked
-# three-path list never scanned it, so it pinned `13.0.0-rc.1` against a
-# canonical `13.0.0-rc.5` undetected. The gate now discovers EVERY `*.md`
+# three-path list never scanned it, so it pinned `9.9.9-rc.1` against a
+# canonical `9.9.9-rc.5` undetected. The gate now discovers EVERY `*.md`
 # in the tree (minus the exclusions below) so a new install snippet in any
 # Markdown file is covered the moment it lands, with no edit here.
 #
@@ -290,13 +290,13 @@ DOC_PIN_PATHS: tuple[Path, ...] | None = None
 # Match `thetadatadx = "<VERSION>"` (Cargo.toml-ish pin) and
 # `thetadatadx = { version = "<VERSION>", ... }` (Cargo.toml feature
 # pin). Capture the FULL quoted literal — including any pre-release
-# suffix (`13.0.0-rc.5`) — not just the major. A major-only capture let
-# a stale pre-release pin (`13.0.0-rc.1`) pass against a canonical
-# `13.0.0-rc.5` because both share the major `13`; comparing the full
+# suffix (`9.9.9-rc.5`) — not just the major. A major-only capture let
+# a stale pre-release pin (`9.9.9-rc.1`) pass against a canonical
+# `9.9.9-rc.5` because both share the major; comparing the full
 # version closes that hole so a doc that pins an aged release fails the
 # gate.
 DOC_PIN_RE = re.compile(
-    r'thetadatadx\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")'
+    r'thetadatadx-rs\s*=\s*(?:"([^"]+)"|\{\s*version\s*=\s*"([^"]+)")'
 )
 
 
@@ -304,7 +304,7 @@ def python_init_fallback_mismatches(canonical: str) -> list[str]:
     """Warn if the Python SDK `__version__` fallback drifted away from
     the `"unknown"` sentinel into a stale numeric literal.
 
-    A literal fallback like `"10.0.0"` silently lies whenever the
+    A literal fallback like `"9.9.9"` silently lies whenever the
     canonical `Cargo.toml` version advances — operators inspecting
     `thetadatadx.__version__` on a source-tree import see a stale
     number instead of an obvious "I cannot determine the version"
@@ -385,7 +385,7 @@ def main() -> int:
                 f"{package_json_version(platform_pkg)}, expected {canonical}"
             )
 
-    # The MCP server ships to npm as well (`npx -y thetadatadx-mcp`): a
+    # The MCP server ships to npm as well (`npx -y thetadatadx-mcp-server`): a
     # launcher package plus one prebuilt-binary package per platform, all
     # under `tools/mcp/npm/`. They pin the canonical version exactly like
     # the TypeScript packages and are bumped by `bump_version.py` in the
@@ -429,8 +429,8 @@ def main() -> int:
 
     # CMake project version must match the canonical crates Cargo
     # version. CMake's `project(... VERSION ...)` only accepts a numeric
-    # `major.minor.patch`, so on a pre-release (e.g. `13.0.0-rc.1`) it
-    # carries the numeric base (`13.0.0`); compare against that base, not
+    # `major.minor.patch`, so on a pre-release (e.g. `9.9.9-rc.1`) it
+    # carries the numeric base (`9.9.9`); compare against that base, not
     # the full pre-release string. A normal release has no suffix, so the
     # base equals the canonical version.
     canonical_base = canonical.split("-", 1)[0]
@@ -494,8 +494,8 @@ def _selftest() -> int:
     Cases:
 
     * A doc file that pins a stale pre-release (`thetadatadx =
-      "13.0.0-rc.1"`) against canonical `13.0.0-rc.5` — must be flagged.
-      The old major-only capture passed it because both share major `13`;
+      "9.9.9-rc.1"`) against canonical `9.9.9-rc.5` — must be flagged.
+      The old major-only capture passed it because both shared the same major;
       the full-version capture must now catch it. The feature-pin shape
       (`{ version = "..." }`) is covered too.
     * A doc file pinning the exact canonical version — must pass.
@@ -521,7 +521,7 @@ def _selftest() -> int:
     """
     global DOC_PIN_PATHS
 
-    canonical = "13.0.0-rc.5"
+    canonical = "9.9.9-rc.5"
     failures: list[str] = []
 
     with tempfile.TemporaryDirectory() as td:
@@ -533,18 +533,18 @@ def _selftest() -> int:
             "Install with\n\n"
             "```toml\n"
             '[dependencies]\n'
-            'thetadatadx = "13.0.0-rc.1"\n'
+            'thetadatadx-rs = "9.9.9-rc.1"\n'
             "```\n",
             encoding="utf-8",
         )
         stale_feature_doc = root / "features.md"
         stale_feature_doc.write_text(
-            'thetadatadx = { version = "13.0.0-rc.1", features = ["frames"] }\n',
+            'thetadatadx-rs = { version = "9.9.9-rc.1", features = ["frames"] }\n',
             encoding="utf-8",
         )
         clean_doc = root / "clean.md"
         clean_doc.write_text(
-            'thetadatadx = "13.0.0-rc.5"\n',
+            'thetadatadx-rs = "9.9.9-rc.5"\n',
             encoding="utf-8",
         )
 
@@ -571,16 +571,16 @@ def _selftest() -> int:
         stale_flagged = {name for name, _ in pin_issues}
         if "README.md" not in stale_flagged:
             failures.append(
-                "doc-pin: stale plain pre-release pin `13.0.0-rc.1` was not "
-                "flagged against canonical 13.0.0-rc.5 (full-version "
+                "doc-pin: stale plain pre-release pin `9.9.9-rc.1` was not "
+                "flagged against canonical 9.9.9-rc.5 (full-version "
                 "comparison regressed)"
             )
         if "features.md" not in stale_flagged:
             failures.append(
-                "doc-pin: stale feature pin `{ version = \"13.0.0-rc.1\" }` "
+                "doc-pin: stale feature pin `{ version = \"9.9.9-rc.1\" }` "
                 "was not flagged"
             )
-        if any(pinned != "13.0.0-rc.1" for _, pinned in pin_issues):
+        if any(pinned != "9.9.9-rc.1" for _, pinned in pin_issues):
             failures.append(
                 f"doc-pin: captured an unexpected literal: {pin_issues!r} "
                 "(the full pre-release string must be captured verbatim)"
@@ -596,7 +596,7 @@ def _selftest() -> int:
         drifted_cargo.write_text(
             '[package]\n'
             'name = "thetadatadx-py"\n'
-            'version = "13.0.0-rc.1"\n'
+            'version = "9.9.9-rc.1"\n'
             'edition = "2021"\n',
             encoding="utf-8",
         )
@@ -604,11 +604,11 @@ def _selftest() -> int:
         matched_cargo.write_text(
             '[package]\n'
             'name = "thetadatadx-py"\n'
-            'version = "13.0.0-rc.5"\n'
+            'version = "9.9.9-rc.5"\n'
             'edition = "2021"\n',
             encoding="utf-8",
         )
-        if cargo_version(drifted_cargo) != "13.0.0-rc.1":
+        if cargo_version(drifted_cargo) != "9.9.9-rc.1":
             failures.append(
                 "py-wheel: cargo_version did not read the full pre-release "
                 f"literal (got {cargo_version(drifted_cargo)!r})"
@@ -637,14 +637,14 @@ def _selftest() -> int:
         try:
             install_doc = root / "thetadatadx-py" / "README.md"
             install_doc.parent.mkdir(parents=True, exist_ok=True)
-            install_doc.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+            install_doc.write_text('thetadatadx-rs = "9.9.9-rc.1"\n', encoding="utf-8")
 
             changelog = root / "CHANGELOG.md"
-            changelog.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+            changelog.write_text('thetadatadx-rs = "9.9.9-rc.1"\n', encoding="utf-8")
 
-            release_note = root / ".github" / "release-notes" / "v13.0.0-rc.1.md"
+            release_note = root / ".github" / "release-notes" / "v9.9.9-rc.1.md"
             release_note.parent.mkdir(parents=True, exist_ok=True)
-            release_note.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+            release_note.write_text('thetadatadx-rs = "9.9.9-rc.1"\n', encoding="utf-8")
 
             migration = root / "docs-site" / "docs" / "migration" / "v11-to-v12.md"
             migration.parent.mkdir(parents=True, exist_ok=True)
@@ -659,7 +659,7 @@ def _selftest() -> int:
                 )
             for excluded in (
                 "CHANGELOG.md",
-                ".github/release-notes/v13.0.0-rc.1.md",
+                ".github/release-notes/v9.9.9-rc.1.md",
                 "docs-site/docs/migration/v11-to-v12.md",
             ):
                 if excluded in discovered:
@@ -700,7 +700,7 @@ def _selftest() -> int:
             srv.parent.mkdir(parents=True, exist_ok=True)
             srv.write_text(
                 '[package]\nname = "thetadatadx-server"\n'
-                'version = "13.0.0-rc.1"\nedition = "2021"\n\n'
+                'version = "9.9.9-rc.1"\nedition = "2021"\n\n'
                 '[dependencies]\n'
                 # A dependency `version` must NOT be mistaken for the
                 # package version — tomllib scoping proves this.
@@ -719,7 +719,7 @@ def _selftest() -> int:
             lock = root / "Cargo.lock"
             lock.write_text(
                 'version = 3\n\n'
-                '[[package]]\nname = "thetadatadx"\nversion = "13.0.0-rc.1"\n\n'
+                '[[package]]\nname = "thetadatadx-rs"\nversion = "9.9.9-rc.1"\n\n'
                 '[[package]]\nname = "serde"\nversion = "1.0.0"\n',
                 encoding="utf-8",
             )
@@ -762,7 +762,7 @@ def _selftest() -> int:
             "openapi: 3.1.0\n"
             "info:\n"
             "  title: Theta Data v3\n"
-            "  version: 13.0.0-rc.1\n"
+            "  version: 9.9.9-rc.1\n"
             "  contact:\n"
             "    name: x\n"
             "paths:\n"
@@ -779,16 +779,16 @@ def _selftest() -> int:
             encoding="utf-8",
         )
         got = openapi_info_version(drift_yaml)
-        if got != "13.0.0-rc.1":
+        if got != "9.9.9-rc.1":
             failures.append(
                 "openapi-info-version: block-scoped read returned "
-                f"{got!r}, expected '13.0.0-rc.1' (a deeper-indented "
+                f"{got!r}, expected '9.9.9-rc.1' (a deeper-indented "
                 "response-schema `version:` key may have been grabbed instead "
                 "of info.version)"
             )
         ok_yaml = root / "ok.yaml"
         ok_yaml.write_text(
-            "info:\n  title: x\n  version: 13.0.0-rc.5\n",
+            "info:\n  title: x\n  version: 9.9.9-rc.5\n",
             encoding="utf-8",
         )
         if openapi_info_version(ok_yaml) != canonical:

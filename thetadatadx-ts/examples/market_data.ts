@@ -6,14 +6,14 @@
 //
 //     npx tsx market_data.ts
 //
-// Requires the prebuilt napi binding (`npm install thetadatadx`)
+// Requires the prebuilt napi binding (`npm install thetadatadx-ts`)
 // plus `npm install --save-dev tsx` for the runner.
 //
 // Every data-fetch method returns a Promise resolved off the runtime's
 // execution thread, so each call is awaited and the Node event loop
 // stays free while a request is in flight.
 
-import { Client } from "thetadatadx";
+import { Client } from "thetadatadx-ts";
 
 async function main(): Promise<void> {
   const client = await Client.connectFromFile("creds.txt");

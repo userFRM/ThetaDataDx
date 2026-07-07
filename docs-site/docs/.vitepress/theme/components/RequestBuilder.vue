@@ -372,7 +372,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
       // Zero-arg call collapses to bare `method()`; otherwise the multi-line
       // arg block (a leading comma on an empty arg list is a syntax error).
       const call = !req && !opt ? `${c.method.ts}()` : `${c.method.ts}(\n  ${req},${optLine}\n)`
-      return `import { ${imp} } from "thetadatadx";
+      return `import { ${imp} } from "thetadatadx-ts";
 
 ${clientLine('typescript').line}
 

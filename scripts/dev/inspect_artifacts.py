@@ -13,8 +13,8 @@ Usage::
     python3 scripts/dev/inspect_artifacts.py
 
     # inspect a specific wheel / tarball / directory
-    python3 scripts/dev/inspect_artifacts.py dist/thetadatadx-10.0.0-py3-none-any.whl
-    python3 scripts/dev/inspect_artifacts.py thetadatadx-ts/thetadatadx-10.0.0.tgz
+    python3 scripts/dev/inspect_artifacts.py dist/thetadatadx_py-0.1.0-py3-none-any.whl
+    python3 scripts/dev/inspect_artifacts.py thetadatadx-ts/thetadatadx-ts-0.1.0.tgz
 """
 
 from __future__ import annotations

@@ -79,7 +79,7 @@ Prefer the `with client.streaming(...)` context manager; it pairs `stop_streamin
 <template #typescript>
 
 ```typescript
-import { Contract, Client } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx-ts';
 
 const client = await Client.connectFromFile('creds.txt');
 
@@ -208,7 +208,7 @@ with client.stream.batches(batch_size=8192) as batches:
 <template #typescript>
 
 ```typescript
-import { Contract, Client } from 'thetadatadx';
+import { Contract, Client } from 'thetadatadx-ts';
 
 const client = await Client.connectFromFile('creds.txt');
 

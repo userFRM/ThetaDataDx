@@ -78,7 +78,7 @@ jobs:
         # the wire / decode surface the bench drives. The bench writes
         # per-row allocation figures to PERF_GATE_OUT_DIR.
         run: |
-          cargo bench -p thetadatadx --features __internal \
+          cargo bench -p thetadatadx-rs --features __internal \
               --bench bench_decode_allocations --locked -- --noplot
       - name: Compare against the committed baseline
         # Relative threshold plus an absolute floor, mirroring

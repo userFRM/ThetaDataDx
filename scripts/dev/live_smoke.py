@@ -309,7 +309,7 @@ def _smoke_server(creds: pathlib.Path) -> None:
 
 
 def _smoke_mcp(creds: pathlib.Path) -> None:
-    mcp = str(_bin_path("thetadatadx-mcp"))
+    mcp = str(_bin_path("thetadatadx-mcp-server"))
     proc = subprocess.Popen(
         [mcp, "--creds", str(creds)],
         cwd=REPO,
@@ -340,7 +340,7 @@ def _smoke_mcp(creds: pathlib.Path) -> None:
             }
         )
         init = pump.wait_for_jsonrpc(1)
-        if init.get("result", {}).get("serverInfo", {}).get("name") != "thetadatadx-mcp":
+        if init.get("result", {}).get("serverInfo", {}).get("name") != "thetadatadx-mcp-server":
             raise RuntimeError(f"unexpected MCP initialize response: {init!r}")
 
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})

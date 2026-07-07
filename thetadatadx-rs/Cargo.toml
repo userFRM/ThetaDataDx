@@ -1,11 +1,11 @@
 [package]
-name = "thetadatadx"
-version = "13.0.0"
+name = "thetadatadx-rs"
+version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 description = "No-JVM ThetaData SDK — native Rust client for market-data, streaming, and bulk flat-file market data"
-documentation = "https://docs.rs/thetadatadx"
+documentation = "https://docs.rs/thetadatadx-rs"
 homepage.workspace = true
 repository.workspace = true
 license.workspace = true
@@ -23,7 +23,7 @@ workspace = true
 
 [package.metadata.docs.rs]
 # Explicit feature list mirroring the CI rustdoc job
-# (`cargo doc --no-deps -p thetadatadx --features arrow,polars,frames,config-file`).
+# (`cargo doc --no-deps -p thetadatadx-rs --features arrow,polars,frames,config-file`).
 # Never use `all-features = true` here — it would re-enable any internal
 # bench-only feature flag and surface non-public symbols on docs.rs.
 features = ["arrow", "polars", "frames", "config-file"]
@@ -248,7 +248,7 @@ tracing-subscriber = { version = "0.3.20", default-features = false, features = 
 # the library's `[dependencies]` entry; listed explicitly so test binaries
 # resolve it without relying on the lib's transitive graph).
 rand = "0.10"
-criterion = { version = "0.8.2", features = ["html_reports", "async_tokio"] }
+criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support", "async_tokio"] }
 # `futures::future::join_all` for the concurrent-burst bench.
 futures = "0.3"
 proptest = "1.5"

@@ -4,7 +4,7 @@ This roadmap shows where ThetaDataDx is headed. It is intentionally undated: ite
 
 ## Now
 
-Stabilizing v13 toward a stable `13.0.0` release. The release-candidate series is hardening the four SDKs, the bundled server, the MCP server, and the documentation ahead of the first stable cut.
+The SDK is published under per-language package names starting at `0.1.0` (`thetadatadx-rs`, `thetadatadx-py`, `thetadatadx-ts`, plus the in-repo `thetadatadx-cpp`). The four SDKs, the bundled server, the MCP server, and the documentation share one Rust engine.
 
 ## Next
 

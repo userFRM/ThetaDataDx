@@ -124,7 +124,7 @@ def test_version_attribute_exposed(mod) -> None:
     """PEP 396: `thetadatadx.__version__` must be a non-empty string.
 
     A fresh install of the wheel resolves the version through
-    `importlib.metadata.version("thetadatadx")`; the source-tree
+    `importlib.metadata.version("thetadatadx-py")`; the source-tree
     fallback returns the in-source default. Either way, the attribute
     must exist and be a non-empty string — downstream packagers,
     `pip show`, and bug-report scripts rely on it.

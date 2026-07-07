@@ -12,7 +12,7 @@
 //!
 //! The structs themselves are generated at build-time from
 //! `thetadatadx-rs/tick_schema.toml` by
-//! `cargo run -p thetadatadx --bin generate_sdk_surfaces`.
+//! `cargo run -p thetadatadx-rs --bin generate_sdk_surfaces`.
 
 include!("generated/tick.rs");
 

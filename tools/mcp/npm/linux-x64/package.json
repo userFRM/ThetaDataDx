@@ -1,7 +1,7 @@
 {
-  "name": "thetadatadx-mcp-linux-x64",
-  "version": "13.0.0",
-  "description": "thetadatadx-mcp prebuilt server binary for linux-x64",
+  "name": "thetadatadx-mcp-server-linux-x64",
+  "version": "0.1.0",
+  "description": "thetadatadx-mcp-server prebuilt server binary for linux-x64",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -13,9 +13,9 @@
   "cpu": [
     "x64"
   ],
-  "main": "thetadatadx-mcp",
+  "main": "thetadatadx-mcp-server",
   "files": [
-    "thetadatadx-mcp"
+    "thetadatadx-mcp-server"
   ],
   "engines": {
     "node": ">= 18"

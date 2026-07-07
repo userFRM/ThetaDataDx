@@ -70,16 +70,16 @@ capture() {
 
 echo "==> Baseline: force-regen and snapshot"
 touch thetadatadx-rs/build.rs
-cargo build -p thetadatadx --quiet
-cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file --quiet >/dev/null
+cargo build -p thetadatadx-rs --quiet
+cargo run -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file --quiet >/dev/null
 capture "$BEFORE"
 before_lines=$(wc -l < "$BEFORE")
 echo "    captured $before_lines file hashes"
 
 echo "==> Regenerate and re-snapshot"
 touch thetadatadx-rs/build.rs
-cargo build -p thetadatadx --quiet
-cargo run -p thetadatadx --bin generate_sdk_surfaces --features config-file --quiet >/dev/null
+cargo build -p thetadatadx-rs --quiet
+cargo run -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file --quiet >/dev/null
 capture "$AFTER"
 
 if diff -u "$BEFORE" "$AFTER"; then

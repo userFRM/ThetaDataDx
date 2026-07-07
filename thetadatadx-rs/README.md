@@ -6,8 +6,8 @@
 
 The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — from one async client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.
 
-[![Crates.io](https://img.shields.io/crates/v/thetadatadx.svg?logo=rust)](https://crates.io/crates/thetadatadx)
-[![docs.rs](https://img.shields.io/docsrs/thetadatadx?logo=docsdotrs)](https://docs.rs/thetadatadx)
+[![Crates.io](https://img.shields.io/crates/v/thetadatadx-rs.svg?logo=rust)](https://crates.io/crates/thetadatadx-rs)
+[![docs.rs](https://img.shields.io/docsrs/thetadatadx-rs?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE)
 
 > [!IMPORTANT]
@@ -27,13 +27,13 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0"
+thetadatadx-rs = "0.1.0"
 ```
 
 Opt into DataFrame ergonomics with the `polars` or `arrow` feature:
 
 ```toml
-thetadatadx = { version = "13.0.0", features = ["polars"] }
+thetadatadx-rs = { version = "0.1.0", features = ["polars"] }
 ```
 
 ## Quick start
@@ -214,11 +214,11 @@ Every public method returns `Result<_, thetadatadx::Error>`. The streaming surfa
 
 ## Documentation
 
-- [API reference](https://docs.rs/thetadatadx)
+- [API reference](https://docs.rs/thetadatadx-rs)
 - [Documentation site](https://userfrm.github.io/ThetaDataDx/) — guides, per-endpoint pages, and a streaming deep-dive
 - [Repository, issues, contributing](https://github.com/userFRM/ThetaDataDx)
 
-Python (`pip install thetadatadx`), Node.js (`npm install thetadatadx`), and C++ bindings sit on this same engine and share its wire format and reconnect behaviour.
+Python (`pip install thetadatadx-py`), Node.js (`npm install thetadatadx-ts`), and C++ bindings sit on this same engine and share its wire format and reconnect behaviour.
 
 ## License
 

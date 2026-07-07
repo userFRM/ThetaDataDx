@@ -7,7 +7,7 @@
 // name collides with the FPSS event payload type's own `Contract`
 // field). This post-build pass keeps the public surface tied to
 // the documented name without forcing every user to write
-// `import { ContractRef as Contract } from "thetadatadx"`.
+// `import { ContractRef as Contract } from "thetadatadx-ts"`.
 //
 // Run automatically via `npm run build` (see `scripts.build` in
 // package.json). Idempotent: re-running on a tree that already
@@ -73,7 +73,7 @@ if (jsText.includes(JS_ALIAS_LINE)) {
   const jsAlias =
     "// `Contract` is the public name for the fluent contract builder; it\n" +
     "// aliases the `ContractRef` constructor so\n" +
-    "// `require('thetadatadx').Contract.stock(...)` resolves.\n" +
+    "// `require('thetadatadx-ts').Contract.stock(...)` resolves.\n" +
     `${JS_ALIAS_LINE};\n`;
   const out = jsText.slice(0, insertAt) + jsAlias + jsText.slice(insertAt);
   writeFileSync(jsPath, out, "utf-8");

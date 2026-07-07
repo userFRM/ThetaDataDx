@@ -148,7 +148,7 @@ The build expands that metadata into the registry, shared endpoint runtime, and
      `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` is verified
      by the build script but never written by it. Refresh it
      explicitly with
-     `cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen`
+     `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen`
      and commit the resulting diff alongside the proto change.
 
 2. **Add or update the endpoint surface**
@@ -172,7 +172,7 @@ The build expands that metadata into the registry, shared endpoint runtime, and
    - Endpoint wrappers project from `thetadatadx-rs/endpoint_surface.toml`
    - Non-endpoint SDK/tool surfaces project from `thetadatadx-rs/sdk_surface.toml`
    - Tick projection helpers project from `thetadatadx-rs/tick_schema.toml`
-   - Run `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`
+   - Run `cargo run -p thetadatadx-rs --features config-file --bin generate_sdk_surfaces`
    - Only hand-edit SDK runtime plumbing when the change is intentionally outside the generated surface
 
 6. **Update CHANGELOG.md** under `[Unreleased]`

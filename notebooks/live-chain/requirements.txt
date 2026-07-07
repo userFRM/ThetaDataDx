@@ -1,2 +1,2 @@
 streamlit>=1.30
-thetadatadx[pandas]
+thetadatadx-py[pandas]

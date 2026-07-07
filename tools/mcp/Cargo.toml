@@ -1,24 +1,24 @@
 [package]
-name = "thetadatadx-mcp"
-version = "13.0.0"
+name = "thetadatadx-mcp-server"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
 description = "MCP server for ThetaDataDx — gives LLMs instant access to ThetaData market data"
 license = "Apache-2.0"
 repository = "https://github.com/userFRM/ThetaDataDx"
 
-# Binary — not published to crates.io. Only `thetadatadx` is published
+# Binary — not published to crates.io. Only `thetadatadx-rs` is published
 # per the publish-crate CI job.
 publish = false
 
 [workspace]
 
 [[bin]]
-name = "thetadatadx-mcp"
+name = "thetadatadx-mcp-server"
 path = "src/main.rs"
 
 [dependencies]
-thetadatadx = { path = "../../thetadatadx-rs", features = ["__internal"] }
+thetadatadx = { package = "thetadatadx-rs", path = "../../thetadatadx-rs", features = ["__internal"] }
 tokio = { version = "1.52.1", features = ["rt-multi-thread", "macros", "io-util", "io-std"] }
 serde = { version = "1.0.228", features = ["derive"] }
 sonic-rs = "0.5.8"

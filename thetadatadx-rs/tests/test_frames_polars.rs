@@ -1,6 +1,6 @@
 //! `TicksPolarsExt::to_polars` coverage.
 //!
-//! Runs under `cargo test -p thetadatadx --features polars`. Verifies
+//! Runs under `cargo test -p thetadatadx-rs --features polars`. Verifies
 //! every tick type in `thetadatadx` has a generator-emitted impl
 //! and asserts the produced DataFrame has the expected column set,
 //! column order, row count, and primitive dtypes.

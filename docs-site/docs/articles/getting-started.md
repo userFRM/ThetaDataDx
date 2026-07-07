@@ -16,7 +16,7 @@ ThetaDataDx connects directly to ThetaData's servers — nothing to install and 
 ```toml
 # Cargo.toml
 [dependencies]
-thetadatadx = "13.0.0"
+thetadatadx-rs = "0.1.0"
 ```
 
 The market-data client is async; call it from your application's async runtime.
@@ -26,12 +26,12 @@ The market-data client is async; call it from your application's async runtime.
 <template #python>
 
 ```bash
-pip install thetadatadx
+pip install thetadatadx-py
 
 # Optional DataFrame adapters:
-pip install "thetadatadx[pandas]"    # pandas
-pip install "thetadatadx[polars]"    # polars
-pip install "thetadatadx[arrow]"     # pyarrow only
+pip install "thetadatadx-py[pandas]"    # pandas
+pip install "thetadatadx-py[polars]"    # polars
+pip install "thetadatadx-py[arrow]"     # pyarrow only
 ```
 
 Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Windows — no Rust toolchain needed. On other platforms, build from source with [maturin](https://www.maturin.rs/) (`maturin develop --release` in `thetadatadx-py`).
@@ -41,7 +41,7 @@ Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Wind
 <template #typescript>
 
 ```bash
-npm install thetadatadx
+npm install thetadatadx-ts
 ```
 
 Requires Node.js 20+. Pre-built native binaries install automatically per platform.
@@ -609,7 +609,7 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 
 // Pass your API key directly. Add marketDataType: 'STAGE' to target staging.
 const client = await Client.connectWith({ apiKey: 'your_api_key' });

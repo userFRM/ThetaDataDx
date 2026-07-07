@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Launcher for the thetadatadx-mcp server. The server is a native Rust
+// Launcher for the thetadatadx-mcp-server. The server is a native Rust
 // binary shipped as one optional dependency per platform (the
 // esbuild / biome model); this script resolves the binary for the host
 // platform and execs it, forwarding stdin/stdout (the MCP JSON-RPC
@@ -13,11 +13,11 @@ const { dirname, join } = require("node:path");
 // Keys are Node's `process.platform`/`process.arch` values, so the lookup
 // needs no abi/libc guessing — the published set is exactly these.
 const PACKAGES = {
-  "linux-x64": "thetadatadx-mcp-linux-x64",
-  "linux-arm64": "thetadatadx-mcp-linux-arm64",
-  "darwin-x64": "thetadatadx-mcp-darwin-x64",
-  "darwin-arm64": "thetadatadx-mcp-darwin-arm64",
-  "win32-x64": "thetadatadx-mcp-win32-x64",
+  "linux-x64": "thetadatadx-mcp-server-linux-x64",
+  "linux-arm64": "thetadatadx-mcp-server-linux-arm64",
+  "darwin-x64": "thetadatadx-mcp-server-darwin-x64",
+  "darwin-arm64": "thetadatadx-mcp-server-darwin-arm64",
+  "win32-x64": "thetadatadx-mcp-server-win32-x64",
 };
 
 function binaryPath() {
@@ -25,13 +25,13 @@ function binaryPath() {
   const pkg = PACKAGES[key];
   if (!pkg) {
     throw new Error(
-      `thetadatadx-mcp does not ship a prebuilt binary for ${key}.\n` +
+      `thetadatadx-mcp-server does not ship a prebuilt binary for ${key}.\n` +
         `Supported: ${Object.keys(PACKAGES).join(", ")}.\n` +
         `Build from source instead:\n` +
         `  git clone https://github.com/userFRM/ThetaDataDx && cargo install --path ThetaDataDx/tools/mcp`,
     );
   }
-  const exe = process.platform === "win32" ? "thetadatadx-mcp.exe" : "thetadatadx-mcp";
+  const exe = process.platform === "win32" ? "thetadatadx-mcp-server.exe" : "thetadatadx-mcp-server";
   try {
     // Resolve the platform package's `package.json` (not the binary
     // directly): an extensionless executable is not a resolvable module

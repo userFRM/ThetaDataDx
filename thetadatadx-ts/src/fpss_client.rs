@@ -385,7 +385,7 @@ type DrainedFlags = Arc<Mutex<Vec<Arc<AtomicBool>>>>;
 /// at connect time.
 ///
 /// ```ts
-/// import { StreamingClient, Contract } from "thetadatadx";
+/// import { StreamingClient, Contract } from "thetadatadx-ts";
 /// const streaming = StreamingClient.connectFromFile("creds.txt");
 /// await streaming.startStreaming((event) => console.log(event.kind, event));
 /// streaming.subscribe(Contract.stock("AAPL").quote());

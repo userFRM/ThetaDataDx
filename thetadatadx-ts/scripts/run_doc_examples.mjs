@@ -18,7 +18,7 @@
 // import-bearing block and absorbs the bare continuation fragments after it —
 // and every unit is emitted as one module (imports hoisted, bodies run inside
 // one async IIFE so top-level `await` is legal) and type-checked with
-// `tsc --noEmit`. Bare `import ... from "thetadatadx"` / "@thetadatadx/sdk"
+// `tsc --noEmit`. Bare `import ... from "thetadatadx-ts"` / "@thetadatadx/sdk"
 // is re-homed onto the local `index.d.ts` declarations.
 
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
@@ -75,7 +75,7 @@ function extractBlocks(source, { stripGutter }) {
 // Re-home bare package imports / requires onto the local declarations.
 function rehome(line) {
   return line.replace(
-    /(["'])(?:thetadatadx|@thetadatadx\/sdk)\1/g,
+    /(["'])(?:thetadatadx-ts|@thetadatadx\/sdk|thetadatadx)\1/g,
     `"${LOCAL_MODULE}"`
   );
 }

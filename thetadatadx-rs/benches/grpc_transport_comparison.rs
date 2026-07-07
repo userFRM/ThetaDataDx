@@ -34,7 +34,7 @@
 //! ~1 KB and ~10 MB frames plus the 16-chunk fan-in shape):
 //!
 //! ```text
-//! cargo bench -p thetadatadx --features __test-helpers \
+//! cargo bench -p thetadatadx-rs --features __test-helpers \
 //!     --bench grpc_transport_comparison
 //! ```
 //!

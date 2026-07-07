@@ -1047,7 +1047,7 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
 
     // to_pandas — delegates to to_arrow.
     out.push_str("    /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.\n");
-    out.push_str("    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.\n");
+    out.push_str("    /// Requires pandas + pyarrow: `pip install thetadatadx-py[pandas]`.\n");
     out.push_str("    fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
     writeln!(
         out,
@@ -1059,7 +1059,7 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
 
     // to_polars — delegates to to_arrow.
     out.push_str("    /// Return a `polars.DataFrame` via `polars.from_arrow`.\n");
-    out.push_str("    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.\n");
+    out.push_str("    /// Requires polars + pyarrow: `pip install thetadatadx-py[polars]`.\n");
     out.push_str("    fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
     writeln!(
         out,

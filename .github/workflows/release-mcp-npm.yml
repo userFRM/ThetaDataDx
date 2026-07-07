@@ -1,9 +1,9 @@
 name: Release MCP npm Package
 
-# Ships the MCP server (`tools/mcp`) to npm so `npx -y thetadatadx-mcp` runs
+# Ships the MCP server (`tools/mcp`) to npm so `npx -y thetadatadx-mcp-server` runs
 # it with no Rust toolchain. The model mirrors esbuild / biome: a tiny JS
-# launcher package (`thetadatadx-mcp`) plus one prebuilt-binary package per
-# platform (`thetadatadx-mcp-<platform>`), wired as optionalDependencies so
+# launcher package (`thetadatadx-mcp-server`) plus one prebuilt-binary package per
+# platform (`thetadatadx-mcp-server-<platform>`), wired as optionalDependencies so
 # npm installs only the host's binary.
 #
 # Each platform's binary is built on that platform's own native runner (no
@@ -113,16 +113,16 @@ jobs:
           bindir="tools/mcp/target/${{ matrix.target }}/release"
           rm -rf stage && mkdir -p stage
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp "$bindir/thetadatadx-mcp.exe" stage/
+            cp "$bindir/thetadatadx-mcp-server.exe" stage/
           else
-            cp "$bindir/thetadatadx-mcp" stage/
+            cp "$bindir/thetadatadx-mcp-server" stage/
           fi
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v7
         with:
           name: mcp-${{ matrix.platform }}
-          path: stage/thetadatadx-mcp*
+          path: stage/thetadatadx-mcp-server*
           if-no-files-found: error
 
   publish:
@@ -156,8 +156,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version=$(node -p "require('./thetadatadx-mcp/package.json').version")
-          for dir in thetadatadx-mcp linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+          version=$(node -p "require('./thetadatadx-mcp-server/package.json').version")
+          for dir in thetadatadx-mcp-server linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
             v=$(node -p "require('./${dir}/package.json').version")
             if [ "$v" != "$version" ]; then
               echo "::error::package version mismatch: ${dir}/package.json is ${v}, launcher is ${version} — all six manifests must agree"
@@ -192,17 +192,17 @@ jobs:
           )
           for platform in "${!TRIPLE[@]}"; do
             dir="$GITHUB_WORKSPACE/mcp-artifacts/mcp-${platform}"
-            bin="$dir/thetadatadx-mcp"
-            [ "$platform" = "win32-x64" ] && bin="$dir/thetadatadx-mcp.exe"
+            bin="$dir/thetadatadx-mcp-server"
+            [ "$platform" = "win32-x64" ] && bin="$dir/thetadatadx-mcp-server.exe"
             node scripts/populate.mjs "${TRIPLE[$platform]}" "$bin"
           done
-          ls -lR -- */thetadatadx-mcp* || true
+          ls -lR -- */thetadatadx-mcp-server* || true
 
       # Publish the platform packages first, then the launcher — so a
       # freshly installed launcher always finds its optionalDependency on
       # the registry. Idempotent: skip a version already published. The
       # dist-tag mirrors the TypeScript SDK — a hyphenated pre-release
-      # version (e.g. `13.0.0-rc.6`) goes to `next`, a final release to
+      # version (e.g. `0.1.0-rc.1`) goes to `next`, a final release to
       # `latest`.
       - name: Publish platform packages
         working-directory: tools/mcp/npm
@@ -224,15 +224,15 @@ jobs:
           done
 
       - name: Publish launcher package
-        working-directory: tools/mcp/npm/thetadatadx-mcp
+        working-directory: tools/mcp/npm/thetadatadx-mcp-server
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           pkg_version=$(node -p "require('./package.json').version")
-          if npm view "thetadatadx-mcp@${pkg_version}" version 2>/dev/null; then
-            echo "skip thetadatadx-mcp@${pkg_version} (already published)"
+          if npm view "thetadatadx-mcp-server@${pkg_version}" version 2>/dev/null; then
+            echo "skip thetadatadx-mcp-server@${pkg_version} (already published)"
           else
             dist_tag=latest
             case "$pkg_version" in *-*) dist_tag=next;; esac

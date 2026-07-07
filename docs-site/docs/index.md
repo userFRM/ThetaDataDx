@@ -66,7 +66,7 @@ print(q.bid, q.ask)
 ```
 
 ```typescript [TypeScript]
-import { Client } from 'thetadatadx';
+import { Client } from 'thetadatadx-ts';
 
 const client = await Client.connectWith({ apiKey: 'your_api_key' });
 const [q] = await client.marketData.stockSnapshotQuote(['AAPL']);
@@ -94,12 +94,12 @@ println!("{} {}", rows[0].bid, rows[0].ask);
 
 ::: tip Install
 
-The supported release line is **13.0.0**. Install the stable package directly. Versions before 13.0.0 are unsupported and have been withdrawn from the registries.
+The SDK ships as per-language packages at `0.1.0`: `thetadatadx-rs` (crates.io), `thetadatadx-py` (PyPI), and `thetadatadx-ts` (npm). Install directly below.
 
 ```bash
-pip install thetadatadx            # Python 3.12+
-npm install thetadatadx            # Node.js 20+
-cargo add thetadatadx              # Rust async client
+pip install thetadatadx-py            # Python 3.12+
+npm install thetadatadx-ts            # Node.js 20+
+cargo add thetadatadx-rs              # Rust async client
 ```
 
 :::

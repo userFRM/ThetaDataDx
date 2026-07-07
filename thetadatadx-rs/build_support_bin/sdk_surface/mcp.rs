@@ -129,7 +129,7 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("            let uptime = start_time.elapsed();\n");
             out.push_str("            Some(Ok(json!({\n");
             out.push_str("                \"status\": \"ok\",\n");
-            out.push_str("                \"server\": \"thetadatadx-mcp\",\n");
+            out.push_str("                \"server\": \"thetadatadx-mcp-server\",\n");
             out.push_str("                \"version\": VERSION,\n");
             out.push_str("                \"uptime_secs\": uptime.as_secs(),\n");
             out.push_str("                \"connected\": client.is_some(),\n");

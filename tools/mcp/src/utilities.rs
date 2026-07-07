@@ -24,7 +24,7 @@ async fn try_execute_generated_utility(
             let uptime = start_time.elapsed();
             Some(Ok(json!({
                 "status": "ok",
-                "server": "thetadatadx-mcp",
+                "server": "thetadatadx-mcp-server",
                 "version": VERSION,
                 "uptime_secs": uptime.as_secs(),
                 "connected": client.is_some(),
