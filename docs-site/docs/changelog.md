@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-07
+
+### Added
+
+- **Flat files on the standalone `MarketDataClient`.** The market-data-only client now exposes the full flat-file surface — the `flat_files()` namespace view plus the `flatfile_request` / `flatfile_request_decoded` entries and the five per-dataset convenience methods — matching the unified `Client` method-for-method. Flat files are account-authenticated market data with no streaming leg, so they belong on the market-data handle; a market-data-only workflow no longer needs the unified client to pull whole-universe per-day distributions. Reached the same way on every binding: Rust and C++ `MarketDataClient::flat_files()`, and the Python and TypeScript market-data clients, all backed by the same flat-file engine as the unified client.
+
+### Fixed
+
+- **C++ flat-file view lifetime.** The C++ `FlatFiles` view now co-owns the client handle (`shared_ptr`) instead of borrowing it, so it stays valid if the originating client is closed or destroyed while the view — or an in-flight call on it — is still alive. The accessor is now plain `const` (safe on a temporary), matching the `market_data()` view; the handle is released only once the last owner drops.
+
 ## [0.1.0] - 2026-07-07
 
 The first public release of ThetaDataDx: a terminal-exact, drop-in market-data SDK across Rust, Python, TypeScript, and C++, plus a bundled HTTP + WebSocket server and an MCP server, all over one Rust engine. It connects straight to ThetaData with nothing to install and run locally, and delivers US stock, option, index, and interest-rate data three ways from a single authenticated client: point-in-time history, real-time streaming, and whole-universe flat files.

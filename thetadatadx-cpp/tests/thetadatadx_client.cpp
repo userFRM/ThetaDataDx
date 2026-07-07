@@ -182,14 +182,14 @@ TEST_CASE("Stream binds the full FPSS surface",
         decltype(std::declval<const thetadatadx::Client&>().market_data()),
         thetadatadx::MarketData>);
 
-    // View accessor binding contract. `stream()` (`&`) and `flat_files()`
-    // (`const&`) hand out non-owning views that borrow the client's handle,
-    // so they stay ref-qualified to reject a temporary `Client`. `market_data()`
-    // is NOT ref-qualified (plain `const`): the `MarketData` view it returns
-    // co-owns the handle by `shared_ptr`, so it (and any `<endpoint>_async`
-    // future launched from it) keeps the handle alive on its own and may
-    // safely outlive a temporary `Client`. These assertions pin those binding
-    // rules.
+    // View accessor binding contract. `stream()` (`&`) hands out a non-owning
+    // view that borrows the client's handle, so it stays ref-qualified to
+    // reject a temporary `Client`. `market_data()` and `flat_files()` are NOT
+    // ref-qualified (plain `const`): the views they return co-own the handle by
+    // `shared_ptr`, so they (and any `<endpoint>_async` future launched from a
+    // `MarketData` view) keep the handle alive on their own and may safely
+    // outlive a temporary — or an explicitly closed — `Client`. These
+    // assertions pin those binding rules.
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::stream), thetadatadx::Client&>);
     // `stream()` is `&`-qualified (non-const lvalue ref), so it rejects an
@@ -200,23 +200,23 @@ TEST_CASE("Stream binds the full FPSS surface",
         decltype(&thetadatadx::Client::market_data), const thetadatadx::Client&>);
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::flat_files), const thetadatadx::Client&>);
-    // `market_data()` is plain `const` (not ref-qualified), so it binds to an
-    // rvalue `Client` in every standard — the co-owning view it returns is
-    // sound on a temporary.
+    // `market_data()` and `flat_files()` are plain `const` (not ref-qualified),
+    // so they bind to an rvalue `Client` in every standard — the co-owning
+    // views they return are sound on a temporary.
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::market_data), thetadatadx::Client&&>);
-    // `flat_files()` is `const&`-qualified. C++17 treats `is_invocable` of a
-    // `const&` member on an rvalue as false (the rvalue is rejected), but
-    // C++20 (LWG-resolved) treats it as true — an rvalue binds to a const
-    // lvalue ref. The runtime borrow contract (the flat-files view must not
-    // outlive the client) is unchanged; only the trait's answer differs by
-    // standard, so this rvalue assertion is gated to C++17. The C++ SDK builds
-    // C++17 by default; the `THETADATADX_CPP_ARROW` reader links arrow-cpp,
-    // which mandates C++20.
-#if __cplusplus < 202002L
-    STATIC_REQUIRE_FALSE(std::is_invocable_v<
+    STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::flat_files), thetadatadx::Client&&>);
-#endif
+
+    // The standalone market-data client mirrors the unified accessor: flat
+    // files are account-authenticated market data, so `MarketDataClient` hands
+    // out the same plain-`const`, co-owning `flat_files()` view. Pins that the
+    // market-data-only surface reaches flat files identically and is sound on a
+    // temporary.
+    STATIC_REQUIRE(std::is_invocable_v<
+        decltype(&thetadatadx::MarketDataClient::flat_files), const thetadatadx::MarketDataClient&>);
+    STATIC_REQUIRE(std::is_invocable_v<
+        decltype(&thetadatadx::MarketDataClient::flat_files), thetadatadx::MarketDataClient&&>);
 
     // set_callback
     STATIC_REQUIRE(std::is_invocable_v<decltype(&SV::set_callback), SV&, Cb>);

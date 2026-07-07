@@ -906,6 +906,8 @@ private:
 /// (`ThetaDataDxMarketDataClient*`), freed automatically on destruction. The recommended
 /// entry point for pure-market-data access; the generated market-data query
 /// methods are mixed in from `market_data.hpp.inc`.
+class FlatFiles;
+
 class MarketDataClient {
 public:
     /** Connect a market-data client to ThetaData servers.
@@ -937,6 +939,17 @@ public:
      *  `Client` lifecycle. Idempotent: a second call is a no-op and the
      *  destructor after `close` frees nothing. */
     void close() { handle_.reset(); }
+
+    /** Flat-file namespace view for this market-data client.
+     *
+     *  Flat files are account-authenticated market data, so the standalone
+     *  market-data client reaches the identical surface as the unified
+     *  `Client::flat_files()`. The returned `FlatFiles` value co-owns this
+     *  client's handle (`shared_ptr`), so it stays valid even if this client is
+     *  closed or destroyed while the view (or an in-flight call on it) is still
+     *  alive — hence plain `const`, safe on a temporary. Defined out-of-line
+     *  below once `FlatFiles` is complete. */
+    FlatFiles flat_files() const;
 
     #include "market_data.hpp.inc"
 
@@ -1354,8 +1367,12 @@ private:
     std::unique_ptr<ThetaDataDxFlatFileRowList, FlatFileRowListDeleter> handle_;
 };
 
-/// Namespace handle exposing the FLATFILES surface for a connected
-/// unified client. Cheap to construct — borrows the parent handle.
+/// Namespace handle exposing the FLATFILES surface for a connected client
+/// (unified or standalone market-data). Cheap to construct — it shares
+/// ownership of the parent's handle via `shared_ptr`, so the view stays valid
+/// even if the originating client is closed or destroyed while the view (or an
+/// in-flight call on it) is still alive. The handle is freed only once the last
+/// owner — the client or any live `FlatFiles` — drops.
 class FlatFiles {
 public:
     /// Generic dispatcher. `sec_type` is "OPTION" / "STOCK" / "INDEX";
@@ -1366,8 +1383,14 @@ public:
     FlatFileRowList request(const std::string& sec_type,
                             const std::string& req_type,
                             const std::string& date) const {
-        ThetaDataDxFlatFileRowList* h = thetadatadx_flatfile_request_decoded(
-            handle_, sec_type.c_str(), req_type.c_str(), date.c_str());
+        // One view type serves both clients: the market-data handle takes the
+        // `thetadatadx_market_data_*` entry, the unified handle the plain one.
+        ThetaDataDxFlatFileRowList* h =
+            md_handle_ != nullptr
+                ? thetadatadx_market_data_flatfile_request_decoded(
+                      md_handle_.get(), sec_type.c_str(), req_type.c_str(), date.c_str())
+                : thetadatadx_flatfile_request_decoded(
+                      handle_.get(), sec_type.c_str(), req_type.c_str(), date.c_str());
         if (h == nullptr) {
             detail::throw_last_ffi_error();
         }
@@ -1402,9 +1425,14 @@ public:
                  const std::string& date,
                  const std::string& path,
                  const std::string& format = "csv") const {
-        int rc = thetadatadx_flatfile_request_to_path(
-            handle_, sec_type.c_str(), req_type.c_str(),
-            date.c_str(), path.c_str(), format.c_str());
+        int rc =
+            md_handle_ != nullptr
+                ? thetadatadx_market_data_flatfile_request_to_path(
+                      md_handle_.get(), sec_type.c_str(), req_type.c_str(),
+                      date.c_str(), path.c_str(), format.c_str())
+                : thetadatadx_flatfile_request_to_path(
+                      handle_.get(), sec_type.c_str(), req_type.c_str(),
+                      date.c_str(), path.c_str(), format.c_str());
         if (rc != 0) {
             detail::throw_last_ffi_error();
         }
@@ -1412,9 +1440,25 @@ public:
 
 private:
     friend class Client;
-    explicit FlatFiles(const ThetaDataDxClient* h) : handle_(h) {}
-    const ThetaDataDxClient* handle_;
+    friend class MarketDataClient;
+    // Exactly one handle is non-null: the unified client sets `handle_`, the
+    // standalone market-data client sets `md_handle_`. Both reach the same
+    // account-authenticated flat-file distribution. The view co-owns the
+    // handle (`shared_ptr`), so closing or destroying the originating client
+    // cannot free a handle a live view still dispatches through.
+    explicit FlatFiles(std::shared_ptr<const ThetaDataDxClient> h)
+        : handle_(std::move(h)) {}
+    explicit FlatFiles(std::shared_ptr<const ThetaDataDxMarketDataClient> h)
+        : md_handle_(std::move(h)) {}
+    std::shared_ptr<const ThetaDataDxClient> handle_;
+    std::shared_ptr<const ThetaDataDxMarketDataClient> md_handle_;
 };
+
+/// Out-of-line: `FlatFiles` is now a complete type, so the market-data
+/// client's accessor can return it by value co-owning the client's handle.
+inline FlatFiles MarketDataClient::flat_files() const {
+    return FlatFiles(handle_);
+}
 
 /// `unique_ptr` deleter that releases a `ThetaDataDxClient*` via `thetadatadx_client_free`.
 struct UnifiedDeleter {
@@ -2243,15 +2287,15 @@ public:
         return *this;
     }
 
-    /// Namespace handle for the FLATFILES surface. Cheap — borrows the
-    /// underlying C ABI handle, so the returned `FlatFiles` value borrows
-    /// `*this` and must not outlive it.
+    /// Namespace handle for the FLATFILES surface. Cheap — the returned
+    /// `FlatFiles` value co-owns the underlying C ABI handle (`shared_ptr`),
+    /// so it stays valid even if this client is closed or destroyed while the
+    /// view (or an in-flight call on it) is still alive.
     ///
-    /// Lvalue-only: the accessor is ref-qualified to `const&`, so calling
-    /// it on a temporary is a compile error. Bind the client to a variable
-    /// first (`auto& c = ...; auto ff = c.flat_files();`); the view then
-    /// cannot outlive its client.
-    FlatFiles flat_files() const& { return FlatFiles(handle_.get()); }
+    /// Plain `const` (not ref-qualified): safe on a temporary, since the view
+    /// keeps the handle alive on its own — the same ownership contract as
+    /// `market_data()`.
+    FlatFiles flat_files() const { return FlatFiles(handle_); }
 
     /// Market-data sub-namespace: `client.market_data().stock_history_eod(...)`.
     ///

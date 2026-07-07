@@ -326,7 +326,7 @@ impl crate::Client {
     /// `flat_files = client.flat_files` in user code is identical to
     /// calling `client.flat_files.option_eod(...)` inline.
     #[getter]
-    fn flat_files(&self) -> PyResult<FlatFilesNamespace> {
+    pub(crate) fn flat_files(&self) -> PyResult<FlatFilesNamespace> {
         Ok(FlatFilesNamespace {
             client: self.client_arc()?,
         })

@@ -978,6 +978,23 @@ rust = true         # `Client::flat_files()` view accessor
 [method.signature]
 returns = "FlatFilesNamespace"
 
+# The standalone market-data client exposes the same accessor: flat files are
+# account-authenticated market data with no streaming leg, so a market-data-only
+# handle reaches them without the unified client. Pinned on every binding so a
+# future drop/rename of the accessor trips the gate. Python resolves it through
+# the `MarketDataClient.__getattr__` forward to the unified client; TypeScript is
+# the napi `flatFiles` getter on `MarketDataClient`; C++ and Rust are the
+# `MarketDataClient::flat_files()` view accessor.
+[[method]]
+class = "MarketDataClient"
+name = "flatFiles"
+python = true
+typescript = true
+cpp = true
+rust = true         # `MarketDataClient::flat_files()` view accessor
+[method.signature]
+returns = "FlatFilesNamespace"
+
 # Deterministic base-client teardown (issue #1069). `close()` stops streaming
 # if live and releases the client; the language context-manager / RAII wrappers
 # (`__exit__`/`[Symbol.dispose]`/destructor) route through it. The
@@ -4246,6 +4263,37 @@ name = "flatfile_rows_to_arrow_ipc"
 [ffi_symbol.signature]
 params = ["*const ThetaDataDxFlatFileRowList"]
 returns = "ThetaDataDxFlatFileBytes"
+
+# Flat files from the standalone market-data client. Flat files are pure
+# account-authenticated market data, so the borrowed `MarketDataClient` handle
+# exposes the identical fetch surface as the unified client's
+# `thetadatadx_flatfile_*`. These two hand-written externs back the C++
+# `MarketDataClient::flat_files()` view (Python and TypeScript reach the same
+# surface through their unified-client-backed handles). No endpoint/config
+# family tracks them, so a `[[ffi_symbol]]` row pins each one's existence.
+[[ffi_symbol]]
+name = "market_data_flatfile_request_decoded"
+[ffi_symbol.signature]
+params = [
+    "*const ThetaDataDxMarketDataClient",
+    "*const c_char",
+    "*const c_char",
+    "*const c_char",
+]
+returns = "*mut ThetaDataDxFlatFileRowList"
+
+[[ffi_symbol]]
+name = "market_data_flatfile_request_to_path"
+[ffi_symbol.signature]
+params = [
+    "*const ThetaDataDxMarketDataClient",
+    "*const c_char",
+    "*const c_char",
+    "*const c_char",
+    "*const c_char",
+    "*const c_char",
+]
+returns = "i32"
 
 # Per-tick Arrow IPC terminals (`thetadatadx_<kind>_ticks_to_arrow_ipc`,
 # `thetadatadx_calendar_days_to_arrow_ipc`). Emitted by the
