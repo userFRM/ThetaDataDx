@@ -2456,50 +2456,74 @@ PYI_SETTER_PROPERTY_ROWS: frozenset[tuple[str, str]] = frozenset(
 # Parity-toml `class` field → the Rust struct the Rust method collector
 # keys on. The flat-file namespace is the borrowed `FlatFiles` view
 # returned by `Client::flat_files()`; the unified entry-point client is
-# `Client`. Both live in `thetadatadx-rs/src/client.rs`. A row class
+# `Client`. Those two live in `thetadatadx-rs/src/client.rs`; the standalone
+# `MarketDataClient` below lives in `mdds/client.rs`. A row class
 # absent from this table is not gated on the Rust column (Python /
 # TypeScript / C++ only), so the Rust column is opt-in per row — exactly
 # the surfaces where Rust must mirror the other bindings.
 RUST_METHOD_CLASS: dict[str, str] = {
     "FlatFilesNamespace": "FlatFiles",
     "Client": "Client",
+    # The standalone market-data client is a distinct Rust struct (not a view
+    # borrowing `Client`); its cross-binding surface (`close`, `flat_files`)
+    # lives in `impl MarketDataClient` in `mdds/client.rs`, which the collector
+    # harvests alongside `client.rs` so the Rust column of those rows is
+    # genuinely enforced, not decorative.
+    "MarketDataClient": "MarketDataClient",
 }
+
+# The Rust source file each harvested view class is declared in — used only to
+# make a tripped-row diagnostic point at the right file (most live in
+# `client.rs`; `MarketDataClient` lives in the sibling `mdds/client.rs`).
+_RUST_CLASS_FILE: dict[str, str] = {
+    "MarketDataClient": "thetadatadx-rs/src/mdds/client.rs",
+}
+_DEFAULT_RUST_FILE = "thetadatadx-rs/src/client.rs"
 
 
 def _collect_rust_view_methods(client_rs: pathlib.Path) -> dict[str, set[str]]:
     """Return `{rust_class: {method, ...}}` for the public methods on the
-    Rust view structs that mirror the cross-binding surface.
+    Rust view / client structs that mirror the cross-binding surface.
 
     Parses every `impl FlatFiles<...> { ... }` and `impl Client { ... }`
-    block in `client.rs` and collects each `pub fn <name>` /
+    block in `client.rs`, plus every `impl MarketDataClient { ... }` block in
+    the sibling `mdds/client.rs`, and collects each `pub fn <name>` /
     `pub async fn <name>` (snake_case). `#[cfg(...)]` / `#[doc(hidden)]`
     gated methods are skipped — they are not part of the published surface
     a binding must mirror. The harvested set is keyed by the bare Rust
-    struct name (`FlatFiles`, `Client`), which the forward check resolves
-    a parity row's class to via `RUST_METHOD_CLASS`.
+    struct name (`FlatFiles`, `Client`, `MarketDataClient`), which the forward
+    check resolves a parity row's class to via `RUST_METHOD_CLASS`.
     """
     out: dict[str, set[str]] = {}
-    if not client_rs.is_file():
-        return out
-    text = _read_source(client_rs)
     # `pub fn <name>(` or `pub async fn <name>(`, capturing any leading
     # attribute lines so cfg/doc-hidden gating can be honoured.
     pub_fn_re = re.compile(
         r"((?:#\[[^\]]*\]\s*)*)\bpub\s+(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]"
     )
-    for struct in ("FlatFiles", "Client"):
-        # `impl FlatFiles<'_> {` / `impl Client {` — tolerate an optional
-        # generic / lifetime parameter list before the brace. Walk every
-        # matching impl block (there are several `impl Client` blocks).
-        impl_re = re.compile(rf"impl\s+{struct}\b[^{{]*\{{")
-        for header in impl_re.finditer(text):
-            body = _balanced_body(text, header.end())
-            for m in pub_fn_re.finditer(body):
-                attrs = m.group(1)
-                name = m.group(2)
-                if "cfg(" in attrs or "doc(hidden)" in attrs:
-                    continue
-                out.setdefault(struct, set()).add(name)
+
+    def _harvest(path: pathlib.Path, structs: tuple[str, ...]) -> None:
+        if not path.is_file():
+            return
+        text = _read_source(path)
+        for struct in structs:
+            # `impl FlatFiles<'_> {` / `impl Client {` / `impl MarketDataClient {`
+            # — tolerate an optional generic / lifetime parameter list before the
+            # brace, and walk every matching impl block (there are several).
+            impl_re = re.compile(rf"impl\s+{struct}\b[^{{]*\{{")
+            for header in impl_re.finditer(text):
+                body = _balanced_body(text, header.end())
+                for m in pub_fn_re.finditer(body):
+                    attrs = m.group(1)
+                    name = m.group(2)
+                    if "cfg(" in attrs or "doc(hidden)" in attrs:
+                        continue
+                    out.setdefault(struct, set()).add(name)
+
+    _harvest(client_rs, ("FlatFiles", "Client"))
+    # `mdds/client.rs` only carries the session/transport impl + the flat-file
+    # surface; the generated endpoint methods live in other files and are tracked
+    # by the market-data-base rows, not this view-method forward check.
+    _harvest(client_rs.parent / "mdds" / "client.rs", ("MarketDataClient",))
     return out
 
 
@@ -2751,7 +2775,7 @@ def _check_method_rows(
                     f"actual={actual_rust} ({verb} -- expected "
                     f"`pub fn {rust_member}` or `pub async fn {rust_member}` "
                     f"inside `impl {rust_lookup_class}` in "
-                    f"thetadatadx-rs/src/client.rs)"
+                    f"{_RUST_CLASS_FILE.get(rust_lookup_class, _DEFAULT_RUST_FILE)})"
                 )
 
     # Reverse-direction orphan scan for Client-level helper methods. A helper
@@ -7652,16 +7676,22 @@ def _sig_cpp_param_type(param: str) -> str:
 
 def _sig_extract_rust(client_rs: pathlib.Path, struct: str, method: str) -> tuple[list[str], str] | None:
     """Rust core signature: the `pub fn method` / `pub async fn method` inside
-    an `impl struct` block in `client.rs`. Receivers / the `py` token stripped;
-    the return is the `-> T` (defaulting to `()`)."""
-    if not client_rs.is_file():
-        return None
-    text = _read_source(client_rs)
+    an `impl struct` block. Receivers / the `py` token stripped; the return is
+    the `-> T` (defaulting to `()`).
+
+    Searches `client.rs` first, then the sibling `mdds/client.rs` — the
+    standalone `MarketDataClient`'s cross-binding surface (`close`,
+    `flat_files`) lives in the latter, so its signatures are pinned too rather
+    than degrading to unchecked."""
     impl_re = re.compile(r"impl\s+" + re.escape(struct) + r"\b[^{]*\{")
-    for h in impl_re.finditer(text):
-        sig = _sig_rust_fn(_balanced_body(text, h.end()), method, require_pub=True)
-        if sig is not None:
-            return sig
+    for path in (client_rs, client_rs.parent / "mdds" / "client.rs"):
+        if not path.is_file():
+            continue
+        text = _read_source(path)
+        for h in impl_re.finditer(text):
+            sig = _sig_rust_fn(_balanced_body(text, h.end()), method, require_pub=True)
+            if sig is not None:
+                return sig
     return None
 
 

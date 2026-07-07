@@ -17,6 +17,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::auth::{self, Credentials, SessionToken};
+use crate::FlatFiles;
 use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::grpc::{Channel, ChannelPool, ChannelTuning};
@@ -373,8 +374,8 @@ impl MarketDataClient {
     ///
     /// Cheap borrowed handle; take it per call site rather than storing it.
     #[must_use]
-    pub fn flat_files(&self) -> crate::FlatFiles<'_> {
-        crate::FlatFiles {
+    pub fn flat_files(&self) -> FlatFiles<'_> {
+        FlatFiles {
             creds: &self.creds,
             config: &self.config.flatfiles,
         }

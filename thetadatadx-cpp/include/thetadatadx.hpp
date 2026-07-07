@@ -1446,6 +1446,15 @@ private:
     // account-authenticated flat-file distribution. The view co-owns the
     // handle (`shared_ptr`), so closing or destroying the originating client
     // cannot free a handle a live view still dispatches through.
+    //
+    // Unlike the streaming views, `FlatFiles` co-owns ONLY the handle, not the
+    // client's `CallbackState`. That is sound: the "last-handle-holder must
+    // also pin the callback" rule exists so a holder that keeps the event
+    // consumer firing past `close()` cannot outlive the callback storage. Flat
+    // files spawn no async work — every call is a synchronous `block_on`, and a
+    // `FlatFiles` outliving a streaming client only defers the raw handle free
+    // to a point already past `close()`'s consumer drain, touching no freed
+    // callback state. The market-data handle carries no callback at all.
     explicit FlatFiles(std::shared_ptr<const ThetaDataDxClient> h)
         : handle_(std::move(h)) {}
     explicit FlatFiles(std::shared_ptr<const ThetaDataDxMarketDataClient> h)

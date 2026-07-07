@@ -980,11 +980,13 @@ returns = "FlatFilesNamespace"
 
 # The standalone market-data client exposes the same accessor: flat files are
 # account-authenticated market data with no streaming leg, so a market-data-only
-# handle reaches them without the unified client. Pinned on every binding so a
-# future drop/rename of the accessor trips the gate. Python resolves it through
-# the `MarketDataClient.__getattr__` forward to the unified client; TypeScript is
-# the napi `flatFiles` getter on `MarketDataClient`; C++ and Rust are the
-# `MarketDataClient::flat_files()` view accessor.
+# handle reaches them without the unified client. Genuinely enforced on every
+# binding so a future drop/rename of the accessor trips the gate. Python is the
+# explicit `#[getter] flat_files` on the `MarketDataClient` pyclass (a static
+# accessor, not the `__getattr__` forward, so the collector sees it); TypeScript
+# is the napi `flatFiles` getter on `MarketDataClient`; C++ and Rust are the
+# `MarketDataClient::flat_files()` view accessor (Rust harvested from
+# `impl MarketDataClient` in `mdds/client.rs`).
 [[method]]
 class = "MarketDataClient"
 name = "flatFiles"
