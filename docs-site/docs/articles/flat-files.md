@@ -112,6 +112,55 @@ The to-disk (`to_path` / `flatfile_to_path`) and HTTP paths write one of:
 
 The decoded-rows path (`option_trade_quote(...)`, `request(...)`) skips the file entirely and returns typed `FlatFileRow`s ready for Arrow, Polars, pandas, or your own pipeline.
 
+## Columnar & DataFrames
+
+The decoded-rows path hands back a typed row collection that converts straight to Arrow — and, on Python, to a Polars or pandas DataFrame — with no CSV round-trip. The Arrow schema is inferred from the file's own column header, so it always matches the dataset.
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+let rows = client.flat_files().option_trade_quote("20250303").await?;
+let batch = thetadatadx::flatfiles::arrow::rows_to_arrow(&rows)?; // arrow_array::RecordBatch
+```
+
+</template>
+
+<template #python>
+
+```python
+rows = client.flat_files.option_trade_quote("20250303")
+pl_df = rows.to_polars()     # Polars DataFrame
+pd_df = rows.to_pandas()     # pandas DataFrame
+table = rows.to_arrow()      # pyarrow Table (zero-copy)
+records = rows.to_list()     # list[dict]
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+import { tableFromIPC } from "apache-arrow";
+
+const rows = await client.flatFiles.optionTradeQuote('20250303');
+const table = tableFromIPC(rows.toArrowIpc());   // apache-arrow Table
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+auto rows = client.flat_files().option_trade_quote("20250303");
+std::vector<uint8_t> ipc = rows.to_arrow_ipc();  // feed arrow::ipc::RecordBatchStreamReader
+```
+
+</template>
+
+</SdkTabs>
+
 ## Column schema
 
 Each dataset's columns are described by the server in the file's header and carried on the decoded `FlatFileRow` (and the CSV header) — the SDK does not hardcode a fixed column set, so a server-side schema addition flows through without an SDK change. For the authoritative per-dataset column list, see ThetaData's [flat-file reference](https://http-docs.thetadata.us/operations/get-v2-flat-file-getting-started.html).
