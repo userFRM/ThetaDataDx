@@ -24,6 +24,7 @@ use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, ReqType, SecType
 use crate::error::{cstr_to_str, set_error, set_error_from};
 use crate::runtime;
 use crate::streaming::ThetaDataDxClient;
+use crate::types::ThetaDataDxMarketDataClient;
 
 // ── Heap-owned row-list handle ─────────────────────────────────────────
 
@@ -119,9 +120,53 @@ unsafe fn parse_fmt(raw: *const c_char) -> Result<FlatFileFormat, String> {
 
 // ── FFI entry points ───────────────────────────────────────────────────
 
-/// Pull a decoded flat-file blob for `(sec_type, req_type, date)` and
-/// return an opaque row-list handle. Returns null on error; check
-/// `thetadatadx_last_error()` for details.
+/// Parse the shared `(sec_type, req_type, date)` request arguments. On any
+/// parse fault it sets the thread-local FFI error and returns `None`; the
+/// caller then returns its own null / `-1` sentinel. `date` is returned
+/// owned so the borrow of the raw pointer does not outlive this call.
+///
+/// # Safety
+/// Each pointer must be a NUL-terminated C string the caller pins for the
+/// call duration (or null for `date`, rejected here).
+unsafe fn parse_ff_args(
+    sec_type: *const c_char,
+    req_type: *const c_char,
+    date: *const c_char,
+) -> Option<(SecType, ReqType, String)> {
+    // SAFETY: `sec_type` is a caller-pinned NUL-terminated C string; `parse_sec` validates non-null + UTF-8 before reading.
+    let sec = match unsafe { parse_sec(sec_type) } {
+        Ok(v) => v,
+        Err(e) => {
+            set_error(&e);
+            return None;
+        }
+    };
+    // SAFETY: `req_type` is a caller-pinned NUL-terminated C string; `parse_req` validates non-null + UTF-8 before reading.
+    let req = match unsafe { parse_req(req_type) } {
+        Ok(v) => v,
+        Err(e) => {
+            set_error(&e);
+            return None;
+        }
+    };
+    // SAFETY: `date` is a caller-pinned NUL-terminated C string; `cstr_to_str` validates non-null + UTF-8 before reading.
+    let date = match unsafe { cstr_to_str(date) } {
+        Ok(Some(s)) => s.to_owned(),
+        Ok(None) => {
+            set_error("date is null");
+            return None;
+        }
+        Err(e) => {
+            set_error(&format!("date is not valid UTF-8: {e}"));
+            return None;
+        }
+    };
+    Some((sec, req, date))
+}
+
+/// Pull a decoded flat-file blob for `(sec_type, req_type, date)` from the
+/// unified client and return an opaque row-list handle. Returns null on
+/// error; check `thetadatadx_last_error()` for details.
 ///
 /// The returned handle MUST be freed with `thetadatadx_flatfile_rowlist_free`.
 #[no_mangle]
@@ -136,45 +181,59 @@ pub unsafe extern "C" fn thetadatadx_flatfile_request_decoded(
             set_error("unified handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: `sec_type` is a NUL-terminated C string the caller pins for the call duration; `parse_sec` forwards to `cstr_to_str`, which validates non-null + UTF-8 before reading.
-        let sec = match unsafe { parse_sec(sec_type) } {
-            Ok(v) => v,
-            Err(e) => {
-                set_error(&e);
-                return ptr::null_mut();
-            }
-        };
-        // SAFETY: `req_type` is a NUL-terminated C string the caller pins for the call duration; `parse_req` validates non-null + UTF-8 before reading.
-        let req = match unsafe { parse_req(req_type) } {
-            Ok(v) => v,
-            Err(e) => {
-                set_error(&e);
-                return ptr::null_mut();
-            }
-        };
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let date_str = match unsafe { cstr_to_str(date) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("date is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
+        // SAFETY: request-arg pointers are caller-pinned NUL-terminated C strings.
+        let Some((sec, req, date)) = (unsafe { parse_ff_args(sec_type, req_type, date) }) else {
+            return ptr::null_mut();
         };
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let unified = unsafe { &*handle };
-        let res = runtime().block_on(unified.inner.flatfile_request_decoded(sec, req, date_str));
-        match res {
-            Ok(rows) => Box::into_raw(Box::new(ThetaDataDxFlatFileRowList { rows })),
-            Err(e) => {
-                set_error_from(&e);
-                ptr::null_mut()
-            }
-        }
+        flatfile_rowlist_or_null(
+            runtime().block_on(unified.inner.flatfile_request_decoded(sec, req, &date)),
+        )
     })
+}
+
+/// Pull a decoded flat-file blob from a standalone [`ThetaDataDxMarketDataClient`].
+/// Flat files are account-authenticated market data, so the market-data
+/// handle exposes the identical surface as the unified client. Returns null
+/// on error; the returned handle MUST be freed with
+/// `thetadatadx_flatfile_rowlist_free`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_market_data_flatfile_request_decoded(
+    handle: *const ThetaDataDxMarketDataClient,
+    sec_type: *const c_char,
+    req_type: *const c_char,
+    date: *const c_char,
+) -> *mut ThetaDataDxFlatFileRowList {
+    ffi_boundary!(ptr::null_mut(), {
+        if handle.is_null() {
+            set_error("market-data handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: request-arg pointers are caller-pinned NUL-terminated C strings.
+        let Some((sec, req, date)) = (unsafe { parse_ff_args(sec_type, req_type, date) }) else {
+            return ptr::null_mut();
+        };
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        let mdc = unsafe { &*handle };
+        flatfile_rowlist_or_null(
+            runtime().block_on(mdc.inner.flatfile_request_decoded(sec, req, &date)),
+        )
+    })
+}
+
+/// Box a decoded row vector into an opaque row-list handle, or set the FFI
+/// error and return null.
+fn flatfile_rowlist_or_null(
+    res: Result<Vec<FlatFileRow>, thetadatadx::Error>,
+) -> *mut ThetaDataDxFlatFileRowList {
+    match res {
+        Ok(rows) => Box::into_raw(Box::new(ThetaDataDxFlatFileRowList { rows })),
+        Err(e) => {
+            set_error_from(&e);
+            ptr::null_mut()
+        }
+    }
 }
 
 /// Number of rows in a row-list handle. Returns 0 if the handle is null.
@@ -287,10 +346,45 @@ pub unsafe extern "C" fn thetadatadx_flatfile_rowlist_free(
     })
 }
 
-/// Pull a flat-file blob and write the requested vendor format
-/// (`csv` / `json` / `jsonl` / `ndjson` / `html`) directly to `path`.
-/// Skips the typed-row decode step. Returns 0 on success, -1 on error;
-/// check `thetadatadx_last_error()`.
+/// Parse the `to_path`-only trailing args (`format`, `path`) shared by the
+/// unified and market-data write paths. On any parse fault it sets the FFI
+/// error and returns `None`. `path` is returned owned so the borrow of the
+/// raw pointer does not outlive this call.
+///
+/// # Safety
+/// `format` is a NUL-terminated C string or null (the `csv` default);
+/// `path` is a caller-pinned NUL-terminated C string.
+unsafe fn parse_ff_write_args(
+    format: *const c_char,
+    path: *const c_char,
+) -> Option<(FlatFileFormat, String)> {
+    // SAFETY: `format` is validated (UTF-8, or null → csv) by `parse_fmt`.
+    let fmt = match unsafe { parse_fmt(format) } {
+        Ok(v) => v,
+        Err(e) => {
+            set_error(&e);
+            return None;
+        }
+    };
+    // SAFETY: `path` is a caller-pinned NUL-terminated C string; `cstr_to_str` validates non-null + UTF-8 before reading.
+    let path = match unsafe { cstr_to_str(path) } {
+        Ok(Some(s)) => s.to_owned(),
+        Ok(None) => {
+            set_error("path is null");
+            return None;
+        }
+        Err(e) => {
+            set_error(&format!("path is not valid UTF-8: {e}"));
+            return None;
+        }
+    };
+    Some((fmt, path))
+}
+
+/// Pull a flat-file blob from the unified client and write the requested
+/// vendor format (`csv` / `json` / `jsonl` / `ndjson` / `html`) directly to
+/// `path`. Skips the typed-row decode step. Returns 0 on success, -1 on
+/// error; check `thetadatadx_last_error()`.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_flatfile_request_to_path(
     handle: *const ThetaDataDxClient,
@@ -305,68 +399,72 @@ pub unsafe extern "C" fn thetadatadx_flatfile_request_to_path(
             set_error("unified handle is null");
             return -1;
         }
-        // SAFETY: `sec_type` is a NUL-terminated C string the caller pins for the call duration; `parse_sec` validates non-null + UTF-8 before reading.
-        let sec = match unsafe { parse_sec(sec_type) } {
-            Ok(v) => v,
-            Err(e) => {
-                set_error(&e);
-                return -1;
-            }
+        // SAFETY: request-arg pointers are caller-pinned NUL-terminated C strings.
+        let Some((sec, req, date)) = (unsafe { parse_ff_args(sec_type, req_type, date) }) else {
+            return -1;
         };
-        // SAFETY: `req_type` is a NUL-terminated C string the caller pins for the call duration; `parse_req` validates non-null + UTF-8 before reading.
-        let req = match unsafe { parse_req(req_type) } {
-            Ok(v) => v,
-            Err(e) => {
-                set_error(&e);
-                return -1;
-            }
-        };
-        // SAFETY: `format` is a NUL-terminated C string (or null for the `csv` default) the caller pins for the call duration; `parse_fmt` validates UTF-8 before reading.
-        let fmt = match unsafe { parse_fmt(format) } {
-            Ok(v) => v,
-            Err(e) => {
-                set_error(&e);
-                return -1;
-            }
-        };
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let date_str = match unsafe { cstr_to_str(date) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("date is null");
-                return -1;
-            }
-            Err(e) => {
-                set_error(&format!("date is not valid UTF-8: {e}"));
-                return -1;
-            }
-        };
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let path_str = match unsafe { cstr_to_str(path) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("path is null");
-                return -1;
-            }
-            Err(e) => {
-                set_error(&format!("path is not valid UTF-8: {e}"));
-                return -1;
-            }
+        // SAFETY: `format` / `path` are caller-pinned (format may be null → csv).
+        let Some((fmt, path)) = (unsafe { parse_ff_write_args(format, path) }) else {
+            return -1;
         };
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let unified = unsafe { &*handle };
-        match runtime().block_on(unified.inner.flatfile_request(
+        flatfile_write_rc(runtime().block_on(unified.inner.flatfile_request(
             sec,
             req,
-            date_str,
-            std::path::Path::new(path_str),
+            &date,
+            std::path::Path::new(&path),
             fmt,
-        )) {
-            Ok(_) => 0,
-            Err(e) => {
-                set_error_from(&e);
-                -1
-            }
-        }
+        )))
     })
+}
+
+/// Pull a flat-file blob from a standalone [`ThetaDataDxMarketDataClient`] and
+/// write it to `path`. Identical surface to the unified write path — flat
+/// files are account-authenticated market data. Returns 0 on success, -1 on
+/// error; check `thetadatadx_last_error()`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_market_data_flatfile_request_to_path(
+    handle: *const ThetaDataDxMarketDataClient,
+    sec_type: *const c_char,
+    req_type: *const c_char,
+    date: *const c_char,
+    path: *const c_char,
+    format: *const c_char,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if handle.is_null() {
+            set_error("market-data handle is null");
+            return -1;
+        }
+        // SAFETY: request-arg pointers are caller-pinned NUL-terminated C strings.
+        let Some((sec, req, date)) = (unsafe { parse_ff_args(sec_type, req_type, date) }) else {
+            return -1;
+        };
+        // SAFETY: `format` / `path` are caller-pinned (format may be null → csv).
+        let Some((fmt, path)) = (unsafe { parse_ff_write_args(format, path) }) else {
+            return -1;
+        };
+        // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
+        let mdc = unsafe { &*handle };
+        flatfile_write_rc(runtime().block_on(mdc.inner.flatfile_request(
+            sec,
+            req,
+            &date,
+            std::path::Path::new(&path),
+            fmt,
+        )))
+    })
+}
+
+/// Map a flat-file write result to the C return code (0 / -1), setting the
+/// FFI error on failure.
+fn flatfile_write_rc(res: Result<std::path::PathBuf, thetadatadx::Error>) -> i32 {
+    match res {
+        Ok(_) => 0,
+        Err(e) => {
+            set_error_from(&e);
+            -1
+        }
+    }
 }

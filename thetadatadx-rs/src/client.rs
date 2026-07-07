@@ -2165,30 +2165,53 @@ impl Client {
     /// ```
     #[must_use]
     pub fn flat_files(&self) -> FlatFiles<'_> {
-        FlatFiles(self)
+        FlatFiles {
+            creds: &self.creds,
+            config: &self.flatfiles_config,
+        }
     }
 }
 
-/// Borrowed view exposing the unified [`Client`]'s flat-files surface.
+/// Borrowed view exposing a client's flat-files surface.
 ///
-/// Returned by [`Client::flat_files`]. Holds a shared borrow of the
-/// client and forwards every call onto the same credentials and
-/// flat-files retry config the unified client owns — no duplicated state,
-/// no behavior change. Each method delegates to the matching inherent
-/// [`Client`] flat-file method, which in turn drives the
-/// `crate::flatfiles::*_with_config` engine. The view is `Copy`; take it
-/// per call site rather than storing it.
+/// Returned by [`Client::flat_files`] and
+/// [`crate::MarketDataClient::flat_files`]. Holds a shared borrow of the
+/// credentials and flat-files retry config the owning client carries — no
+/// duplicated state, no behavior change. Each method drives the
+/// `crate::flatfiles::*_with_config` engine directly, so both clients reach
+/// the identical flat-file distribution over the legacy MDDS port. The view
+/// is `Copy`; take it per call site rather than storing it.
 ///
 /// This is the Rust counterpart of the `FlatFiles` / `FlatFilesNamespace`
 /// handle on the Python, TypeScript, and C++ bindings: the method set
 /// (`option_trade_quote`, `option_open_interest`, `option_eod`,
 /// `stock_trade_quote`, `stock_eod`, the generic `request`,
 /// and `to_path`) mirrors them exactly, so flat files are reached the same
-/// way from every binding.
+/// way from every binding and from either client.
 #[derive(Clone, Copy)]
-pub struct FlatFiles<'a>(&'a Client);
+pub struct FlatFiles<'a> {
+    pub(crate) creds: &'a Credentials,
+    pub(crate) config: &'a crate::config::FlatFilesConfig,
+}
 
 impl FlatFiles<'_> {
+    /// Shared decode leg: pull and decode any served pair for `date`.
+    async fn decoded(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        crate::flatfiles::flatfile_request_decoded_with_config(
+            self.creds,
+            sec_type,
+            req_type,
+            date,
+            self.config,
+        )
+        .await
+    }
+
     /// Decoded option trade-quote flat file for `date` (`YYYYMMDD`).
     ///
     /// # Errors
@@ -2199,13 +2222,12 @@ impl FlatFiles<'_> {
         &self,
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        self.0
-            .flatfile_request_decoded(
-                crate::flatfiles::SecType::Option,
-                crate::flatfiles::ReqType::TradeQuote,
-                date,
-            )
-            .await
+        self.decoded(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::TradeQuote,
+            date,
+        )
+        .await
     }
 
     /// Decoded option open-interest flat file for `date` (`YYYYMMDD`).
@@ -2217,13 +2239,12 @@ impl FlatFiles<'_> {
         &self,
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        self.0
-            .flatfile_request_decoded(
-                crate::flatfiles::SecType::Option,
-                crate::flatfiles::ReqType::OpenInterest,
-                date,
-            )
-            .await
+        self.decoded(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::OpenInterest,
+            date,
+        )
+        .await
     }
 
     /// Decoded option end-of-day flat file for `date` (`YYYYMMDD`).
@@ -2235,13 +2256,12 @@ impl FlatFiles<'_> {
         &self,
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        self.0
-            .flatfile_request_decoded(
-                crate::flatfiles::SecType::Option,
-                crate::flatfiles::ReqType::Eod,
-                date,
-            )
-            .await
+        self.decoded(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::Eod,
+            date,
+        )
+        .await
     }
 
     /// Decoded stock trade-quote flat file for `date` (`YYYYMMDD`).
@@ -2253,13 +2273,12 @@ impl FlatFiles<'_> {
         &self,
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        self.0
-            .flatfile_request_decoded(
-                crate::flatfiles::SecType::Stock,
-                crate::flatfiles::ReqType::TradeQuote,
-                date,
-            )
-            .await
+        self.decoded(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::TradeQuote,
+            date,
+        )
+        .await
     }
 
     /// Decoded stock end-of-day flat file for `date` (`YYYYMMDD`).
@@ -2268,13 +2287,12 @@ impl FlatFiles<'_> {
     ///
     /// Same conditions as [`Self::option_trade_quote`].
     pub async fn stock_eod(&self, date: &str) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        self.0
-            .flatfile_request_decoded(
-                crate::flatfiles::SecType::Stock,
-                crate::flatfiles::ReqType::Eod,
-                date,
-            )
-            .await
+        self.decoded(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::Eod,
+            date,
+        )
+        .await
     }
 
     /// Generic dispatcher — pull and decode any served `(sec_type,
@@ -2295,9 +2313,7 @@ impl FlatFiles<'_> {
         req_type: crate::flatfiles::ReqType,
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        self.0
-            .flatfile_request_decoded(sec_type, req_type, date)
-            .await
+        self.decoded(sec_type, req_type, date).await
     }
 
     /// Pull a flat-file blob for `(sec_type, req_type, date)` and write
@@ -2323,9 +2339,16 @@ impl FlatFiles<'_> {
         output_path: impl AsRef<std::path::Path>,
         format: crate::flatfiles::FlatFileFormat,
     ) -> Result<std::path::PathBuf, Error> {
-        self.0
-            .flatfile_request(sec_type, req_type, date, output_path, format)
-            .await
+        crate::flatfiles::flatfile_request_with_config(
+            self.creds,
+            sec_type,
+            req_type,
+            date,
+            output_path,
+            format,
+            self.config,
+        )
+        .await
     }
 }
 

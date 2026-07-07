@@ -40,6 +40,7 @@
 use pyo3::exceptions::PyAttributeError;
 use pyo3::prelude::*;
 
+use crate::flatfile_methods::FlatFilesNamespace;
 use crate::{Client, Config, Credentials};
 
 /// Methods on the `client.stream` [`crate::StreamView`] surface (plus
@@ -244,6 +245,17 @@ impl MarketDataClient {
         // is always connected by construction (the constructor errored
         // out otherwise).
         "MarketDataClient(connected)".to_string()
+    }
+
+    /// Flat-file namespace handle. Flat files are account-authenticated
+    /// market data with no streaming leg, so the market-data-only client
+    /// reaches the identical surface as the unified client. An explicit
+    /// accessor (rather than the `__getattr__` forward) so the cross-binding
+    /// parity contract can pin it statically. Forwards to the wrapped unified
+    /// client's `flat_files` namespace.
+    #[getter]
+    fn flat_files(&self, py: Python<'_>) -> PyResult<FlatFilesNamespace> {
+        self.inner.borrow(py).flat_files()
     }
 
     /// Deterministically close the market-data client.

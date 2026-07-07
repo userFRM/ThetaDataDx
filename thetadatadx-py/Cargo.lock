@@ -2212,7 +2212,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-py"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arrow",
  "disruptor",
@@ -2229,7 +2229,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-rs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "arc-swap",
  "arrow-array",

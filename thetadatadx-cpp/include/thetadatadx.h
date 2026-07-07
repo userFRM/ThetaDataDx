@@ -2787,6 +2787,42 @@ int thetadatadx_flatfile_request_to_path(
     const char* path,
     const char* format);
 
+/** Pull a decoded flat-file blob from a standalone market-data client.
+ *  Flat files are account-authenticated market data, so the market-data
+ *  handle exposes the identical surface as the unified client.
+ *  @param handle The market-data handle.
+ *  @param sec_type "OPTION", "STOCK", or "INDEX".
+ *  @param req_type "EOD", "QUOTE", "OPEN_INTEREST", "OHLC", "TRADE", or
+ *                  "TRADE_QUOTE".
+ *  @param date The snapshot date as "YYYYMMDD".
+ *  @return A row-list handle the caller MUST free with
+ *          thetadatadx_flatfile_rowlist_free, or NULL on error (check
+ *          thetadatadx_last_error()). */
+ThetaDataDxFlatFileRowList* thetadatadx_market_data_flatfile_request_decoded(
+    const ThetaDataDxMarketDataClient* handle,
+    const char* sec_type,
+    const char* req_type,
+    const char* date);
+
+/** Pull a flat-file blob from a standalone market-data client and write the
+ *  requested vendor format directly to a file. The format extension is
+ *  appended to path automatically if missing.
+ *  @param handle The market-data handle.
+ *  @param sec_type "OPTION", "STOCK", or "INDEX".
+ *  @param req_type "EOD", "QUOTE", "OPEN_INTEREST", "OHLC", "TRADE", or
+ *                  "TRADE_QUOTE".
+ *  @param date The snapshot date as "YYYYMMDD".
+ *  @param path Output file path; the format extension is appended if missing.
+ *  @param format Output format: "csv", "json", "jsonl"/"ndjson", or "html".
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+int thetadatadx_market_data_flatfile_request_to_path(
+    const ThetaDataDxMarketDataClient* handle,
+    const char* sec_type,
+    const char* req_type,
+    const char* date,
+    const char* path,
+    const char* format);
+
 #ifdef __cplusplus
 }
 #endif

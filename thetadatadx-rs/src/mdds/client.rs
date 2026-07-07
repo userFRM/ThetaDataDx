@@ -22,6 +22,7 @@ use crate::error::Error;
 use crate::grpc::{Channel, ChannelPool, ChannelTuning};
 use crate::mdds::tier::SubscriptionTier;
 use crate::proto;
+use crate::FlatFiles;
 
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -82,6 +83,12 @@ pub struct MarketDataClient {
     options_tier: Option<SubscriptionTier>,
     indices_tier: Option<SubscriptionTier>,
     interest_rate_tier: Option<SubscriptionTier>,
+    /// Credentials retained for the flat-file surface. Flat files open a
+    /// fresh, self-authenticating connection to the legacy MDDS port per
+    /// call (independent of the gRPC channel pool above), so `flat_files()`
+    /// needs the account credentials directly. Mirrors the unified
+    /// [`crate::Client`], which carries the same field for the same reason.
+    creds: Credentials,
 }
 
 // ── Infrastructure (not generated — these are session/transport methods, not ThetaData endpoints) ──
@@ -201,6 +208,7 @@ impl MarketDataClient {
             options_tier,
             indices_tier,
             interest_rate_tier,
+            creds: creds.clone(),
         })
     }
 
@@ -330,7 +338,7 @@ impl MarketDataClient {
             "00000000-0000-0000-0000-000000000000".to_string(),
             config.auth.nexus_url.clone(),
             config.market_data_environment,
-            creds,
+            creds.clone(),
         );
         let mut query_parameters = HashMap::new();
         query_parameters.insert("client".to_string(), "terminal".to_string());
@@ -346,7 +354,164 @@ impl MarketDataClient {
             options_tier: None,
             indices_tier: None,
             interest_rate_tier: None,
+            creds,
         }
+    }
+}
+
+// ── Flat files (bulk per-day distribution over the legacy MDDS port) ──
+//
+// Flat files are pure account-authenticated market data, so they belong on
+// the market-data surface. Each call opens a fresh, self-authenticating
+// connection to the legacy MDDS port (independent of this client's gRPC
+// channel pool) and needs only the credentials and flat-files retry config
+// this client already holds. The surface mirrors the unified
+// [`crate::Client`] method-for-method — every entry routes through the same
+// [`crate::FlatFiles`] view — so a standalone `MarketDataClient` reaches
+// flat files exactly like the unified handle and like every language binding.
+impl MarketDataClient {
+    /// Flat-file namespace view: `client.flat_files().stock_eod("20240115").await?`.
+    ///
+    /// Cheap borrowed handle; take it per call site rather than storing it.
+    #[must_use]
+    pub fn flat_files(&self) -> FlatFiles<'_> {
+        FlatFiles {
+            creds: &self.creds,
+            config: &self.config.flatfiles,
+        }
+    }
+
+    /// Pull a flat-file blob for `(sec_type, req_type, date)`, decode it, and
+    /// write the requested `format` to disk. Mirror of
+    /// [`crate::Client::flatfile_request`].
+    ///
+    /// # Errors
+    /// Same conditions as [`crate::Client::flatfile_request`].
+    pub async fn flatfile_request(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flat_files()
+            .to_path(sec_type, req_type, date, output_path, format)
+            .await
+    }
+
+    /// Pull a flat-file blob and return decoded rows in memory. Mirror of
+    /// [`crate::Client::flatfile_request_decoded`].
+    ///
+    /// # Errors
+    /// Same conditions as [`crate::Client::flatfile_request`].
+    pub async fn flatfile_request_decoded(
+        &self,
+        sec_type: crate::flatfiles::SecType,
+        req_type: crate::flatfiles::ReqType,
+        date: &str,
+    ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
+        self.flat_files().request(sec_type, req_type, date).await
+    }
+
+    /// Convenience: option open-interest flat file for `date`, written to disk.
+    ///
+    /// # Errors
+    /// Same conditions as [`crate::Client::flatfile_request`].
+    pub async fn flatfile_option_open_interest(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::OpenInterest,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: option trade-quote flat file for `date`, written to disk.
+    ///
+    /// # Errors
+    /// Same conditions as [`crate::Client::flatfile_request`].
+    pub async fn flatfile_option_trade_quote(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::TradeQuote,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: option end-of-day flat file for `date`, written to disk.
+    ///
+    /// # Errors
+    /// Same conditions as [`crate::Client::flatfile_request`].
+    pub async fn flatfile_option_eod(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Option,
+            crate::flatfiles::ReqType::Eod,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: stock trade-quote flat file for `date`, written to disk.
+    ///
+    /// # Errors
+    /// Same conditions as [`crate::Client::flatfile_request`].
+    pub async fn flatfile_stock_trade_quote(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::TradeQuote,
+            date,
+            output_path,
+            format,
+        )
+        .await
+    }
+
+    /// Convenience: stock end-of-day flat file for `date`, written to disk.
+    ///
+    /// # Errors
+    /// Same conditions as [`crate::Client::flatfile_request`].
+    pub async fn flatfile_stock_eod(
+        &self,
+        date: &str,
+        output_path: impl AsRef<std::path::Path>,
+        format: crate::flatfiles::FlatFileFormat,
+    ) -> Result<std::path::PathBuf, Error> {
+        self.flatfile_request(
+            crate::flatfiles::SecType::Stock,
+            crate::flatfiles::ReqType::Eod,
+            date,
+            output_path,
+            format,
+        )
+        .await
     }
 }
 
@@ -568,6 +733,22 @@ mod pool_size_tests {
             session_created: None,
         };
         assert_eq!(effective_pool_size(&auth), 4);
+    }
+}
+
+#[cfg(test)]
+mod flat_files_surface_tests {
+    use super::MarketDataClient;
+
+    /// Compile-time: the standalone market-data client carries the flat-file
+    /// surface, mirroring the unified [`crate::Client`]. Referencing the fn
+    /// items proves the accessor and decode entry exist with the expected
+    /// receiver and return type; nothing is invoked, so no connection opens.
+    #[test]
+    fn market_data_client_exposes_flat_files() {
+        let _accessor: for<'a> fn(&'a MarketDataClient) -> crate::FlatFiles<'a> =
+            MarketDataClient::flat_files;
+        let _decoded = MarketDataClient::flatfile_request_decoded;
     }
 }
 
