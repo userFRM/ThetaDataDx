@@ -11,6 +11,8 @@ Flat files deliver **the whole universe for one date in one call** — every opt
 
 The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. The `flat_files` namespace exposes one method per served pair: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod` — plus a generic `request(sec_type, req_type, date)` that rejects an unserved `(security, request)` pair with a typed invalid-parameter error before any network round-trip. Per-tick quotes, trades, and OHLC bars are served by the [reference endpoints](/reference/), not as flat files.
 
+Flat files are account-authenticated market data, so `client` below can be either the unified `Client` or the standalone `MarketDataClient` — both expose the identical `flat_files` surface. A market-data-only workflow never needs the unified client just to pull archives.
+
 <SdkTabs>
 
 <template #rust>

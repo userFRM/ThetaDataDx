@@ -17,13 +17,11 @@ for critical issues.
 
 ## Supported Versions
 
-Security fixes land on the current major line only. Older majors are not patched; upgrade to the latest `13.x` release.
+Security fixes land on the latest release. This is the project's first public release line, so there are no earlier supported versions.
 
-| Version | Supported          | Notes |
-| ------- | ------------------ | ----- |
-| 13.x    | :white_check_mark: | Current release |
-| 10.x-12.x | :x:              | Upgrade to 13.x |
-| < 10.0  | :x:                | Upgrade to 13.x |
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.1.x   | :white_check_mark: |
 
 ## Security Design
 
@@ -57,13 +55,13 @@ All network operations enforce timeouts to prevent indefinite hangs:
 
 ### TLS
 
-All network connections use a **unified TLS stack** (`rustls` with ring backend):
+All network connections use a single, unified TLS stack:
 
 - **Market-data channel**: TLS with certificate validation
 - **Streaming channel**: TLS with certificate validation and pinning
 - **Nexus auth (HTTP)**: TLS with certificate validation
 
-Root certificates come from `webpki-roots` (Mozilla's CA bundle). Certificate
+Root certificates come from Mozilla's root CA bundle. Certificate
 validation is enforced on market-data and Nexus (HTTP) connections. Streaming
 uses a pinned verifier: it accepts only the configured streaming hostnames and the expected
 leaf `SubjectPublicKeyInfo` SHA-256 pin, while still verifying the TLS handshake
@@ -77,7 +75,7 @@ official terminal), so passwords longer than 127 bytes authenticate correctly
 
 ### Concurrent Request Limiting
 
-The SDK caps the number of in-flight market-data requests with an internal semaphore. The cap
+The SDK caps the number of in-flight market-data requests. The cap
 is derived automatically from the account's subscription tier at connect time and is not
 user-configurable. This respects the server-side per-tier concurrency limit and prevents
 runaway request storms from overwhelming the upstream server or triggering server-side rate
@@ -85,25 +83,25 @@ limiting.
 
 ### Unknown Compression Rejection
 
-`decompress_response` returns an error for unrecognized compression algorithms
+The response decompressor returns an error for unrecognized compression algorithms
 instead of silently treating the data as uncompressed. This prevents corrupt data from being
 silently passed to callers.
 
 ### Streaming Event Dispatch
 
-Streaming uses a dedicated async runtime path with bounded buffering for event
+Streaming uses a dedicated dispatch path with bounded buffering for event
 dispatch. The bounded buffer prevents unbounded memory growth from unconsumed
 events.
 
 ### Frame Size Limits
 
-Binary frame size assertions use `assert!` (not `debug_assert!`), ensuring they
-are enforced in release builds. This prevents oversized frames from causing
-unbounded memory allocation.
+Binary frame size checks are enforced in release builds, not only in debug
+builds. This prevents oversized frames from causing unbounded memory
+allocation.
 
 ### Dependencies
 
 We review dependencies for:
 - Known vulnerabilities (RustSec advisory database)
 - License compliance
-- Duplicate crate versions
+- Duplicate dependency versions
