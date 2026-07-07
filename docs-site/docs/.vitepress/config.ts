@@ -77,7 +77,7 @@ export default defineConfig({
       {
         text: 'API Reference',
         collapsed: false,
-        items: [{ text: 'Overview', link: '/reference/' }, ...(referenceSidebar as any)],
+        items: [{ text: 'Overview', link: '/reference/' }, { text: 'Flat Files', link: '/articles/flat-files' }, ...(referenceSidebar as any)],
       },
       {
         text: 'Streaming',
