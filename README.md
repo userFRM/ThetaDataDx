@@ -39,6 +39,33 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 - **The same surface in every language**: identical methods and identical typed errors, Python through Rust.
 - **No terminal to run**: a direct connection to ThetaData; nothing to install and babysit locally.
 
+## Clients
+
+Three client shapes over the same engine and the same auth. Pick per workload — they are not layers, they are separate entry points:
+
+| Client | Connects to | Use it for |
+|---|---|---|
+| **`MarketDataClient`** | market-data (HTTP) only | history, snapshots, flat files. Never opens the real-time feed; a streaming call raises an error by design. |
+| **`StreamingClient`** | the real-time feed only | live trades, quotes, OHLCVC. Never touches market-data. |
+| **`Client`** (unified) | market-data on construct; the feed is lazy | both from one object. The feed is opened only when you call `start_streaming`, so a market-data-only workflow never touches it. |
+
+```python
+from thetadatadx import MarketDataClient, StreamingClient, Client, Credentials, Config
+
+md     = MarketDataClient(Credentials.from_file("creds.txt"), Config.production())  # market-data only
+stream = StreamingClient(Credentials.from_file("creds.txt"), Config.production())   # real-time feed only
+client = Client(api_key="td1_...")                                                 # both; feed stays closed until you stream
+```
+
+> [!TIP]
+> `MarketDataClient` and `StreamingClient` use independent channels and independent sessions, so you can run them in **separate processes or containers** with no shared state and nothing stealing the other's session. A market-data worker next to a streaming worker (or a `Config.stage()` market-data instance next to a `Config.dev()` streaming instance) is a first-class pattern, not a workaround.
+
+> [!IMPORTANT]
+> The real-time feed is a **single live session per account**. Run one `StreamingClient` (or one unified `Client` that streams) per account and fan out to your consumers in-process. Opening a second streaming session on the same account takes over the connection and drops the first. Market-data is unaffected: it is per-request, so it runs alongside streaming and across as many `MarketDataClient` instances as you like.
+
+> [!NOTE]
+> Market-data concurrency is **account-wide**, set by your highest subscription tier; multiple `MarketDataClient` instances share that one budget and extra requests queue and run in order. The real-time feed requires a paid subscription — FREE accounts get delayed market-data but no streaming.
+
 ## Install
 
 > [!IMPORTANT]
