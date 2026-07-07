@@ -1552,8 +1552,6 @@ mod tests {
             config.streaming.hosts,
             vec![
                 ("nj-a.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20201),
             ]
         );
         // Market-data stays on PRODUCTION — there is no dev market-data cluster.
@@ -1575,8 +1573,6 @@ mod tests {
             config.streaming.hosts,
             vec![
                 ("nj-a.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20201),
             ]
         );
         // And the mirror: market-data-prod + streaming-prod is the production
@@ -3054,8 +3050,6 @@ mod tests {
             dev.streaming.hosts,
             vec![
                 ("nj-a.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20201),
             ]
         );
 
@@ -3082,8 +3076,6 @@ mod tests {
             config.streaming.hosts,
             vec![
                 ("myhost".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20201),
             ]
         );
         assert_eq!(config.streaming.hosts[0].0, "myhost");
@@ -3113,8 +3105,6 @@ mod tests {
             config.streaming.hosts,
             vec![
                 ("nj-a.thetadata.us".to_string(), 9999),
-                ("test-server.thetadata.us".to_string(), 20200),
-                ("test-server.thetadata.us".to_string(), 20201),
             ],
             "only the primary port is patched; the host cluster stays dev"
         );
