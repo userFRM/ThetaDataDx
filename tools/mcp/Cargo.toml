@@ -1,5 +1,5 @@
 [package]
-name = "thetadatadx-mcp"
+name = "thetadatadx-mcp-server"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.88"
@@ -14,7 +14,7 @@ publish = false
 [workspace]
 
 [[bin]]
-name = "thetadatadx-mcp"
+name = "thetadatadx-mcp-server"
 path = "src/main.rs"
 
 [dependencies]

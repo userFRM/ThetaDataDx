@@ -33,11 +33,11 @@ const CONNECTION_ONLY_TOOLS: [&str; 7] = [
 ];
 
 fn binary() -> std::path::PathBuf {
-    std::env::var_os("CARGO_BIN_EXE_thetadatadx-mcp")
+    std::env::var_os("CARGO_BIN_EXE_thetadatadx-mcp-server")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| {
             let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            p.push("../../target/debug/thetadatadx-mcp");
+            p.push("../../target/debug/thetadatadx-mcp-server");
             p
         })
 }
@@ -47,7 +47,7 @@ fn offline_tools_list_advertises_only_offline_tools() {
     let bin = binary();
     if !bin.exists() {
         eprintln!(
-            "SKIP: {} does not exist; run `cargo build -p thetadatadx-mcp` first",
+            "SKIP: {} does not exist; run `cargo build -p thetadatadx-mcp-server` first",
             bin.display()
         );
         return;

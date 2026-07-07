@@ -80,7 +80,7 @@ client = Client(api_key="td1_...")                                              
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
 
 ```json
-{ "command": "npx", "args": ["-y", "thetadatadx-mcp"], "env": { "THETADATA_API_KEY": "your_key" } }
+{ "command": "npx", "args": ["-y", "thetadatadx-mcp-server"], "env": { "THETADATA_API_KEY": "your_key" } }
 ```
 
 C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](thetadatadx-cpp/).
@@ -345,7 +345,7 @@ common `ThetaDataError` base.
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` (npm) | MCP server exposing every market-data endpoint to AI clients |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp-server` (npm) | MCP server exposing every market-data endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation
@@ -355,7 +355,7 @@ common `ThetaDataError` base.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp`.
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp-server`.
 
 ## Contributing
 

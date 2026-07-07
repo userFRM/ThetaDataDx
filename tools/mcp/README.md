@@ -2,7 +2,7 @@
   <img src="../../assets/logo.svg" alt="ThetaDataDx" width="100%" />
 </p>
 
-# thetadatadx-mcp
+# thetadatadx-mcp-server
 
 MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
@@ -14,7 +14,7 @@ MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM
 LLM (any MCP-compatible client)
     |  JSON-RPC 2.0 over stdio
     v
-thetadatadx-mcp (long-running process)
+thetadatadx-mcp-server (long-running process)
     |  Single ThetaDataDx client, authenticated once at startup
     v
 ThetaData servers (market-data + streaming)
@@ -24,7 +24,7 @@ The server authenticates **once** at startup, keeps the `Client` client alive, a
 
 ## Install
 
-No install step is needed: point your MCP client at `npx -y thetadatadx-mcp` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it on demand.
+No install step is needed: point your MCP client at `npx -y thetadatadx-mcp-server` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it on demand.
 
 Rust users can install the binary directly instead:
 
@@ -37,7 +37,7 @@ Or build from source:
 ```bash
 cd tools/mcp
 cargo build --release
-# Binary at tools/mcp/target/release/thetadatadx-mcp
+# Binary at tools/mcp/target/release/thetadatadx-mcp-server
 ```
 
 ## Configuration
@@ -55,7 +55,7 @@ export THETADATA_EMAIL="you@example.com"
 export THETADATA_PASSWORD="your-password"
 
 # Or a creds.txt file (line 1: email, line 2: password)
-thetadatadx-mcp --creds ~/creds.txt
+thetadatadx-mcp-server --creds ~/creds.txt
 ```
 
 Credentials are resolved in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then the `--creds` file. These are the same names the SDK and the server use.
@@ -71,7 +71,7 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp"],
+      "args": ["-y", "thetadatadx-mcp-server"],
       "env": {
         "THETADATA_API_KEY": "your-api-key"
       }
@@ -87,13 +87,13 @@ Or with a creds file:
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp", "--creds", "/path/to/creds.txt"]
+      "args": ["-y", "thetadatadx-mcp-server", "--creds", "/path/to/creds.txt"]
     }
   }
 }
 ```
 
-If you installed the binary with `cargo install`, set `"command": "thetadatadx-mcp"` and drop the `npx` wrapper args.
+If you installed the binary with `cargo install`, set `"command": "thetadatadx-mcp-server"` and drop the `npx` wrapper args.
 
 ### Cursor
 
@@ -103,7 +103,7 @@ Add to Cursor MCP settings (`.cursor/mcp.json`):
 {
   "mcpServers": {
     "thetadata": {
-      "command": "thetadatadx-mcp",
+      "command": "thetadatadx-mcp-server",
       "env": {
         "THETADATA_EMAIL": "you@example.com",
         "THETADATA_PASSWORD": "your-password"
@@ -217,9 +217,9 @@ This returns a filtered bulk response across multiple strikes. If you change `st
 Set `RUST_LOG` to control verbosity:
 
 ```bash
-RUST_LOG=debug thetadatadx-mcp       # verbose
-RUST_LOG=warn thetadatadx-mcp        # quiet
-RUST_LOG=thetadatadx=debug thetadatadx-mcp  # just the library
+RUST_LOG=debug thetadatadx-mcp-server       # verbose
+RUST_LOG=warn thetadatadx-mcp-server        # quiet
+RUST_LOG=thetadatadx=debug thetadatadx-mcp-server  # just the library
 ```
 
 All logs go to **stderr**, never stdout (which is reserved for JSON-RPC).

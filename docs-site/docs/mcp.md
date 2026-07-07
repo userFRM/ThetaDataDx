@@ -5,7 +5,7 @@ description: Give any Model Context Protocol client live access to every market-
 
 # MCP Server
 
-`thetadatadx-mcp` is a Model Context Protocol server over stdio: any MCP-capable client (Claude Desktop, Cursor, and others) gets a tool per market-data endpoint, speaking JSON-RPC 2.0.
+`thetadatadx-mcp-server` is a Model Context Protocol server over stdio: any MCP-capable client (Claude Desktop, Cursor, and others) gets a tool per market-data endpoint, speaking JSON-RPC 2.0.
 
 ## Configure your client
 
@@ -16,7 +16,7 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp@next"],
+      "args": ["-y", "thetadatadx-mcp-server@next"],
       "env": {
         "THETADATA_API_KEY": "your-api-key"
       }
@@ -25,14 +25,14 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
 }
 ```
 
-`npx -y thetadatadx-mcp@next` fetches a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
+`npx -y thetadatadx-mcp-server@next` fetches a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
 
 ```json
 {
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp@next"],
+      "args": ["-y", "thetadatadx-mcp-server@next"],
       "env": {
         "THETADATA_EMAIL": "you@example.com",
         "THETADATA_PASSWORD": "your-password"
@@ -46,10 +46,10 @@ The server resolves credentials in this order, highest first: the `--api-key` fl
 
 ### Rust users: build from source
 
-If you already have a Rust toolchain, install the binary directly and set `"command": "thetadatadx-mcp"` instead of the `npx` invocation above:
+If you already have a Rust toolchain, install the binary directly and set `"command": "thetadatadx-mcp-server"` instead of the `npx` invocation above:
 
 ```bash
-cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx
+cargo install thetadatadx-mcp-server --git https://github.com/userFRM/ThetaDataDx
 ```
 
 ::: warning
@@ -82,7 +82,7 @@ Without credentials, the server still starts and serves the offline tool (`ping`
 ## Troubleshooting
 
 ::: details The client lists no tools
-Run `thetadatadx-mcp` by hand: the process must start silently and wait on stdin. Anything printed to stdout breaks the JSON-RPC channel — logs go to stderr by design, so a corrupted stdout usually means a wrapper script is echoing.
+Run `thetadatadx-mcp-server` by hand: the process must start silently and wait on stdin. Anything printed to stdout breaks the JSON-RPC channel — logs go to stderr by design, so a corrupted stdout usually means a wrapper script is echoing.
 :::
 
 ::: details Only `ping` appears
@@ -94,7 +94,7 @@ The account's tier doesn't cover the endpoint — check the tier badge on the ma
 :::
 
 ::: details Debug logging
-`RUST_LOG=debug thetadatadx-mcp` (stderr only; stdout stays clean for the protocol).
+`RUST_LOG=debug thetadatadx-mcp-server` (stderr only; stdout stays clean for the protocol).
 :::
 
 ::: warning

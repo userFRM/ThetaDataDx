@@ -385,7 +385,7 @@ def main() -> int:
                 f"{package_json_version(platform_pkg)}, expected {canonical}"
             )
 
-    # The MCP server ships to npm as well (`npx -y thetadatadx-mcp`): a
+    # The MCP server ships to npm as well (`npx -y thetadatadx-mcp-server`): a
     # launcher package plus one prebuilt-binary package per platform, all
     # under `tools/mcp/npm/`. They pin the canonical version exactly like
     # the TypeScript packages and are bumped by `bump_version.py` in the

@@ -8,7 +8,7 @@
 //! MCP-compatible LLM client
 //!     |  JSON-RPC 2.0 over stdio
 //!     v
-//! thetadatadx-mcp (long-running process)
+//! thetadatadx-mcp-server (long-running process)
 //!     |  Single Client client, authenticated once
 //!     v
 //! ThetaData servers (MDDS + FPSS)
@@ -1273,7 +1273,7 @@ async fn handle_request(
                         "tools": {}
                     },
                     "serverInfo": {
-                        "name": "thetadatadx-mcp",
+                        "name": "thetadatadx-mcp-server",
                         "version": VERSION,
                     }
                 }),
@@ -1509,11 +1509,11 @@ fn parse_args() -> Args {
                 args.creds_path = argv.next();
             }
             "--help" | "-h" => {
-                eprintln!("thetadatadx-mcp v{VERSION}");
+                eprintln!("thetadatadx-mcp-server v{VERSION}");
                 eprintln!("MCP server for ThetaData market data");
                 eprintln!();
                 eprintln!("USAGE:");
-                eprintln!("  thetadatadx-mcp [OPTIONS]");
+                eprintln!("  thetadatadx-mcp-server [OPTIONS]");
                 eprintln!();
                 eprintln!("OPTIONS:");
                 eprintln!("  --api-key <KEY>  ThetaData API key (alternative to email + password)");
@@ -1602,7 +1602,7 @@ async fn main() {
     // ── Main JSON-RPC loop over stdin ───────────────────────────────
     tracing::info!(
         version = VERSION,
-        "thetadatadx-mcp ready, reading JSON-RPC from stdin"
+        "thetadatadx-mcp-server ready, reading JSON-RPC from stdin"
     );
 
     let stdin = tokio::io::stdin();

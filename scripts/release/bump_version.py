@@ -145,18 +145,18 @@ def main(argv: list[str]) -> int:
         bump_platform_package_json(platform_pkg, current, target)
         print(f"  bumped {platform_pkg.relative_to(ROOT)}")
 
-    # The MCP server ships to npm too (`npx -y thetadatadx-mcp`): a launcher
+    # The MCP server ships to npm too (`npx -y thetadatadx-mcp-server`): a launcher
     # package with per-platform binary packages as optionalDependencies,
     # mirroring the TypeScript SDK layout under `tools/mcp/npm/`.
     bump_root_package_json(
-        ROOT / "tools" / "mcp" / "npm" / "thetadatadx-mcp" / "package.json",
+        ROOT / "tools" / "mcp" / "npm" / "thetadatadx-mcp-server" / "package.json",
         current,
         target,
     )
-    print("  bumped tools/mcp/npm/thetadatadx-mcp/package.json (+ optionalDependencies)")
+    print("  bumped tools/mcp/npm/thetadatadx-mcp-server/package.json (+ optionalDependencies)")
 
     for platform_pkg in (ROOT / "tools" / "mcp" / "npm").glob("*/package.json"):
-        if platform_pkg.parent.name == "thetadatadx-mcp":
+        if platform_pkg.parent.name == "thetadatadx-mcp-server":
             continue  # the launcher package, bumped above
         bump_platform_package_json(platform_pkg, current, target)
         print(f"  bumped {platform_pkg.relative_to(ROOT)}")
