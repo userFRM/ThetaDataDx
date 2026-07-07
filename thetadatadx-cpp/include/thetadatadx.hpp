@@ -1448,13 +1448,13 @@ private:
     // cannot free a handle a live view still dispatches through.
     //
     // Unlike the streaming views, `FlatFiles` co-owns ONLY the handle, not the
-    // client's `CallbackState`. That is sound: the "last-handle-holder must
-    // also pin the callback" rule exists so a holder that keeps the event
-    // consumer firing past `close()` cannot outlive the callback storage. Flat
-    // files spawn no async work — every call is a synchronous `block_on`, and a
-    // `FlatFiles` outliving a streaming client only defers the raw handle free
-    // to a point already past `close()`'s consumer drain, touching no freed
-    // callback state. The market-data handle carries no callback at all.
+    // client's callback state. That is sound: the "last-handle-holder must also
+    // pin the callback" rule exists so a holder that keeps the event consumer
+    // firing past `close()` cannot outlive the callback storage. A flat-file
+    // call completes synchronously before it returns and starts no background
+    // delivery, so a `FlatFiles` outliving a streaming client only defers the
+    // handle release to a point already past `close()`'s consumer drain,
+    // touching no freed callback state. The market-data handle has no callback.
     explicit FlatFiles(std::shared_ptr<const ThetaDataDxClient> h)
         : handle_(std::move(h)) {}
     explicit FlatFiles(std::shared_ptr<const ThetaDataDxMarketDataClient> h)

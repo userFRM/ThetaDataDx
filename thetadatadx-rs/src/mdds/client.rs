@@ -17,12 +17,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::auth::{self, Credentials, SessionToken};
-use crate::FlatFiles;
 use crate::config::DirectConfig;
 use crate::error::Error;
 use crate::grpc::{Channel, ChannelPool, ChannelTuning};
 use crate::mdds::tier::SubscriptionTier;
 use crate::proto;
+use crate::FlatFiles;
 
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");

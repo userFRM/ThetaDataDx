@@ -2203,7 +2203,11 @@ impl FlatFiles<'_> {
         date: &str,
     ) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
         crate::flatfiles::flatfile_request_decoded_with_config(
-            self.creds, sec_type, req_type, date, self.config,
+            self.creds,
+            sec_type,
+            req_type,
+            date,
+            self.config,
         )
         .await
     }
