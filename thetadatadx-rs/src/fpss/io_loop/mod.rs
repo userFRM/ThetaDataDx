@@ -1051,6 +1051,14 @@ where
                 }
 
                 // --- Phase 2: Drain command channel (non-blocking) ---
+                //
+                // These are OUTBOUND control frames (subscribe / unsubscribe /
+                // ping) — never market data. In `Batched` mode a non-ping frame
+                // is buffered (`no_flush`) and rides out on the next ping's
+                // flush, coalescing a subscription burst into fewer, larger TCP
+                // segments (gentler on the server, fewer syscalls). `Immediate`
+                // flushes each frame so a subscribe reaches the server at once.
+                // The inbound read path (Phase 1) is unaffected either way.
                 loop {
                     match cmd_rx.try_recv() {
                         Ok(IoCommand::WriteFrame { code, payload }) => {

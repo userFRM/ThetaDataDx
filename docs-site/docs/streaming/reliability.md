@@ -48,12 +48,12 @@ Caller-driven recovery is always available: `reconnect()` re-opens the session a
 
 ## Flush mode
 
-`flush_mode` trades write-path latency against syscall volume:
+`flush_mode` controls how the client flushes its **outbound** writes — subscribe, unsubscribe, and heartbeat pings. It does not touch the inbound path: received trades, quotes, and OHLCVC are dispatched continuously either way, so it never adds latency to the data you receive.
 
 | Mode | Behavior |
 |---|---|
-| `"batched"` (default) | Outbound frames flush on the heartbeat cadence — the throughput-friendly default. |
-| `"immediate"` | Every frame flushes as written — lowest latency. |
+| `"batched"` (default) | Outbound frames coalesce and flush on the heartbeat cadence (~100 ms), so a subscription burst goes out as fewer, larger packets — gentler on the server, fewer syscalls. Received data is unaffected. |
+| `"immediate"` | Every outbound frame flushes as written, so a subscribe / unsubscribe reaches the server at once — at the cost of one syscall per frame. |
 
 ```python
 cfg = Config.production()

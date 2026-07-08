@@ -95,7 +95,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 | Request deadlines | `timeout_ms` per request (builder / kwarg) | Hard per-call deadline; expiry raises a timeout error and frees the slot. |
 | Retries | `retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter`, `retry_max_elapsed_secs` | Backoff schedule for transient market-data-request faults. |
 | Streaming reconnect | `reconnect_policy`, `reconnect_max_attempts`, `reconnect_wait_ms`, `reconnect_wait_max_ms`, `reconnect_jitter`, `reconnect_stable_window_secs`, … | Automatic streaming reconnection. See [Reconnection & Monitoring](/streaming/reliability). |
-| Streaming latency | `flush_mode` (`"batched"` default / `"immediate"`), `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Write-path flush behavior and event-buffer capacity. |
+| Streaming write path & buffering | `flush_mode` (`"batched"` default / `"immediate"`), `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | `flush_mode` flushes **outbound** control frames (subscribe / ping) and does not affect received-data latency; `streaming_ring_size` is the inbound event-buffer capacity. |
 | Flat files | `flatfiles_max_attempts`, `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`, `flatfiles_jitter` | Retry budget for bulk downloads. |
 | Observability | `metrics_port` | Optional local Prometheus exporter port (off by default). |
 | Runtime | `worker_threads` | Async worker-thread count for embedded bindings (0 = auto). |

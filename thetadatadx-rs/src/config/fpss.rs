@@ -1,14 +1,27 @@
 //! Streaming (TCP) sub-configuration.
 
-/// Controls when the streaming write buffer is flushed.
+/// Controls when the client's **outbound** streaming write buffer is
+/// flushed to the server.
+///
+/// This governs only the frames the client *sends* — subscribe, unsubscribe,
+/// and heartbeat pings. It has no effect on the inbound market-data path:
+/// received trades, quotes, and OHLCVC are read off the socket and dispatched
+/// continuously regardless of this setting, so it never adds latency to the
+/// data you receive.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StreamingFlushMode {
-    /// Flush only on PING frames. Lower syscall overhead, up to one
-    /// ping interval of additional latency.
+    /// Coalesce outbound frames and flush them on the heartbeat cadence (one
+    /// ping interval, 100 ms by default). A burst of subscriptions goes out as
+    /// fewer, larger TCP segments instead of one flush per frame — gentler on
+    /// the server and lower syscall overhead. The only cost is up to one ping
+    /// interval before a subscribe / unsubscribe reaches the server; received
+    /// market data is unaffected.
     #[default]
     Batched,
-    /// Flush after every frame write. Lowest latency, higher syscall overhead.
+    /// Flush every outbound frame as it is written, so a subscribe /
+    /// unsubscribe reaches the server immediately — at the cost of one syscall
+    /// per frame.
     Immediate,
 }
 
