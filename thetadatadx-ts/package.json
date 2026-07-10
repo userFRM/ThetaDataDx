@@ -30,7 +30,7 @@
     "@napi-rs/cli": "^3.6.2",
     "@types/node": "26.1.0",
     "apache-arrow": "21.1.0",
-    "typescript": "6.0.3"
+    "typescript": "7.0.2"
   },
   "optionalDependencies": {
     "thetadatadx-ts-darwin-arm64": "0.1.1",
