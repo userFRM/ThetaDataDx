@@ -643,15 +643,6 @@ impl StreamingClient {
         }
     }
 
-    fn stop_streaming_impl(&self) {
-        Self::stop_streaming_slots(
-            Arc::clone(&self.inner),
-            Arc::clone(&self.callback),
-            Arc::clone(&self.dispatcher),
-            Arc::clone(&self.prev_drained),
-        );
-    }
-
     /// Run a closure with a borrow of the live streaming client, rejecting with
     /// a typed napi error when nothing is connected.
     fn with_live<R>(
@@ -1194,7 +1185,12 @@ impl StreamingClient {
     /// Lock ordering: `callback` BEFORE `inner`, matching `startStreaming`.
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
-        self.stop_streaming_impl();
+        Self::stop_streaming_slots(
+            Arc::clone(&self.inner),
+            Arc::clone(&self.callback),
+            Arc::clone(&self.dispatcher),
+            Arc::clone(&self.prev_drained),
+        );
     }
 
     /// Alias for `stopStreaming`. Mirrors the unified client's split surface
@@ -1664,18 +1660,6 @@ mod teardown_deadlock_tests {
                 // aborted. This is the exact wait the production dispatcher is
                 // stuck in when teardown runs.
                 depth = self.space.wait(depth).unwrap();
-            }
-        }
-
-        /// Drain one queued call (what the Node main thread does as it services
-        /// the napi `uv_async_t` queue). NOT called during the test's teardown,
-        /// reproducing the main thread being parked in the join.
-        #[allow(dead_code)]
-        fn drain_one(&self) {
-            let mut depth = self.depth.lock().unwrap();
-            if *depth > 0 {
-                *depth -= 1;
-                self.space.notify_one();
             }
         }
 

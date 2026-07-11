@@ -1,17 +1,14 @@
-//! Date-range split math for the 365-day auto-chunk path.
+//! Date-range split math for history requests beyond the 365-day server cap.
 //!
 //! The ThetaData server rejects history ranges exceeding 365 calendar days
-//! with a raw gRPC `InvalidArgument`. A pre-flight split divides the
-//! requested `(start, end)` span into ≤365-day chunks before dispatch so
-//! callers can ask for arbitrary multi-year ranges without hitting the
-//! server-side cap.
+//! with a raw gRPC `InvalidArgument`. `split_date_range` divides a requested
+//! `(start, end)` span into contiguous ≤365-day chunks, so a caller can turn
+//! an arbitrary multi-year range into a series of server-accepted requests
+//! and concatenate the results.
 //!
-//! This module is the pure date-arithmetic layer — no tokio, no
-//! `MarketDataClient`. The fan-out orchestrator (concurrent cell dispatch +
-//! concatenation) lives one layer up and coordinates with the Rust SDK's
-//! request semaphore. The math here is exercised by its own unit tests so
-//! a refactor of the orchestrator can never break the chunk boundary
-//! invariants.
+//! Pure date arithmetic — no tokio, no client. Exposed to Python as
+//! `split_date_range` (re-exported from `lib.rs`). The math carries its own
+//! unit tests.
 //!
 //! # Invariants (tested below)
 //!
@@ -24,12 +21,9 @@
 //!    `Err`, NOT a panic — called from pre-flight code that already
 //!    validated, but the redundant validation is harmless here.
 
-// The `chunking` module backs the auto-chunk fan-out activated once
-// `DirectConfig::auto_chunk` is threaded through `MarketDataClient`. The split
-// math is correctness-critical and self-contained, so it carries its own
-// tests independent of the orchestrator. The split entry point is
-// exported from `lib.rs` so the symbol participates in the public
-// surface and does not trip dead-code lints.
+// `split_date_range` is exported from `lib.rs`, so the symbol participates in
+// the public surface and does not trip dead-code lints. The split math is
+// correctness-critical and self-contained, so it carries its own tests.
 
 /// Failure modes of the date-range split.
 #[derive(Debug, thiserror::Error)]

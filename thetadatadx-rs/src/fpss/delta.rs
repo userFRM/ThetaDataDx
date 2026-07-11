@@ -6,7 +6,6 @@
 //! buffer used by [`DeltaState::decode_tick`].
 
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
 
 use crate::tdbe::codec::fit::{apply_deltas, FitReader};
 
@@ -79,15 +78,7 @@ pub struct DeltaState {
     /// unused slots zero-filled, so a stale width can only under-report which
     /// trailing fields a caller reads, never read out of bounds.
     field_counts: HashMap<(u8, i32), usize>,
-    /// Timestamp of last STOP (market close) signal. Used to suppress
-    /// "unknown `contract_id`" warnings for 5 seconds after STOP;
-    /// stale ticks are expected during teardown.
-    pub(super) last_stop: Option<Instant>,
 }
-
-/// Duration after a STOP signal during which "unknown `contract_id`" warnings
-/// are suppressed (stale ticks are expected during market-close teardown).
-const STOP_SUPPRESS_DURATION: Duration = Duration::from_secs(5);
 
 impl DeltaState {
     #[doc(hidden)]
@@ -100,7 +91,6 @@ impl DeltaState {
             alloc_buf: vec![0i32; MAX_DATA_FIELDS + 1],
             last_was_date: false,
             field_counts: HashMap::new(),
-            last_stop: None,
         }
     }
 
@@ -109,20 +99,10 @@ impl DeltaState {
     /// Called on START/STOP (market open/close) signals to reset delta
     /// decompression: the contract-id read starts fresh after a session
     /// boundary.
-    ///
-    /// Note: `last_stop` is intentionally NOT cleared here because STOP
-    /// itself calls `clear()`, and the timestamp must survive to suppress
-    /// stale-tick warnings for 5 seconds after the STOP signal.
     pub fn clear(&mut self) {
         self.prev.clear();
         self.last_was_date = false;
         self.field_counts.clear();
-    }
-
-    /// Whether we are within the post-STOP suppression window.
-    pub(super) fn is_in_stop_suppression_window(&self) -> bool {
-        self.last_stop
-            .is_some_and(|t| t.elapsed() < STOP_SUPPRESS_DURATION)
     }
 
     /// Decode FIT payload and apply delta decompression.
