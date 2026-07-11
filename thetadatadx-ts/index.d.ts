@@ -566,12 +566,15 @@ export declare class Config {
   /** Current market-data gRPC host. */
   get marketDataHost(): string
   /**
-   * Set the streaming write-flush policy.
+   * Set the flush policy for **outbound** streaming writes (subscribe /
+   * unsubscribe / ping). This does not affect received-data latency:
+   * inbound trades and quotes are dispatched continuously either way.
    *
-   * Accepts `"batched"` (default — flushes on the PING heartbeat,
-   * roughly every 100 ms — best throughput) or `"immediate"`
-   * (flushes after every wire write — lowest latency, higher
-   * per-frame syscall cost).
+   * `"batched"` (default) coalesces outbound frames and flushes on the
+   * PING heartbeat (~100 ms), so a subscription burst goes out as fewer,
+   * larger packets — gentler on the server, fewer syscalls. `"immediate"`
+   * flushes after every write, so a subscribe reaches the server at once,
+   * at a higher per-frame syscall cost.
    */
   setFlushMode(mode: string): void
   /**
