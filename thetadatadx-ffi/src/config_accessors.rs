@@ -1462,12 +1462,10 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_host(
 /// Set the jitter strategy applied to every reconnect delay.
 ///
 /// - `mode = 0`: Full (default) — sample uniformly from `[0, delay]`.
-/// - `mode = 1`: Equal — `delay/2 + uniform(0, delay/2)`.
-/// - `mode = 2`: Decorrelated — walk relative to the previous delay.
-/// - `mode = 3`: None — deterministic delays (tests only).
+/// - `mode = 1`: None — deterministic delays (tests only).
 ///
 /// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
-/// `mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
+/// `mode` is outside the documented `{0, 1}` set or `config` is
 /// null. A rejected `mode` value carries
 /// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
 /// enum int surfaces the same typed class across every binding.
@@ -1483,13 +1481,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
         }
         let value = match mode {
             0 => thetadatadx::JitterMode::Full,
-            1 => thetadatadx::JitterMode::Equal,
-            2 => thetadatadx::JitterMode::Decorrelated,
-            3 => thetadatadx::JitterMode::None,
+            1 => thetadatadx::JitterMode::None,
             other => {
                 crate::error::set_error_with_code(
                     &format!(
-                        "thetadatadx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
+                        "thetadatadx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full) or 1 (None)"
                     ),
                     crate::error::THETADATADX_ERR_INVALID_PARAMETER,
                 );
@@ -1520,10 +1516,8 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_jitter(
         let config = unsafe { &*config };
         let value = match config.inner.reconnect.jitter {
             thetadatadx::JitterMode::Full => 0,
-            thetadatadx::JitterMode::Equal => 1,
-            thetadatadx::JitterMode::Decorrelated => 2,
-            thetadatadx::JitterMode::None => 3,
-            _ => 3,
+            thetadatadx::JitterMode::None => 1,
+            _ => 1,
         };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {

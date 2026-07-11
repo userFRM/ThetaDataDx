@@ -567,8 +567,7 @@ export declare class Config {
   get marketDataHost(): string
   /**
    * Set the jitter strategy applied to every reconnect delay.
-   * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
-   * `"none"` (case-insensitive).
+   * Accepts `"full"` (default) or `"none"` (case-insensitive).
    */
   setReconnectJitter(mode: string): void
   /** Current reconnect jitter mode as a lowercase string. */

@@ -17,7 +17,7 @@
 //!
 //! The default [`JitterMode::Full`] follows AWS's *full jitter*
 //! analysis: sampling uniformly from `[0, capped_delay]` minimises
-//! total work and contention versus equal jitter or no jitter; see
+//! total work and contention versus no jitter; see
 //! <https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/>.
 
 use std::time::Duration;
@@ -28,8 +28,7 @@ use rand::RngExt;
 ///
 /// The streaming reconnect driver exposes this knob through
 /// [`crate::config::ReconnectConfig::jitter`]; bindings encode it as
-/// the lowercase strings `"full"`, `"equal"`, `"decorrelated"`, and
-/// `"none"`.
+/// the lowercase strings `"full"` and `"none"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum JitterMode {
@@ -38,15 +37,6 @@ pub enum JitterMode {
     /// almost immediately.
     #[default]
     Full,
-    /// `delay / 2 + uniform(0, delay / 2)` (AWS equal jitter). Keeps a
-    /// per-attempt floor of half the deterministic delay while still
-    /// spreading a fleet across the upper half of the window.
-    Equal,
-    /// Decorrelated walk: `min(cap, uniform(initial, prev * 3))`. Each
-    /// delay is sampled relative to the previous one rather than the
-    /// attempt number, which spreads long-running retry sessions even
-    /// when their attempt counters align.
-    Decorrelated,
     /// No jitter — the deterministic capped delay. Useful for tests
     /// that assert exact timings; not recommended for fleets.
     None,
@@ -59,8 +49,6 @@ impl JitterMode {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Full => "full",
-            Self::Equal => "equal",
-            Self::Decorrelated => "decorrelated",
             Self::None => "none",
         }
     }
@@ -71,8 +59,6 @@ impl JitterMode {
     pub fn parse(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().as_str() {
             "full" => Some(Self::Full),
-            "equal" => Some(Self::Equal),
-            "decorrelated" => Some(Self::Decorrelated),
             "none" => Some(Self::None),
             _ => None,
         }
@@ -80,73 +66,36 @@ impl JitterMode {
 
     /// Jitter the deterministic `delay` for one retry attempt.
     ///
-    /// `schedule` carries the ladder bounds plus the previous jittered
-    /// delay that [`JitterMode::Decorrelated`] walks from; the other
-    /// modes ignore everything except `delay`. The returned value is
-    /// recorded back into `schedule` so the decorrelated walk advances.
-    ///
     /// Guarantees, by mode:
     ///
     /// * `Full` — result in `[0, delay]`.
-    /// * `Equal` — result in `[delay / 2, delay]`.
-    /// * `Decorrelated` — result in `[min(initial, cap), cap]`.
     /// * `None` — result is exactly `delay`.
-    pub(crate) fn sample(self, delay: Duration, schedule: &mut BackoffSchedule) -> Duration {
-        let sampled = match self {
+    #[must_use]
+    pub(crate) fn sample(self, delay: Duration) -> Duration {
+        match self {
             Self::None => delay,
             Self::Full => uniform_duration(Duration::ZERO, delay),
-            Self::Equal => {
-                let half = delay / 2;
-                half + uniform_duration(Duration::ZERO, delay - half)
-            }
-            Self::Decorrelated => {
-                let prev = schedule.prev.unwrap_or(schedule.initial);
-                let upper = prev
-                    .saturating_mul(3)
-                    .clamp(schedule.initial, schedule.cap.max(schedule.initial));
-                uniform_duration(schedule.initial.min(schedule.cap), upper)
-            }
-        };
-        schedule.prev = Some(sampled);
-        sampled
+        }
     }
 }
 
-/// Ladder bounds plus the per-burst state the decorrelated walk needs.
-///
-/// One value lives per retry burst (e.g. per consecutive-reconnect
-/// sequence in the streaming I/O loop); call
-/// [`BackoffSchedule::reset`] when the burst ends so the next burst
-/// starts the walk from `initial` again.
+/// Deterministic exponential-ladder bounds for a retry burst.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BackoffSchedule {
     /// First-attempt delay; doubles per attempt.
     pub(crate) initial: Duration,
     /// Upper bound on the deterministic ladder.
     pub(crate) cap: Duration,
-    /// Previous jittered delay ([`JitterMode::Decorrelated`] state).
-    pub(crate) prev: Option<Duration>,
 }
 
 impl BackoffSchedule {
     pub(crate) fn new(initial: Duration, cap: Duration) -> Self {
-        Self {
-            initial,
-            cap,
-            prev: None,
-        }
+        Self { initial, cap }
     }
 
     /// Deterministic capped delay for a 1-based `attempt` number.
     pub(crate) fn deterministic(&self, attempt: u32) -> Duration {
         capped_exponential(self.initial, self.cap, attempt)
-    }
-
-    /// Forget the decorrelated-walk state. Call when a retry burst
-    /// ends (successful data flow / stable window) so the next burst
-    /// restarts from `initial`.
-    pub(crate) fn reset(&mut self) {
-        self.prev = None;
     }
 }
 
@@ -242,49 +191,17 @@ mod tests {
 
     #[test]
     fn full_jitter_stays_within_zero_to_delay() {
-        let mut schedule =
-            BackoffSchedule::new(Duration::from_millis(250), Duration::from_secs(30));
         let delay = Duration::from_secs(4);
         for _ in 0..256 {
-            let sampled = JitterMode::Full.sample(delay, &mut schedule);
+            let sampled = JitterMode::Full.sample(delay);
             assert!(sampled <= delay, "full jitter must not exceed the delay");
         }
     }
 
     #[test]
-    fn equal_jitter_keeps_half_delay_floor() {
-        let mut schedule =
-            BackoffSchedule::new(Duration::from_millis(250), Duration::from_secs(30));
-        let delay = Duration::from_secs(4);
-        for _ in 0..256 {
-            let sampled = JitterMode::Equal.sample(delay, &mut schedule);
-            assert!(sampled >= delay / 2, "equal jitter floor is delay/2");
-            assert!(sampled <= delay, "equal jitter must not exceed the delay");
-        }
-    }
-
-    #[test]
-    fn decorrelated_jitter_walks_within_initial_and_cap() {
-        let initial = Duration::from_millis(250);
-        let cap = Duration::from_secs(30);
-        let mut schedule = BackoffSchedule::new(initial, cap);
-        for attempt in 1..64_u32 {
-            let base = schedule.deterministic(attempt);
-            let sampled = JitterMode::Decorrelated.sample(base, &mut schedule);
-            assert!(
-                sampled >= initial,
-                "decorrelated floor is the initial delay"
-            );
-            assert!(sampled <= cap, "decorrelated ceiling is the cap");
-        }
-    }
-
-    #[test]
     fn none_jitter_returns_exact_delay() {
-        let mut schedule =
-            BackoffSchedule::new(Duration::from_millis(250), Duration::from_secs(30));
         let delay = Duration::from_millis(1_234);
-        assert_eq!(JitterMode::None.sample(delay, &mut schedule), delay);
+        assert_eq!(JitterMode::None.sample(delay), delay);
     }
 
     #[test]
@@ -300,12 +217,7 @@ mod tests {
 
     #[test]
     fn jitter_mode_string_round_trip() {
-        for mode in [
-            JitterMode::Full,
-            JitterMode::Equal,
-            JitterMode::Decorrelated,
-            JitterMode::None,
-        ] {
+        for mode in [JitterMode::Full, JitterMode::None] {
             assert_eq!(JitterMode::parse(mode.as_str()), Some(mode));
         }
         assert_eq!(JitterMode::parse("FULL"), Some(JitterMode::Full));
@@ -318,14 +230,5 @@ mod tests {
         let a = entropy_u64();
         let b = entropy_u64();
         assert_ne!(a, b, "consecutive entropy words must differ");
-    }
-
-    #[test]
-    fn backoff_schedule_reset_clears_walk_state() {
-        let mut schedule = BackoffSchedule::new(Duration::from_millis(100), Duration::from_secs(5));
-        let _ = JitterMode::Decorrelated.sample(Duration::from_millis(100), &mut schedule);
-        assert!(schedule.prev.is_some());
-        schedule.reset();
-        assert!(schedule.prev.is_none());
     }
 }

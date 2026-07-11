@@ -1989,39 +1989,34 @@ path = "reconnect.jitter"
 enum_type = "thetadatadx::JitterMode"
 enum_core = "config::JitterMode"
 null_err = "other"
-enum_expected = "expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
-py_err = 'unknown reconnect_jitter: {mode:?} (expected "full", "equal", "decorrelated", or "none")'
-ts_err = 'setReconnectJitter: unknown mode {mode:?}; expected "full", "equal", "decorrelated", or "none"'
+enum_expected = "expected 0 (Full) or 1 (None)"
+py_err = 'unknown reconnect_jitter: {mode:?} (expected "full" or "none")'
+ts_err = 'setReconnectJitter: unknown mode {mode:?}; expected "full" or "none"'
 doc = """
 Set the jitter strategy applied to every reconnect delay.
 
 - `mode = 0`: Full (default) — sample uniformly from `[0, delay]`.
-- `mode = 1`: Equal — `delay/2 + uniform(0, delay/2)`.
-- `mode = 2`: Decorrelated — walk relative to the previous delay.
-- `mode = 3`: None — deterministic delays (tests only).
+- `mode = 1`: None — deterministic delays (tests only).
 
 Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
-`mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
+`mode` is outside the documented `{0, 1}` set or `config` is
 null. A rejected `mode` value carries
 `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
 enum int surfaces the same typed class across every binding.
 """
 cpp_doc = """
-Set the reconnect jitter mode: 0=Full (default), 1=Equal,
-2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
+Set the reconnect jitter mode: 0=Full (default), 1=None. Throws @c thetadatadx::InvalidParameterError on
 an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null
 handle), routing through the typed leaf the FFI error code
 selects.
 """
 py_doc = """
 Set the jitter strategy applied to every reconnect delay.
-Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
-or ``"none"`` (case-insensitive).
+Accepts ``"full"`` (default) or ``"none"`` (case-insensitive).
 """
 ts_doc = """
 Set the jitter strategy applied to every reconnect delay.
-Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
-`"none"` (case-insensitive).
+Accepts `"full"` (default) or `"none"` (case-insensitive).
 """
 py_param = "mode"
 ts_param = "mode"
@@ -2031,14 +2026,6 @@ rust = "Full"
 label = "full"
 [[accessor.variant]]
 int = 1
-rust = "Equal"
-label = "equal"
-[[accessor.variant]]
-int = 2
-rust = "Decorrelated"
-label = "decorrelated"
-[[accessor.variant]]
-int = 3
 rust = "None"
 label = "none"
 
@@ -2070,14 +2057,6 @@ rust = "Full"
 label = "full"
 [[accessor.variant]]
 int = 1
-rust = "Equal"
-label = "equal"
-[[accessor.variant]]
-int = 2
-rust = "Decorrelated"
-label = "decorrelated"
-[[accessor.variant]]
-int = 3
 rust = "None"
 label = "none"
 

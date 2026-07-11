@@ -1378,11 +1378,9 @@ int32_t thetadatadx_config_get_reconnect_wait_server_restart_ms(const ThetaDataD
 /**
  * Set the jitter strategy applied to every reconnect delay.
  *   mode=0: Full (default) -- sample uniformly from [0, delay].
- *   mode=1: Equal -- delay/2 + uniform(0, delay/2).
- *   mode=2: Decorrelated -- walk relative to the previous delay.
- *   mode=3: None -- deterministic delays (tests only).
+ *   mode=1: None -- deterministic delays (tests only).
  * @param config Config handle to mutate.
- * @param mode Jitter strategy selector (0-3 per the list above).
+ * @param mode Jitter strategy selector (0 = Full, 1 = None).
  * @return 0 on success, -1 on an invalid mode or null config.
  */
 int32_t thetadatadx_config_set_reconnect_jitter(ThetaDataDxConfig* config, int32_t mode);

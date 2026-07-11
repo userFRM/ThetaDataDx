@@ -497,8 +497,7 @@
         return s.str();
     }
 
-    /// Set the reconnect jitter mode: 0=Full (default), 1=Equal,
-    /// 2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
+    /// Set the reconnect jitter mode: 0=Full (default), 1=None. Throws @c thetadatadx::InvalidParameterError on
     /// an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null
     /// handle), routing through the typed leaf the FFI error code
     /// selects.

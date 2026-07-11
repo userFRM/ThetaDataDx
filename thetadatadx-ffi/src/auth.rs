@@ -2115,7 +2115,7 @@ mod resilience_knob_tests {
                 0
             );
             assert_eq!(mode, 0, "default jitter mode is Full");
-            for m in [1, 2, 3, 0] {
+            for m in [1, 0] {
                 assert_eq!(super::thetadatadx_config_set_reconnect_jitter(cfg, m), 0);
                 assert_eq!(
                     super::thetadatadx_config_get_reconnect_jitter(cfg, &mut mode),
