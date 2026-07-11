@@ -344,38 +344,6 @@ pub mod streaming {
     #[cfg(feature = "arrow")]
     #[doc(hidden)]
     pub use crate::fpss::batch_schema::stream_batch_schema;
-
-    /// Consumer wait strategies for the streaming ring.
-    ///
-    /// The streaming client drains the ring with a fixed low-latency
-    /// wait, which every language binding uses. A Rust caller that needs
-    /// an exotic backoff can instead supply any type implementing
-    /// `WaitStrategy` to
-    /// [`crate::streaming::StreamingClient::for_each_with_wait_strategy`]. The
-    /// strategy is monomorphised into the drain loop, so the per-poll
-    /// cost is the caller's `wait_for` body with no indirection.
-    ///
-    /// `BusySpin` is the lowest-latency strategy (a true busy spin);
-    /// `BusySpinWithSpinLoopHint` adds a `spin_loop` hint so the core
-    /// can save power or switch hyper-threads; `Sleep` parks the thread
-    /// for a fixed duration between polls.
-    ///
-    /// ```rust,ignore
-    /// use thetadatadx::streaming::wait::BusySpin;
-    ///
-    /// client.for_each_with_wait_strategy(
-    ///     |event| { /* handle event */ },
-    ///     BusySpin,
-    /// );
-    /// ```
-    pub mod wait {
-        // VOCAB-OK: re-exporting the ring's wait-strategy surface under a
-        // crate-owned path so callers never name the underlying ring
-        // crate in their own `use` statements or trait bounds.
-        pub use disruptor::wait_strategies::{
-            BusySpin, BusySpinWithSpinLoopHint, Sleep, WaitStrategy,
-        };
-    }
 }
 
 // ─── Market-data queries ──────────────────────────────────────────────────────

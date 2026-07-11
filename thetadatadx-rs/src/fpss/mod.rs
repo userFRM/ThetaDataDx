@@ -2089,55 +2089,6 @@ impl StreamingClient {
         }
     }
 
-    /// Drain events through `on_event`, applying a caller-supplied
-    /// [`crate::streaming::wait::WaitStrategy`] on each momentarily
-    /// empty ring instead of the default low-latency wait.
-    ///
-    /// This is the Rust-native bring-your-own-strategy escape hatch: the
-    /// default wait ([`crate::streaming::wait::BusySpinWithSpinLoopHint`]-style
-    /// spin) suits real-time market data, but a Rust caller with an
-    /// exotic backoff (e.g. an adaptive PID-controlled park, or a
-    /// strategy that coordinates with another subsystem) can supply any
-    /// `W: WaitStrategy` here. Use a strategy from
-    /// [`crate::streaming::wait`] (e.g.
-    /// [`crate::streaming::wait::BusySpin`]) or implement the trait on
-    /// your own type.
-    ///
-    /// `W` is monomorphised into the loop, so the per-poll cost is the
-    /// caller's `wait_for` body with no indirection. Delivery semantics
-    /// match [`Self::for_each`]: `on_event` fires exactly once per event
-    /// and the loop returns on terminal shutdown after the ring drains.
-    ///
-    /// # Why Rust-only
-    ///
-    /// `wait_for` fires on every ring-empty poll on the hot path. Routing
-    /// that per-poll callback across the C ABI, the CPython interpreter
-    /// lock, or the JavaScript event loop would add call-boundary
-    /// overhead to the single tightest loop in the consumer — a latency
-    /// regression, not a tuning knob. The bindings therefore run the
-    /// fixed low-latency wait with no override.
-    pub fn for_each_with_wait_strategy<W, F>(&self, mut on_event: F, strategy: W) -> PollOutcome
-    where
-        W: crate::streaming::wait::WaitStrategy,
-        F: FnMut(&StreamEvent),
-    {
-        // The drain owner + CPU pin are recorded inside `poll_batch`, after
-        // the staging lock is acquired, so the identity reflects the proven
-        // drainer rather than whichever thread merely entered this loop.
-        loop {
-            match self.poll_batch(&mut on_event) {
-                // Return the terminal outcome so the caller can tell a clean
-                // shutdown from an I/O-thread fault (`Failed`).
-                terminal @ (PollOutcome::Shutdown | PollOutcome::Failed) => return terminal,
-                // `Busy` cannot arise from this loop's own poll (it holds no
-                // lock when it polls); back off and retry defensively in case
-                // an `on_event` callback re-entered a drain.
-                PollOutcome::Drained(0) | PollOutcome::Busy => strategy.wait_for(0),
-                PollOutcome::Drained(_) => {}
-            }
-        }
-    }
-
     /// Polymorphic subscribe — wire-level entry point.
     ///
     /// Accepts a typed [`protocol::Subscription`] value built via
@@ -4141,35 +4092,6 @@ mod ring_occupancy_tests {
             client.recorded_consumer_thread_id(),
             Some(std::thread::current().id()),
             "poll_batch must record the draining thread so Drop detects a self-join"
-        );
-    }
-
-    /// The bring-your-own-strategy drain is reachable through the
-    /// crate-owned wait-strategy re-export, so a Rust caller never names
-    /// the underlying ring crate. Dropping the producer terminates the
-    /// drain; `BusySpin`'s `wait_for` is a no-op, so the loop spins only
-    /// until the ring reports shutdown.
-    #[test]
-    fn for_each_with_wait_strategy_accepts_crate_owned_preset() {
-        use crate::streaming::wait::BusySpin;
-
-        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
-        for _ in 0..3 {
-            assert!(
-                publish_one(&mut producer),
-                "fresh ring must accept a publish"
-            );
-        }
-        // Drop the producer so the poller observes terminal shutdown once
-        // the three published events drain, and the loop returns.
-        drop(producer);
-
-        let mut delivered = 0usize;
-        client.for_each_with_wait_strategy(|_event| delivered += 1, BusySpin);
-
-        assert_eq!(
-            delivered, 3,
-            "every published event must be delivered before shutdown returns"
         );
     }
 
