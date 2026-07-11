@@ -919,39 +919,6 @@ impl Config {
         Ok(guard.market_data_host().to_string())
     }
 
-    /// Set the streaming write-flush policy.
-    ///
-    /// Accepts `"batched"` (default — flushes on the PING heartbeat,
-    /// roughly every 100 ms — best throughput) or `"immediate"`
-    /// (flushes after every wire write — lowest latency, higher
-    /// per-frame syscall cost).
-    #[napi(js_name = "setFlushMode")]
-    pub fn set_flush_mode(&self, mode: String) -> napi::Result<()> {
-        let mode = mode.to_ascii_lowercase();
-        let parsed = config::StreamingFlushMode::parse(&mode).ok_or_else(|| {
-            crate::invalid_parameter_err(format!(
-                "setFlushMode: mode must be \"batched\" or \"immediate\"; got {mode:?}"
-            ))
-        })?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.flush_mode = parsed;
-        Ok(())
-    }
-
-    /// Current streaming write-flush policy (`"batched"` or
-    /// `"immediate"`).
-    #[napi(getter, js_name = "flushMode")]
-    pub fn flush_mode(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.flush_mode.as_str())
-    }
-
     /// Set the jitter strategy applied to every reconnect delay.
     /// Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
     /// `"none"` (case-insensitive).

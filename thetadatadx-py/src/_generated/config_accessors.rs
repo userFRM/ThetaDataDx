@@ -634,33 +634,6 @@ impl Config {
         guard.market_data_host().to_string()
     }
 
-    /// Set the streaming write-flush policy.
-    ///
-    /// Accepts ``"batched"`` (default, flushes on the PING heartbeat,
-    /// roughly every 100 ms — best throughput) or ``"immediate"``
-    /// (flushes after every wire write — lowest latency, higher
-    /// per-frame syscall cost).
-    #[setter]
-    fn set_flush_mode(&self, mode: &str) -> PyResult<()> {
-        let mode = mode.to_ascii_lowercase();
-        let parsed = config::StreamingFlushMode::parse(&mode).ok_or_else(|| {
-            crate::errors::invalid_parameter_err(format!(
-                "flush_mode must be \"batched\" or \"immediate\"; got {mode:?}"
-            ))
-        })?;
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.flush_mode = parsed;
-        Ok(())
-    }
-
-    /// Current streaming write-flush policy (``"batched"`` or
-    /// ``"immediate"``).
-    #[getter]
-    fn get_flush_mode(&self) -> &'static str {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.flush_mode.as_str()
-    }
-
     /// Set the jitter strategy applied to every reconnect delay.
     /// Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
     /// or ``"none"`` (case-insensitive).

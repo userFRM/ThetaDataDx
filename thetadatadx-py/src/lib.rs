@@ -427,10 +427,10 @@ impl Config {
     // ``client_type``) are the generated ``ms`` / ``string`` accessors in
     // config_surface.toml.
 
-    // ``DirectConfig.metrics.port`` (``Optional[int]``, exporter port),
-    // the ``streaming.flush_mode`` enum, and the ``reconnect.jitter`` /
-    // ``streaming.host_selection`` enums are the generated ``enum`` /
-    // ``option`` accessors in config_surface.toml.
+    // ``DirectConfig.metrics.port`` (``Optional[int]``, exporter port)
+    // and the ``reconnect.jitter`` / ``streaming.host_selection`` enums
+    // are the generated ``enum`` / ``option`` accessors in
+    // config_surface.toml.
 
     /// Target market-data environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"STAGE"`` for staging.

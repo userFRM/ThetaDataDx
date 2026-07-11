@@ -28,7 +28,7 @@
 //! | Field           | Type                                                |
 //! |-----------------|-----------------------------------------------------|
 //! | `market_data`  | [`MarketDataConfig`] — gRPC host/port/TLS/keepalive       |
-//! | `streaming`     | [`StreamingConfig`] — TCP hosts, queue/ring, flush mode  |
+//! | `streaming`     | [`StreamingConfig`] — TCP hosts, queue/ring  |
 //! | `flatfiles`     | [`FlatFilesConfig`] — FLATFILES retry budget        |
 //! | `reconnect`     | [`ReconnectConfig`] — wait cadence + policy         |
 //! | `retry`         | [`RetryPolicy`] — exponential backoff for market-data |
@@ -56,9 +56,7 @@ pub use env::{
 };
 pub use environment::{MarketDataEnvironment, StreamingEnvironment};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
-pub use fpss::{
-    bounds as streaming_bounds, HostSelectionPolicy, StreamingConfig, StreamingFlushMode,
-};
+pub use fpss::{bounds as streaming_bounds, HostSelectionPolicy, StreamingConfig};
 pub use mdds::MarketDataConfig;
 pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
 pub use metrics::MetricsConfig;
@@ -1140,7 +1138,6 @@ impl DirectConfig {
 mod config_file {
     use super::{
         DirectConfig, MarketDataConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
-        StreamingFlushMode,
     };
     use crate::error::Error;
     use serde::Deserialize;
@@ -1204,7 +1201,6 @@ mod config_file {
         reconnect_wait: u64,
         reconnect_wait_rate_limited: u64,
         ring_size: usize,
-        flush_mode: String,
         /// CPU core to pin the streaming consumer thread to. A negative
         /// value (the default `-1`) means "unpinned" — the `Option::None`
         /// form in `[streaming]` TOML, where serde cannot express a bare
@@ -1225,7 +1221,6 @@ mod config_file {
                 reconnect_wait: prod.reconnect.wait_ms,
                 reconnect_wait_rate_limited: prod.reconnect.wait_rate_limited_ms,
                 ring_size: prod.streaming.ring_size,
-                flush_mode: "batched".to_string(),
                 consumer_cpu: prod
                     .streaming
                     .consumer_cpu
@@ -1339,7 +1334,6 @@ mod config_file {
         /// hosts = ["nj-a.thetadata.us:20000", "nj-b.thetadata.us:20000"]
         /// reconnect_wait = 2000
         /// ring_size = 131072
-        /// flush_mode = "batched"  # or "immediate"
         ///
         /// [grpc]
         /// window_size_kb = 64
@@ -1372,23 +1366,6 @@ mod config_file {
         pub fn from_toml_str(toml_str: &str) -> Result<Self, Error> {
             let cf: ConfigFile =
                 toml::from_str(toml_str).map_err(|e| Error::config_toml(e.to_string()))?;
-
-            // An empty / absent value takes the documented default; any
-            // other unrecognized value is a misconfiguration and is
-            // rejected by name rather than silently falling back, so a
-            // typo cannot quietly run a mode the operator did not pick.
-            let flush_mode = match cf.streaming.flush_mode.trim().to_lowercase().as_str() {
-                "" | "batched" => StreamingFlushMode::Batched,
-                "immediate" => StreamingFlushMode::Immediate,
-                other => {
-                    return Err(Error::config_invalid(
-                        "streaming.flush_mode",
-                        format!(
-                            "flush_mode must be one of \"batched\", \"immediate\"; got {other:?}"
-                        ),
-                    ));
-                }
-            };
 
             // `[market_data].max_message_size` (bytes) is the canonical knob.
             // `[grpc].max_message_size_mb` (MB) is an explicit override that
@@ -1459,7 +1436,6 @@ mod config_file {
             out.streaming.ring_size = cf.streaming.ring_size;
             out.streaming.ping_interval_ms = cf.streaming.ping_interval;
             out.streaming.connect_timeout_ms = cf.streaming.connect_timeout;
-            out.streaming.flush_mode = flush_mode;
             // A negative TOML `consumer_cpu` (default `-1`) means unpinned.
             out.streaming.consumer_cpu = usize::try_from(cf.streaming.consumer_cpu).ok();
 
@@ -1687,7 +1663,7 @@ mod tests {
 
     #[cfg(feature = "config-file")]
     mod config_file_tests {
-        use crate::config::{DirectConfig, StreamingFlushMode};
+        use crate::config::DirectConfig;
 
         #[test]
         fn streaming_hosts_reject_zero_port_and_empty_host() {
@@ -1755,26 +1731,6 @@ mod tests {
             let config = DirectConfig::from_toml_str(toml).unwrap();
             assert_eq!(config.streaming.hosts.len(), 2);
             assert_eq!(config.streaming.hosts[0].0, "host-a.example.com");
-        }
-
-        #[test]
-        fn flush_mode_immediate() {
-            let toml = r#"
-                [streaming]
-                flush_mode = "immediate"
-            "#;
-            let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.streaming.flush_mode, StreamingFlushMode::Immediate);
-        }
-
-        #[test]
-        fn flush_mode_batched_by_default() {
-            let toml = r#"
-                [streaming]
-                flush_mode = "batched"
-            "#;
-            let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.streaming.flush_mode, StreamingFlushMode::Batched);
         }
 
         #[test]
@@ -1867,19 +1823,6 @@ mod tests {
             let err = DirectConfig::from_toml_str(toml)
                 .expect_err("the removed [auth] section must be rejected");
             assert!(err.to_string().contains("auth"), "{err}");
-        }
-
-        #[test]
-        fn bad_flush_mode_is_rejected() {
-            let toml = r#"
-                [streaming]
-                flush_mode = "imediate"
-            "#;
-            let err = DirectConfig::from_toml_str(toml)
-                .expect_err("a misspelled flush_mode must be rejected");
-            let msg = err.to_string();
-            assert!(msg.contains("flush_mode"), "{msg}");
-            assert!(msg.contains("imediate"), "{msg}");
         }
 
         #[test]
@@ -2014,7 +1957,6 @@ mod tests {
                 prod.streaming.ping_interval_ms
             );
             assert_eq!(config.streaming.ring_size, prod.streaming.ring_size);
-            assert_eq!(config.streaming.flush_mode, prod.streaming.flush_mode);
             assert_eq!(config.streaming.consumer_cpu, prod.streaming.consumer_cpu);
 
             // Reconnect cadence.

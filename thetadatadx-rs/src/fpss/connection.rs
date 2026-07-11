@@ -32,7 +32,6 @@ use crate::auth::Credentials;
 use crate::backoff::JitterMode;
 use crate::config::HostSelectionPolicy;
 use crate::config::ReconnectPolicy;
-use crate::config::StreamingFlushMode;
 
 use super::pinning::PinnedVerifier;
 #[cfg(test)]
@@ -72,7 +71,6 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub host_selection: HostSelectionPolicy,
     pub host_shuffle_seed: u64,
     pub ring_size: usize,
-    pub flush_mode: StreamingFlushMode,
     /// Fixed low-latency event-ring consumer wait strategy
     /// ([`super::ring::AdaptiveWaitStrategy`]).
     pub wait_strategy: super::ring::AdaptiveWaitStrategy,

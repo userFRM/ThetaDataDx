@@ -1,40 +1,5 @@
 //! Streaming (TCP) sub-configuration.
 
-/// Controls when the streaming write buffer is flushed.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum StreamingFlushMode {
-    /// Flush only on PING frames. Lower syscall overhead, up to one
-    /// ping interval of additional latency.
-    #[default]
-    Batched,
-    /// Flush after every frame write. Lowest latency, higher syscall overhead.
-    Immediate,
-}
-
-impl StreamingFlushMode {
-    /// Canonical lowercase string for this mode, matching the
-    /// cross-binding encoding.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Batched => "batched",
-            Self::Immediate => "immediate",
-        }
-    }
-
-    /// Parse the cross-binding string encoding (case-insensitive).
-    /// Returns `None` for unrecognised input.
-    #[must_use]
-    pub fn parse(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "batched" => Some(Self::Batched),
-            "immediate" => Some(Self::Immediate),
-            _ => None,
-        }
-    }
-}
-
 /// How the streaming client orders the configured streaming hosts for the
 /// initial connect and every reconnect.
 ///
@@ -213,14 +178,6 @@ pub struct StreamingConfig {
     /// does not expose the knob the idle/interval pair still applies.
     pub keepalive_retries: u32,
 
-    /// Controls when the streaming write buffer is flushed.
-    ///
-    /// - [`StreamingFlushMode::Batched`] (default): only flush on PING frames.
-    ///   Lower syscall overhead.
-    /// - [`StreamingFlushMode::Immediate`]: flush after every frame write. Lowest
-    ///   latency, higher syscall overhead.
-    pub flush_mode: StreamingFlushMode,
-
     /// Optional CPU core to pin the streaming event-ring consumer thread
     /// to.
     ///
@@ -268,7 +225,6 @@ impl StreamingConfig {
             keepalive_idle_secs: 5,
             keepalive_interval_secs: 2,
             keepalive_retries: 2,
-            flush_mode: StreamingFlushMode::Batched,
             consumer_cpu: None,
         }
     }

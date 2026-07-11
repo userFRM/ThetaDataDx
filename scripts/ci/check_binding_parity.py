@@ -2444,7 +2444,6 @@ NAME_ONLY_METHOD_ALLOWLIST: dict[tuple[str, str], str] = {
 PYI_SETTER_PROPERTY_ROWS: frozenset[tuple[str, str]] = frozenset(
     ("Config", name)
     for name in (
-        "setFlushMode",
         "setConsumerCpu",
         "setReconnectPolicy",
         "setStreamingRingSize",

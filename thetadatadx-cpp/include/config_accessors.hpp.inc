@@ -497,27 +497,6 @@
         return s.str();
     }
 
-    /// Set streaming flush mode. 0=Batched (default), 1=Immediate. Throws
-    /// @c thetadatadx::InvalidParameterError when @p mode is outside the
-    /// documented `{0, 1}` set (and @c thetadatadx::ThetaDataError on a null
-    /// handle), routing through the typed leaf the FFI error code
-    /// selects.
-    void set_flush_mode(int mode) {
-        if (thetadatadx_config_set_flush_mode(handle_.get(), mode) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /// Read the current streaming flush mode. Same encoding as
-    /// @c set_flush_mode: `0` = Batched, `1` = Immediate. Returns `0`
-    /// (Batched) on a null handle (matching the C ABI's `-1` failure
-    /// mapping at the boundary).
-    int get_flush_mode() const {
-        int32_t out{};
-        thetadatadx_config_get_flush_mode(handle_.get(), &out);
-        return out;
-    }
-
     /// Set the reconnect jitter mode: 0=Full (default), 1=Equal,
     /// 2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
     /// an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null

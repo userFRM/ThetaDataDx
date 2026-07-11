@@ -213,7 +213,7 @@ struct StreamingConnectParams {
     creds: thetadatadx::Credentials,
     /// Snapshot of `DirectConfig.streaming` at handle-construction time —
     /// hosts, ring size, timeouts, keepalive schedule, host-selection
-    /// policy, flush mode.
+    /// policy.
     streaming: thetadatadx::config::StreamingConfig,
     /// Snapshot of `DirectConfig.reconnect` at handle-construction
     /// time — policy, per-class cadences, jitter, replay pacing.
@@ -231,7 +231,6 @@ fn streaming_builder(
 ) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
     thetadatadx::fpss::StreamingClient::builder(&params.creds, params.streaming.hosts())
         .ring_size(params.streaming.ring_size)
-        .flush_mode(params.streaming.flush_mode)
         .consumer_cpu(params.streaming.consumer_cpu)
         .reconnect_policy(params.reconnect.policy.clone())
         .reconnect_wait_ms(params.reconnect.wait_ms)

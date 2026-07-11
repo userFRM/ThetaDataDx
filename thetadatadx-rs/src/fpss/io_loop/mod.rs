@@ -47,7 +47,7 @@ use crate::auth::Credentials;
 use crate::backoff::{BackoffSchedule, JitterMode};
 use crate::config::{
     HostSelectionPolicy, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
-    StreamingFlushMode, RATE_LIMITED_JITTER_WINDOW,
+    RATE_LIMITED_JITTER_WINDOW,
 };
 use crate::error::Error;
 
@@ -456,7 +456,6 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub authenticated: Arc<AtomicBool>,
     pub permissions: String,
     pub pending_control: Vec<StreamControl>,
-    pub flush_mode: StreamingFlushMode,
     pub policy: ReconnectPolicy,
     /// Mirrors [`crate::config::ReconnectConfig::wait_ms`]: the
     /// initial delay of the generic-transient exponential ladder the
@@ -688,7 +687,6 @@ where
         authenticated,
         permissions,
         mut pending_control,
-        flush_mode,
         policy,
         wait_ms,
         wait_max_ms,
@@ -1055,9 +1053,11 @@ where
                     match cmd_rx.try_recv() {
                         Ok(IoCommand::WriteFrame { code, payload }) => {
                             let writer = reader.get_mut();
-                            let result = if code == StreamMsgType::Ping
-                                || flush_mode == StreamingFlushMode::Immediate
-                            {
+                            // Always-batched: only the PING heartbeat flushes; control
+                            // frames (subscribe / unsubscribe) coalesce until the next
+                            // ping, so a subscription burst leaves as fewer, larger
+                            // packets — the server-friendly behaviour the terminal uses.
+                            let result = if code == StreamMsgType::Ping {
                                 write_raw_frame(writer, code, &payload)
                             } else {
                                 write_raw_frame_no_flush(writer, code, &payload)
@@ -1750,9 +1750,9 @@ where
             match cmd_rx.try_recv() {
                 Ok(IoCommand::WriteFrame { code, payload }) => {
                     let writer = reader.get_mut();
-                    let result = if code == StreamMsgType::Ping
-                        || flush_mode == StreamingFlushMode::Immediate
-                    {
+                    // Always-batched: only the PING heartbeat flushes; queued control
+                    // frames coalesce until the next ping.
+                    let result = if code == StreamMsgType::Ping {
                         write_raw_frame(writer, code, &payload)
                     } else {
                         write_raw_frame_no_flush(writer, code, &payload)

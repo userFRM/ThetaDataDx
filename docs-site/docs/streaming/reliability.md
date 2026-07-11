@@ -1,6 +1,6 @@
 ---
 title: Reconnection & Monitoring
-description: Automatic reconnect policy, flush mode, and the counters that tell you a stream is healthy.
+description: Automatic reconnect policy and the counters that tell you a stream is healthy.
 ---
 
 # Reconnection & Monitoring
@@ -45,20 +45,6 @@ cfg.reconnect_callback = lambda reason, attempt: min(1_000 * attempt, 60_000)
 Permanent failures (for example rejected credentials) never reach the callback — no policy can turn them into a retry loop.
 
 Caller-driven recovery is always available: `reconnect()` re-opens the session and restores the saved subscription set on demand.
-
-## Flush mode
-
-`flush_mode` trades write-path latency against syscall volume:
-
-| Mode | Behavior |
-|---|---|
-| `"batched"` (default) | Outbound frames flush on the heartbeat cadence — the throughput-friendly default. |
-| `"immediate"` | Every frame flushes as written — lowest latency. |
-
-```python
-cfg = Config.production()
-cfg.flush_mode = "immediate"
-```
 
 ## Monitoring a live stream
 

@@ -870,7 +870,6 @@ impl Client {
         let config = self.market_data.config();
         let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
             .ring_size(config.streaming.ring_size)
-            .flush_mode(config.streaming.flush_mode)
             .consumer_cpu(config.streaming.consumer_cpu)
             .reconnect_policy(config.reconnect.policy.clone())
             .reconnect_wait_ms(config.reconnect.wait_ms)

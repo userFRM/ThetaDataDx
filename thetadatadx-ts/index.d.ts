@@ -566,20 +566,6 @@ export declare class Config {
   /** Current market-data gRPC host. */
   get marketDataHost(): string
   /**
-   * Set the streaming write-flush policy.
-   *
-   * Accepts `"batched"` (default — flushes on the PING heartbeat,
-   * roughly every 100 ms — best throughput) or `"immediate"`
-   * (flushes after every wire write — lowest latency, higher
-   * per-frame syscall cost).
-   */
-  setFlushMode(mode: string): void
-  /**
-   * Current streaming write-flush policy (`"batched"` or
-   * `"immediate"`).
-   */
-  get flushMode(): string
-  /**
    * Set the jitter strategy applied to every reconnect delay.
    * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
    * `"none"` (case-insensitive).

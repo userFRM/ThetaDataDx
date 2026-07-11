@@ -671,17 +671,6 @@ python = true
 typescript = true
 cpp = true
 
-# `StreamingConfig.flush_mode` is exposed on every binding:
-# C ABI (`thetadatadx_config_set_flush_mode`), C++ (`set_flush_mode`),
-# Python (`Config.flush_mode` getter + setter accepting
-# `"batched"` / `"immediate"`), TypeScript (`Config.flushMode`
-# getter + `setFlushMode` accepting the same strings).
-[[class]]
-name = "StreamingConfig.flush_mode"
-python = true
-typescript = true
-cpp = true
-
 # `StreamingConfig.consumer_cpu` optional consumer-thread CPU pin,
 # exposed on every binding (Python `Config.consumer_cpu` `Optional[int]`,
 # TypeScript `consumerCpu` / `setConsumerCpu` `number | null`, C++
@@ -1902,34 +1891,6 @@ cpp = true
 [method.signature]
 params = ["String"]
 returns = "Config"
-
-# The flush-mode knob diverges on C++: the managed bindings pass / return the
-# mode as a String name, while C++ uses the integer enum code (`int`), so those
-# cells are per-lang overrides.
-[[method]]
-class = "Config"
-name = "setFlushMode"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-params = ["String"]
-returns = "()"
-cpp_params = ["i32"]
-
-[[method]]
-class = "Config"
-name = "flushMode"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "String"
-cpp_returns = "i32"
-# The Python stub constrains the knob to its exact value set; pin the Literal
-# so adding / removing / renaming a member fails (the bare `String` would hide
-# the value-set drift). The pyo3-source `python` lane still reads `&str`.
-python_pyi_returns = 'Literal["batched", "immediate"]'
 
 # The consumer-CPU pin is an optional core index. The managed bindings carry
 # it as an optional integer (`Option<usize>` / `Option<f64>` / `Option<u32>`);

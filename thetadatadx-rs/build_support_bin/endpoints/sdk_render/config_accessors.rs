@@ -70,7 +70,7 @@ struct Accessor {
     #[serde(default)]
     getter_call: Option<String>,
     /// `enum` only: the FFI-side enum type (`thetadatadx::`-prefixed,
-    /// e.g. `thetadatadx::StreamingFlushMode`) the int code maps to / from.
+    /// e.g. `thetadatadx::JitterMode`) the int code maps to / from.
     #[serde(default)]
     enum_type: Option<String>,
     /// `enum` only: the binding-side enum type (`config::`-prefixed) whose

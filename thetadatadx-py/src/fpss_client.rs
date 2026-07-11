@@ -87,7 +87,6 @@ impl FpssParams {
     fn builder(&self) -> fpss::StreamingClientBuilder<'_> {
         fpss::StreamingClientBuilder::new(&self.creds, self.streaming.hosts())
             .ring_size(self.streaming.ring_size)
-            .flush_mode(self.streaming.flush_mode)
             .consumer_cpu(self.streaming.consumer_cpu)
             .reconnect_policy(self.reconnect.policy.clone())
             .reconnect_wait_ms(self.reconnect.wait_ms)
@@ -1127,7 +1126,7 @@ impl StreamingClient {
 mod tests {
     use super::*;
     use thetadatadx::config::{
-        HostSelectionPolicy, JitterMode, ReconnectPolicy, StreamingFlushMode,
+        HostSelectionPolicy, JitterMode, ReconnectPolicy,
     };
 
     /// Anti-drift guard for the standalone connect path.
@@ -1157,7 +1156,6 @@ mod tests {
         config.streaming.keepalive_idle_secs = 66;
         config.streaming.keepalive_interval_secs = 77;
         config.streaming.keepalive_retries = 8;
-        config.streaming.flush_mode = StreamingFlushMode::Immediate;
         config.streaming.consumer_cpu = Some(3);
 
         // Reconnect: flip every knob away from its production default.
@@ -1184,7 +1182,6 @@ mod tests {
         assert_eq!(s.keepalive_idle_secs, 66);
         assert_eq!(s.keepalive_interval_secs, 77);
         assert_eq!(s.keepalive_retries, 8);
-        assert_eq!(s.flush_mode, StreamingFlushMode::Immediate);
         assert_eq!(s.consumer_cpu, Some(3));
 
         let r = &params.reconnect;

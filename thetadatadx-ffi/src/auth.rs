@@ -339,7 +339,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_environment(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        // SAFETY: see `thetadatadx_config_get_streaming_ping_interval_ms`.
         let config = unsafe { &*config };
         // `MarketDataEnvironment::as_str` is a `'static` label free of
         // interior NULs, so `CString::new` never fails here.
@@ -373,7 +373,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        // SAFETY: see `thetadatadx_config_get_streaming_ping_interval_ms`.
         let config = unsafe { &*config };
         // `StreamingEnvironment::as_str` is a `'static` label free of
         // interior NULs, so `CString::new` never fails here.
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_consumer_cpu(
             );
             return -1;
         }
-        // SAFETY: see `thetadatadx_config_set_flush_mode`.
+        // SAFETY: see `thetadatadx_config_set_streaming_ping_interval_ms`.
         let config = unsafe { &mut *config };
         config.inner.streaming.consumer_cpu = usize::try_from(core).ok();
         0
@@ -431,7 +431,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_consumer_cpu(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        // SAFETY: see `thetadatadx_config_get_streaming_ping_interval_ms`.
         let config = unsafe { &*config };
         let value = config
             .inner
@@ -519,7 +519,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        // SAFETY: see `thetadatadx_config_get_streaming_ping_interval_ms`.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(_) => 0,
@@ -749,7 +749,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: see `thetadatadx_config_get_flush_mode`.
+        // SAFETY: see `thetadatadx_config_get_streaming_ping_interval_ms`.
         let config = unsafe { &*config };
         let (has_value, n) = match config.inner.runtime.tokio_worker_threads {
             Some(v) => (true, v),
@@ -878,31 +878,6 @@ mod pool_sizing_tests {
     //! Each test allocates a fresh `ThetaDataDxConfig` via `thetadatadx_config_production`,
     //! calls the setter under test, then reads the underlying Rust
     //! `MarketDataConfig` to confirm the value round-tripped.
-
-    #[test]
-    fn flush_mode_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        assert!(!cfg.is_null());
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut mode: i32 = -1;
-            // Default is Batched (0).
-            assert_eq!(super::thetadatadx_config_get_flush_mode(cfg, &mut mode), 0);
-            assert_eq!(mode, 0);
-            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 1), 0);
-            assert_eq!(super::thetadatadx_config_get_flush_mode(cfg, &mut mode), 0);
-            assert_eq!(mode, 1);
-            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 0), 0);
-            assert_eq!(super::thetadatadx_config_get_flush_mode(cfg, &mut mode), 0);
-            assert_eq!(mode, 0);
-            // Null-pointer guard on the getter returns -1.
-            assert_eq!(
-                super::thetadatadx_config_get_flush_mode(std::ptr::null(), &mut mode),
-                -1
-            );
-            super::thetadatadx_config_free(cfg);
-        }
-    }
 
     #[test]
     fn warn_on_buffered_threshold_bytes_round_trips() {
@@ -2066,24 +2041,6 @@ mod resilience_knob_tests {
                 0
             );
             assert_eq!(policy, 0, "rejected policy leaves the config unchanged");
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
-    fn flush_mode_round_trips_and_rejects_invalid_with_typed_code() {
-        let cfg = super::thetadatadx_config_production();
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 0), 0);
-            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 1), 0);
-            // A rejected enum value surfaces the typed invalid-parameter
-            // class, not the generic config code.
-            assert_eq!(super::thetadatadx_config_set_flush_mode(cfg, 9), -1);
-            assert_eq!(
-                crate::error::thetadatadx_last_error_code(),
-                crate::error::THETADATADX_ERR_INVALID_PARAMETER
-            );
             super::thetadatadx_config_free(cfg);
         }
     }

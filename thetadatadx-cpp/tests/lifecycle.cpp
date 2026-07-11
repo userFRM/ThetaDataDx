@@ -142,19 +142,6 @@ TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][o
     REQUIRE_NOTHROW(config.set_reconnect_max_attempts(5));
     REQUIRE_NOTHROW(config.set_reconnect_max_rate_limited_attempts(50));
     REQUIRE_NOTHROW(config.set_reconnect_stable_window_secs(120));
-    REQUIRE_NOTHROW(config.set_flush_mode(0));
-}
-
-TEST_CASE("Config flush_mode getter round-trips", "[lifecycle][offline]") {
-    // The readback getter mirrors the Python `Config.flush_mode` and
-    // TypeScript `flushMode` surfaces, so a value set through the C++
-    // wrapper reads back through the same wrapper.
-    auto config = thetadatadx::Config::production();
-
-    config.set_flush_mode(1);
-    REQUIRE(config.get_flush_mode() == 1);
-    config.set_flush_mode(0);
-    REQUIRE(config.get_flush_mode() == 0);
 }
 
 TEST_CASE("Config consumer_cpu round-trip", "[lifecycle][offline]") {
