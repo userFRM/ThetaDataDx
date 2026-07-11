@@ -410,9 +410,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         // split: plain-list snapshots keep the low-allocation `PyList`
         // materialiser; multi-symbol snapshots use the typed list wrapper so
         // `ColumnPresence::symbols()` survives to DataFrame terminals.
-        out.push_str(
-            "        let ticks = run_blocking(py, async move { request.await })?;\n",
-        );
+        out.push_str("        let ticks = run_blocking(py, async move { request.await })?;\n");
         if snapshot_plain_list {
             writeln!(
                 out,
