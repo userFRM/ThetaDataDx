@@ -275,9 +275,8 @@ pub use backoff::JitterMode;
 pub use client::{Client, ConnectionStatus, FlatFiles, StreamSurface, SubscriptionInfo};
 pub use client_builder::ClientBuilder;
 pub use config::{
-    DirectConfig, FlatFilesConfig, HostSelectionPolicy, MarketDataEnvironment,
-    ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
-    StreamingEnvironment,
+    DirectConfig, FlatFilesConfig, MarketDataEnvironment, ReconnectAttemptClass,
+    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingEnvironment,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, GrpcStatusKind,

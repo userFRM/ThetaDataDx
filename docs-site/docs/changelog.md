@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`flush_mode` streaming write-flush knob.** The `flush_mode` setting is removed from every binding (Rust `StreamingConfig::flush_mode`, Python `Config.flush_mode`, TypeScript `Config.flushMode` / `setFlushMode`, C++ `set_flush_mode` / `get_flush_mode`, C ABI `thetadatadx_config_set_flush_mode` / `_get_flush_mode`). Outbound streaming writes now always coalesce and flush on the ping heartbeat, so a subscription burst leaves as fewer, larger packets — the terminal's own behavior — with received-data latency unaffected as before. The `"immediate"` per-frame-flush mode existed only to defeat that server-friendly coalescing and is gone. This is a breaking change to the configuration surface.
 
+- **`host_selection` / `host_shuffle_seed` streaming host-ordering knobs.** Removed from every binding (Rust `StreamingConfig::host_selection` / `host_shuffle_seed`, Python `Config.streaming_host_selection` / `streaming_host_shuffle_seed`, TypeScript `Config.streamingHostSelection` / `setStreamingHostSelection` and the shuffle-seed pair, C++ `set_streaming_host_selection` / `get_streaming_host_selection` and the shuffle-seed pair, C ABI `thetadatadx_config_*_streaming_host_selection` / `_host_shuffle_seed`), along with the `HostSelectionPolicy` enum. The client now cycles the declared host list left to right — the terminal's own behavior — and a reconnect tries the last-known-good host first. The per-client fault-domain shuffle and its seed existed only in the SDK, with no terminal counterpart. This is a breaking change to the configuration surface.
+
 ## [0.1.1] - 2026-07-07
 
 ### Added

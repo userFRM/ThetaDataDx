@@ -659,18 +659,6 @@ python = true
 typescript = true
 cpp = true
 
-[[class]]
-name = "StreamingConfig.streaming_host_selection"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "StreamingConfig.streaming_host_shuffle_seed"
-python = true
-typescript = true
-cpp = true
-
 # `StreamingConfig.consumer_cpu` optional consumer-thread CPU pin,
 # exposed on every binding (Python `Config.consumer_cpu` `Optional[int]`,
 # TypeScript `consumerCpu` / `setConsumerCpu` `number | null`, C++
@@ -1955,15 +1943,14 @@ cpp = true
 returns = "String"
 python_pyi_returns = 'Literal["PROD", "DEV"]'
 
-# The reconnect-jitter and streaming-host-selection readbacks. Both are
-# value-constrained enums exposed as readback getters on every binding: Python
-# (`Config.reconnect_jitter` / `Config.streaming_host_selection` properties),
-# TypeScript (`get reconnectJitter()` / `get streamingHostSelection()`), C++
-# (`Config::get_reconnect_jitter()` / `Config::get_streaming_host_selection()`,
-# each returning the enum's `int` discriminant). The `.pyi` constrains each to
-# its exact value set, pinned via `python_pyi_returns` so a value-set drift
-# fails — without these getter rows the constrained knobs were presence-tracked
-# only (the config-field roster), never type-checked on the stub.
+# The reconnect-jitter readback. A value-constrained enum exposed as a
+# readback getter on every binding: Python (`Config.reconnect_jitter`
+# property), TypeScript (`get reconnectJitter()`), C++
+# (`Config::get_reconnect_jitter()`, returning the enum's `int`
+# discriminant). The `.pyi` constrains it to its exact value set, pinned
+# via `python_pyi_returns` so a value-set drift fails — without this getter
+# row the constrained knob was presence-tracked only (the config-field
+# roster), never type-checked on the stub.
 [[method]]
 class = "Config"
 name = "reconnectJitter"
@@ -1974,17 +1961,6 @@ cpp = true
 returns = "String"
 cpp_returns = "i32"
 python_pyi_returns = 'Literal["full", "equal", "decorrelated", "none"]'
-
-[[method]]
-class = "Config"
-name = "streamingHostSelection"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "String"
-cpp_returns = "i32"
-python_pyi_returns = 'Literal["shuffled", "fixed_order"]'
 
 # Custom reconnect-policy callback registration. A field-shaped getter
 # is meaningless for a callback, so the registration is tracked as a

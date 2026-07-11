@@ -656,28 +656,6 @@ impl Config {
         guard.reconnect.jitter.as_str()
     }
 
-    /// Set the streaming host-selection policy. Accepts ``"shuffled"``
-    /// (default — fault-domain-aware per-client shuffle) or
-    /// ``"fixed_order"`` (declared order verbatim), case-insensitive.
-    #[setter]
-    fn set_streaming_host_selection(&self, policy: &str) -> PyResult<()> {
-        let parsed = config::HostSelectionPolicy::parse(policy).ok_or_else(|| {
-            crate::errors::invalid_parameter_err(format!(
-                "unknown streaming_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
-            ))
-        })?;
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.host_selection = parsed;
-        Ok(())
-    }
-
-    /// Current streaming host-selection policy as a lowercase string.
-    #[getter]
-    fn get_streaming_host_selection(&self) -> &'static str {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.host_selection.as_str()
-    }
-
     /// Set the Prometheus exporter port. ``None`` (the default) keeps
     /// the exporter disabled; an ``int`` binds an HTTP listener whose
     /// ``/metrics`` endpoint exposes every counter and histogram.
@@ -703,24 +681,6 @@ impl Config {
     fn get_metrics_port(&self) -> Option<u16> {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.metrics.port
-    }
-
-    /// Set the streaming host-shuffle seed. ``None`` (default) derives a
-    /// fresh per-client seed so a fleet shuffles independently; an
-    /// explicit value makes the shuffled order deterministic — useful
-    /// for fleet sharding and tests. Ignored under ``"fixed_order"``.
-    #[setter]
-    fn set_streaming_host_shuffle_seed(&self, seed: Option<u64>) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.host_shuffle_seed = seed;
-    }
-
-    /// Current ``streaming.host_shuffle_seed`` value (``None`` = per-client
-    /// entropy).
-    #[getter]
-    fn get_streaming_host_shuffle_seed(&self) -> Option<u64> {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.host_shuffle_seed
     }
 
 }

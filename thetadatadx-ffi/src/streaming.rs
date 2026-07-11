@@ -212,8 +212,7 @@ pub struct ThetaDataDxStreamHandle {
 struct StreamingConnectParams {
     creds: thetadatadx::Credentials,
     /// Snapshot of `DirectConfig.streaming` at handle-construction time —
-    /// hosts, ring size, timeouts, keepalive schedule, host-selection
-    /// policy.
+    /// hosts, ring size, timeouts, keepalive schedule.
     streaming: thetadatadx::config::StreamingConfig,
     /// Snapshot of `DirectConfig.reconnect` at handle-construction
     /// time — policy, per-class cadences, jitter, replay pacing.
@@ -247,8 +246,6 @@ fn streaming_builder(
         .keepalive_idle_secs(params.streaming.keepalive_idle_secs)
         .keepalive_interval_secs(params.streaming.keepalive_interval_secs)
         .keepalive_retries(params.streaming.keepalive_retries)
-        .host_selection(params.streaming.host_selection)
-        .host_shuffle_seed(params.streaming.host_shuffle_seed)
 }
 
 // ═══════════════════════════════════════════════════════════════════════

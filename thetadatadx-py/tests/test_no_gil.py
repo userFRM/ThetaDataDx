@@ -212,10 +212,9 @@ def test_fpss_connect_releases_the_gil(monkeypatch) -> None:
     creds = td.Credentials("user@example.com", "pw")
     config = td.Config.production()
     # The env override only rewrites the primary host slot, leaving the
-    # other production hosts in place; pin fixed-order selection so the
-    # blackhole primary is the first connect attempt and the call blocks
-    # there rather than failing fast against a reachable host.
-    config.streaming_host_selection = "fixed_order"
+    # other production hosts in place; the client dials hosts in declared
+    # order, so the blackhole primary is the first connect attempt and the
+    # call blocks there rather than failing fast against a reachable host.
     # Bound the connect window so the test stays fast while still being
     # long enough for the peer thread to accumulate a decisive count.
     config.streaming_connect_timeout_ms = 1500

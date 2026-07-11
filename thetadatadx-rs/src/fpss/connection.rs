@@ -10,9 +10,9 @@
 //!   by the transport long before the platform default of 2+ hours
 //! - Connect timeout: 2 seconds (configurable)
 //! - Read timeout: configurable (default 10 seconds)
-//! - Host order: fault-domain-aware per-client shuffle by default (see
-//!   [`order_hosts`]), `FixedOrder` escape hatch preserves declaration
-//!   order
+//! - Host order: the declared order (see [`order_hosts`]); the terminal
+//!   cycles its host list left to right, and a reconnect promotes the
+//!   last-known-good host to the front
 //!
 //! # Implementation
 //!
@@ -23,14 +23,11 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::sync::{Arc, Once};
 use std::time::Duration;
 
-use rand::seq::SliceRandom;
-use rand::SeedableRng;
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::HostSelectionPolicy;
 use crate::config::ReconnectPolicy;
 
 use super::pinning::PinnedVerifier;
@@ -65,11 +62,9 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub stream: FpssStream,
     pub server_addr: String,
     /// Declared FPSS host list. The initial connect applies
-    /// [`order_hosts`] with `preferred = None`; reconnects may promote
-    /// the last stable host while re-running the policy on the tail.
+    /// [`order_hosts`] with `preferred = None` (declared order); a
+    /// reconnect promotes the last stable host to the front.
     pub hosts: &'a [(String, u16)],
-    pub host_selection: HostSelectionPolicy,
-    pub host_shuffle_seed: u64,
     pub ring_size: usize,
     /// Fixed low-latency event-ring consumer wait strategy
     /// ([`super::ring::AdaptiveWaitStrategy`]).
@@ -122,85 +117,25 @@ fn ensure_rustls_crypto_provider() {
     });
 }
 
-/// Apply the configured [`HostSelectionPolicy`] to the declared host
-/// list, producing the per-client connect/failover order.
+/// Produce the per-client connect / failover order for the declared
+/// host list.
 ///
-/// Under [`HostSelectionPolicy::FixedOrder`] the declared order is
-/// preserved verbatim. Under [`HostSelectionPolicy::Shuffled`] (the
-/// default) the hosts are grouped by hostname — each hostname is one
-/// fault domain — the group order and the ports within each group are
-/// shuffled with the supplied seed, and the result interleaves across
-/// groups round-robin. Two properties follow:
-///
-/// * **Fleet spread** — clients with independent seeds distribute
-///   their first connect uniformly across the fault domains instead of
-///   all dialling the first declared host.
-/// * **Cross-domain failover** — consecutive attempts alternate fault
-///   domains, so the second attempt lands on a different physical
-///   machine rather than a second port on the machine that just
-///   failed.
-///
-/// The seed makes the order deterministic: tests and fleet-sharding
-/// deployments pass a fixed seed, production defaults derive a fresh
-/// per-client seed from process-local entropy.
-pub(crate) fn order_hosts(
-    hosts: &[(String, u16)],
-    policy: HostSelectionPolicy,
-    seed: u64,
-    preferred: Option<usize>,
-) -> Vec<(String, u16)> {
-    let preferred = preferred.and_then(|idx| hosts.get(idx).map(|host| (idx, host.clone())));
-    let preferred_idx = preferred.as_ref().map(|(idx, _)| *idx);
-    let mut ordered = match policy {
-        HostSelectionPolicy::FixedOrder => hosts
-            .iter()
-            .enumerate()
-            .filter(|(idx, _)| preferred_idx != Some(*idx))
-            .map(|(_, host)| host.clone())
-            .collect(),
-        // `HostSelectionPolicy` is non_exhaustive; route any future
-        // variant added without an arm here to the safe default.
-        _ => {
-            // Group by hostname, preserving first-seen group order as
-            // the pre-shuffle baseline.
-            let mut groups: Vec<(String, Vec<u16>)> = Vec::new();
-            for (idx, (host, port)) in hosts.iter().enumerate() {
-                if preferred_idx == Some(idx) {
-                    continue;
-                }
-                match groups.iter_mut().find(|(h, _)| h == host) {
-                    Some((_, ports)) => ports.push(*port),
-                    None => groups.push((host.clone(), vec![*port])),
-                }
-            }
-            let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-            groups.shuffle(&mut rng);
-            for (_, ports) in &mut groups {
-                ports.shuffle(&mut rng);
-            }
-            // Round-robin interleave across groups: one port per
-            // group per round, so consecutive entries cross fault
-            // domains whenever more than one domain exists.
-            let mut ordered = Vec::with_capacity(hosts.len());
-            let mut round = 0;
-            loop {
-                let mut emitted = false;
-                for (host, ports) in &groups {
-                    if let Some(port) = ports.get(round) {
-                        ordered.push((host.clone(), *port));
-                        emitted = true;
-                    }
-                }
-                if !emitted {
-                    break;
-                }
-                round += 1;
-            }
-            ordered
+/// The declared order is preserved verbatim — the terminal cycles its
+/// FPSS host list left to right, and the SDK matches that. On a
+/// reconnect the last-known-good host (`preferred`) is tried first, so
+/// a client that just lost a working connection re-dials it before
+/// walking the rest of the list in declared order. `preferred = None`
+/// (the initial cold connect) yields the declared order unchanged.
+pub(crate) fn order_hosts(hosts: &[(String, u16)], preferred: Option<usize>) -> Vec<(String, u16)> {
+    let mut ordered = Vec::with_capacity(hosts.len());
+    if let Some(host) = preferred.and_then(|idx| hosts.get(idx)) {
+        ordered.push(host.clone());
+    }
+    for (idx, host) in hosts.iter().enumerate() {
+        if preferred == Some(idx) {
+            continue;
         }
-    };
-    if let Some((_, preferred_host)) = preferred {
-        ordered.insert(0, preferred_host);
+        ordered.push(host.clone());
     }
     ordered
 }
@@ -550,142 +485,49 @@ mod tests {
     }
 
     #[test]
-    fn order_hosts_fixed_order_preserves_declaration() {
+    fn order_hosts_cold_connect_is_declared_order() {
+        // The initial connect (`preferred = None`) walks the host list
+        // in declared order, left to right — matching the terminal.
         let hosts = production_hosts();
-        let ordered = order_hosts(&hosts, HostSelectionPolicy::FixedOrder, 42, None);
-        assert_eq!(ordered, hosts);
+        assert_eq!(order_hosts(&hosts, None), hosts);
     }
 
-    /// The shuffled order is deterministic for a given seed — the
-    /// load-bearing property for fleet sharding and for this test
-    /// suite itself.
-    #[test]
-    fn order_hosts_shuffled_is_deterministic_per_seed() {
-        let hosts = production_hosts();
-        let a = order_hosts(&hosts, HostSelectionPolicy::Shuffled, 7, None);
-        let b = order_hosts(&hosts, HostSelectionPolicy::Shuffled, 7, None);
-        assert_eq!(a, b, "same seed must produce the same order");
-        // A different seed must be able to produce a different order;
-        // with 2 groups x 2 ports there are 8 distinct outcomes, so
-        // scanning a small seed range must find at least one divergence.
-        let found_divergent =
-            (0..32_u64).any(|s| order_hosts(&hosts, HostSelectionPolicy::Shuffled, s, None) != a);
-        assert!(found_divergent, "shuffle must depend on the seed");
-    }
-
-    /// Consecutive entries must alternate fault domains (hostnames)
-    /// whenever more than one domain exists — the property that makes
-    /// the first failover land on a different physical machine.
-    #[test]
-    fn order_hosts_shuffled_interleaves_fault_domains() {
-        let hosts = production_hosts();
-        for seed in 0..64_u64 {
-            let ordered = order_hosts(&hosts, HostSelectionPolicy::Shuffled, seed, None);
-            assert_eq!(ordered.len(), 4, "no hosts may be lost");
-            // Same multiset of entries.
-            let mut sorted_in = hosts.clone();
-            let mut sorted_out = ordered.clone();
-            sorted_in.sort();
-            sorted_out.sort();
-            assert_eq!(sorted_in, sorted_out, "shuffle must be a permutation");
-            // First two entries cross fault domains.
-            assert_ne!(
-                ordered[0].0, ordered[1].0,
-                "seed {seed}: first failover must cross fault domains; got {ordered:?}"
-            );
-            // Full alternation for the 2x2 production shape.
-            assert_ne!(ordered[2].0, ordered[3].0);
-        }
-    }
-
-    /// First-host distribution: across seeds, both fault domains must
-    /// appear in the first slot — the steady-state load-spreading
-    /// property.
-    #[test]
-    fn order_hosts_shuffled_spreads_first_host_across_domains() {
-        let hosts = production_hosts();
-        let mut first_hosts = std::collections::HashSet::new();
-        for seed in 0..64_u64 {
-            let ordered = order_hosts(&hosts, HostSelectionPolicy::Shuffled, seed, None);
-            first_hosts.insert(ordered[0].0.clone());
-        }
-        assert_eq!(
-            first_hosts.len(),
-            2,
-            "both fault domains must appear as the first connect target across seeds"
-        );
-    }
-
-    /// Degenerate shapes: a single host, and asymmetric port counts
-    /// per domain, must survive the interleave without loss.
     #[test]
     fn order_hosts_handles_degenerate_shapes() {
         let single = vec![("nj-a.thetadata.us".to_string(), 20000)];
-        assert_eq!(
-            order_hosts(&single, HostSelectionPolicy::Shuffled, 1, None),
-            single
-        );
-
-        let asymmetric = vec![
-            ("a.example".to_string(), 1),
-            ("a.example".to_string(), 2),
-            ("a.example".to_string(), 3),
-            ("b.example".to_string(), 9),
-        ];
-        let ordered = order_hosts(&asymmetric, HostSelectionPolicy::Shuffled, 5, None);
-        assert_eq!(ordered.len(), 4);
-        let mut sorted_in = asymmetric.clone();
-        let mut sorted_out = ordered.clone();
-        sorted_in.sort();
-        sorted_out.sort();
-        assert_eq!(sorted_in, sorted_out);
+        assert_eq!(order_hosts(&single, None), single);
+        assert_eq!(order_hosts(&[], None), Vec::new());
     }
 
     #[test]
     fn order_hosts_reconnect_pins_last_known_good_host_first() {
         let hosts = production_hosts();
-        let ordered = order_hosts(&hosts, HostSelectionPolicy::FixedOrder, 42, Some(2));
+        let ordered = order_hosts(&hosts, Some(2));
         assert_eq!(ordered[0], hosts[2]);
     }
 
     #[test]
-    fn order_hosts_reconnect_tail_still_follows_policy() {
+    fn order_hosts_reconnect_tail_follows_declared_order() {
+        // After the preferred host, the remaining hosts keep their
+        // declared order.
         let hosts = production_hosts();
         let preferred = 2;
-        let ordered = order_hosts(&hosts, HostSelectionPolicy::Shuffled, 17, Some(preferred));
-        let tail_hosts: Vec<(String, u16)> = hosts
+        let ordered = order_hosts(&hosts, Some(preferred));
+        let tail_expected: Vec<(String, u16)> = hosts
             .iter()
             .enumerate()
             .filter(|(idx, _)| *idx != preferred)
             .map(|(_, host)| host.clone())
             .collect();
-        let tail = order_hosts(&tail_hosts, HostSelectionPolicy::Shuffled, 17, None);
         assert_eq!(ordered[0], hosts[preferred]);
-        assert_eq!(&ordered[1..], tail);
+        assert_eq!(&ordered[1..], tail_expected.as_slice());
+        // No host is lost or duplicated.
+        assert_eq!(ordered.len(), hosts.len());
     }
 
     #[test]
-    fn order_hosts_cold_connect_remains_pure_policy() {
+    fn order_hosts_out_of_range_preferred_is_ignored() {
         let hosts = production_hosts();
-        let ordered = order_hosts(&hosts, HostSelectionPolicy::FixedOrder, 42, None);
-        assert_eq!(ordered, hosts);
-    }
-
-    #[test]
-    fn order_hosts_shuffled_tail_still_varies_after_pinning() {
-        let hosts = production_hosts();
-        let preferred = 2;
-        let tails: std::collections::HashSet<Vec<(String, u16)>> = (0..32_u64)
-            .map(|seed| {
-                let ordered =
-                    order_hosts(&hosts, HostSelectionPolicy::Shuffled, seed, Some(preferred));
-                assert_eq!(ordered[0], hosts[preferred]);
-                ordered[1..].to_vec()
-            })
-            .collect();
-        assert!(
-            tails.len() > 1,
-            "pinning the first reconnect target must still leave a shuffled tail"
-        );
+        assert_eq!(order_hosts(&hosts, Some(99)), hosts);
     }
 }

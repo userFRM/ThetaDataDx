@@ -1861,8 +1861,6 @@ RUST_FIELD_RENAMES: dict[tuple[str, str], str] = {
     ("StreamingConfig", "keepalive_idle_secs"): "streaming_keepalive_idle_secs",
     ("StreamingConfig", "keepalive_interval_secs"): "streaming_keepalive_interval_secs",
     ("StreamingConfig", "keepalive_retries"): "streaming_keepalive_retries",
-    ("StreamingConfig", "host_selection"): "streaming_host_selection",
-    ("StreamingConfig", "host_shuffle_seed"): "streaming_host_shuffle_seed",
 }
 
 

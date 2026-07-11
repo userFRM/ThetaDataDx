@@ -515,25 +515,6 @@
         return out;
     }
 
-    /// Set the streaming host-selection policy: 0=Shuffled (default),
-    /// 1=FixedOrder. Throws @c thetadatadx::InvalidParameterError on an
-    /// out-of-domain policy (and @c thetadatadx::ThetaDataError on a null
-    /// handle), routing through the typed leaf the FFI error code
-    /// selects.
-    void set_streaming_host_selection(int policy) {
-        if (thetadatadx_config_set_streaming_host_selection(handle_.get(), policy) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /// Current streaming host-selection policy (same encoding as the
-    /// setter).
-    int get_streaming_host_selection() const {
-        int32_t out{};
-        thetadatadx_config_get_streaming_host_selection(handle_.get(), &out);
-        return out;
-    }
-
     /// Set the Prometheus exporter port. Pass @c std::nullopt to leave
     /// the exporter disabled (the @c None default); pass an explicit
     /// @c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
@@ -562,27 +543,4 @@
             detail::throw_last_ffi_error();
         }
         return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
-    }
-
-    /// Set the streaming host-shuffle seed using the (has_value, seed)
-    /// shape. has_value=false derives a fresh per-client seed;
-    /// has_value=true makes the shuffled order deterministic.
-    void set_streaming_host_shuffle_seed(std::optional<std::uint64_t> seed) {
-        const bool has_value = seed.has_value();
-        const std::uint64_t arg = seed.value_or(0);
-        if (thetadatadx_config_set_streaming_host_shuffle_seed(handle_.get(), has_value, arg) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /// Read the streaming host-shuffle seed back. Returns @c std::nullopt for
-    /// the per-client-entropy sentinel (no pinned seed); returns the
-    /// wrapped seed when the shuffled order is deterministic.
-    std::optional<std::uint64_t> get_streaming_host_shuffle_seed() const {
-        bool has_value = false;
-        std::uint64_t seed = 0;
-        if (thetadatadx_config_get_streaming_host_shuffle_seed(handle_.get(), &has_value, &seed) != 0) {
-            detail::throw_last_ffi_error();
-        }
-        return has_value ? std::optional<std::uint64_t>{seed} : std::nullopt;
     }

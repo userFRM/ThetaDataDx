@@ -123,28 +123,6 @@ def test_streaming_transport_defaults_and_round_trip():
     assert cfg.streaming_keepalive_retries == 4
 
 
-def test_streaming_host_selection_round_trips_and_rejects_unknown():
-    mod = _import_module()
-    cfg = mod.Config.production()
-    assert cfg.streaming_host_selection == "shuffled"
-    cfg.streaming_host_selection = "fixed_order"
-    assert cfg.streaming_host_selection == "fixed_order"
-    cfg.streaming_host_selection = "SHUFFLED"
-    assert cfg.streaming_host_selection == "shuffled"
-    with pytest.raises(ValueError, match=r"streaming_host_selection"):
-        cfg.streaming_host_selection = "round_robin"
-
-
-def test_streaming_host_shuffle_seed_round_trips_none_sentinel():
-    mod = _import_module()
-    cfg = mod.Config.production()
-    assert cfg.streaming_host_shuffle_seed is None
-    cfg.streaming_host_shuffle_seed = 42
-    assert cfg.streaming_host_shuffle_seed == 42
-    cfg.streaming_host_shuffle_seed = None
-    assert cfg.streaming_host_shuffle_seed is None
-
-
 # ─── Market-data retry envelope + flatfile jitter ────────────────────
 
 
