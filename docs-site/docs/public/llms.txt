@@ -94,7 +94,7 @@
 /streaming/options/open-interest — Option Open Interest: Open-interest updates for an option contract.
 /streaming/options/quote — Option Quotes: Real-time NBBO quote stream for an option contract.
 /streaming/options/trade — Option Trades: Real-time trade stream for an option contract.
-/streaming/reliability — Reconnection & Monitoring: Automatic reconnect policy, flush mode, and the counters that tell you a stream is healthy.
+/streaming/reliability — Reconnection & Monitoring: Automatic reconnect policy and the counters that tell you a stream is healthy.
 /streaming/stocks/full-trade — Stock Full Trades: Every trade across all stocks in one subscription.
 /streaming/stocks/market-value — Stock Market Value: Real-time calculated market value for a stock.
 /streaming/stocks/quote — Stock Quotes: Real-time BBO quote stream for a stock.
