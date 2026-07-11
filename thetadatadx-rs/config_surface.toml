@@ -1996,7 +1996,7 @@ ts_err = 'setFlushMode: mode must be "batched" or "immediate"; got {mode:?}'
 doc = """
 Set streaming flush mode on a config handle.
 
-- `mode = 0`: Batched (default) -- flush only on PING every 250ms
+- `mode = 0`: Batched (default) -- flush only on PING (the `ping_interval_ms` heartbeat, 250 ms by default)
 - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
 
 Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
@@ -2019,7 +2019,7 @@ unsubscribe / ping). This does not affect received-data latency:
 inbound trades and quotes are dispatched continuously either way.
 
 ``"batched"`` (default) coalesces outbound frames and flushes on the
-PING heartbeat (~250 ms), so a subscription burst goes out as fewer,
+PING heartbeat (the `ping_interval_ms` cadence, ~250 ms by default), so a subscription burst goes out as fewer,
 larger packets — gentler on the server, fewer syscalls. ``"immediate"``
 flushes after every write, so a subscribe reaches the server at once,
 at a higher per-frame syscall cost.
@@ -2030,7 +2030,7 @@ unsubscribe / ping). This does not affect received-data latency:
 inbound trades and quotes are dispatched continuously either way.
 
 `"batched"` (default) coalesces outbound frames and flushes on the
-PING heartbeat (~250 ms), so a subscription burst goes out as fewer,
+PING heartbeat (the `ping_interval_ms` cadence, ~250 ms by default), so a subscription burst goes out as fewer,
 larger packets — gentler on the server, fewer syscalls. `"immediate"`
 flushes after every write, so a subscribe reaches the server at once,
 at a higher per-frame syscall cost.

@@ -571,7 +571,7 @@ export declare class Config {
    * inbound trades and quotes are dispatched continuously either way.
    *
    * `"batched"` (default) coalesces outbound frames and flushes on the
-   * PING heartbeat (~250 ms), so a subscription burst goes out as fewer,
+   * PING heartbeat (the `ping_interval_ms` cadence, ~250 ms by default), so a subscription burst goes out as fewer,
    * larger packets — gentler on the server, fewer syscalls. `"immediate"`
    * flushes after every write, so a subscribe reaches the server at once,
    * at a higher per-frame syscall cost.

@@ -1461,7 +1461,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_host(
 
 /// Set streaming flush mode on a config handle.
 ///
-/// - `mode = 0`: Batched (default) -- flush only on PING every 250ms
+/// - `mode = 0`: Batched (default) -- flush only on PING (the `ping_interval_ms` heartbeat, 250 ms by default)
 /// - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
 ///
 /// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when

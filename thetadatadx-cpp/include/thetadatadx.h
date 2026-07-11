@@ -1927,7 +1927,7 @@ int32_t thetadatadx_config_get_metrics_port(const ThetaDataDxConfig* config, boo
 
 /**
  * Set streaming flush mode on a config handle.
- *   mode=0: Batched (default) -- flush only on PING every 100ms.
+ *   mode=0: Batched (default) -- flush only on PING (the ping_interval_ms heartbeat, 250 ms by default).
  *   mode=1: Immediate -- flush after every frame write.
  * @param config Config handle to mutate.
  * @param mode Flush mode selector (0 = Batched, 1 = Immediate).

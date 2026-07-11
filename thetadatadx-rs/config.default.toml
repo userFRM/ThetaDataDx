@@ -38,8 +38,9 @@ connect_timeout = 2000
 # Read timeout — how long to wait for data before the link is considered
 # dead (ms). Matches the terminal's streaming socket read timeout and rides
 # through the brief silence right after a full-market subscribe while the
-# server sets the subscription up. The ~100 ms cadence is the client's ping
-# to the server, not an inbound heartbeat; inbound frames arrive ~250 ms.
+# server sets the subscription up. The client's outbound ping runs on
+# ping_interval (250 ms default), not an inbound heartbeat; inbound frames
+# arrive continuously on an active session.
 read_timeout = 10000
 
 # Client outbound ping interval (ms). This ping proves write-side health at a
