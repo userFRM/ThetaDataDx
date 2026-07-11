@@ -341,8 +341,7 @@ fn multi_symbol_snapshot_projects_per_row_symbol_column() {
 /// repeated on every row (no regression from the per-row addition).
 #[test]
 fn single_symbol_snapshot_still_broadcasts_constant() {
-    let present =
-        ColumnPresence::from_names(["ms_of_day", "bid", "ask"]).with_symbol("AAPL");
+    let present = ColumnPresence::from_names(["ms_of_day", "bid", "ask"]).with_symbol("AAPL");
     let quote = QuoteTick {
         ms_of_day: 1,
         bid_size: 0,
