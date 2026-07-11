@@ -4149,7 +4149,7 @@ export interface IndexHistoryEodOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface IndexHistoryOhlcOptions {
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4173,7 +4173,7 @@ export interface IndexHistoryOhlcOptions {
 export interface IndexHistoryPriceOptions {
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -5023,7 +5023,7 @@ export interface OptionHistoryGreeksAllOptions {
   right?: string
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -5099,7 +5099,7 @@ export interface OptionHistoryGreeksFirstOrderOptions {
   right?: string
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -5141,7 +5141,7 @@ export interface OptionHistoryGreeksImpliedVolatilityOptions {
   right?: string
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -5183,7 +5183,7 @@ export interface OptionHistoryGreeksSecondOrderOptions {
   right?: string
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -5225,7 +5225,7 @@ export interface OptionHistoryGreeksThirdOrderOptions {
   right?: string
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -5267,7 +5267,7 @@ export interface OptionHistoryOhlcOptions {
   right?: string
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -5331,7 +5331,7 @@ export interface OptionHistoryQuoteOptions {
   right?: string
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -6406,7 +6406,7 @@ export interface StockHistoryEodOptions {
 export interface StockHistoryOhlcOptions {
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date
@@ -6436,7 +6436,7 @@ export interface StockHistoryOhlcOptions {
 export interface StockHistoryQuoteOptions {
   /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
   date?: string | Date
-  /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
   /** Start time filter */
   startTime?: string | Date

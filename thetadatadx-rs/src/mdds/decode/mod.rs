@@ -39,7 +39,7 @@ pub use extract::{extract_number_column, extract_price_column};
 // broadcast / per-row) so the offline decode bench projects the leading
 // `symbol` column exactly as the live collector does; workspace bindings reach
 // it via `__internal`.
-pub use extract::{extract_text_column, sorted_list_values};
+pub use extract::extract_text_column;
 #[cfg(feature = "__internal")]
 pub use extract::{response_symbol, ResponseSymbol};
 // `decode_data_table` and `decompress_response` (non-`_with_max` variants)

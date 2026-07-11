@@ -17,7 +17,7 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub min_time: *const c_char,
     /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
     pub date: *const c_char,
-    /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: *const c_char,
     /// Start time filter
     pub start_time: *const c_char,

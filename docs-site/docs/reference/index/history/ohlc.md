@@ -41,7 +41,7 @@ Fetch intraday OHLC bars for an index.
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
 | `start_date` | date | yes | — | Start date YYYYMMDD |
 | `end_date` | date | yes | — | End date YYYYMMDD |
-| `interval` | string | no | `1s` | Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
+| `interval` | string | no | `1s` | Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
 | `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |

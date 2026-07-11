@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Config-file migration.** A `config.toml` that still sets `flush_mode`, `streaming.host_selection`, `streaming.host_shuffle_seed`, or a `reconnect_jitter` of `"equal"` / `"decorrelated"` now fails to load with a typed error rather than being silently ignored — remove those keys / values when upgrading.
 
+- **`QuoteTick.midpoint` derived column.** Removed from every binding (Python `QuoteTick.midpoint`, TypeScript `QuoteTick.midpoint`, C `ThetaDataDxQuoteTick.midpoint`, and the Arrow / Polars `midpoint` column). The quote wire carries `bid` and `ask`; `midpoint` was an SDK-computed `(bid + ask) / 2` column the server never sends and the terminal never exposes — compute it from `bid` / `ask` at the call site if you need it. The `IvTick.midpoint` field is a real wire column and is unaffected. This is a breaking change to the quote tick schema.
+
+- **List endpoints now preserve wire order.** `list_*` results (roots / symbols, expirations, strikes, dates) come back in the server's row order rather than re-sorted ascending by the SDK. The terminal streams these lists in wire order untouched; the SDK's numeric-aware ascending sort had no terminal counterpart. Sort client-side if you need a specific order. This is a behavioral change to the `list_*` returns.
+
+- **`interval` is forwarded verbatim.** The `interval` argument is no longer snapped to the nearest preset: a raw-millisecond value such as `"250"` or `"60000"` is now rejected client-side rather than silently mapped to `"500ms"` / `"1m"`. The server accepts only the closed preset enum (`tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`); the SDK now forwards the string as-is and validates against that set. Pass an explicit preset. This is a breaking change to the `interval` parameter.
+
 ## [0.1.1] - 2026-07-07
 
 ### Added

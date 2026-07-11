@@ -192,7 +192,7 @@ binding = "builder"
 
 [[param_groups.interval.params]]
 name = "interval"
-description = "Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library."
+description = "Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library."
 param_type = "Interval"
 enum = "Interval"
 required = false
