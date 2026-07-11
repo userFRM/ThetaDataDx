@@ -10,9 +10,10 @@
 //!   by the transport long before the platform default of 2+ hours
 //! - Connect timeout: 2 seconds (configurable)
 //! - Read timeout: configurable (default 10 seconds)
-//! - Host order: the declared order (see [`order_hosts`]); the terminal
-//!   cycles its host list left to right, and a reconnect promotes the
-//!   last-known-good host to the front
+//! - Host order: the declared order (see [`order_hosts`]) — the terminal
+//!   cycles its host list left to right, and the SDK matches that. On a
+//!   reconnect the SDK additionally promotes the last-known-good host to
+//!   the front (an SDK-only resilience choice; the terminal does not)
 //!
 //! # Implementation
 //!

@@ -478,9 +478,8 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     /// Mirrors [`crate::config::ReconnectConfig::replay_pace_ms`].
     pub replay_pace_ms: u64,
     pub creds: Credentials,
-    /// Declared FPSS host list. Reconnect re-applies the configured
-    /// selection policy to this list, optionally pinning the last
-    /// stable host first.
+    /// Declared FPSS host list. A reconnect walks it in declared order,
+    /// pinning the last stable host first.
     pub hosts: Vec<(String, u16)>,
     pub active_subs: ActiveSubs,
     pub active_full_subs: ActiveFullSubs,
@@ -1344,8 +1343,8 @@ where
 
         // --- Attempt new TLS connection and re-authenticate ---
         // Pin the most recent host that survived the stable window,
-        // then re-apply the configured policy to the remaining hosts.
-        // Cold connects and unstable sessions stay pure-policy.
+        // then walk the remaining hosts in declared order. Cold connects
+        // and unstable sessions use pure declared order.
         let new_stream = {
             let ordered_hosts = connection::order_hosts(&hosts, last_known_good_host);
             let ordered: Vec<(&str, u16)> = ordered_hosts
@@ -1792,7 +1791,8 @@ where
         }
 
         // Replay is proven on the fresh socket: re-subscribe and the
-        // queued-command drain both wrote and flushed without error. ONLY
+        // queued-command drain both wrote without error (control frames
+        // flush on the next ping; a broken socket surfaces on the write). ONLY
         // now is the session marked live and the success announced. Doing
         // this here (rather than right after login) is the invariant that
         // keeps a socket which accepted the login but broke on the next

@@ -418,18 +418,18 @@ param = "v"
 abi_type = "u64"
 path = "streaming.ping_interval_ms"
 doc = """
-Set the streaming heartbeat ping interval (ms). Default `250`; validated to `[100, 300_000]` at connect.
+Set the streaming heartbeat ping interval (ms). Default `100`; validated to `[100, 300_000]` at connect.
 """
 cpp_doc = """
-Set the streaming heartbeat ping interval (ms). Default 250;
+Set the streaming heartbeat ping interval (ms). Default 100;
 validated to [100, 300_000] at connect.
 """
 py_doc = """
-Set the streaming heartbeat ping interval (ms). Default ``250``;
+Set the streaming heartbeat ping interval (ms). Default ``100``;
 validated to ``[100, 300_000]``.
 """
 ts_doc = """
-Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect.
+Set the streaming heartbeat ping interval (ms). Default `100n`; validated to `[100, 300_000]` at connect.
 """
 py_param = "ms"
 ts_param = "ms"
@@ -441,19 +441,19 @@ param = "out"
 abi_type = "u64"
 path = "streaming.ping_interval_ms"
 doc = """
-Read the current streaming `ping_interval_ms` setting (default `250`).
+Read the current streaming `ping_interval_ms` setting (default `100`).
 
 Writes the configured value into `*out`. Returns `0` on success,
 `-1` if either pointer is null.
 """
 cpp_doc = """
-Current streaming ping_interval_ms (default 250).
+Current streaming ping_interval_ms (default 100).
 """
 py_doc = """
-Current ``streaming.ping_interval_ms`` value (default ``250``).
+Current ``streaming.ping_interval_ms`` value (default ``100``).
 """
 ts_doc = """
-Current `streaming.ping_interval_ms` value (default `250n`).
+Current `streaming.ping_interval_ms` value (default `100n`).
 """
 
 [[accessor]]

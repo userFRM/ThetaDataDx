@@ -196,7 +196,7 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.streaming.connect_timeout_ms))
     }
 
-    /// Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect.
+    /// Set the streaming heartbeat ping interval (ms). Default `100n`; validated to `[100, 300_000]` at connect.
     #[napi(js_name = "setStreamingPingIntervalMs")]
     pub fn set_streaming_ping_interval_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let value = bigint_to_u64("setStreamingPingIntervalMs", &ms)?;
@@ -208,7 +208,7 @@ impl Config {
         Ok(())
     }
 
-    /// Current `streaming.ping_interval_ms` value (default `250n`).
+    /// Current `streaming.ping_interval_ms` value (default `100n`).
     #[napi(getter, js_name = "streamingPingIntervalMs")]
     pub fn streaming_ping_interval_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self

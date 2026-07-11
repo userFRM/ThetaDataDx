@@ -1495,7 +1495,7 @@ void thetadatadx_config_set_streaming_connect_timeout_ms(ThetaDataDxConfig* conf
 int32_t thetadatadx_config_get_streaming_connect_timeout_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
- * Set the streaming heartbeat ping interval (ms). Default 250; validated to
+ * Set the streaming heartbeat ping interval (ms). Default 100; validated to
  * [100, 300_000] at connect.
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Ping interval in milliseconds.
@@ -1503,7 +1503,7 @@ int32_t thetadatadx_config_get_streaming_connect_timeout_ms(const ThetaDataDxCon
 void thetadatadx_config_set_streaming_ping_interval_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current streaming ping_interval_ms setting (default 250).
+ * Read the current streaming ping_interval_ms setting (default 100).
  * @param config Config handle to read.
  * @param out Receives the interval in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.

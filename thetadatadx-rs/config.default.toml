@@ -42,11 +42,12 @@ connect_timeout = 2000
 # to the server, not an inbound heartbeat; inbound frames arrive ~250 ms.
 read_timeout = 10000
 
-# Client outbound ping interval (ms). This ping proves write-side health at a
-# 4 Hz cadence without adding inbound-frame pressure on a recovering upstream.
-# Reverse-direction liveness is the inbound frame and ping stream (~250 ms),
-# which read_timeout guards.
-ping_interval = 250
+# Client outbound ping interval (ms). Matches the terminal's pinger (a fixed
+# 100 ms period after a 2 s warm-up). The ping also flushes queued outbound
+# control frames, so this interval bounds subscribe / unsubscribe latency.
+# Reverse-direction liveness is the inbound frame stream, which read_timeout
+# guards.
+ping_interval = 100
 
 # Initial reconnect wait after an involuntary disconnect (ms). The auto-
 # reconnect driver doubles this per consecutive attempt up to its cap, then

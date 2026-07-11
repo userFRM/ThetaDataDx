@@ -183,8 +183,8 @@ mod tests {
         });
 
         // Skip the 2 s startup grace, then drain pings for 600 ms.
-        // At 250 ms cadence we expect ~2-3 pings; at the legacy
-        // hardcoded 100 ms cadence we'd see ~6.
+        // At 250 ms cadence we expect ~2-3 pings; at the 100 ms default
+        // cadence we'd see ~6.
         let start = Instant::now();
         let deadline = start + Duration::from_millis(2_000) + Duration::from_millis(600);
         let mut count = 0usize;

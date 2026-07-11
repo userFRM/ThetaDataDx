@@ -302,9 +302,9 @@ export declare class Config {
   setStreamingConnectTimeoutMs(ms: bigint): void
   /** Current `streaming.connect_timeout_ms` value (default `2_000n`). */
   get streamingConnectTimeoutMs(): bigint
-  /** Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
+  /** Set the streaming heartbeat ping interval (ms). Default `100n`; validated to `[100, 300_000]` at connect. */
   setStreamingPingIntervalMs(ms: bigint): void
-  /** Current `streaming.ping_interval_ms` value (default `250n`). */
+  /** Current `streaming.ping_interval_ms` value (default `100n`). */
   get streamingPingIntervalMs(): bigint
   /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
   setStreamingIoReadSliceMs(ms: bigint): void

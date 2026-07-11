@@ -302,7 +302,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_connect_timeout_ms(
     })
 }
 
-/// Set the streaming heartbeat ping interval (ms). Default `250`; validated to `[100, 300_000]` at connect.
+/// Set the streaming heartbeat ping interval (ms). Default `100`; validated to `[100, 300_000]` at connect.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_ping_interval_ms(
     config: *mut ThetaDataDxConfig,
@@ -314,7 +314,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ping_interval_ms(
     })
 }
 
-/// Read the current streaming `ping_interval_ms` setting (default `250`).
+/// Read the current streaming `ping_interval_ms` setting (default `100`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.

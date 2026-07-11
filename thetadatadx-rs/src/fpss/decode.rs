@@ -9,6 +9,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock};
+use std::time::Instant;
 
 use crate::tdbe::types::enums::StreamMsgType;
 use crate::tdbe::types::price::Price;
@@ -295,8 +296,11 @@ pub fn decode_frame(
     // global so the "1 of every 1024" rate aggregates across every
     // StreamingClient in the same process.
     let warn_unknown_contract =
-        |contract_id: i32, kind: &str, cache: &HashMap<i32, Arc<Contract>>| {
-            if !cache.contains_key(&contract_id) {
+        |contract_id: i32,
+         kind: &str,
+         delta_state: &DeltaState,
+         cache: &HashMap<i32, Arc<Contract>>| {
+            if !cache.contains_key(&contract_id) && !delta_state.is_in_stop_suppression_window() {
                 static MISS_COUNT: AtomicU64 = AtomicU64::new(0);
                 let prev = MISS_COUNT.fetch_add(1, Ordering::Relaxed);
                 if prev.is_multiple_of(1024) {
@@ -367,7 +371,7 @@ pub fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
-                    warn_unknown_contract(contract_id, "quote", local_contracts);
+                    warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
                     let pt = buf[9];
                     let (Some(bid_f64), Some(ask_f64)) =
                         (strict_fpss_price(buf[3], pt), strict_fpss_price(buf[7], pt))
@@ -410,7 +414,7 @@ pub fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
-                    warn_unknown_contract(contract_id, "trade", local_contracts);
+                    warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
 
                     // `decode_tick` rejects any row whose width is not exactly
                     // TRADE_FIELDS (the only stream-trade layout; the 16-field
@@ -455,7 +459,12 @@ pub fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OI_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
-                    warn_unknown_contract(contract_id, "open_interest", local_contracts);
+                    warn_unknown_contract(
+                        contract_id,
+                        "open_interest",
+                        delta_state,
+                        local_contracts,
+                    );
                     FPSS_OI_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::OpenInterest {
                         contract: resolve_contract(contract_id, local_contracts),
@@ -477,7 +486,7 @@ pub fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
-                    warn_unknown_contract(contract_id, "ohlcvc", local_contracts);
+                    warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
                     let pt = buf[7];
                     let (Some(o), Some(h), Some(l), Some(c)) = (
                         strict_fpss_price(buf[1], pt),
@@ -527,7 +536,12 @@ pub fn decode_frame(
             // bid/ask.
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
-                    warn_unknown_contract(contract_id, "market_value", local_contracts);
+                    warn_unknown_contract(
+                        contract_id,
+                        "market_value",
+                        delta_state,
+                        local_contracts,
+                    );
                     let pt = buf[9];
                     // Compute market value on the raw integer bid/ask/sizes,
                     // keeping wire scale, then reassemble to dollars at the
@@ -589,6 +603,7 @@ pub fn decode_frame(
 
         StreamMsgType::Stop => {
             tracing::info!("market close signal received");
+            delta_state.last_stop = Some(Instant::now());
             delta_state.clear();
             local_contracts.clear(); // mirrors idToContract.clear() on the wire
             Some(FpssEventInternal::Control(StreamControl::MarketClose))

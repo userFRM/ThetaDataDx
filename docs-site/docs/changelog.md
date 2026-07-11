@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`ping_interval_ms` default is now `100`, matching the terminal.** The client heartbeat previously defaulted to `250 ms`; the Theta Terminal pings on a fixed `100 ms` period, and with `flush_mode` removed the ping is the sole flush trigger for queued outbound control frames, so the default now matches the terminal exactly (subscribe / unsubscribe reach the server within one `100 ms` interval instead of `250 ms`). The knob and its `[100, 300_000]` range are unchanged; override it if you prefer the old cadence.
+
 ### Removed
 
 - **`flush_mode` streaming write-flush knob.** The `flush_mode` setting is removed from every binding (Rust `StreamingConfig::flush_mode`, Python `Config.flush_mode`, TypeScript `Config.flushMode` / `setFlushMode`, C++ `set_flush_mode` / `get_flush_mode`, C ABI `thetadatadx_config_set_flush_mode` / `_get_flush_mode`). Outbound streaming writes now always coalesce and flush on the ping heartbeat, so a subscription burst leaves as fewer, larger packets — the terminal's own behavior — with received-data latency unaffected as before. The `"immediate"` per-frame-flush mode existed only to defeat that server-friendly coalescing and is gone. This is a breaking change to the configuration surface.
 
 - **`host_selection` / `host_shuffle_seed` streaming host-ordering knobs.** Removed from every binding (Rust `StreamingConfig::host_selection` / `host_shuffle_seed`, Python `Config.streaming_host_selection` / `streaming_host_shuffle_seed`, TypeScript `Config.streamingHostSelection` / `setStreamingHostSelection` and the shuffle-seed pair, C++ `set_streaming_host_selection` / `get_streaming_host_selection` and the shuffle-seed pair, C ABI `thetadatadx_config_*_streaming_host_selection` / `_host_shuffle_seed`), along with the `HostSelectionPolicy` enum. The client now cycles the declared host list left to right — the terminal's own behavior — and a reconnect tries the last-known-good host first. The per-client fault-domain shuffle and its seed existed only in the SDK, with no terminal counterpart. This is a breaking change to the configuration surface.
 
-- **`reconnect_jitter` trimmed to `"full"` / `"none"`.** The `"equal"` and `"decorrelated"` jitter variants are removed from every binding (the `JitterMode` enum drops them, and the C-ABI integer encoding is now `0 = Full`, `1 = None`). Full jitter — sampling uniformly from `[0, delay]` — stays the default and is the right choice for a recovering fleet; `"none"` (deterministic delays) remains for tests. The two removed variants were unused academic backoff modes with no operational benefit over full jitter. Setting `reconnect_jitter` to `"equal"` or `"decorrelated"` (or the C-ABI codes `1` / `2`) is now rejected. This is a breaking change to the configuration surface.
+- **`reconnect_jitter` trimmed to `"full"` / `"none"`.** The `"equal"` and `"decorrelated"` jitter variants are removed from every binding (the `JitterMode` enum drops them, and the C-ABI integer encoding is now `0 = Full`, `1 = None`). Full jitter — sampling uniformly from `[0, delay]` — stays the default and is the right choice for a recovering fleet; `"none"` (deterministic delays) remains for tests. The two removed variants were unused academic backoff modes with no operational benefit over full jitter. Setting `reconnect_jitter` to `"equal"` or `"decorrelated"` is now rejected. The C-ABI integer encoding renumbered — `1` now means `None` (it was `Equal`), and `2` / `3` are rejected — so a C caller that passed a numeric jitter code must be re-audited: passing `1` now selects no jitter rather than erroring. This is a breaking change to the configuration surface.
+
+- **Config-file migration.** A `config.toml` that still sets `flush_mode`, `streaming.host_selection`, `streaming.host_shuffle_seed`, or a `reconnect_jitter` of `"equal"` / `"decorrelated"` now fails to load with a typed error rather than being silently ignored — remove those keys / values when upgrading.
 
 ## [0.1.1] - 2026-07-07
 
