@@ -354,8 +354,6 @@ impl FpssParams {
             .keepalive_idle_secs(self.streaming.keepalive_idle_secs)
             .keepalive_interval_secs(self.streaming.keepalive_interval_secs)
             .keepalive_retries(self.streaming.keepalive_retries)
-            .host_selection(self.streaming.host_selection)
-            .host_shuffle_seed(self.streaming.host_shuffle_seed)
     }
 }
 
@@ -1329,7 +1327,7 @@ impl StreamingClient {
 mod tests {
     use super::*;
     use thetadatadx::config::{
-        HostSelectionPolicy, JitterMode, ReconnectPolicy,
+        JitterMode, ReconnectPolicy,
     };
 
     /// Anti-drift guard for the standalone connect path.
@@ -1349,8 +1347,6 @@ mod tests {
 
         // Streaming: flip every knob away from its production default.
         config.set_streaming_hosts(vec![("stream.example.com".to_owned(), 12345)]);
-        config.streaming.host_selection = HostSelectionPolicy::FixedOrder;
-        config.streaming.host_shuffle_seed = Some(0xABCD_1234);
         config.streaming.timeout_ms = 111_111;
         config.streaming.ring_size = 1 << 20;
         config.streaming.ping_interval_ms = 22_222;
@@ -1375,8 +1371,6 @@ mod tests {
 
         let s = &params.streaming;
         assert_eq!(s.hosts(), config.streaming_hosts());
-        assert_eq!(s.host_selection, HostSelectionPolicy::FixedOrder);
-        assert_eq!(s.host_shuffle_seed, Some(0xABCD_1234));
         assert_eq!(s.timeout_ms, 111_111);
         assert_eq!(s.ring_size, 1 << 20);
         assert_eq!(s.ping_interval_ms, 22_222);

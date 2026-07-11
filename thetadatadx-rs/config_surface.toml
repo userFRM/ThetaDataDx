@@ -1977,8 +1977,8 @@ Current market-data gRPC host.
 # variant { Variant => N }`); C++ passes the int through; Python / TS
 # speak the lowercase string via the core enum `parse` / `as_str`. A
 # rejected int carries `THETADATADX_ERR_INVALID_PARAMETER`. The
-# null-handle code is per-setter (`null_err`): jitter / host_selection
-# fall back to the untyped `THETADATADX_ERR_OTHER`.
+# null-handle code is per-setter (`null_err`): jitter falls back to the
+# untyped `THETADATADX_ERR_OTHER`.
 
 [[accessor]]
 symbol = "thetadatadx_config_set_reconnect_jitter"
@@ -2081,92 +2081,6 @@ int = 3
 rust = "None"
 label = "none"
 
-[[accessor]]
-symbol = "thetadatadx_config_set_streaming_host_selection"
-kind = "enum"
-param = "policy"
-abi_type = "i32"
-path = "streaming.host_selection"
-enum_type = "thetadatadx::HostSelectionPolicy"
-enum_core = "config::HostSelectionPolicy"
-null_err = "other"
-enum_expected = "expected 0 (Shuffled) or 1 (FixedOrder)"
-py_err = 'unknown streaming_host_selection: {policy:?} (expected "shuffled" or "fixed_order")'
-ts_err = 'setStreamingHostSelection: unknown policy {policy:?}; expected "shuffled" or "fixed_order"'
-doc = """
-Set the streaming host-selection policy.
-
-- `policy = 0`: Shuffled (default) — fault-domain-aware per-client
-  shuffle; a fleet spreads across hosts and consecutive failover
-  attempts cross physical machines.
-- `policy = 1`: FixedOrder — use the declared host order verbatim.
-
-Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
-when `policy` is outside the documented `{0, 1}` set or `config`
-is null. A rejected `policy` value carries
-`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
-enum int surfaces the same typed class across every binding.
-"""
-cpp_doc = """
-Set the streaming host-selection policy: 0=Shuffled (default),
-1=FixedOrder. Throws @c thetadatadx::InvalidParameterError on an
-out-of-domain policy (and @c thetadatadx::ThetaDataError on a null
-handle), routing through the typed leaf the FFI error code
-selects.
-"""
-py_doc = """
-Set the streaming host-selection policy. Accepts ``"shuffled"``
-(default — fault-domain-aware per-client shuffle) or
-``"fixed_order"`` (declared order verbatim), case-insensitive.
-"""
-ts_doc = """
-Set the streaming host-selection policy. Accepts `"shuffled"`
-(default — fault-domain-aware per-client shuffle) or
-`"fixed_order"` (declared order verbatim), case-insensitive.
-"""
-py_param = "policy"
-ts_param = "policy"
-[[accessor.variant]]
-int = 0
-rust = "Shuffled"
-label = "shuffled"
-[[accessor.variant]]
-int = 1
-rust = "FixedOrder"
-label = "fixed_order"
-
-[[accessor]]
-symbol = "thetadatadx_config_get_streaming_host_selection"
-kind = "enum"
-param = "out_policy"
-abi_type = "i32"
-path = "streaming.host_selection"
-enum_type = "thetadatadx::HostSelectionPolicy"
-enum_core = "config::HostSelectionPolicy"
-doc = """
-Read the configured streaming host-selection policy. Same encoding as
-`thetadatadx_config_set_streaming_host_selection`. Returns `0` on success, `-1`
-if either pointer is null.
-"""
-cpp_doc = """
-Current streaming host-selection policy (same encoding as the
-setter).
-"""
-py_doc = """
-Current streaming host-selection policy as a lowercase string.
-"""
-ts_doc = """
-Current streaming host-selection policy as a lowercase string.
-"""
-[[accessor.variant]]
-int = 0
-rust = "Shuffled"
-label = "shuffled"
-[[accessor.variant]]
-int = 1
-rust = "FixedOrder"
-label = "fixed_order"
-
 # ── Option config fields (option) ───────────────────────────────────
 #
 # Plain `(has_value, N)` <-> `Option<T>` accessors. The FFI carries the
@@ -2255,74 +2169,4 @@ disabled; an ``int`` is the bound port.
 ts_doc = """
 Current `metrics.port` setting. `null` means the exporter is
 disabled; a `number` is the bound port.
-"""
-
-[[accessor]]
-symbol = "thetadatadx_config_set_streaming_host_shuffle_seed"
-kind = "option"
-param = "seed"
-abi_type = "u64"
-path = "streaming.host_shuffle_seed"
-doc = """
-Set the streaming host-shuffle seed using the `(has_value, seed)`
-widened ABI shape that preserves the `None` sentinel across the C
-boundary.
-
-* `has_value = false` → `None` (default): every client derives a
-  fresh per-instance seed, so a fleet shuffles independently.
-  `seed` is ignored.
-* `has_value = true` → `Some(seed)`: the shuffled order becomes
-  deterministic — useful for fleet sharding and tests.
-
-Ignored under the `FixedOrder` host-selection policy. Returns `0`
-on success, `-1` if `config` is null.
-"""
-cpp_doc = """
-Set the streaming host-shuffle seed using the (has_value, seed)
-shape. has_value=false derives a fresh per-client seed;
-has_value=true makes the shuffled order deterministic.
-"""
-py_doc = """
-Set the streaming host-shuffle seed. ``None`` (default) derives a
-fresh per-client seed so a fleet shuffles independently; an
-explicit value makes the shuffled order deterministic — useful
-for fleet sharding and tests. Ignored under ``"fixed_order"``.
-"""
-ts_doc = """
-Set the streaming host-shuffle seed. `null` (default) derives a
-fresh per-client seed so a fleet shuffles independently; an
-explicit `bigint` makes the shuffled order deterministic —
-useful for fleet sharding and tests. Ignored under
-`"fixed_order"`.
-"""
-py_param = "seed"
-ts_param = "seed"
-
-[[accessor]]
-symbol = "thetadatadx_config_get_streaming_host_shuffle_seed"
-kind = "option"
-param = "out_seed"
-abi_type = "u64"
-path = "streaming.host_shuffle_seed"
-doc = """
-Read the current streaming host-shuffle seed. Same `(has_value, seed)`
-ABI as `thetadatadx_config_set_streaming_host_shuffle_seed`:
-
-* `*out_has_value = false` → `None` (per-client entropy). `*out_seed` is left `0`.
-* `*out_has_value = true` → `Some(*out_seed)`.
-
-Returns `0` on success, `-1` if any pointer is null.
-"""
-cpp_doc = """
-Read the streaming host-shuffle seed back. Returns @c std::nullopt for
-the per-client-entropy sentinel (no pinned seed); returns the
-wrapped seed when the shuffled order is deterministic.
-"""
-py_doc = """
-Current ``streaming.host_shuffle_seed`` value (``None`` = per-client
-entropy).
-"""
-ts_doc = """
-Current `streaming.host_shuffle_seed` value (`null` = per-client
-entropy).
 """

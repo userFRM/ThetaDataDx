@@ -574,14 +574,6 @@ export declare class Config {
   /** Current reconnect jitter mode as a lowercase string. */
   get reconnectJitter(): string
   /**
-   * Set the streaming host-selection policy. Accepts `"shuffled"`
-   * (default — fault-domain-aware per-client shuffle) or
-   * `"fixed_order"` (declared order verbatim), case-insensitive.
-   */
-  setStreamingHostSelection(policy: string): void
-  /** Current streaming host-selection policy as a lowercase string. */
-  get streamingHostSelection(): string
-  /**
    * Set the Prometheus exporter port. Pass `null` or `undefined`
    * to leave the exporter disabled (the default); pass a
    * `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
@@ -595,19 +587,6 @@ export declare class Config {
    * disabled; a `number` is the bound port.
    */
   get metricsPort(): number | null
-  /**
-   * Set the streaming host-shuffle seed. `null` (default) derives a
-   * fresh per-client seed so a fleet shuffles independently; an
-   * explicit `bigint` makes the shuffled order deterministic —
-   * useful for fleet sharding and tests. Ignored under
-   * `"fixed_order"`.
-   */
-  setStreamingHostShuffleSeed(seed?: bigint | undefined | null): void
-  /**
-   * Current `streaming.host_shuffle_seed` value (`null` = per-client
-   * entropy).
-   */
-  get streamingHostShuffleSeed(): bigint | null
 }
 
 /**

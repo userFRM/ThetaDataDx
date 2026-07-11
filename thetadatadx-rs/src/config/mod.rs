@@ -56,7 +56,7 @@ pub use env::{
 };
 pub use environment::{MarketDataEnvironment, StreamingEnvironment};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
-pub use fpss::{bounds as streaming_bounds, HostSelectionPolicy, StreamingConfig};
+pub use fpss::{bounds as streaming_bounds, StreamingConfig};
 pub use mdds::MarketDataConfig;
 pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
 pub use metrics::MetricsConfig;

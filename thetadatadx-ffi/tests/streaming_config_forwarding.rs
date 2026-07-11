@@ -29,8 +29,6 @@ use thetadatadx_ffi::{
     thetadatadx_config_get_reconnect_wait_rate_limited_ms,
     thetadatadx_config_get_reconnect_wait_server_restart_ms,
     thetadatadx_config_get_streaming_connect_timeout_ms,
-    thetadatadx_config_get_streaming_host_selection,
-    thetadatadx_config_get_streaming_host_shuffle_seed,
     thetadatadx_config_get_streaming_io_read_slice_ms,
     thetadatadx_config_get_streaming_keepalive_idle_secs,
     thetadatadx_config_get_streaming_keepalive_interval_secs,
@@ -48,8 +46,6 @@ use thetadatadx_ffi::{
     thetadatadx_config_set_reconnect_wait_rate_limited_ms,
     thetadatadx_config_set_reconnect_wait_server_restart_ms,
     thetadatadx_config_set_streaming_connect_timeout_ms,
-    thetadatadx_config_set_streaming_host_selection,
-    thetadatadx_config_set_streaming_host_shuffle_seed,
     thetadatadx_config_set_streaming_io_read_slice_ms,
     thetadatadx_config_set_streaming_keepalive_idle_secs,
     thetadatadx_config_set_streaming_keepalive_interval_secs,
@@ -71,17 +67,12 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
     let mut ka_idle = 0u64;
     let mut ka_interval = 0u64;
     let mut ka_retries = 0u32;
-    let mut host_policy = -1i32;
-    let mut seed_present = false;
-    let mut seed = 0u64;
 
     // SAFETY: `cfg` is the non-null, not-yet-freed handle from
     // `thetadatadx_config_production`, mutated/read on a single thread; every
     // out-pointer is a live stack slot for the call.
     unsafe {
-        // The scalar streaming knobs are infallible unit-returning
-        // setters; `host_selection` / `host_shuffle_seed` validate their
-        // input and return an `i32` status.
+        // The scalar streaming knobs are infallible unit-returning setters.
         thetadatadx_config_set_streaming_timeout_ms(cfg, 10_000);
         thetadatadx_config_set_streaming_connect_timeout_ms(cfg, 5_000);
         thetadatadx_config_set_streaming_ping_interval_ms(cfg, 1_000);
@@ -90,15 +81,6 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
         thetadatadx_config_set_streaming_keepalive_idle_secs(cfg, 10);
         thetadatadx_config_set_streaming_keepalive_interval_secs(cfg, 5);
         thetadatadx_config_set_streaming_keepalive_retries(cfg, 4);
-        // Host selection: 1 = the non-default preset (round-trips a
-        // non-zero discriminant so a stuck-at-zero getter is caught).
-        assert_eq!(thetadatadx_config_set_streaming_host_selection(cfg, 1), 0);
-        // The host-shuffle seed carries the widened `(has_value, seed)`
-        // ABI shape so the `Some(_)` presence survives the boundary.
-        assert_eq!(
-            thetadatadx_config_set_streaming_host_shuffle_seed(cfg, true, 42),
-            0
-        );
 
         assert_eq!(
             thetadatadx_config_get_streaming_timeout_ms(cfg, &mut timeout),
@@ -132,14 +114,6 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
             thetadatadx_config_get_streaming_keepalive_retries(cfg, &mut ka_retries),
             0
         );
-        assert_eq!(
-            thetadatadx_config_get_streaming_host_selection(cfg, &mut host_policy),
-            0
-        );
-        assert_eq!(
-            thetadatadx_config_get_streaming_host_shuffle_seed(cfg, &mut seed_present, &mut seed),
-            0
-        );
     }
 
     assert_eq!(timeout, 10_000);
@@ -150,9 +124,6 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
     assert_eq!(ka_idle, 10);
     assert_eq!(ka_interval, 5);
     assert_eq!(ka_retries, 4);
-    assert_eq!(host_policy, 1);
-    assert!(seed_present);
-    assert_eq!(seed, 42);
 
     // SAFETY: `cfg` is owned here and freed exactly once.
     unsafe { thetadatadx_config_free(cfg) };

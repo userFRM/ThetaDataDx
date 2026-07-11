@@ -886,8 +886,6 @@ impl Client {
             .keepalive_idle_secs(config.streaming.keepalive_idle_secs)
             .keepalive_interval_secs(config.streaming.keepalive_interval_secs)
             .keepalive_retries(config.streaming.keepalive_retries)
-            .host_selection(config.streaming.host_selection)
-            .host_shuffle_seed(config.streaming.host_shuffle_seed)
             .build()
             .map_err(crate::error::Error::from)?;
         let client_arc = Arc::new(client);

@@ -46,8 +46,7 @@ use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType}
 use crate::auth::Credentials;
 use crate::backoff::{BackoffSchedule, JitterMode};
 use crate::config::{
-    HostSelectionPolicy, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy,
-    RATE_LIMITED_JITTER_WINDOW,
+    ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RATE_LIMITED_JITTER_WINDOW,
 };
 use crate::error::Error;
 
@@ -483,8 +482,6 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     /// selection policy to this list, optionally pinning the last
     /// stable host first.
     pub hosts: Vec<(String, u16)>,
-    pub host_selection: HostSelectionPolicy,
-    pub host_shuffle_seed: u64,
     pub active_subs: ActiveSubs,
     pub active_full_subs: ActiveFullSubs,
     /// In-flight subscribe registry keyed by `req_id`. A subscribe records
@@ -697,8 +694,6 @@ where
         replay_pace_ms,
         creds,
         hosts,
-        host_selection,
-        host_shuffle_seed,
         active_subs,
         active_full_subs,
         pending_subs,
@@ -1352,12 +1347,7 @@ where
         // then re-apply the configured policy to the remaining hosts.
         // Cold connects and unstable sessions stay pure-policy.
         let new_stream = {
-            let ordered_hosts = connection::order_hosts(
-                &hosts,
-                host_selection,
-                host_shuffle_seed,
-                last_known_good_host,
-            );
+            let ordered_hosts = connection::order_hosts(&hosts, last_known_good_host);
             let ordered: Vec<(&str, u16)> = ordered_hosts
                 .iter()
                 .map(|(host, port)| (host.as_str(), *port))

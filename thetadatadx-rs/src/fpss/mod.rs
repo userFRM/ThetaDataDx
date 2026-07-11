@@ -129,7 +129,7 @@ use std::time::Duration;
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::{HostSelectionPolicy, ReconnectPolicy};
+use crate::config::ReconnectPolicy;
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -442,8 +442,6 @@ pub struct StreamingClientBuilder<'a> {
     keepalive_idle_secs: u64,
     keepalive_interval_secs: u64,
     keepalive_retries: u32,
-    host_selection: HostSelectionPolicy,
-    host_shuffle_seed: Option<u64>,
     wait_strategy: ring::AdaptiveWaitStrategy,
     consumer_cpu: Option<usize>,
 }
@@ -480,8 +478,6 @@ impl<'a> StreamingClientBuilder<'a> {
             keepalive_idle_secs: fpss.keepalive_idle_secs,
             keepalive_interval_secs: fpss.keepalive_interval_secs,
             keepalive_retries: fpss.keepalive_retries,
-            host_selection: fpss.host_selection,
-            host_shuffle_seed: fpss.host_shuffle_seed,
             wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
             consumer_cpu: fpss.consumer_cpu,
         }
@@ -628,23 +624,6 @@ impl<'a> StreamingClientBuilder<'a> {
         self
     }
 
-    /// Host-ordering policy for connect + failover. See
-    /// [`HostSelectionPolicy`].
-    #[must_use]
-    pub fn host_selection(mut self, policy: HostSelectionPolicy) -> Self {
-        self.host_selection = policy;
-        self
-    }
-
-    /// Seed for the shuffled host order; `None` derives a fresh
-    /// per-client seed. See
-    /// [`crate::config::StreamingConfig::host_shuffle_seed`].
-    #[must_use]
-    pub fn host_shuffle_seed(mut self, seed: Option<u64>) -> Self {
-        self.host_shuffle_seed = seed;
-        self
-    }
-
     /// Connect, authenticate, and start the background I/O and ping
     /// threads. Returns a ready-to-use [`StreamingClient`].
     ///
@@ -678,8 +657,6 @@ impl<'a> StreamingClientBuilder<'a> {
             keepalive_idle_secs: self.keepalive_idle_secs,
             keepalive_interval_secs: self.keepalive_interval_secs,
             keepalive_retries: self.keepalive_retries,
-            host_selection: self.host_selection,
-            host_shuffle_seed: self.host_shuffle_seed,
             wait_strategy: self.wait_strategy,
             consumer_cpu: self.consumer_cpu,
         }
@@ -714,8 +691,6 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) keepalive_idle_secs: u64,
     pub(crate) keepalive_interval_secs: u64,
     pub(crate) keepalive_retries: u32,
-    pub(crate) host_selection: HostSelectionPolicy,
-    pub(crate) host_shuffle_seed: Option<u64>,
     /// Fixed low-latency event-ring consumer wait strategy
     /// ([`ring::AdaptiveWaitStrategy`]).
     pub(crate) wait_strategy: ring::AdaptiveWaitStrategy,
@@ -797,8 +772,6 @@ struct SpawnArgs<'a, P> {
     server_addr: String,
     creds: &'a Credentials,
     hosts: &'a [(String, u16)],
-    host_selection: HostSelectionPolicy,
-    host_shuffle_seed: u64,
     wait_strategy: ring::AdaptiveWaitStrategy,
     consumer_cpu: Option<usize>,
     policy: ReconnectPolicy,
@@ -1040,8 +1013,6 @@ impl StreamingClient {
             keepalive_idle_secs,
             keepalive_interval_secs,
             keepalive_retries,
-            host_selection,
-            host_shuffle_seed,
             wait_strategy,
             consumer_cpu,
         } = args;
@@ -1107,10 +1078,8 @@ impl StreamingClient {
             ));
         }
         // Apply the host-selection policy once for the cold connect.
-        // Reconnects reuse the same seed, optionally pinning the last
-        // stable host ahead of a policy-ordered tail.
-        let seed = host_shuffle_seed.unwrap_or_else(crate::backoff::entropy_u64);
-        let ordered_hosts = connection::order_hosts(hosts, host_selection, seed, None);
+        // Cold connect: walk the declared host order left to right.
+        let ordered_hosts = connection::order_hosts(hosts, None);
         let keepalive = connection::TcpKeepaliveSpec {
             idle: Duration::from_secs(keepalive_idle_secs),
             interval: Duration::from_secs(keepalive_interval_secs),
@@ -1144,8 +1113,6 @@ impl StreamingClient {
             stream,
             server_addr,
             hosts,
-            host_selection,
-            host_shuffle_seed: seed,
             ring_size,
             wait_strategy,
             consumer_cpu,
@@ -1182,8 +1149,6 @@ impl StreamingClient {
             mut stream,
             server_addr,
             hosts,
-            host_selection,
-            host_shuffle_seed,
             ring_size,
             wait_strategy,
             consumer_cpu,
@@ -1341,8 +1306,6 @@ impl StreamingClient {
             server_addr,
             creds,
             hosts,
-            host_selection,
-            host_shuffle_seed,
             wait_strategy,
             consumer_cpu,
             policy,
@@ -1393,8 +1356,6 @@ impl StreamingClient {
             server_addr,
             creds,
             hosts,
-            host_selection,
-            host_shuffle_seed,
             wait_strategy,
             consumer_cpu,
             policy,
@@ -1472,8 +1433,6 @@ impl StreamingClient {
                     replay_pace_ms,
                     creds: io_creds,
                     hosts: io_hosts,
-                    host_selection,
-                    host_shuffle_seed,
                     active_subs: io_active_subs,
                     active_full_subs: io_active_full_subs,
                     pending_subs: io_pending_subs,
@@ -3152,8 +3111,6 @@ mod builder_tests {
         assert_eq!(args.keepalive_idle_secs, fpss.keepalive_idle_secs);
         assert_eq!(args.keepalive_interval_secs, fpss.keepalive_interval_secs);
         assert_eq!(args.keepalive_retries, fpss.keepalive_retries);
-        assert_eq!(args.host_selection, fpss.host_selection);
-        assert_eq!(args.host_shuffle_seed, fpss.host_shuffle_seed);
         assert_eq!(args.wait_ms, reconnect.wait_ms);
         assert_eq!(args.wait_max_ms, reconnect.wait_max_ms);
         assert_eq!(args.wait_rate_limited_ms, reconnect.wait_rate_limited_ms);

@@ -279,10 +279,6 @@ class Config:
     """Interval, in seconds, between kernel-side TCP keepalive probes on the streaming socket (default 2)."""
     streaming_keepalive_retries: int
     """Number of unanswered kernel-side TCP keepalive probes before the streaming socket is declared dead (default 2)."""
-    streaming_host_selection: Literal["shuffled", "fixed_order"]
-    """Streaming host-selection order: ``"shuffled"`` (fault-domain-aware per-client shuffle, seedable via :attr:`streaming_host_shuffle_seed`) or ``"fixed_order"``."""
-    streaming_host_shuffle_seed: Optional[int]
-    """Seed for the per-client streaming host shuffle; ``None`` draws a fresh seed each connect."""
     @property
     def market_data_environment(self) -> Literal["PROD", "STAGE"]:
         """Target market-data environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The market-data and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the market-data channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``market_data_type`` string the inline :class:`Client` constructor accepts."""

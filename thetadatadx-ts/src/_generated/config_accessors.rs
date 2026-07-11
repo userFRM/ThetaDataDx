@@ -947,34 +947,6 @@ impl Config {
         Ok(guard.reconnect.jitter.as_str())
     }
 
-    /// Set the streaming host-selection policy. Accepts `"shuffled"`
-    /// (default — fault-domain-aware per-client shuffle) or
-    /// `"fixed_order"` (declared order verbatim), case-insensitive.
-    #[napi(js_name = "setStreamingHostSelection")]
-    pub fn set_streaming_host_selection(&self, policy: String) -> napi::Result<()> {
-        let parsed = config::HostSelectionPolicy::parse(&policy).ok_or_else(|| {
-            crate::invalid_parameter_err(format!(
-                "setStreamingHostSelection: unknown policy {policy:?}; expected \"shuffled\" or \"fixed_order\""
-            ))
-        })?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.host_selection = parsed;
-        Ok(())
-    }
-
-    /// Current streaming host-selection policy as a lowercase string.
-    #[napi(getter, js_name = "streamingHostSelection")]
-    pub fn streaming_host_selection(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.host_selection.as_str())
-    }
-
     /// Set the Prometheus exporter port. Pass `null` or `undefined`
     /// to leave the exporter disabled (the default); pass a
     /// `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
@@ -1008,41 +980,6 @@ impl Config {
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(guard.metrics.port.map(u32::from))
-    }
-
-    /// Set the streaming host-shuffle seed. `null` (default) derives a
-    /// fresh per-client seed so a fleet shuffles independently; an
-    /// explicit `bigint` makes the shuffled order deterministic —
-    /// useful for fleet sharding and tests. Ignored under
-    /// `"fixed_order"`.
-    #[napi(js_name = "setStreamingHostShuffleSeed")]
-    pub fn set_streaming_host_shuffle_seed(
-        &self,
-        seed: Option<napi::bindgen_prelude::BigInt>,
-    ) -> napi::Result<()> {
-        let resolved = match seed {
-            Some(v) => Some(bigint_to_u64("setStreamingHostShuffleSeed", &v)?),
-            None => None,
-        };
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.host_shuffle_seed = resolved;
-        Ok(())
-    }
-
-    /// Current `streaming.host_shuffle_seed` value (`null` = per-client
-    /// entropy).
-    #[napi(getter, js_name = "streamingHostShuffleSeed")]
-    pub fn streaming_host_shuffle_seed(
-        &self,
-    ) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.host_shuffle_seed.map(napi::bindgen_prelude::BigInt::from))
     }
 
 }

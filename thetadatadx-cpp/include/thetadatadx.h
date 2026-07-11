@@ -1596,50 +1596,6 @@ void thetadatadx_config_set_streaming_ring_size(ThetaDataDxConfig* config, size_
 int32_t thetadatadx_config_get_streaming_ring_size(const ThetaDataDxConfig* config, size_t* out);
 
 /**
- * Set the streaming host-selection policy.
- *   policy=0: Shuffled (default) -- fault-domain-aware per-client
- *             shuffle; a fleet spreads across hosts and consecutive
- *             failover attempts cross physical machines.
- *   policy=1: FixedOrder -- use the declared host order verbatim.
- * @param config Config handle to mutate.
- * @param policy Host-selection policy selector (0 = Shuffled, 1 = FixedOrder).
- * @return 0 on success, -1 on an invalid policy or null config.
- */
-int32_t thetadatadx_config_set_streaming_host_selection(ThetaDataDxConfig* config, int32_t policy);
-
-/**
- * Read the configured streaming host-selection policy. Same encoding as
- * thetadatadx_config_set_streaming_host_selection.
- * @param config Config handle to read.
- * @param out_policy Receives the host-selection policy on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_streaming_host_selection(const ThetaDataDxConfig* config, int32_t* out_policy);
-
-/**
- * Set the streaming host-shuffle seed using the (has_value, seed) widened
- * shape. Ignored under the FixedOrder policy.
- * @param config Config handle to mutate.
- * @param has_value false (default) derives a fresh per-client seed so a
- *                  fleet shuffles independently; true makes the shuffled
- *                  order deterministic, useful for fleet sharding and tests.
- * @param seed The deterministic seed, honoured only when has_value is true.
- * @return 0 on success, -1 if config is null.
- */
-int32_t thetadatadx_config_set_streaming_host_shuffle_seed(ThetaDataDxConfig* config, bool has_value, uint64_t seed);
-
-/**
- * Read the current streaming host-shuffle seed.
- * @param config Config handle to read.
- * @param out_has_value Receives false for the per-client-entropy sentinel,
- *                      true when an explicit seed is set.
- * @param out_seed Receives the seed when out_has_value is true.
- * @return 0 on success, -1 if any pointer is null.
- */
-int32_t thetadatadx_config_get_streaming_host_shuffle_seed(const ThetaDataDxConfig* config, bool* out_has_value,
-                                              uint64_t* out_seed);
-
-/**
  * Set the wall-clock envelope (seconds) for one market-data-channel
  * retry sequence, measured from the first attempt. 0 disables the
  * envelope (attempt budget only). Default 300.

@@ -1,55 +1,5 @@
 //! Streaming (TCP) sub-configuration.
 
-/// How the streaming client orders the configured streaming hosts for the
-/// initial connect and every reconnect.
-///
-/// The production host list spans two physical machines with two ports
-/// each. Ordering decides both steady-state load placement (which host
-/// a freshly-started client lands on) and failover behaviour (which
-/// host a reconnecting client tries next).
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum HostSelectionPolicy {
-    /// Group hosts by hostname (fault domain), shuffle the group order
-    /// and the ports within each group per client, then interleave
-    /// across groups. Default.
-    ///
-    /// Two effects: a fleet of clients distributes uniformly across
-    /// the fault domains instead of all dialling the first declared
-    /// host, and consecutive failover attempts cross fault domains —
-    /// the second attempt lands on a different physical machine, not a
-    /// second port on the machine that just failed.
-    #[default]
-    Shuffled,
-    /// Use the declared order verbatim. Escape hatch for deployments
-    /// that pin traffic to a specific host for locality or compliance
-    /// reasons.
-    FixedOrder,
-}
-
-impl HostSelectionPolicy {
-    /// Canonical lowercase string for this policy, matching the
-    /// cross-binding encoding.
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Shuffled => "shuffled",
-            Self::FixedOrder => "fixed_order",
-        }
-    }
-
-    /// Parse the cross-binding string encoding (case-insensitive).
-    /// Returns `None` for unrecognised input.
-    #[must_use]
-    pub fn parse(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "shuffled" => Some(Self::Shuffled),
-            "fixed_order" => Some(Self::FixedOrder),
-            _ => None,
-        }
-    }
-}
-
 /// Streaming client tuning.
 ///
 /// The timing knobs (`timeout_ms`, `ping_interval_ms`,
@@ -64,8 +14,9 @@ impl HostSelectionPolicy {
 pub struct StreamingConfig {
     /// Streaming hosts.
     ///
-    /// The connection layer iterates through these on connection
-    /// failure, in the order produced by [`Self::host_selection`].
+    /// The connection layer iterates through these in declared order on
+    /// connection failure (a reconnect tries the last-known-good host
+    /// first, then the rest in order).
     /// Default: ThetaData's NJ `FPSS_NJ_HOSTS`.
     ///
     /// Set through [`DirectConfig::set_streaming_hosts`] so the write is
@@ -78,21 +29,6 @@ pub struct StreamingConfig {
     /// [`DirectConfig::set_streaming_hosts`]: crate::config::DirectConfig::set_streaming_hosts
     /// [`DirectConfig::streaming_hosts`]: crate::config::DirectConfig::streaming_hosts
     pub(crate) hosts: Vec<(String, u16)>,
-
-    /// Per-client host ordering policy. Default
-    /// [`HostSelectionPolicy::Shuffled`] — see the enum docs for the
-    /// fleet-distribution and fault-domain-failover rationale.
-    pub host_selection: HostSelectionPolicy,
-
-    /// Optional seed for the [`HostSelectionPolicy::Shuffled`] order.
-    ///
-    /// `None` (default) derives a fresh per-client seed, so every
-    /// client instance shuffles independently. Supplying a value makes
-    /// the order deterministic — useful for fleet sharding (give each
-    /// deployment slot a stable seed) and for tests that assert a
-    /// specific order. Ignored under
-    /// [`HostSelectionPolicy::FixedOrder`].
-    pub host_shuffle_seed: Option<u64>,
 
     /// Streaming read timeout in milliseconds.
     ///
@@ -215,8 +151,6 @@ impl StreamingConfig {
                 ("nj-b.thetadata.us".to_string(), 20000),
                 ("nj-b.thetadata.us".to_string(), 20001),
             ],
-            host_selection: HostSelectionPolicy::Shuffled,
-            host_shuffle_seed: None,
             timeout_ms: 10_000,
             ring_size: 131_072,
             ping_interval_ms: 250,
@@ -268,32 +202,11 @@ mod tests {
         assert_eq!(cfg.keepalive_idle_secs, 5);
         assert_eq!(cfg.keepalive_interval_secs, 2);
         assert_eq!(cfg.keepalive_retries, 2);
-        assert_eq!(cfg.host_selection, HostSelectionPolicy::Shuffled);
-        assert_eq!(cfg.host_shuffle_seed, None);
         assert_eq!(cfg.consumer_cpu, None);
         // Kernel-side half-open detection at the defaults:
         // idle + interval * retries = 5 + 2*2 = 9 seconds.
         let detection = cfg.keepalive_idle_secs
             + cfg.keepalive_interval_secs * u64::from(cfg.keepalive_retries);
         assert_eq!(detection, 9);
-    }
-
-    #[test]
-    fn host_selection_policy_string_round_trip() {
-        for policy in [
-            HostSelectionPolicy::Shuffled,
-            HostSelectionPolicy::FixedOrder,
-        ] {
-            assert_eq!(HostSelectionPolicy::parse(policy.as_str()), Some(policy));
-        }
-        assert_eq!(
-            HostSelectionPolicy::parse("SHUFFLED"),
-            Some(HostSelectionPolicy::Shuffled)
-        );
-        assert_eq!(HostSelectionPolicy::parse("bogus"), None);
-        assert_eq!(
-            HostSelectionPolicy::default(),
-            HostSelectionPolicy::Shuffled
-        );
     }
 }

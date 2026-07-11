@@ -92,25 +92,6 @@ test("streaming ring size round-trips via BigInt and rejects non-power-of-two", 
   assert.equal(cfg.streamingRingSize, 4_294_967_296n, "rejected value leaves config unchanged");
 });
 
-test("streaming host selection round-trips and rejects unknown", () => {
-  const cfg = Config.production();
-  assert.equal(cfg.streamingHostSelection, "shuffled");
-  cfg.setStreamingHostSelection("fixed_order");
-  assert.equal(cfg.streamingHostSelection, "fixed_order");
-  cfg.setStreamingHostSelection("SHUFFLED");
-  assert.equal(cfg.streamingHostSelection, "shuffled");
-  assert.throws(() => cfg.setStreamingHostSelection("round_robin"), /shuffled/);
-});
-
-test("streaming host shuffle seed round-trips the null sentinel", () => {
-  const cfg = Config.production();
-  assert.equal(cfg.streamingHostShuffleSeed, null);
-  cfg.setStreamingHostShuffleSeed(42n);
-  assert.equal(cfg.streamingHostShuffleSeed, 42n);
-  cfg.setStreamingHostShuffleSeed(null);
-  assert.equal(cfg.streamingHostShuffleSeed, null);
-});
-
 test("retry envelope defaults and round-trip", () => {
   const cfg = Config.production();
   assert.equal(cfg.retryMaxAttempts, 20);
