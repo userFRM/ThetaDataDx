@@ -134,7 +134,7 @@ impl Config {
         guard.streaming.connect_timeout_ms
     }
 
-    /// Set the streaming heartbeat ping interval (ms). Default ``250``;
+    /// Set the streaming heartbeat ping interval (ms). Default ``100``;
     /// validated to ``[100, 300_000]``.
     #[setter]
     fn set_streaming_ping_interval_ms(&self, ms: u64) {
@@ -142,7 +142,7 @@ impl Config {
         guard.streaming.ping_interval_ms = ms;
     }
 
-    /// Current ``streaming.ping_interval_ms`` value (default ``250``).
+    /// Current ``streaming.ping_interval_ms`` value (default ``100``).
     #[getter]
     fn get_streaming_ping_interval_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

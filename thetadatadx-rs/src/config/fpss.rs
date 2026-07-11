@@ -61,13 +61,13 @@ pub struct StreamingConfig {
     /// Streaming heartbeat ping interval in milliseconds.
     ///
     /// This is the client's outbound ping cadence to the server, and the
-    /// server may disconnect if it falls silent. Default `250` — the ping
-    /// mainly proves write-side health at a 4 Hz cadence without adding
-    /// inbound-frame pressure on a recovering upstream. Reverse-direction
-    /// liveness is the inbound frame and ping stream (~250 ms on an active
-    /// session), which [`Self::timeout_ms`] guards. Validated to the range
-    /// `[100, 300_000]` ms — sub-100 ms values are rejected so a
-    /// misconfiguration does not flood the upstream.
+    /// server may disconnect if it falls silent. Default `100`, matching
+    /// the terminal's pinger (a fixed 100 ms period after a 2 s warm-up).
+    /// The ping also flushes any queued outbound control frames, so this
+    /// interval bounds subscribe / unsubscribe latency. Reverse-direction
+    /// liveness is the inbound frame stream, which [`Self::timeout_ms`]
+    /// guards. Validated to the range `[100, 300_000]` ms — sub-100 ms
+    /// values are rejected so a misconfiguration does not flood the upstream.
     pub ping_interval_ms: u64,
 
     /// Per-server TCP connect timeout in milliseconds. Default `2000`.
@@ -153,7 +153,7 @@ impl StreamingConfig {
             ],
             timeout_ms: 10_000,
             ring_size: 131_072,
-            ping_interval_ms: 250,
+            ping_interval_ms: 100,
             connect_timeout_ms: 2_000,
             io_read_slice_ms: 25,
             keepalive_idle_secs: 5,
@@ -197,7 +197,7 @@ mod tests {
     fn production_defaults_resilience_shape() {
         let cfg = StreamingConfig::production_defaults();
         assert_eq!(cfg.timeout_ms, 10_000);
-        assert_eq!(cfg.ping_interval_ms, 250);
+        assert_eq!(cfg.ping_interval_ms, 100);
         assert_eq!(cfg.io_read_slice_ms, 25);
         assert_eq!(cfg.keepalive_idle_secs, 5);
         assert_eq!(cfg.keepalive_interval_secs, 2);

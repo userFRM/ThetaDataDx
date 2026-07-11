@@ -99,7 +99,7 @@ def test_streaming_transport_defaults_and_round_trip():
     cfg = mod.Config.production()
     assert cfg.streaming_timeout_ms == 10_000
     assert cfg.streaming_connect_timeout_ms == 2_000
-    assert cfg.streaming_ping_interval_ms == 250
+    assert cfg.streaming_ping_interval_ms == 100
     assert cfg.streaming_ring_size == 131_072
     assert cfg.streaming_io_read_slice_ms == 25
     assert cfg.streaming_keepalive_idle_secs == 5

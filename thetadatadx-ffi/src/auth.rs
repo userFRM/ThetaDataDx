@@ -2169,7 +2169,7 @@ mod resilience_knob_tests {
                 super::thetadatadx_config_get_streaming_ping_interval_ms(cfg, &mut got),
                 0
             );
-            assert_eq!(got, 250);
+            assert_eq!(got, 100);
             assert_eq!(
                 super::thetadatadx_config_get_streaming_io_read_slice_ms(cfg, &mut got),
                 0

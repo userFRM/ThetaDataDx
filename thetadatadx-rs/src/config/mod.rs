@@ -2090,7 +2090,7 @@ mod tests {
         let validated = config.validate().expect("production defaults validate");
         assert_eq!(validated.market_data.window_size_kb, 64);
         assert_eq!(validated.streaming.timeout_ms, 10_000);
-        assert_eq!(validated.streaming.ping_interval_ms, 250);
+        assert_eq!(validated.streaming.ping_interval_ms, 100);
         assert_eq!(validated.streaming.connect_timeout_ms, 2_000);
         assert_eq!(validated.streaming.io_read_slice_ms, 25);
         assert_eq!(validated.streaming.keepalive_idle_secs, 5);

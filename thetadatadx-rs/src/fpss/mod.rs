@@ -1077,7 +1077,6 @@ impl StreamingClient {
                 i64::from(*crate::config::streaming_bounds::KEEPALIVE_RETRIES.end()),
             ));
         }
-        // Apply the host-selection policy once for the cold connect.
         // Cold connect: walk the declared host order left to right.
         let ordered_hosts = connection::order_hosts(hosts, None);
         let keepalive = connection::TcpKeepaliveSpec {
@@ -1134,9 +1133,9 @@ impl StreamingClient {
 
     /// Connect using a pre-established stream (for testing with mock sockets).
     ///
-    /// `hosts` is the declared FPSS server list, needed for auto-reconnect to
-    /// re-apply the host-selection policy. Pass an empty slice to disable
-    /// reconnection to other servers.
+    /// `hosts` is the declared FPSS server list, walked in declared order on
+    /// auto-reconnect. Pass an empty slice to disable reconnection to other
+    /// servers.
     ///
     /// Returns the connected client with its internal poller bundled
     /// in; drain via [`Self::next_event`] / [`Self::poll_batch`] /

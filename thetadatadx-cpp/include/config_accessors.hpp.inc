@@ -108,13 +108,13 @@
         return out;
     }
 
-    /// Set the streaming heartbeat ping interval (ms). Default 250;
+    /// Set the streaming heartbeat ping interval (ms). Default 100;
     /// validated to [100, 300_000] at connect.
     void set_streaming_ping_interval_ms(std::uint64_t v) {
         thetadatadx_config_set_streaming_ping_interval_ms(handle_.get(), v);
     }
 
-    /// Current streaming ping_interval_ms (default 250).
+    /// Current streaming ping_interval_ms (default 100).
     std::uint64_t get_streaming_ping_interval_ms() const {
         std::uint64_t out{};
         thetadatadx_config_get_streaming_ping_interval_ms(handle_.get(), &out);
