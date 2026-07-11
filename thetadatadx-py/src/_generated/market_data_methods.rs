@@ -15276,7 +15276,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
@@ -15368,7 +15368,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         trade_ticks_to_pyclass_list(py, ticks)
     }
 
@@ -15459,7 +15459,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         quote_ticks_to_pyclass_list(py, ticks)
     }
 
@@ -15550,7 +15550,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         market_value_ticks_to_pyclass_list(py, ticks)
     }
 
@@ -16865,7 +16865,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         ohlc_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -16980,7 +16980,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         trade_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -17095,7 +17095,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         quote_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -17216,7 +17216,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         open_interest_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -17336,7 +17336,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         market_value_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -17483,7 +17483,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         iv_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -17664,7 +17664,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         greeks_all_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -17844,7 +17844,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         greeks_first_order_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -18024,7 +18024,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         greeks_second_order_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -18204,7 +18204,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         greeks_third_order_ticks_vec_to_pylist(py, ticks)
     }
 
@@ -21882,7 +21882,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
@@ -21956,7 +21956,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         price_ticks_to_pyclass_list(py, ticks)
     }
 
@@ -22030,7 +22030,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         market_value_ticks_to_pyclass_list(py, ticks)
     }
 
@@ -22484,7 +22484,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         calendar_days_vec_to_pylist(py, ticks)
     }
 
@@ -22547,7 +22547,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         calendar_days_vec_to_pylist(py, ticks)
     }
 
@@ -22614,7 +22614,7 @@ impl MarketDataView {
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
-        let ticks = run_blocking_snapshot(py, async move { request.await })?;
+        let ticks = run_blocking(py, async move { request.await })?;
         calendar_days_vec_to_pylist(py, ticks)
     }
 
