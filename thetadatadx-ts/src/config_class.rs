@@ -311,10 +311,9 @@ impl Config {
     // `market_data_host` string accessor are generated from
     // config_surface.toml (the `ms` / `string` carve-out kinds).
 
-    // `metrics.port` (`Option<number>` exporter port), the
-    // `streaming.flushMode` enum, and the `reconnectJitter` /
-    // `streamingHostSelection` enums are the generated `enum` / `option`
-    // accessors from config_surface.toml.
+    // `metrics.port` (`Option<number>` exporter port) and the
+    // `reconnectJitter` / `streamingHostSelection` enums are the
+    // generated `enum` / `option` accessors from config_surface.toml.
 
     /// Target market-data environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The

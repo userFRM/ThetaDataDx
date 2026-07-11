@@ -1926,26 +1926,6 @@ int32_t thetadatadx_config_set_metrics_port(ThetaDataDxConfig* config, bool has_
 int32_t thetadatadx_config_get_metrics_port(const ThetaDataDxConfig* config, bool* out_has_value, uint16_t* out_port);
 
 /**
- * Set streaming flush mode on a config handle.
- *   mode=0: Batched (default) -- flush only on PING every 100ms.
- *   mode=1: Immediate -- flush after every frame write.
- * @param config Config handle to mutate.
- * @param mode Flush mode selector (0 = Batched, 1 = Immediate).
- * @return 0 on success. -1 with thetadatadx_last_error set and thetadatadx_last_error_code =
- *         THETADATADX_ERR_CONFIG when mode is outside {0, 1} or config is null.
- */
-int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
-
-/**
- * Read the current streaming flush mode. Same encoding as
- * thetadatadx_config_set_flush_mode.
- * @param config Config handle to read.
- * @param out_mode Receives 0 (Batched) or 1 (Immediate) on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
-
-/**
  * Read the market-data environment carried by the config: "PROD"
  * for the production cluster or "STAGE" for staging. The market-data and
  * streaming environments are selected independently; the production /

@@ -2444,7 +2444,6 @@ NAME_ONLY_METHOD_ALLOWLIST: dict[tuple[str, str], str] = {
 PYI_SETTER_PROPERTY_ROWS: frozenset[tuple[str, str]] = frozenset(
     ("Config", name)
     for name in (
-        "setFlushMode",
         "setConsumerCpu",
         "setReconnectPolicy",
         "setStreamingRingSize",
@@ -12820,7 +12819,7 @@ def _run_selftest() -> int:
         `.pyi` lane does NOT fail on the (correctly) absent `set_x`, while the
         matching GETTER row IS `.pyi`-checked. Uses the live stub so the real
         property annotation is exercised."""
-        # The 9 enrolled setters are the only pinned-python rows absent from the
+        # The enrolled setters are the only pinned-python rows absent from the
         # real stub — assert that membership matches reality (a NEW absent
         # pinned setter must be enrolled or it fails).
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
@@ -12833,10 +12832,6 @@ def _run_selftest() -> int:
         # The setter rows still get their pyo3-source `python` / ts / cpp / ffi
         # checks; only the `.pyi` lane is exempt. So no `python_pyi` error.
         assert not any("python_pyi" in e for e in setter_errs), setter_errs
-        # The matching getter (`flushMode` → property `flush_mode`) IS checked.
-        assert _sig_extract_python_pyi(PY_PYI, "Config", "flush_mode") == (
-            [], 'Literal["batched", "immediate"]'
-        ), _sig_extract_python_pyi(PY_PYI, "Config", "flush_mode")
         # FINDING-8 closure: the exemption is sound ONLY if EVERY exempt setter
         # has a getter twin whose `.pyi` property type the `python_pyi` lane
         # checks. Resolve each setter's twin from the real spec and assert (a) a
@@ -12844,7 +12839,6 @@ def _run_selftest() -> int:
         # the property — so no exempt setter rides on an unchecked property.
         # `setStreamingRingSize` → `streamingRingSize` was the gap this closes.
         setter_to_getter = {
-            "setFlushMode": ("flushMode", "flush_mode"),
             "setConsumerCpu": ("consumerCpu", "consumer_cpu"),
             "setReconnectPolicy": ("reconnectPolicy", "reconnect_policy"),
             "setStreamingRingSize": ("streamingRingSize", "streaming_ring_size"),

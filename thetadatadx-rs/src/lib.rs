@@ -277,7 +277,7 @@ pub use client_builder::ClientBuilder;
 pub use config::{
     DirectConfig, FlatFilesConfig, HostSelectionPolicy, MarketDataEnvironment,
     ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
-    StreamingEnvironment, StreamingFlushMode,
+    StreamingEnvironment,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, GrpcStatusKind,

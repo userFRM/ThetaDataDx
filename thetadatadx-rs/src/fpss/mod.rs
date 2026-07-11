@@ -129,7 +129,7 @@ use std::time::Duration;
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::{HostSelectionPolicy, ReconnectPolicy, StreamingFlushMode};
+use crate::config::{HostSelectionPolicy, ReconnectPolicy};
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -427,7 +427,6 @@ pub struct StreamingClientBuilder<'a> {
     creds: &'a Credentials,
     hosts: &'a [(String, u16)],
     ring_size: usize,
-    flush_mode: StreamingFlushMode,
     policy: ReconnectPolicy,
     wait_ms: u64,
     wait_max_ms: u64,
@@ -466,7 +465,6 @@ impl<'a> StreamingClientBuilder<'a> {
             // the newest events. Callers that want a smaller footprint can set
             // `.ring_size(..)` explicitly.
             ring_size: fpss.ring_size,
-            flush_mode: StreamingFlushMode::default(),
             policy: ReconnectPolicy::default(),
             wait_ms: reconnect.wait_ms,
             wait_max_ms: reconnect.wait_max_ms,
@@ -500,13 +498,6 @@ impl<'a> StreamingClientBuilder<'a> {
     #[must_use]
     pub fn ring_size(mut self, n: usize) -> Self {
         self.ring_size = n;
-        self
-    }
-
-    /// I/O thread flush behaviour. See [`StreamingFlushMode`].
-    #[must_use]
-    pub fn flush_mode(mut self, m: StreamingFlushMode) -> Self {
-        self.flush_mode = m;
         self
     }
 
@@ -672,7 +663,6 @@ impl<'a> StreamingClientBuilder<'a> {
             creds: self.creds,
             hosts: self.hosts,
             ring_size: self.ring_size,
-            flush_mode: self.flush_mode,
             policy: self.policy,
             wait_ms: self.wait_ms,
             wait_max_ms: self.wait_max_ms,
@@ -709,7 +699,6 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) creds: &'a Credentials,
     pub(crate) hosts: &'a [(String, u16)],
     pub(crate) ring_size: usize,
-    pub(crate) flush_mode: StreamingFlushMode,
     pub(crate) policy: ReconnectPolicy,
     pub(crate) wait_ms: u64,
     pub(crate) wait_max_ms: u64,
@@ -810,7 +799,6 @@ struct SpawnArgs<'a, P> {
     hosts: &'a [(String, u16)],
     host_selection: HostSelectionPolicy,
     host_shuffle_seed: u64,
-    flush_mode: StreamingFlushMode,
     wait_strategy: ring::AdaptiveWaitStrategy,
     consumer_cpu: Option<usize>,
     policy: ReconnectPolicy,
@@ -849,7 +837,7 @@ struct SpawnArgs<'a, P> {
 ///
 /// # Lifecycle
 ///
-/// 1. [`StreamingClient::builder`] -- configure (`ring_size`, `flush_mode`,
+/// 1. [`StreamingClient::builder`] -- configure (`ring_size`,
 ///    timeouts, reconnect policy), then `build()?` to TLS-connect,
 ///    authenticate, and start the background I/O thread
 /// 2. `subscribe(...)` / `unsubscribe(...)` -- subscribe to market data
@@ -1037,7 +1025,6 @@ impl StreamingClient {
             creds,
             hosts,
             ring_size,
-            flush_mode,
             policy,
             wait_ms,
             wait_max_ms,
@@ -1160,7 +1147,6 @@ impl StreamingClient {
             host_selection,
             host_shuffle_seed: seed,
             ring_size,
-            flush_mode,
             wait_strategy,
             consumer_cpu,
             policy,
@@ -1199,7 +1185,6 @@ impl StreamingClient {
             host_selection,
             host_shuffle_seed,
             ring_size,
-            flush_mode,
             wait_strategy,
             consumer_cpu,
             policy,
@@ -1358,7 +1343,6 @@ impl StreamingClient {
             hosts,
             host_selection,
             host_shuffle_seed,
-            flush_mode,
             wait_strategy,
             consumer_cpu,
             policy,
@@ -1411,7 +1395,6 @@ impl StreamingClient {
             hosts,
             host_selection,
             host_shuffle_seed,
-            flush_mode,
             wait_strategy,
             consumer_cpu,
             policy,
@@ -1479,7 +1462,6 @@ impl StreamingClient {
                     authenticated: io_authenticated,
                     permissions,
                     pending_control,
-                    flush_mode,
                     policy,
                     wait_ms,
                     wait_max_ms,
@@ -3277,7 +3259,6 @@ mod builder_tests {
         let creds = Credentials::new("user", "pw");
         let args = StreamingClientBuilder::new(&creds, &cfg.streaming.hosts)
             .ring_size(cfg.streaming.ring_size)
-            .flush_mode(cfg.streaming.flush_mode)
             .reconnect_policy(cfg.reconnect.policy.clone())
             .reconnect_wait_ms(cfg.reconnect.wait_ms)
             .reconnect_wait_rate_limited_ms(cfg.reconnect.wait_rate_limited_ms)
