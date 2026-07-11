@@ -1343,11 +1343,6 @@ fn quote_tick_decodes_legacy_six_field_shape_with_zero_fill() {
     assert_eq!(t.bid_condition, 0);
     assert_eq!(t.ask_exchange, 0);
     assert_eq!(t.ask_condition, 0);
-
-    // Midpoint is computed from bid + ask regardless of legacy / current
-    // layout — pin the value so a generator regression on the midpoint
-    // post-processing step would surface here.
-    assert!((t.midpoint - 1.50315).abs() < 1e-9);
 }
 
 /// The full 11-field shape must continue to decode all columns. A

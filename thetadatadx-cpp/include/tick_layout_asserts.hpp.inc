@@ -462,8 +462,6 @@ static_assert(offsetof(QuoteTick, strike) == 64,
               "ThetaDataDxQuoteTick.strike offset drifted from Rust");
 static_assert(offsetof(QuoteTick, right) == 72,
               "ThetaDataDxQuoteTick.right offset drifted from Rust");
-static_assert(offsetof(QuoteTick, midpoint) == 80,
-              "ThetaDataDxQuoteTick.midpoint offset drifted from Rust");
 static_assert(sizeof(TradeGreeksAllTick) == 320 && alignof(TradeGreeksAllTick) == 64,
               "ThetaDataDxTradeGreeksAllTick layout drifted from Rust");
 static_assert(offsetof(TradeGreeksAllTick, ms_of_day) == 0,

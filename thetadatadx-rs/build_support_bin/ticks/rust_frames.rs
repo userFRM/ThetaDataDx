@@ -110,13 +110,11 @@ pub(super) fn tick_has_symbol_column(def: &TickTypeDef) -> bool {
 }
 
 /// The ordered emittable columns for a tick type: its schema columns,
-/// then the contract-identity trio when `contract_id = true`, then the
-/// `QuoteTick.midpoint` derived tail. Mirrors the column order the Python
-/// slice_arrow emitter and the tick struct use, so all surfaces agree.
-///
-/// (`IvTick.midpoint` is a real wire column and appears via the schema
-/// columns, not this synthetic tail.)
-fn emit_columns(type_name: &str, def: &TickTypeDef) -> Vec<EmitColumn> {
+/// then the contract-identity trio when `contract_id = true`. Mirrors the
+/// column order the Python slice_arrow emitter and the tick struct use, so
+/// all surfaces agree. (`IvTick.midpoint` is a real wire column and appears
+/// via the schema columns.)
+fn emit_columns(def: &TickTypeDef) -> Vec<EmitColumn> {
     let mut cols: Vec<EmitColumn> = Vec::new();
     for column in &def.columns {
         cols.push(EmitColumn {
@@ -154,16 +152,6 @@ fn emit_columns(type_name: &str, def: &TickTypeDef) -> Vec<EmitColumn> {
             nullable: true,
         });
     }
-    if type_name == "QuoteTick" {
-        cols.push(EmitColumn {
-            name: "midpoint".to_string(),
-            buf_ty: "f64".to_string(),
-            data_type: "DataType::Float64",
-            ctor: "Float64Array",
-            push: "t.midpoint".to_string(),
-            nullable: false,
-        });
-    }
     cols
 }
 
@@ -175,7 +163,7 @@ fn emit_columns(type_name: &str, def: &TickTypeDef) -> Vec<EmitColumn> {
 // contract identity → Arrow null).
 
 fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
-    let cols = emit_columns(type_name, def);
+    let cols = emit_columns(def);
     let has_symbol_field = tick_has_symbol_column(def);
     let mut out = String::new();
 
@@ -348,7 +336,7 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
 // matches the Arrow path 1:1.
 
 fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
-    let cols = emit_columns(type_name, def);
+    let cols = emit_columns(def);
     let has_symbol_field = tick_has_symbol_column(def);
     let mut out = String::new();
 

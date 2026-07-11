@@ -215,7 +215,6 @@ pub(super) fn column_push_expr(column_type: &str, field: &str) -> String {
 fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let fn_name = python_slice_reader_fn_name(type_name);
-    let is_quote_tick = type_name == "QuoteTick";
     let is_contract = def.contract_id;
 
     writeln!(
@@ -245,9 +244,6 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
         .unwrap();
         column_decls.push((column.field.clone(), column.r#type.clone()));
     }
-    if is_quote_tick {
-        out.push_str("    let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);\n");
-    }
     if is_contract {
         // Absent contract identity (single-contract queries) buffers
         // as Arrow nulls — the columnar mirror of the pyclass `None`
@@ -265,9 +261,6 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
             column_push_expr(column_type, field)
         )
         .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("        col_midpoint.push(t.midpoint);\n");
     }
     if is_contract {
         out.push_str("        col_expiration.push(t.has_contract_id().then_some(t.expiration));\n");
@@ -288,9 +281,6 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
             "        Arc::new({ctor}::from(col_{field})) as ArrayRef,"
         )
         .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("        Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,\n");
     }
     if is_contract {
         out.push_str("        Arc::new(Int32Array::from(col_expiration)) as ArrayRef,\n");
@@ -379,7 +369,6 @@ fn render_python_slice_public_helper(type_name: &str) -> String {
 
 /// One projectable Arrow column: schema field name, buffer element type,
 /// Arrow `DataType` expr, array constructor, push expression, nullability.
-/// The contract-id trio and the `QuoteTick.midpoint` tail are modelled as
 /// synthetic columns so the projected reader shares one loop — the same
 /// column set (and order) the Rust `to_arrow_projected` builder emits.
 struct ProjCol {
@@ -391,7 +380,7 @@ struct ProjCol {
     nullable: bool,
 }
 
-fn projected_columns(type_name: &str, def: &TickTypeDef) -> Vec<ProjCol> {
+fn projected_columns(def: &TickTypeDef) -> Vec<ProjCol> {
     let mut cols: Vec<ProjCol> = def
         .columns
         .iter()
@@ -430,16 +419,6 @@ fn projected_columns(type_name: &str, def: &TickTypeDef) -> Vec<ProjCol> {
             nullable: true,
         });
     }
-    if type_name == "QuoteTick" {
-        cols.push(ProjCol {
-            name: "midpoint".into(),
-            buf_ty: "f64",
-            data_type: "DataType::Float64",
-            ctor: "Float64Array",
-            push: "t.midpoint".into(),
-            nullable: false,
-        });
-    }
     cols
 }
 
@@ -456,7 +435,7 @@ fn render_python_slice_reader_projected(type_name: &str, def: &TickTypeDef) -> S
     )
     .unwrap();
     out.push_str("    let n = ticks.len();\n");
-    let cols = projected_columns(type_name, def);
+    let cols = projected_columns(def);
     // SINGLE pass: presence resolved once (`has_*`), absent columns keep a
     // zero-capacity buffer never pushed to, so one `for t in ticks` loop
     // fills only the present columns rather than re-scanning the slice per
@@ -622,7 +601,6 @@ fn render_python_arrow_schema_map(schema: &Schema) -> String {
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
         let class = pyclass_name(type_name);
-        let is_quote_tick = type_name == "QuoteTick";
         writeln!(
             out,
             "        \"{class}\" => Some(Arc::new(Schema::new(vec!["
@@ -642,9 +620,6 @@ fn render_python_arrow_schema_map(schema: &Schema) -> String {
                 name = column.field,
             )
             .unwrap();
-        }
-        if is_quote_tick {
-            out.push_str("            Field::new(\"midpoint\", DataType::Float64, false),\n");
         }
         if def.contract_id {
             // Nullable: contract identity is absent (Arrow null) on

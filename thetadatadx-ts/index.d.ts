@@ -6176,7 +6176,6 @@ export interface QuoteTick {
   ask: number
   askCondition: number
   date: number
-  midpoint: number
   expiration?: number
   strike?: number
   right?: string

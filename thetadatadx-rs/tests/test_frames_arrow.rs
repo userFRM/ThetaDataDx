@@ -73,31 +73,6 @@ fn ohlc_tick_to_arrow_schema_matches_python() {
 }
 
 #[test]
-fn quote_tick_to_arrow_emits_midpoint() {
-    let ticks = vec![tick::QuoteTick {
-        ms_of_day: 34200000,
-        bid_size: 10,
-        bid_exchange: 1,
-        bid: 99.99,
-        bid_condition: 0,
-        ask_size: 20,
-        ask_exchange: 2,
-        ask: 100.01,
-        ask_condition: 0,
-        date: 20240102,
-        midpoint: 100.0,
-        expiration: 0,
-        strike: 0.0,
-        right: '\0',
-    }];
-    let batch = ticks.as_slice().to_arrow().unwrap();
-    assert_eq!(batch.num_rows(), 1);
-    let cols = columns(&batch);
-    assert!(cols.contains(&"midpoint".to_string()));
-    assert_eq!(dtype_of(&batch, "midpoint"), DataType::Float64);
-}
-
-#[test]
 fn option_contract_right_stringifies() {
     let ticks = vec![
         tick::OptionContract {

@@ -692,7 +692,6 @@ fn serialize_quote_ticks(ticks: &[thetadatadx::QuoteTick]) -> Value {
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
                 "ask_condition": t.ask_condition,
-                "midpoint": t.midpoint,
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -2160,7 +2159,7 @@ mod tests {
     // the serialized JSON output.
 
     #[test]
-    fn serialize_quote_ticks_includes_condition_and_midpoint_fields() {
+    fn serialize_quote_ticks_includes_condition_fields() {
         let tick = QuoteTick {
             ms_of_day: 0,
             bid_size: 100,
@@ -2175,14 +2174,12 @@ mod tests {
             expiration: 0,
             strike: 0.0,
             right: '\0',
-            midpoint: 150.5,
         };
         let payload = serialize_quote_ticks(&[tick]);
         let row = payload["ticks"].as_array().unwrap().first().unwrap();
         for key in [
             "bid_condition",
             "ask_condition",
-            "midpoint",
             "bid_exchange",
             "ask_exchange",
         ] {

@@ -277,9 +277,8 @@ fn option_contract_projects_exactly_one_symbol_column() {
 /// attributable to its underlying, rather than dropping the column silently.
 #[test]
 fn multi_symbol_snapshot_projects_per_row_symbol_column() {
-    // The quote columns a multi-symbol snapshot's wire carries (no `date`;
-    // `midpoint` rides on `bid`+`ask`), plus the per-row roots the seam reads
-    // off the varying `symbol` column.
+    // The quote columns a multi-symbol snapshot's wire carries (no `date`),
+    // plus the per-row roots the seam reads off the varying `symbol` column.
     let present = ColumnPresence::from_names([
         "ms_of_day",
         "bid_size",
@@ -290,7 +289,6 @@ fn multi_symbol_snapshot_projects_per_row_symbol_column() {
         "ask_exchange",
         "ask",
         "ask_condition",
-        "midpoint",
     ])
     .with_symbols(["AAPL", "MSFT", "SPY"]);
     let quote = |bid: f64, ask: f64| QuoteTick {
@@ -307,7 +305,6 @@ fn multi_symbol_snapshot_projects_per_row_symbol_column() {
         expiration: 0,
         strike: 0.0,
         right: '\0',
-        midpoint: (bid + ask) / 2.0,
     };
     let ticks = vec![quote(1.0, 2.0), quote(3.0, 4.0), quote(5.0, 6.0)];
 
@@ -344,8 +341,7 @@ fn multi_symbol_snapshot_projects_per_row_symbol_column() {
 /// repeated on every row (no regression from the per-row addition).
 #[test]
 fn single_symbol_snapshot_still_broadcasts_constant() {
-    let present =
-        ColumnPresence::from_names(["ms_of_day", "bid", "ask", "midpoint"]).with_symbol("AAPL");
+    let present = ColumnPresence::from_names(["ms_of_day", "bid", "ask"]).with_symbol("AAPL");
     let quote = QuoteTick {
         ms_of_day: 1,
         bid_size: 0,
@@ -360,7 +356,6 @@ fn single_symbol_snapshot_still_broadcasts_constant() {
         expiration: 0,
         strike: 0.0,
         right: '\0',
-        midpoint: 1.5,
     };
     let ticks = vec![quote, quote];
     let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
@@ -582,34 +577,6 @@ fn calendar_year_headers_project_all_v3_fields() {
     assert_eq!(
         cols,
         ["date", "is_open", "open_time", "close_time", "status"]
-    );
-}
-
-/// `QuoteTick.midpoint` is computed at decode from `bid` + `ask` and is never a
-/// wire header, so the projected frame must key its presence on both inputs:
-/// present when bid + ask are, absent otherwise. Regression guard — a decode
-/// path that dropped midpoint left `ticks[0].midpoint` populated while the
-/// frame omitted the column.
-#[test]
-fn quote_projects_midpoint_when_bid_and_ask_present() {
-    let with = projected_columns::<QuoteTick>(&[
-        "ms_of_day",
-        "bid_size",
-        "bid",
-        "ask_size",
-        "ask",
-        "date",
-    ]);
-    assert!(
-        with.contains(&"midpoint".to_string()),
-        "midpoint must ride whenever bid + ask do; got {with:?}"
-    );
-
-    // A subset without bid/ask carries no midpoint.
-    let without = projected_columns::<QuoteTick>(&["ms_of_day", "date"]);
-    assert!(
-        !without.contains(&"midpoint".to_string()),
-        "midpoint must be absent when its inputs are; got {without:?}"
     );
 }
 

@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use std::hint::black_box;
 
-use thetadatadx::{OhlcTick, QuoteTick, TradeTick};
+use thetadatadx::{OhlcTick, TradeTick};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Tick operation benchmarks
@@ -39,30 +39,6 @@ fn bench_trade_tick_price_access(c: &mut Criterion) {
     });
 }
 
-fn bench_quote_tick_midpoint(c: &mut Criterion) {
-    let tick = QuoteTick {
-        ms_of_day: 34_200_000,
-        bid_size: 50,
-        bid_exchange: 4,
-        bid: 150.20,
-        bid_condition: 1,
-        ask_size: 30,
-        ask_exchange: 4,
-        ask: 150.30,
-        ask_condition: 1,
-        midpoint: 150.25,
-        date: 20240315,
-        expiration: 0,
-        strike: 0.0,
-        right: '\0',
-    };
-    c.bench_function("quote_tick_midpoint", |b| {
-        b.iter(|| {
-            black_box(black_box(&tick).midpoint);
-        });
-    });
-}
-
 fn bench_ohlc_tick_all_prices(c: &mut Criterion) {
     let tick = OhlcTick {
         ms_of_day: 34_200_000,
@@ -93,7 +69,6 @@ fn bench_ohlc_tick_all_prices(c: &mut Criterion) {
 criterion_group!(
     tick_benches,
     bench_trade_tick_price_access,
-    bench_quote_tick_midpoint,
     bench_ohlc_tick_all_prices,
 );
 

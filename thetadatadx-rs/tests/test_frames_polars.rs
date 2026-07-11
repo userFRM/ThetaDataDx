@@ -75,30 +75,6 @@ fn ohlc_tick_to_polars_emits_contract_tail() {
 }
 
 #[test]
-fn quote_tick_to_polars_emits_midpoint() {
-    let ticks = vec![tick::QuoteTick {
-        ms_of_day: 34200000,
-        bid_size: 10,
-        bid_exchange: 1,
-        bid: 99.99,
-        bid_condition: 0,
-        ask_size: 20,
-        ask_exchange: 2,
-        ask: 100.01,
-        ask_condition: 0,
-        date: 20240102,
-        midpoint: 100.0,
-        expiration: 0,
-        strike: 0.0,
-        right: '\0',
-    }];
-    let df = ticks.as_slice().to_polars().unwrap();
-    assert_eq!(df.height(), 1);
-    assert!(columns(&df).contains(&"midpoint".to_string()));
-    assert_eq!(dtype_of(&df, "midpoint"), DataType::Float64);
-}
-
-#[test]
 fn option_contract_right_stringifies() {
     let ticks = vec![
         tick::OptionContract {

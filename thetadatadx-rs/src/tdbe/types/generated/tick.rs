@@ -816,7 +816,7 @@ impl PriceTick {
     }
 }
 
-/// Quote tick -- 13 fields + midpoint. NBBO quote data.
+/// Quote tick -- 13 fields. NBBO quote data.
 ///
 /// Wire layout: the full shape is 11 columns (`ms_of_day`,
 /// `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,
@@ -858,8 +858,6 @@ pub struct QuoteTick {
     pub strike: f64,
     /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
     pub right: char,
-    /// Pre-computed midpoint: `(bid + ask) / 2.0`.
-    pub midpoint: f64,
 }
 
 impl QuoteTick {
