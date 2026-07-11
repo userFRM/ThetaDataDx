@@ -12,7 +12,7 @@
 #[non_exhaustive]
 pub enum StreamingFlushMode {
     /// Coalesce outbound frames and flush them on the heartbeat cadence (one
-    /// ping interval, 100 ms by default). A burst of subscriptions goes out as
+    /// ping interval, 250 ms by default). A burst of subscriptions goes out as
     /// fewer, larger TCP segments instead of one flush per frame — gentler on
     /// the server and lower syscall overhead. The only cost is up to one ping
     /// interval before a subscribe / unsubscribe reaches the server; received
@@ -153,10 +153,10 @@ pub struct StreamingConfig {
     /// frames, no pings) for a few seconds while it sets the
     /// subscription up; a 10 s deadline rides through that gap where a
     /// shorter one trips inside it and forces an unnecessary reconnect.
-    /// The ~100 ms cadence is the client's ping to the server, not an
-    /// inbound heartbeat; inbound frames and pings arrive roughly every
-    /// ~250 ms on an active session. Validated to the range
-    /// `[100, 60_000]` ms.
+    /// The ping is the client's outbound heartbeat to the server (one
+    /// `ping_interval_ms`, ~250 ms by default), not an inbound signal;
+    /// inbound frames arrive continuously on an active session. Validated
+    /// to the range `[100, 60_000]` ms.
     pub timeout_ms: u64,
 
     /// Streaming event ring buffer size (slots).

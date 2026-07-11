@@ -52,7 +52,7 @@ Caller-driven recovery is always available: `reconnect()` re-opens the session a
 
 | Mode | Behavior |
 |---|---|
-| `"batched"` (default) | Outbound frames coalesce and flush on the heartbeat cadence (~100 ms), so a subscription burst goes out as fewer, larger packets — gentler on the server, fewer syscalls. Received data is unaffected. |
+| `"batched"` (default) | Outbound frames coalesce and flush on the heartbeat cadence (~250 ms), so a subscription burst goes out as fewer, larger packets — gentler on the server, fewer syscalls. Received data is unaffected. |
 | `"immediate"` | Every outbound frame flushes as written, so a subscribe / unsubscribe reaches the server at once — at the cost of one syscall per frame. |
 
 ```python
