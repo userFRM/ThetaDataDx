@@ -264,7 +264,6 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("ask", DataType::Float64, false),
             Field::new("ask_condition", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("midpoint", DataType::Float64, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -2310,7 +2309,6 @@ pub(crate) mod slice_arrow {
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
-        let has_midpoint = present.contains("midpoint");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
         let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
@@ -2324,7 +2322,6 @@ pub(crate) mod slice_arrow {
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(if has_midpoint { n } else { 0 });
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_bid_size { col_bid_size.push(t.bid_size); }
@@ -2339,7 +2336,6 @@ pub(crate) mod slice_arrow {
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
-            if has_midpoint { col_midpoint.push(t.midpoint); }
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
@@ -2401,10 +2397,6 @@ pub(crate) mod slice_arrow {
         if has_right {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
-        }
-        if has_midpoint {
-            fields.push(Field::new("midpoint", DataType::Float64, false));
-            columns.push(Arc::new(Float64Array::from(col_midpoint)) as ArrayRef);
         }
         RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }

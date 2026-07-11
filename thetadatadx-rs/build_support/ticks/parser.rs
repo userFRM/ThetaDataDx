@@ -166,9 +166,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("    let _cid_right_idx = h.iter().position(|c| *c == \"right\");\n");
     }
 
-    // Check if this is QuoteTick (needs midpoint computation).
-    let is_quote_tick = type_name == "QuoteTick";
-
     out.push('\n');
 
     // Phase 2: seed the output, then bulk-extract column by column in
@@ -186,9 +183,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("            expiration: 0,\n");
         out.push_str("            strike: 0.0,\n");
         out.push_str("            right: '\\0',\n");
-    }
-    if is_quote_tick {
-        out.push_str("            midpoint: 0.0,\n");
     }
     out.push_str("        };\n");
     out.push_str("        rows.len()\n");
@@ -236,13 +230,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         out.push_str("        }\n");
     }
 
-    if is_quote_tick {
-        // QuoteTick gets midpoint computed from bid + ask.
-        out.push_str("        for tick in ticks.iter_mut() {\n");
-        out.push_str("            tick.midpoint = (tick.bid + tick.ask) / 2.0;\n");
-        out.push_str("        }\n");
-    }
-
     out.push_str("        row_base += rows.len();\n");
     out.push_str("    }\n");
     out.push_str("    Ok(ticks)\n");
@@ -259,10 +246,9 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 /// resolves several schema names to the same wire spelling), and the parser
 /// fills every such field from that one column. `present_columns_from` counts
 /// each physical header once (first-claim, exact matches before aliases) but
-/// exempts the two derived fields that are not their own physical column:
-/// `date` (the `YYYYMMDD` split of a `Timestamp` header, present whenever it
-/// resolves) and `QuoteTick.midpoint` (computed from `bid` + `ask`, present
-/// whenever both inputs are). The EOD wire sends `created`: the exact match
+/// exempts the derived `date` field that is not its own physical column:
+/// the `YYYYMMDD` split of a `Timestamp` header, present whenever it
+/// resolves. The EOD wire sends `created`: the exact match
 /// (`created` -> `created_ms_of_day`) claims the header, and `date` rides the
 /// same column via the exemption instead of being dropped.
 ///
@@ -273,7 +259,6 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 /// `is_open` and `status`, so its generated impl delegates to the matching
 /// calendar-specific presence table instead of the generic first-claim helper.
 fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
-    let derive_midpoint = type_name == "QuoteTick";
     writeln!(out, "impl crate::columns::WireColumns for {type_name} {{").unwrap();
     out.push_str("    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n");
     if type_name == "CalendarDay" {
@@ -292,7 +277,7 @@ fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef
         out.push_str("        ];\n");
         writeln!(
             out,
-            "        crate::columns::present_columns_from(headers, COLS, {}, {derive_midpoint})",
+            "        crate::columns::present_columns_from(headers, COLS, {})",
             def.contract_id,
         )
         .unwrap();
@@ -300,7 +285,7 @@ fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef
     out.push_str("    }\n\n");
 
     // all_columns(): the full-schema column set (schema columns + the
-    // contract-id trio + the QuoteTick `midpoint` derived tail), matching
+    // contract-id trio), matching
     // the column order the full `to_arrow` / `to_polars` builders emit.
     out.push_str("    fn all_columns() -> crate::columns::ColumnPresence {\n");
     out.push_str("        crate::columns::ColumnPresence::from_names([\n");
@@ -311,9 +296,6 @@ fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef
         out.push_str("            \"expiration\",\n");
         out.push_str("            \"strike\",\n");
         out.push_str("            \"right\",\n");
-    }
-    if type_name == "QuoteTick" {
-        out.push_str("            \"midpoint\",\n");
     }
     out.push_str("        ])\n");
     out.push_str("    }\n");

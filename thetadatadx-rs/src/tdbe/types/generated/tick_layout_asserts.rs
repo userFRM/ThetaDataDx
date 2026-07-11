@@ -316,7 +316,6 @@ mod layout_asserts {
         assert_eq!(offset_of!(QuoteTick, expiration), 56);
         assert_eq!(offset_of!(QuoteTick, strike), 64);
         assert_eq!(offset_of!(QuoteTick, right), 72);
-        assert_eq!(offset_of!(QuoteTick, midpoint), 80);
     }
 
     #[test]

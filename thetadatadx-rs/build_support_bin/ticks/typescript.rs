@@ -314,9 +314,6 @@ fn render_ts_arrow_reconstruct_rows(type_name: &str, def: &TickTypeDef) -> Strin
         let expr = ts_arrow_reconstruct_expr(&column.r#type, &field);
         writeln!(out, "                {field}: {expr},").unwrap();
     }
-    if type_name == "QuoteTick" {
-        out.push_str("                midpoint: r.midpoint,\n");
-    }
     if def.contract_id {
         // Inverse of the factory's `has_contract_id().then_some(..)`: the
         // absent JS `undefined`/`null` round-trips back to the struct's
@@ -405,7 +402,6 @@ fn ts_arrow_reconstruct_is_fallible(def: &TickTypeDef) -> bool {
 
 fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
-    let is_quote_tick = type_name == "QuoteTick";
     // Strip " -- N fields[...]." from the first doc line — see
     // `strip_field_count_from_doc` for rationale. Shared with the Python
     // emitter so both surfaces drift together.
@@ -429,9 +425,6 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
             rust_type
         )
         .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("    pub midpoint: f64,\n");
     }
     if def.contract_id {
         // Contract identity is populated on wildcard queries only —
@@ -514,9 +507,6 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
             rust_field_ident(&column.field)
         )
         .unwrap();
-    }
-    if type_name == "QuoteTick" {
-        out.push_str("                midpoint: t.midpoint,\n");
     }
     if def.contract_id {
         // Absent contract identity (single-contract queries) crosses

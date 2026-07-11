@@ -1648,7 +1648,6 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
-                midpoint: 0.0,
             }]))
         }
         ReturnType::TradeQuoteTicks => {
@@ -2636,7 +2635,6 @@ mod tests {
             expiration: 20260417,
             strike: 150.0,
             right: 'C',
-            midpoint: 5.0,
         };
         let r = quote_ticks_to_json(&[t]);
         let r = r.first().unwrap();
@@ -2876,7 +2874,6 @@ mod tests {
             expiration,
             strike,
             right,
-            midpoint: 5.0,
         }
     }
 

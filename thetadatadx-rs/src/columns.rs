@@ -167,14 +167,11 @@ impl ColumnPresence {
 ///     claimed the shared `Timestamp` header, `date` is that column's derived
 ///     `YYYYMMDD` sibling and rides it without a second claim. Either way it
 ///     is present whenever it resolves.
-///   * `midpoint` (`QuoteTick`) is computed at decode from `bid` + `ask` and
-///     is never a wire header, so it is present exactly when both inputs are.
 #[must_use]
 pub fn present_columns_from(
     headers: &[&str],
     schema_columns: &[(&'static str, &'static str)],
     contract_id: bool,
-    derive_midpoint: bool,
 ) -> ColumnPresence {
     use crate::mdds::decode::headers::find_header;
 
@@ -236,11 +233,6 @@ pub fn present_columns_from(
             }
         }
     }
-    // `midpoint` rides whenever both its inputs do.
-    if derive_midpoint && present.contains(&"bid") && present.contains(&"ask") {
-        present.push("midpoint");
-    }
-
     ColumnPresence::from_names(present)
 }
 
@@ -469,7 +461,7 @@ mod tests {
             ("open", "open"),
             ("date", "date"),
         ];
-        let p = present_columns_from(&["created", "open"], COLS, false, false);
+        let p = present_columns_from(&["created", "open"], COLS, false);
         assert!(p.contains("created_ms_of_day"));
         assert!(p.contains("open"));
         assert!(
@@ -483,25 +475,9 @@ mod tests {
     #[test]
     fn present_date_standalone_header() {
         const COLS: &[(&str, &str)] = &[("ms_of_day", "ms_of_day"), ("date", "date")];
-        let p = present_columns_from(&["timestamp", "date"], COLS, false, false);
+        let p = present_columns_from(&["timestamp", "date"], COLS, false);
         assert!(p.contains("ms_of_day"));
         assert!(p.contains("date"));
-    }
-
-    /// `midpoint` is present exactly when both `bid` and `ask` are.
-    #[test]
-    fn present_midpoint_keys_on_bid_and_ask() {
-        const COLS: &[(&str, &str)] = &[
-            ("ms_of_day", "ms_of_day"),
-            ("bid", "bid"),
-            ("ask", "ask"),
-            ("date", "date"),
-        ];
-        let with = present_columns_from(&["ms_of_day", "bid", "ask", "date"], COLS, false, true);
-        assert!(with.contains("midpoint"));
-
-        let without = present_columns_from(&["ms_of_day", "date"], COLS, false, true);
-        assert!(!without.contains("midpoint"));
     }
 
     /// Two-pass claiming: a column that names a header exactly claims it even
@@ -511,7 +487,7 @@ mod tests {
     #[test]
     fn present_exact_match_beats_earlier_alias() {
         const COLS: &[(&str, &str)] = &[("root", "root"), ("symbol", "symbol")];
-        let p = present_columns_from(&["symbol"], COLS, false, false);
+        let p = present_columns_from(&["symbol"], COLS, false);
         assert!(
             p.contains("symbol"),
             "exact `symbol` column claims the header"
@@ -525,7 +501,7 @@ mod tests {
     #[test]
     fn present_date_is_primary_claimant_when_no_time_sibling() {
         const COLS: &[(&str, &str)] = &[("created", "date"), ("rate", "rate")];
-        let p = present_columns_from(&["created", "rate"], COLS, false, false);
+        let p = present_columns_from(&["created", "rate"], COLS, false);
         assert!(
             p.contains("date"),
             "date claims the `created` header directly"
@@ -544,7 +520,7 @@ mod tests {
         ];
         // `ms_of_day` resolves via alias (pass 2), `rate`/`date` are exact —
         // yet the order must stay schema order, not claim order.
-        let p = present_columns_from(&["timestamp", "date", "rate"], COLS, false, false);
+        let p = present_columns_from(&["timestamp", "date", "rate"], COLS, false);
         let got: Vec<&str> = p.present_names().collect();
         assert_eq!(got, ["ms_of_day", "date", "rate"]);
     }

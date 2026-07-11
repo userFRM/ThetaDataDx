@@ -353,7 +353,6 @@ fn slice_arrow_converter<'a>(schema: &'a Schema, type_name: &str) -> &'a str {
 
 /// Strip " -- N fields[...]." from the first doc line so the rendered
 /// comment reflects the actual field set once `contract_id` and
-/// `QuoteTick` midpoint get appended to `def.columns`. Words stay stable
 /// even when a schema edit adds/removes a column, so we drop the numeric
 /// count instead of recomputing it per surface.
 pub(super) fn strip_field_count_from_doc(doc: &str) -> String {
@@ -411,7 +410,6 @@ struct ReprField {
 fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     let mut out = String::new();
     let class = pyclass_name(type_name);
-    let is_quote_tick = type_name == "QuoteTick";
     let doc_text = if def.doc.is_empty() {
         format!("Typed {type_name} record.")
     } else {
@@ -460,9 +458,6 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
             rust_type
         )
         .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("    #[pyo3(get)] pub midpoint: f64,\n");
     }
     if def.contract_id {
         // Contract identity is populated on wildcard queries only —
@@ -617,13 +612,6 @@ fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
             default,
         });
     }
-    if type_name == "QuoteTick" {
-        fields.push(CtorField {
-            name: "midpoint".to_string(),
-            rust_type: "f64",
-            default: "0.0f64",
-        });
-    }
     if def.contract_id {
         fields.push(CtorField {
             name: "expiration".to_string(),
@@ -727,9 +715,6 @@ fn pyclass_to_tick_expr(
             }
         }
     }
-    if type_name == "QuoteTick" {
-        writeln!(out, "{indent}    midpoint: {source_expr}.midpoint,").unwrap();
-    }
     if def.contract_id {
         // `None` is the absence convention on the Python surface; the
         // struct's documented fills (0 / 0.0 / '\0') are the reverse
@@ -769,7 +754,6 @@ fn pyclass_from_tick_expr(
     indent: &str,
 ) {
     let class = pyclass_name(type_name);
-    let is_quote_tick = type_name == "QuoteTick";
     writeln!(out, "{indent}{class} {{").unwrap();
     for column in &def.columns {
         let field = &column.field;
@@ -800,9 +784,6 @@ fn pyclass_from_tick_expr(
                 writeln!(out, "{indent}    {py_ident}: {source_expr}.{field},").unwrap();
             }
         }
-    }
-    if is_quote_tick {
-        writeln!(out, "{indent}    midpoint: {source_expr}.midpoint,").unwrap();
     }
     if def.contract_id {
         // Absent contract identity (single-contract queries) is `None`

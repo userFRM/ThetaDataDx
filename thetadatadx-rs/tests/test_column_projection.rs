@@ -585,34 +585,6 @@ fn calendar_year_headers_project_all_v3_fields() {
     );
 }
 
-/// `QuoteTick.midpoint` is computed at decode from `bid` + `ask` and is never a
-/// wire header, so the projected frame must key its presence on both inputs:
-/// present when bid + ask are, absent otherwise. Regression guard — a decode
-/// path that dropped midpoint left `ticks[0].midpoint` populated while the
-/// frame omitted the column.
-#[test]
-fn quote_projects_midpoint_when_bid_and_ask_present() {
-    let with = projected_columns::<QuoteTick>(&[
-        "ms_of_day",
-        "bid_size",
-        "bid",
-        "ask_size",
-        "ask",
-        "date",
-    ]);
-    assert!(
-        with.contains(&"midpoint".to_string()),
-        "midpoint must ride whenever bid + ask do; got {with:?}"
-    );
-
-    // A subset without bid/ask carries no midpoint.
-    let without = projected_columns::<QuoteTick>(&["ms_of_day", "date"]);
-    assert!(
-        !without.contains(&"midpoint".to_string()),
-        "midpoint must be absent when its inputs are; got {without:?}"
-    );
-}
-
 // ── The full (hand-built) path is unchanged ───────────────────────────────
 
 /// `to_arrow` (no presence) still emits the complete schema — the

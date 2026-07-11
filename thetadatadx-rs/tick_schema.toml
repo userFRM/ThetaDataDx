@@ -113,7 +113,7 @@ ts_class_vec = "trade_ticks_to_class_vec"
 pyclass = "TradeTick"
 
 [types.QuoteTick]
-doc = """Quote tick -- 10 fields + midpoint. NBBO quote data.
+doc = """Quote tick -- 10 fields. NBBO quote data.
 
 Wire layout: the full shape is 11 columns (`ms_of_day`,
 `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`,

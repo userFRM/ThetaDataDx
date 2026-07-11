@@ -9,16 +9,13 @@
 //! this generated file so every `Vec<T>` consumer in the workspace picks
 //! up new tick types automatically.
 //!
-//! Layout decisions (alignment, copy-derive, contract-id field tail,
-//! `QuoteTick.midpoint`) are taken straight from the schema:
+//! Layout decisions (alignment, copy-derive, contract-id field tail)
+//! are taken straight from the schema:
 //!
 //! * `align = N` -> `#[repr(C, align(N))]` (omitted for no align).
 //! * `copy = true/false` -> `#[derive(Clone, Copy)]` vs `#[derive(Clone)]`.
 //! * `contract_id = true` -> append `expiration: i32`, `strike: f64`,
 //!   `right: i32` after the schema columns.
-//! * `QuoteTick` -> append `midpoint: f64`. The parser computes it from
-//!   `(bid + ask) / 2.0`; the field exists on the struct so consumers
-//!   don't recompute.
 
 use std::fmt::Write as _;
 
@@ -117,7 +114,7 @@ pub(super) fn timestamp_accessor_fields(def: &TickTypeDef) -> Vec<(String, Strin
 ///   * total `size_of::<T>()`     (catches tail-padding drift),
 ///   * `align_of::<T>()`          (catches `align(N)` drift),
 ///   * `offset_of!(T, field)`     for every column the parser fills, plus
-///     the `contract_id` triple and `QuoteTick.midpoint` tail. This is the
+///     the `contract_id` triple. This is the
 ///     ABI that the C-mirror in `thetadatadx-cpp/include/thetadatadx.h` and the
 ///     layout-assert `*.hpp.inc` all index into via `offsetof()`.
 ///
@@ -152,7 +149,7 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
             continue;
         }
         let def = &schema.types[type_name];
-        let (size, align) = tick_ffi_size_and_align(type_name, def);
+        let (size, align) = tick_ffi_size_and_align(def);
         let snake = type_name.to_snake_case();
 
         writeln!(out, "    #[test]").unwrap();
@@ -163,7 +160,7 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
             "        assert_eq!(align_of::<{type_name}>(), {align});"
         )
         .unwrap();
-        for (field, offset) in tick_ffi_offsets(type_name, def) {
+        for (field, offset) in tick_ffi_offsets(def) {
             let field = rust_field_ident(&field);
             writeln!(
                 out,
@@ -184,9 +181,8 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
     // Doc comment derived from the schema. Multi-line docs (e.g.
     // `GreeksTick`) preserve their per-line `///` shape. The field-count
     // phrase is recomputed from the actual field set the struct emits
-    // (schema columns plus the `contract_id` tail and `QuoteTick`
-    // midpoint), so the count is correct by construction rather than
-    // hand-maintained in the schema prose.
+    // (schema columns plus the `contract_id` tail), so the count is correct
+    // by construction rather than hand-maintained in the schema prose.
     let doc = if def.doc.is_empty() {
         format!("`{type_name}` tick.")
     } else {
@@ -232,9 +228,8 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
     }
 
     // Field order MUST match the legacy `tick.rs` layout for FFI ABI
-    // compatibility: `contract_id` triple comes BEFORE `QuoteTick.midpoint`.
-    // Reordering would silently shift offsets for already-compiled C / C++
-    // consumers even when total `size_of` stays the same.
+    // compatibility. Reordering would silently shift offsets for
+    // already-compiled C / C++ consumers even when total `size_of` stays the same.
     if def.contract_id {
         out.push_str("    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.\n");
         out.push_str("    pub expiration: i32,\n");
@@ -244,28 +239,19 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
         out.push_str("    pub right: char,\n");
     }
 
-    if type_name == "QuoteTick" {
-        out.push_str("    /// Pre-computed midpoint: `(bid + ask) / 2.0`.\n");
-        out.push_str("    pub midpoint: f64,\n");
-    }
-
     out.push_str("}\n");
     out
 }
 
 /// Field count rendered in the `-- N fields` doc phrase: every schema
 /// column plus the `contract_id` tail (`expiration` / `strike` / `right`).
-/// `QuoteTick`'s computed `midpoint` is excluded here because its doc
-/// phrase already names it separately (`-- N fields + midpoint`), so
-/// counting it in `N` would double-count. The total still tracks the field
-/// list by construction — only the named suffix is kept out of `N`.
 fn struct_field_count(_type_name: &str, def: &TickTypeDef) -> usize {
     def.columns.len() + usize::from(def.contract_id) * 3
 }
 
-/// Rewrite the `-- N fields[ + midpoint]` phrase on the first doc line to
-/// the supplied `count`, preserving any suffix wording (e.g. ` + midpoint`,
-/// trailing summary sentence). When the first line carries no `-- N`
+/// Rewrite the `-- N fields` phrase on the first doc line to the supplied
+/// `count`, preserving any trailing summary sentence. When the first line
+/// carries no `-- N`
 /// phrase the doc is returned unchanged — the count is informational, not
 /// mandatory, so types that never declared it stay as authored.
 fn with_field_count(doc: &str, count: usize) -> String {
@@ -287,10 +273,8 @@ fn with_field_count(doc: &str, count: usize) -> String {
 
 /// Replace the numeric run immediately after ` -- ` on a single line with
 /// `count`, keeping the surrounding text. `"OHLC tick -- 9 fields. ..."`
-/// with `count = 12` becomes `"OHLC tick -- 12 fields. ..."`;
-/// `"Quote tick -- 10 fields + midpoint. ..."` with `count = 12` becomes
-/// `"Quote tick -- 12 fields + midpoint. ..."`. Lines without a leading
-/// digit after ` -- ` are returned unchanged.
+/// with `count = 12` becomes `"OHLC tick -- 12 fields. ..."`. Lines
+/// without a leading digit after ` -- ` are returned unchanged.
 fn rewrite_count_phrase(line: &str, count: usize) -> String {
     let Some(dash) = line.find(" -- ") else {
         return line.to_string();

@@ -261,13 +261,6 @@ def test_ohlc_tick_to_arrow_schema():
     _assert_arrow_types_match(table, expected)
 
 
-def test_quote_tick_to_arrow_has_midpoint():
-    tick = thetadatadx.QuoteTick(ms_of_day=34_200_000, bid=99.95, ask=100.05, midpoint=100.0)
-    lst = thetadatadx.QuoteTickList([tick])
-    table = lst.to_arrow()
-    schema = {f.name: str(f.type) for f in table.schema}
-    assert "midpoint" in schema
-    assert schema["midpoint"] == "double"
 
 
 def test_trade_tick_to_arrow_schema():

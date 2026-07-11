@@ -603,7 +603,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
 } ThetaDataDxIndexPriceAtTimeTick THETADATADX_ALIGN64_END;
 
 /* NBBO quote tick (*_history_quote): the bid/ask quote with sizes,
- * exchanges, conditions, and a derived midpoint. */
+ * exchanges, and conditions. */
 THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t bid_size;
@@ -624,9 +624,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    /* 4 bytes padding before the double field */
-    double midpoint;
-    uint8_t _tail_padding[40];
+    uint8_t _tail_padding[52];
 } ThetaDataDxQuoteTick THETADATADX_ALIGN64_END;
 
 /* Trade-with-quote tick (*_history_trade_quote): each trade print fused

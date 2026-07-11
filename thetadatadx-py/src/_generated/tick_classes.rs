@@ -991,7 +991,6 @@ pub(crate) struct QuoteTick {
     #[pyo3(get)] pub ask: f64,
     #[pyo3(get)] pub ask_condition: i32,
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub midpoint: f64,
     #[pyo3(get)] pub expiration: Option<i32>,
     #[pyo3(get)] pub strike: Option<f64>,
     #[pyo3(get)] pub right: Option<String>,
@@ -999,8 +998,8 @@ pub(crate) struct QuoteTick {
 #[pymethods]
 impl QuoteTick {
     #[new]
-    #[pyo3(signature = (*, ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, midpoint = 0.0f64, expiration = None, strike = None, right = None))]
-    fn new(ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, midpoint: f64, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
+    #[pyo3(signature = (*, ms_of_day = 0i32, bid_size = 0i32, bid_exchange = 0i32, bid = 0.0f64, bid_condition = 0i32, ask_size = 0i32, ask_exchange = 0i32, ask = 0.0f64, ask_condition = 0i32, date = 0i32, expiration = None, strike = None, right = None))]
+    fn new(ms_of_day: i32, bid_size: i32, bid_exchange: i32, bid: f64, bid_condition: i32, ask_size: i32, ask_exchange: i32, ask: f64, ask_condition: i32, date: i32, expiration: Option<i32>, strike: Option<f64>, right: Option<String>) -> Self {
         Self {
             ms_of_day,
             bid_size,
@@ -1012,7 +1011,6 @@ impl QuoteTick {
             ask,
             ask_condition,
             date,
-            midpoint,
             expiration,
             strike,
             right,
@@ -4940,7 +4938,6 @@ impl QuoteTickList {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                midpoint: t.midpoint,
                 expiration: t.expiration.unwrap_or(0),
                 strike: t.strike.unwrap_or(0.0),
                 right: match t.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(pyo3::exceptions::PyValueError::new_err(format!("right must be \"C\" or \"P\", got {other:?}"))) },
@@ -5005,7 +5002,6 @@ impl QuoteTickList {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                midpoint: t.midpoint,
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
@@ -5035,7 +5031,6 @@ impl QuoteTickList {
                     ask: t.ask,
                     ask_condition: t.ask_condition,
                     date: t.date,
-                    midpoint: t.midpoint,
                     expiration: t.has_contract_id().then_some(t.expiration),
                     strike: t.has_contract_id().then_some(t.strike),
                     right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
@@ -5111,7 +5106,6 @@ impl QuoteTickListIter {
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                midpoint: t.midpoint,
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
@@ -7485,7 +7479,6 @@ pub(crate) fn quote_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Tick
                 ask: t.ask,
                 ask_condition: t.ask_condition,
                 date: t.date,
-                midpoint: t.midpoint,
                 expiration: t.has_contract_id().then_some(t.expiration),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },

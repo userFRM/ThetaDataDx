@@ -9,12 +9,11 @@
 use super::schema::TickTypeDef;
 
 /// `(field, byte_offset)` pairs for every column the parser fills, in
-/// declaration order, including the `contract_id` triple and
-/// `QuoteTick.midpoint` tail.
-pub(super) fn tick_ffi_offsets(type_name: &str, def: &TickTypeDef) -> Vec<(String, usize)> {
+/// declaration order, including the `contract_id` triple.
+pub(super) fn tick_ffi_offsets(def: &TickTypeDef) -> Vec<(String, usize)> {
     let mut offsets = Vec::new();
     let mut size = 0usize;
-    for (field_name, field_type) in tick_ffi_fields(type_name, def) {
+    for (field_name, field_type) in tick_ffi_fields(def) {
         let (field_size, field_align) = tick_ffi_field_layout(field_type);
         size = size.next_multiple_of(field_align);
         offsets.push((field_name.to_string(), size));
@@ -28,10 +27,10 @@ pub(super) fn tick_ffi_offsets(type_name: &str, def: &TickTypeDef) -> Vec<(Strin
 /// the max of the schema's `align` directive and every field's natural
 /// alignment, and size is rounded up to a multiple of that alignment to
 /// reproduce Rust's struct tail padding.
-pub(super) fn tick_ffi_size_and_align(type_name: &str, def: &TickTypeDef) -> (usize, usize) {
+pub(super) fn tick_ffi_size_and_align(def: &TickTypeDef) -> (usize, usize) {
     let mut size = 0usize;
     let mut struct_align = def.align.unwrap_or(1) as usize;
-    for (_, field_type) in tick_ffi_fields(type_name, def) {
+    for (_, field_type) in tick_ffi_fields(def) {
         let (field_size, field_align) = tick_ffi_field_layout(field_type);
         struct_align = struct_align.max(field_align);
         size = size.next_multiple_of(field_align) + field_size;
@@ -39,7 +38,7 @@ pub(super) fn tick_ffi_size_and_align(type_name: &str, def: &TickTypeDef) -> (us
     (size.next_multiple_of(struct_align), struct_align)
 }
 
-fn tick_ffi_fields<'a>(type_name: &'a str, def: &'a TickTypeDef) -> Vec<(&'a str, &'a str)> {
+fn tick_ffi_fields(def: &TickTypeDef) -> Vec<(&str, &str)> {
     let mut fields = def
         .columns
         .iter()
@@ -49,9 +48,6 @@ fn tick_ffi_fields<'a>(type_name: &'a str, def: &'a TickTypeDef) -> Vec<(&'a str
         fields.push(("expiration", "i32"));
         fields.push(("strike", "price"));
         fields.push(("right", "right"));
-    }
-    if type_name == "QuoteTick" {
-        fields.push(("midpoint", "price"));
     }
     fields
 }

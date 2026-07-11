@@ -26,7 +26,7 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
             continue;
         }
         let def = &schema.types[type_name];
-        let (size, align) = tick_ffi_size_and_align(type_name, def);
+        let (size, align) = tick_ffi_size_and_align(def);
         // C++ wrapper exposes the schema type name verbatim under
         // `thetadatadx::cxx`; the C mirror is `ThetaDataDx<TypeName>`. The wrapper
         // alias is `using <TypeName> = ThetaDataDx<TypeName>;` so `sizeof(alias)`
@@ -40,10 +40,9 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
         .unwrap();
         writeln!(out, "              \"{c_name} layout drifted from Rust\");").unwrap();
         // Per-field offset asserts. Same field set/order as the Rust
-        // offset table (column tail + contract_id triple +
-        // QuoteTick.midpoint). Field-offset drift can sneak past total-
+        // offset table (column tail + contract_id triple). Field-offset drift can sneak past total-
         // size asserts when two same-size fields swap order.
-        for (field, offset) in tick_ffi_offsets(type_name, def) {
+        for (field, offset) in tick_ffi_offsets(def) {
             let field = c_field_ident(&field);
             writeln!(out, "static_assert(offsetof({alias}, {field}) == {offset},").unwrap();
             writeln!(

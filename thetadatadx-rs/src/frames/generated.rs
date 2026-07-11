@@ -5064,7 +5064,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -5079,7 +5078,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
-            col_midpoint.push(t.midpoint);
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -5095,7 +5093,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
-            Field::new("midpoint", DataType::Float64, false),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -5111,7 +5108,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
-            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,
         ];
         RecordBatch::try_new(schema, columns)
     }
@@ -5132,7 +5128,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
-        let has_midpoint = present.contains("midpoint");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
         let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
@@ -5146,7 +5141,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(if has_midpoint { n } else { 0 });
         for t in self {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_bid_size { col_bid_size.push(t.bid_size); }
@@ -5161,7 +5155,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
-            if has_midpoint { col_midpoint.push(t.midpoint); }
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
@@ -5224,10 +5217,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        if has_midpoint {
-            fields.push(Field::new("midpoint", DataType::Float64, false));
-            columns.push(Arc::new(Float64Array::from(col_midpoint)) as ArrayRef);
-        }
         RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
@@ -5251,7 +5240,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -5266,7 +5254,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
-            col_midpoint.push(t.midpoint);
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -5282,7 +5269,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
-            Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into(),
         ])
     }
 
@@ -5302,7 +5288,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
-        let has_midpoint = present.contains("midpoint");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
         let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
@@ -5316,7 +5301,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(if has_midpoint { n } else { 0 });
         for t in self {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_bid_size { col_bid_size.push(t.bid_size); }
@@ -5331,7 +5315,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
-            if has_midpoint { col_midpoint.push(t.midpoint); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
         if let Some(syms) = present.symbols() {
@@ -5377,9 +5360,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
         }
         if has_right {
             series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
-        }
-        if has_midpoint {
-            series.push(Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into());
         }
         DataFrame::new(n, series)
     }
