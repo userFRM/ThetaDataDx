@@ -133,36 +133,6 @@ pub(crate) fn uniform_duration(lo: Duration, hi: Duration) -> Duration {
     Duration::from_nanos(sampled)
 }
 
-/// Process-local entropy word for seeding shuffles and cursor offsets
-/// where no caller-supplied seed exists. Folds the wall clock with a
-/// process-local counter so two clients constructed in the same
-/// nanosecond still diverge.
-pub(crate) fn entropy_u64() -> u64 {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let tick = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let now = u64::try_from(
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_nanos()),
-    )
-    .unwrap_or(u64::MAX);
-    let pid = u64::from(std::process::id());
-    splitmix64(now ^ pid.rotate_left(32) ^ tick.wrapping_mul(0x9E37_79B9_7F4A_7C15))
-}
-
-/// splitmix64 finaliser — documented mixer, used here only to spread
-/// seed bits, never for cryptographic purposes.
-pub(crate) fn splitmix64(mut seed: u64) -> u64 {
-    seed = seed.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    seed ^= seed >> 30;
-    seed = seed.wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    seed ^= seed >> 27;
-    seed = seed.wrapping_mul(0x94D0_49BB_1331_11EB);
-    seed ^= seed >> 31;
-    seed
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,12 +193,5 @@ mod tests {
         assert_eq!(JitterMode::parse("FULL"), Some(JitterMode::Full));
         assert_eq!(JitterMode::parse("bogus"), None);
         assert_eq!(JitterMode::default(), JitterMode::Full);
-    }
-
-    #[test]
-    fn entropy_words_diverge() {
-        let a = entropy_u64();
-        let b = entropy_u64();
-        assert_ne!(a, b, "consecutive entropy words must differ");
     }
 }

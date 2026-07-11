@@ -209,9 +209,8 @@ impl ChannelPool {
 /// together after an outage lands its entire first burst on the same
 /// upstream connection.
 fn seeded_cursor(len: usize) -> AtomicUsize {
-    let seed = crate::backoff::entropy_u64();
-    let offset = (seed as usize) % len.max(1);
-    AtomicUsize::new(offset)
+    use rand::RngExt;
+    AtomicUsize::new(rand::rng().random_range(0..len.max(1)))
 }
 
 /// Pre-dispatch reservation on a pooled [`Channel`].
