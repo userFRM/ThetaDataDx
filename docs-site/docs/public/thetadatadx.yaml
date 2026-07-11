@@ -11,7 +11,7 @@ info:
     bindings backed by the same Rust core.
 
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
-    Intervals accept milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
+    Intervals are one of the presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     All prices are f64 (double) -- decoded during parsing.
   version: 0.1.1
   contact:
@@ -152,7 +152,7 @@ x-anchors:
     required: true
     schema:
       type: string
-    description: 'Accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.'
+    description: 'One of the interval presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.'
 
   time_of_day-param: &time_of_day-param
     name: time_of_day
@@ -871,7 +871,7 @@ paths:
       summary: Stock intraday OHLC bars
       description: |
         Intraday OHLC bars. Supply `date` for a single day, or `start_date`/`end_date` for a date range on the same route.
-        Interval accepts milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
+        Interval is one of the presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
         gRPC: GetStockHistoryOhlc
       tags: [Stock / History]
       parameters:
@@ -889,15 +889,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let bars = client.market_data().stock_history_ohlc("AAPL").date("20240315").interval("60000").await?;
+            let bars = client.market_data().stock_history_ohlc("AAPL").date("20240315").interval("1m").await?;
         - lang: python
           label: Python
           source: |
-            bars = client.market_data.stock_history_ohlc("AAPL", date="20240315", interval="60000")
+            bars = client.market_data.stock_history_ohlc("AAPL", date="20240315", interval="1m")
         - lang: cpp
           label: C++
           source: |
-            auto bars = client.market_data().stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315").with_interval("60000"));
+            auto bars = client.market_data().stock_history_ohlc("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315").with_interval("1m"));
 
   /v3/stock/history/trade:
     x-min-subscription: standard
@@ -975,15 +975,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = client.market_data().stock_history_quote("AAPL").date("20240315").interval("60000").await?;
+            let quotes = client.market_data().stock_history_quote("AAPL").date("20240315").interval("1m").await?;
         - lang: python
           label: Python
           source: |
-            quotes = client.market_data.stock_history_quote("AAPL", date="20240315", interval="60000")
+            quotes = client.market_data.stock_history_quote("AAPL", date="20240315", interval="1m")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.market_data().stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315").with_interval("60000"));
+            auto quotes = client.market_data().stock_history_quote("AAPL", thetadatadx::EndpointRequestOptions{}.with_date("20240315").with_interval("1m"));
   /v3/stock/history/trade_quote:
     x-min-subscription: standard
     get:
@@ -1772,15 +1772,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let bars = client.market_data().option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "60000").await?;
+            let bars = client.market_data().option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            bars = client.market_data.option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "60000")
+            bars = client.market_data.option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto bars = client.market_data().option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "60000");
+            auto bars = client.market_data().option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "1m");
 
   /v3/option/history/trade:
     x-min-subscription: standard
@@ -1866,15 +1866,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let quotes = client.market_data().option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000").await?;
+            let quotes = client.market_data().option_history_quote("SPY", "20240419", "500", "C", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            quotes = client.market_data.option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000")
+            quotes = client.market_data.option_history_quote("SPY", "20240419", "500", "C", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto quotes = client.market_data().option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000");
+            auto quotes = client.market_data().option_history_quote("SPY", "20240419", "500", "C", "20240315", "1m");
   /v3/option/history/trade_quote:
     x-min-subscription: standard
     get:
@@ -2052,15 +2052,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let greeks = client.market_data().option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "60000").await?;
+            let greeks = client.market_data().option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            greeks = client.market_data.option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "60000")
+            greeks = client.market_data.option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto greeks = client.market_data().option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "60000");
+            auto greeks = client.market_data().option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "1m");
 
   /v3/option/history/greeks/first_order:
     x-min-subscription: standard
@@ -2103,15 +2103,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g1 = client.market_data().option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "60000").await?;
+            let g1 = client.market_data().option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            g1 = client.market_data.option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "60000")
+            g1 = client.market_data.option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto g1 = client.market_data().option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "60000");
+            auto g1 = client.market_data().option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "1m");
 
   /v3/option/history/greeks/second_order:
     x-min-subscription: professional
@@ -2154,15 +2154,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g2 = client.market_data().option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "60000").await?;
+            let g2 = client.market_data().option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            g2 = client.market_data.option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "60000")
+            g2 = client.market_data.option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto g2 = client.market_data().option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "60000");
+            auto g2 = client.market_data().option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "1m");
 
   /v3/option/history/greeks/third_order:
     x-min-subscription: professional
@@ -2205,15 +2205,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let g3 = client.market_data().option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "60000").await?;
+            let g3 = client.market_data().option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            g3 = client.market_data.option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "60000")
+            g3 = client.market_data.option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto g3 = client.market_data().option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "60000");
+            auto g3 = client.market_data().option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "1m");
 
   /v3/option/history/greeks/implied_volatility:
     x-min-subscription: standard
@@ -2256,15 +2256,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "60000").await?;
+            let iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            iv = client.market_data.option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "60000")
+            iv = client.market_data.option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "60000");
+            auto iv = client.market_data().option_history_greeks_implied_volatility("SPY", "20240419", "500", "C", "20240315", "1m");
 
   # =========================================================================
   # OPTION / HISTORY TRADE GREEKS
@@ -2799,15 +2799,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let bars = client.market_data().index_history_ohlc("SPX", "20240101", "20240301", "60000").await?;
+            let bars = client.market_data().index_history_ohlc("SPX", "20240101", "20240301", "1m").await?;
         - lang: python
           label: Python
           source: |
-            bars = client.market_data.index_history_ohlc("SPX", "20240101", "20240301", "60000")
+            bars = client.market_data.index_history_ohlc("SPX", "20240101", "20240301", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto bars = client.market_data().index_history_ohlc("SPX", "20240101", "20240301", "60000");
+            auto bars = client.market_data().index_history_ohlc("SPX", "20240101", "20240301", "1m");
 
   /v3/index/history/price:
     x-min-subscription: value
@@ -2842,15 +2842,15 @@ paths:
         - lang: rust
           label: Rust
           source: |
-            let prices = client.market_data().index_history_price("SPX", "20240315", "60000").await?;
+            let prices = client.market_data().index_history_price("SPX", "20240315", "1m").await?;
         - lang: python
           label: Python
           source: |
-            prices = client.market_data.index_history_price("SPX", "20240315", "60000")
+            prices = client.market_data.index_history_price("SPX", "20240315", "1m")
         - lang: cpp
           label: C++
           source: |
-            auto prices = client.market_data().index_history_price("SPX", "20240315", "60000");
+            auto prices = client.market_data().index_history_price("SPX", "20240315", "1m");
 
   # =========================================================================
   # INDEX / AT-TIME

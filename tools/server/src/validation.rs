@@ -259,7 +259,7 @@ pub fn validate_right(value: &str, field: &str) -> Result<(), ValidationError> {
     Ok(())
 }
 
-/// Validate an interval string (e.g. `"60000"` or `"1m"`).
+/// Validate an interval string (e.g. `"1m"` or `"tick"`).
 ///
 /// # Errors
 /// Returns a `ValidationError` when `value` exceeds [`MAX_INTERVAL_LEN`] or
