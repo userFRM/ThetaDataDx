@@ -69,7 +69,7 @@ test("streaming transport defaults and round-trip", () => {
   const cfg = Config.production();
   assert.equal(cfg.streamingTimeoutMs, 10_000n);
   assert.equal(cfg.streamingConnectTimeoutMs, 2_000n);
-  assert.equal(cfg.streamingPingIntervalMs, 250n);
+  assert.equal(cfg.streamingPingIntervalMs, 100n);
   assert.equal(cfg.streamingRingSize, 131_072n);
   assert.equal(cfg.streamingIoReadSliceMs, 25n);
   assert.equal(cfg.streamingKeepaliveIdleSecs, 5n);
