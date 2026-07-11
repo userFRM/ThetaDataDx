@@ -295,9 +295,7 @@ pub fn decode_frame(
     // global so the "1 of every 1024" rate aggregates across every
     // StreamingClient in the same process.
     let warn_unknown_contract =
-        |contract_id: i32,
-         kind: &str,
-         cache: &HashMap<i32, Arc<Contract>>| {
+        |contract_id: i32, kind: &str, cache: &HashMap<i32, Arc<Contract>>| {
             if !cache.contains_key(&contract_id) {
                 static MISS_COUNT: AtomicU64 = AtomicU64::new(0);
                 let prev = MISS_COUNT.fetch_add(1, Ordering::Relaxed);
@@ -457,11 +455,7 @@ pub fn decode_frame(
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, OI_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
-                    warn_unknown_contract(
-                        contract_id,
-                        "open_interest",
-                        local_contracts,
-                    );
+                    warn_unknown_contract(contract_id, "open_interest", local_contracts);
                     FPSS_OI_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::OpenInterest {
                         contract: resolve_contract(contract_id, local_contracts),
@@ -533,11 +527,7 @@ pub fn decode_frame(
             // bid/ask.
             match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
                 Some((contract_id, _n)) => {
-                    warn_unknown_contract(
-                        contract_id,
-                        "market_value",
-                        local_contracts,
-                    );
+                    warn_unknown_contract(contract_id, "market_value", local_contracts);
                     let pt = buf[9];
                     // Compute market value on the raw integer bid/ask/sizes,
                     // keeping wire scale, then reassemble to dollars at the
