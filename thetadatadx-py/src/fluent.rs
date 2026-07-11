@@ -346,11 +346,12 @@ impl StrikeArg {
     }
 }
 
-/// Coerce a `Subscription`, `Contract`, or symbol-style string from
-/// Python into a `protocol::Subscription`. Bare strings are accepted
-/// for ergonomics but always interpreted as a stock-quote
-/// subscription — that is the most common shorthand in the existing
-/// compat helpers.
+/// Coerce a Python `Subscription` into a `protocol::Subscription`.
+///
+/// Only a `Subscription` value is accepted; anything else raises a
+/// `TypeError` pointing the caller at the builders that produce one
+/// (`Contract.quote()` / `.trade()` / `.open_interest()`,
+/// `SecType.OPTION.full_trades()`).
 pub(crate) fn coerce_subscription(obj: &Bound<'_, PyAny>) -> PyResult<protocol::Subscription> {
     if let Ok(sub) = obj.extract::<PyRef<PySubscription>>() {
         return Ok(sub.inner.clone());
