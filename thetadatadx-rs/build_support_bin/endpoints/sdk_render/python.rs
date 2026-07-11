@@ -403,14 +403,14 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     );
     out.push_str("        }\n");
     if is_snapshot {
-        // Snapshot wait fast-path: bounded-timeout future on the shared
-        // runtime, no signal-check polling ticker. Plain-list snapshots keep
-        // the low-allocation `PyList` materialiser; multi-symbol snapshots use
-        // the typed list wrapper so `ColumnPresence::symbols()` survives to
-        // DataFrame terminals.
-        out.push_str(
-            "        let ticks = run_blocking_snapshot(py, async move { request.await })?;\n",
-        );
+        // Snapshots run through the same interruptible `run_blocking` path as
+        // every other request: the timeout is the request's own deadline
+        // (`timeout_ms`, else the configured request timeout), never a
+        // wrapper-imposed cap. This branch exists only for the return-shape
+        // split: plain-list snapshots keep the low-allocation `PyList`
+        // materialiser; multi-symbol snapshots use the typed list wrapper so
+        // `ColumnPresence::symbols()` survives to DataFrame terminals.
+        out.push_str("        let ticks = run_blocking(py, async move { request.await })?;\n");
         if snapshot_plain_list {
             writeln!(
                 out,

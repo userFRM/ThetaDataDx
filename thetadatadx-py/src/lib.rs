@@ -127,40 +127,6 @@ where
     })
 }
 
-/// Snapshot-endpoint fast path — runs a future under the runtime
-/// inside `py.detach` with a bounded `tokio::time::timeout`, skipping the
-/// `run_blocking` signal-check polling loop entirely.
-///
-/// Snapshot-kind endpoints (`stock_snapshot_*`, `option_snapshot_*`,
-/// `index_snapshot_*`, `calendar_*`) complete in under 200 ms on every
-/// observed production call; the 5-second upper bound is a liveness
-/// safeguard that adds zero steady-state cost. Dropping the `tokio::select!`
-/// ticker removes the +1-5 ms first-tick-jitter tax on 90-100 ms calls.
-///
-/// Ctrl+C during a snapshot call is still honoured after the future
-/// resolves or after the 5-second timeout fires, so the interpreter
-/// cannot be wedged indefinitely.
-pub(crate) const SNAPSHOT_UPPER_BOUND: std::time::Duration = std::time::Duration::from_secs(5);
-
-fn run_blocking_snapshot<F, T>(py: Python<'_>, fut: F) -> PyResult<T>
-where
-    F: std::future::Future<Output = Result<T, thetadatadx::Error>> + Send,
-    T: Send,
-{
-    py.detach(|| {
-        // VOCAB-OK: tokio Runtime::block_on in PyO3 bridge, not PyO3 allow_threads GIL-hold pattern
-        runtime().block_on(async move {
-            match tokio::time::timeout(SNAPSHOT_UPPER_BOUND, fut).await {
-                Ok(out) => out.map_err(to_py_err),
-                Err(_) => Err(PyRuntimeError::new_err(format!(
-                    "snapshot endpoint exceeded {} s upper bound",
-                    SNAPSHOT_UPPER_BOUND.as_secs()
-                ))),
-            }
-        })
-    })
-}
-
 // ── Credentials ──
 // Lifecycle: intentionally hand-written (language-specific constructor semantics).
 //
