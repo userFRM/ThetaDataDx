@@ -31,7 +31,7 @@ use std::time::Duration;
 /// With `jitter = true` (default) the sleep duration follows AWS's
 /// *full jitter* pattern: `delay = rand(0, min(max_delay, initial *
 /// 2^attempt))`. Full jitter provably minimises retry-storm contention
-/// relative to equal jitter or no jitter; see
+/// relative to no jitter; see
 /// <https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/>
 /// and [`crate::backoff`] for the shared sampler.
 ///

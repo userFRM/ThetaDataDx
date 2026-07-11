@@ -48,7 +48,7 @@ def test_reconnect_jitter_round_trips_and_rejects_unknown():
     mod = _import_module()
     cfg = mod.Config.production()
     assert cfg.reconnect_jitter == "full"
-    for mode in ("equal", "DECORRELATED", "none", "Full"):
+    for mode in ("none", "Full"):
         cfg.reconnect_jitter = mode
         assert cfg.reconnect_jitter == mode.lower()
     with pytest.raises(ValueError, match=r"reconnect_jitter"):

@@ -225,8 +225,8 @@ class Config:
     """Back-off floor, in milliseconds, applied to the rate-limited (TooManyRequests) failure class (default 130_000)."""
     reconnect_wait_server_restart_ms: int
     """Flat reconnect cadence, in milliseconds, applied to the ServerRestarting failure class (default 5_000)."""
-    reconnect_jitter: Literal["full", "equal", "decorrelated", "none"]
-    """Jitter strategy applied to every reconnect delay: ``"full"`` (default), ``"equal"``, ``"decorrelated"``, or ``"none"``."""
+    reconnect_jitter: Literal["full", "none"]
+    """Jitter strategy applied to every reconnect delay: ``"full"`` (default) or ``"none"``."""
     reconnect_replay_burst_size: int
     """Number of subscription-replay frames sent per burst after an auto-reconnect (default 50, minimum 1)."""
     reconnect_replay_pace_ms: int

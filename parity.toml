@@ -1960,7 +1960,7 @@ cpp = true
 [method.signature]
 returns = "String"
 cpp_returns = "i32"
-python_pyi_returns = 'Literal["full", "equal", "decorrelated", "none"]'
+python_pyi_returns = 'Literal["full", "none"]'
 
 # Custom reconnect-policy callback registration. A field-shaped getter
 # is meaningless for a callback, so the registration is tracked as a

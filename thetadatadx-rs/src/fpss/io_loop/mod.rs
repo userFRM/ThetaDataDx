@@ -1208,13 +1208,13 @@ where
                         // Exponential ladder `wait_ms * 2^(n-1)`
                         // capped at `wait_max_ms`, then jittered.
                         let base = reconnect_state.schedule.deterministic(attempt);
-                        jitter.sample(base, &mut reconnect_state.schedule)
+                        jitter.sample(base)
                     }
                     ReconnectAttemptClass::ServerRestart => {
                         // Flat patient cadence for a pool bounce,
                         // jittered so a fleet spreads its retries.
                         let base = Duration::from_millis(wait_server_restart_ms);
-                        jitter.sample(base, &mut reconnect_state.schedule)
+                        jitter.sample(base)
                     }
                     ReconnectAttemptClass::RateLimited => {
                         // The floor is an upstream-instructed cooldown
@@ -2028,8 +2028,7 @@ struct ReconnectCounters {
     /// consecutive-reconnect sequence; `None` outside a sequence.
     /// Anchors the `max_elapsed` envelope.
     burst_started_at: Option<Instant>,
-    /// Exponential-ladder bounds + decorrelated-jitter walk state for
-    /// the generic-transient class.
+    /// Exponential-ladder bounds for the generic-transient class.
     schedule: BackoffSchedule,
 }
 
@@ -2059,13 +2058,12 @@ impl ReconnectCounters {
     }
 
     /// Zero every per-class counter and end the current reconnect
-    /// sequence (envelope anchor + jitter walk state).
+    /// sequence (envelope anchor).
     fn reset_counters(&mut self) {
         self.transient = 0;
         self.rate_limited = 0;
         self.server_restart = 0;
         self.burst_started_at = None;
-        self.schedule.reset();
     }
 
     /// Decide whether the connection that just disconnected ran long

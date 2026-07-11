@@ -27,7 +27,7 @@ All on the [configuration object](/articles/configuration), prefixed `reconnect_
 |---|---|---|
 | `reconnect_policy` | `"auto"` | `"auto"` recovers automatically; `"manual"` never reconnects (you call `reconnect()`); `"custom"` uses your callback. |
 | `reconnect_wait_ms` / `reconnect_wait_max_ms` | 250 / 30000 | Exponential backoff ladder: initial delay and cap. |
-| `reconnect_jitter` | `"full"` | Jitter mode: `"full"`, `"equal"`, `"decorrelated"`, `"none"`. |
+| `reconnect_jitter` | `"full"` | Jitter mode: `"full"`, `"none"`. |
 | `reconnect_max_attempts` | 30 | Attempt budget for transient drops. |
 | `reconnect_max_elapsed_secs` | 300 | Wall-clock cap on one recovery sequence; `0` disables. |
 | `reconnect_wait_rate_limited_ms` / `reconnect_max_rate_limited_attempts` | 130000 / 100 | Floor and budget for rate-limited drops. |

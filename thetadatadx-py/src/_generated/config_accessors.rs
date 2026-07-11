@@ -635,13 +635,12 @@ impl Config {
     }
 
     /// Set the jitter strategy applied to every reconnect delay.
-    /// Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
-    /// or ``"none"`` (case-insensitive).
+    /// Accepts ``"full"`` (default) or ``"none"`` (case-insensitive).
     #[setter]
     fn set_reconnect_jitter(&self, mode: &str) -> PyResult<()> {
         let parsed = config::JitterMode::parse(mode).ok_or_else(|| {
             crate::errors::invalid_parameter_err(format!(
-                "unknown reconnect_jitter: {mode:?} (expected \"full\", \"equal\", \"decorrelated\", or \"none\")"
+                "unknown reconnect_jitter: {mode:?} (expected \"full\" or \"none\")"
             ))
         })?;
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

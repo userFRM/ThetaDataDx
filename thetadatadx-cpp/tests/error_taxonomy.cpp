@@ -208,7 +208,7 @@ TEST_CASE("config enum setters reject an out-of-domain value with InvalidParamet
     // throw.
     auto cfg = thetadatadx::Config::production();
 
-    REQUIRE_NOTHROW(cfg.set_reconnect_jitter(2));
+    REQUIRE_NOTHROW(cfg.set_reconnect_jitter(1));
     REQUIRE_THROWS_AS(cfg.set_reconnect_jitter(9), thetadatadx::InvalidParameterError);
 
 }

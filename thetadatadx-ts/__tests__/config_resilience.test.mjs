@@ -25,7 +25,7 @@ test("reconnect ladder defaults and round-trip", () => {
 test("reconnect jitter round-trips and rejects unknown", () => {
   const cfg = Config.production();
   assert.equal(cfg.reconnectJitter, "full");
-  for (const mode of ["equal", "DECORRELATED", "none", "Full"]) {
+  for (const mode of ["none", "Full"]) {
     cfg.setReconnectJitter(mode);
     assert.equal(cfg.reconnectJitter, mode.toLowerCase());
   }
