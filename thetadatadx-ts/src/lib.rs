@@ -750,7 +750,7 @@ include!("_generated/utility_functions.rs");
 /// main thread before the consumer is made to wait.
 ///
 /// This queue is the second buffer on the delivery path. The first is the
-/// streaming event ring (the `streamingRingSize` setting, 65536 slots by
+/// streaming event ring (the `streamingRingSize` setting, 131072 slots by
 /// default), drained by the consumer thread; the consumer hands each event
 /// to the callback queue here, and the registered JS function runs later on
 /// the Node main thread. A bound is required for the `Blocking` call mode to
@@ -763,9 +763,9 @@ include!("_generated/utility_functions.rs");
 /// `droppedEventCount()`, the same observable back-pressure the bindings
 /// that run the callback directly on the consumer thread already have.
 ///
-/// The depth matches the default ring size so a healthy callback has a full
-/// ring's worth of headroom before the consumer ever waits, while a wedged
-/// callback can pin at most this many in-flight events.
+/// The depth is half the default ring size, so a healthy callback has ample
+/// headroom before the consumer ever waits, while a wedged callback can pin
+/// at most this many in-flight events.
 pub(crate) const STREAMING_CALLBACK_QUEUE_DEPTH: usize = 65_536;
 
 /// `ThreadsafeFunction` that owns a JS callback reference and routes
