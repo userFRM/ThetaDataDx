@@ -277,9 +277,8 @@ fn option_contract_projects_exactly_one_symbol_column() {
 /// attributable to its underlying, rather than dropping the column silently.
 #[test]
 fn multi_symbol_snapshot_projects_per_row_symbol_column() {
-    // The quote columns a multi-symbol snapshot's wire carries (no `date`;
-    // `midpoint` rides on `bid`+`ask`), plus the per-row roots the seam reads
-    // off the varying `symbol` column.
+    // The quote columns a multi-symbol snapshot's wire carries (no `date`),
+    // plus the per-row roots the seam reads off the varying `symbol` column.
     let present = ColumnPresence::from_names([
         "ms_of_day",
         "bid_size",
@@ -290,7 +289,6 @@ fn multi_symbol_snapshot_projects_per_row_symbol_column() {
         "ask_exchange",
         "ask",
         "ask_condition",
-        "midpoint",
     ])
     .with_symbols(["AAPL", "MSFT", "SPY"]);
     let quote = |bid: f64, ask: f64| QuoteTick {
@@ -307,7 +305,6 @@ fn multi_symbol_snapshot_projects_per_row_symbol_column() {
         expiration: 0,
         strike: 0.0,
         right: '\0',
-        midpoint: (bid + ask) / 2.0,
     };
     let ticks = vec![quote(1.0, 2.0), quote(3.0, 4.0), quote(5.0, 6.0)];
 
@@ -345,7 +342,7 @@ fn multi_symbol_snapshot_projects_per_row_symbol_column() {
 #[test]
 fn single_symbol_snapshot_still_broadcasts_constant() {
     let present =
-        ColumnPresence::from_names(["ms_of_day", "bid", "ask", "midpoint"]).with_symbol("AAPL");
+        ColumnPresence::from_names(["ms_of_day", "bid", "ask"]).with_symbol("AAPL");
     let quote = QuoteTick {
         ms_of_day: 1,
         bid_size: 0,
@@ -360,7 +357,6 @@ fn single_symbol_snapshot_still_broadcasts_constant() {
         expiration: 0,
         strike: 0.0,
         right: '\0',
-        midpoint: 1.5,
     };
     let ticks = vec![quote, quote];
     let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
