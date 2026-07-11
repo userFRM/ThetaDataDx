@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`flush_mode` streaming write-flush knob.** The `flush_mode` setting is removed from every binding (Rust `StreamingConfig::flush_mode`, Python `Config.flush_mode`, TypeScript `Config.flushMode` / `setFlushMode`, C++ `set_flush_mode` / `get_flush_mode`, C ABI `thetadatadx_config_set_flush_mode` / `_get_flush_mode`). Outbound streaming writes now always coalesce and flush on the ping heartbeat, so a subscription burst leaves as fewer, larger packets — the terminal's own behavior — with received-data latency unaffected as before. The `"immediate"` per-frame-flush mode existed only to defeat that server-friendly coalescing and is gone. This is a breaking change to the configuration surface.
+
 ## [0.1.1] - 2026-07-07
 
 ### Added
