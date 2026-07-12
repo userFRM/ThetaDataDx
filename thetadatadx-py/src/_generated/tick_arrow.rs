@@ -18,7 +18,6 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
     match qualname {
         "CalendarDay" => Some(Arc::new(Schema::new(vec![
             Field::new("date", DataType::Int32, false),
-            Field::new("is_open", DataType::Boolean, false),
             Field::new("open_time", DataType::Int32, false),
             Field::new("close_time", DataType::Int32, false),
             Field::new("status", DataType::Utf8, false),
@@ -501,7 +500,7 @@ pub(crate) fn record_batch_to_pyarrow_table(py: Python<'_>, batch: RecordBatch) 
 pub(crate) mod slice_arrow {
     use super::*;
     use super::tick;
-    use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
+    use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};
     use arrow::array::RecordBatchOptions;
     use arrow::record_batch::RecordBatch;
     use arrow::datatypes::{DataType, Field, Schema};
@@ -510,18 +509,15 @@ pub(crate) mod slice_arrow {
     fn read_arrow_batch_from_calendar_day_slice_projected(ticks: &[tick::CalendarDay], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
         let n = ticks.len();
         let has_date = present.contains("date");
-        let has_is_open = present.contains("is_open");
         let has_open_time = present.contains("open_time");
         let has_close_time = present.contains("close_time");
         let has_status = present.contains("status");
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
-        let mut col_is_open: Vec<bool> = Vec::with_capacity(if has_is_open { n } else { 0 });
         let mut col_open_time: Vec<i32> = Vec::with_capacity(if has_open_time { n } else { 0 });
         let mut col_close_time: Vec<i32> = Vec::with_capacity(if has_close_time { n } else { 0 });
         let mut col_status: Vec<String> = Vec::with_capacity(if has_status { n } else { 0 });
         for t in ticks {
             if has_date { col_date.push(t.date); }
-            if has_is_open { col_is_open.push(t.is_open); }
             if has_open_time { col_open_time.push(t.open_time); }
             if has_close_time { col_close_time.push(t.close_time); }
             if has_status { col_status.push(t.status.as_str().to_string()); }
@@ -538,10 +534,6 @@ pub(crate) mod slice_arrow {
         if has_date {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
-        }
-        if has_is_open {
-            fields.push(Field::new("is_open", DataType::Boolean, false));
-            columns.push(Arc::new(BooleanArray::from(col_is_open)) as ArrayRef);
         }
         if has_open_time {
             fields.push(Field::new("open_time", DataType::Int32, false));

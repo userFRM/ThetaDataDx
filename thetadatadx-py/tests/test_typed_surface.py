@@ -8,8 +8,7 @@ Pins the cross-binding type semantics on the Python surface:
   ``lambda``.
 * The fluent ``Contract`` builder takes the strike in dollars as a
   number or string, and reads the same dollar value back.
-* ``CalendarDay.status`` carries the vendor day-type vocabulary and
-  ``is_open`` is a boolean.
+* ``CalendarDay.status`` carries the vendor day-type vocabulary.
 * Absent contract identity on historical rows is ``None`` (the same
   convention the streaming ``ContractRef`` uses), and populated
   identity round-trips through Arrow as nullable columns.
@@ -104,16 +103,12 @@ def test_contract_stock_has_no_option_identity():
 
 
 def test_calendar_day_status_carries_vendor_vocabulary():
-    day = thetadatadx.CalendarDay(
-        date=20260102, is_open=True, status="early_close"
-    )
-    assert day.is_open is True
+    day = thetadatadx.CalendarDay(date=20260102, status="early_close")
     assert day.status == "early_close"
 
 
 def test_calendar_day_defaults_to_closed():
     day = thetadatadx.CalendarDay()
-    assert day.is_open is False
     assert day.status == "full_close"
 
 
@@ -125,15 +120,13 @@ def test_calendar_day_list_rejects_unknown_status_text():
         thetadatadx.CalendarDayList([bad])
 
 
-def test_calendar_day_arrow_status_is_string_and_is_open_boolean():
+def test_calendar_day_arrow_status_is_string():
     pyarrow = pytest.importorskip("pyarrow")
-    day = thetadatadx.CalendarDay(date=20260102, is_open=True, status="open")
+    day = thetadatadx.CalendarDay(date=20260102, status="open")
     table = thetadatadx.CalendarDayList([day]).to_arrow()
     schema = {f.name: str(f.type) for f in table.schema}
     assert schema["status"] == "string"
-    assert schema["is_open"] == "bool"
     assert table.column("status")[0].as_py() == "open"
-    assert table.column("is_open")[0].as_py() is True
 
 
 # ──────────────────────────────────────────────────────────────────────

@@ -159,7 +159,7 @@ pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
     Err(DecodeError::InvalidTime { raw: s.to_string() })
 }
 
-/// Map a v3 calendar `type` text to `(is_open, status)`.
+/// Map a v3 calendar `type` text to a [`crate::tdbe::CalendarStatus`].
 ///
 /// The status vocabulary is the exported [`crate::tdbe::CalendarStatus`] enum
 /// — the typed form of the vendor's text values (`open` /
@@ -167,14 +167,11 @@ pub(crate) fn parse_time_text(s: &str) -> Result<i32, DecodeError> {
 /// [`DecodeError::UnknownEnumVariant`] when the text falls outside the
 /// documented vendor vocabulary so a future schema change surfaces as
 /// a loud typed error instead of a silent mis-classification.
-fn calendar_type_text(s: &str) -> Result<(bool, crate::tdbe::CalendarStatus), DecodeError> {
-    match crate::tdbe::CalendarStatus::from_wire_text(s) {
-        Some(status) => Ok((status.is_open(), status)),
-        None => Err(DecodeError::UnknownEnumVariant {
-            field: "calendar.type",
-            raw: s.to_string(),
-        }),
-    }
+fn calendar_type_text(s: &str) -> Result<crate::tdbe::CalendarStatus, DecodeError> {
+    crate::tdbe::CalendarStatus::from_wire_text(s).ok_or(DecodeError::UnknownEnumVariant {
+        field: "calendar.type",
+        raw: s.to_string(),
+    })
 }
 
 /// Hand-written parser for `CalendarDay` that handles the v3 server's
@@ -186,15 +183,14 @@ fn calendar_type_text(s: &str) -> Result<(bool, crate::tdbe::CalendarStatus), De
 /// | Schema field | Server header | Server type | Mapping                               |
 /// |--------------|---------------|-------------|---------------------------------------|
 /// | `date`       | `date`        | Text        | "2025-01-01" -> 20250101              |
-/// | `is_open`    | `type`        | Text        | "`open"/"early_close`" -> true, else -> false |
 /// | `open_time`  | `open`        | Text / Null | "09:30:00" -> 34200000 ms             |
 /// | `close_time` | `close`       | Text / Null | "16:00:00" -> 57600000 ms             |
 /// | `status`     | `type`        | Text        | [`crate::tdbe::CalendarStatus`] vocabulary   |
 ///
 /// Note: `calendar_on_date` and `calendar_open_today` omit the `date`
 /// column (the `date` field is `0` on those rows). The `type` column is
-/// required whenever the response has rows — it is the sole source of
-/// both `is_open` and `status`, so its absence is schema drift and
+/// required whenever the response has rows — it is the source of
+/// `status`, so its absence is schema drift and
 /// surfaces as [`DecodeError::MissingRequiredHeader`] rather than a
 /// silent closed-day fill. Each column dispatches on the cell's own
 /// type rather than coalescing silently — mismatched types propagate as
@@ -245,7 +241,7 @@ pub fn parse_calendar_days_v3(
 
             // type: Text "open"/"full_close"/"early_close"/"weekend"
             // (the documented v3 wire shape). The `type` column is the
-            // sole source of both `is_open` and `status`, so a present-
+            // source of `status`, so a present-
             // but-null cell on a rows-present response is malformed: a
             // calendar row that carries no day type cannot be classified.
             // Reject it as a typed decode error rather than coalescing to
@@ -253,7 +249,7 @@ pub fn parse_calendar_days_v3(
             // `row_calendar_status` applies on every other typed column.
             // The column itself is required (guard above), so the `None`
             // (Unset) arm is unreachable but kept total.
-            let (is_open, status) = match type_idx {
+            let status = match type_idx {
                 Some(i) => match cell_type(row, i)? {
                     Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
                     Some(proto::data_value::DataType::NullValue(_)) => {
@@ -278,7 +274,7 @@ pub fn parse_calendar_days_v3(
                         });
                     }
                 },
-                None => (false, crate::tdbe::CalendarStatus::FullClose),
+                None => crate::tdbe::CalendarStatus::FullClose,
             };
 
             let open_time = decode_calendar_time(row, open_idx)?;
@@ -286,7 +282,6 @@ pub fn parse_calendar_days_v3(
 
             Ok(CalendarDay {
                 date,
-                is_open,
                 open_time,
                 close_time,
                 status,

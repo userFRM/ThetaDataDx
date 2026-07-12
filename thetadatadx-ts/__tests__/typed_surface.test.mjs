@@ -10,8 +10,7 @@
 //   payload and historical rows type it `number`.
 // * `EodTick` carries `createdMsOfDay` / `lastTradeMsOfDay` (the
 //   vendor's v3 semantics) instead of an enumerated `msOfDay2`.
-// * `CalendarDay.isOpen` is boolean and `status` is the vendor
-//   vocabulary string.
+// * `CalendarDay.status` is the vendor vocabulary string.
 // * Absent contract identity is `undefined`/`null` (optional fields),
 //   matching the streaming payload convention.
 
@@ -184,11 +183,11 @@ describe('EOD and calendar row shapes', () => {
     assert.ok(!/msOfDay2/.test(block[0]), 'msOfDay2 must not survive the rename');
   });
 
-  it('CalendarDay carries boolean isOpen and the vendor status vocabulary', () => {
+  it('CalendarDay carries the vendor status vocabulary', () => {
     const block = dts.match(/export interface CalendarDay\s*\{[^}]*\}/s);
     assert.ok(block, 'CalendarDay interface missing from index.d.ts');
-    assert.match(block[0], /isOpen\s*:\s*boolean/);
     assert.match(block[0], /status\s*:\s*string/);
+    assert.ok(!/isOpen/.test(block[0]), 'isOpen must not survive on CalendarDay');
   });
 
   it('contract identity on rows is optional (absent = undefined)', () => {

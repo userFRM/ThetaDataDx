@@ -469,7 +469,6 @@ fn parse_calendar_v3_holiday() {
     assert_eq!(days.len(), 1);
     let d = &days[0];
     assert_eq!(d.date, 20250101);
-    assert!(!d.is_open);
     assert_eq!(d.open_time, 0);
     assert_eq!(d.close_time, 0);
     assert_eq!(d.status, crate::tdbe::CalendarStatus::FullClose);
@@ -493,7 +492,6 @@ fn parse_calendar_v3_open_day() {
     assert_eq!(days.len(), 1);
     let d = &days[0];
     assert_eq!(d.date, 0); // no date column
-    assert!(d.is_open);
     assert_eq!(d.open_time, 34_200_000); // 9:30 AM = 9*3600+30*60 = 34200 seconds = 34200000 ms
     assert_eq!(d.close_time, 57_600_000); // 4:00 PM = 16*3600 = 57600 seconds = 57600000 ms
     assert_eq!(d.status, crate::tdbe::CalendarStatus::Open);
@@ -517,7 +515,6 @@ fn parse_calendar_v3_early_close() {
     assert_eq!(days.len(), 1);
     let d = &days[0];
     assert_eq!(d.date, 20251128);
-    assert!(d.is_open);
     assert_eq!(d.open_time, 34_200_000);
     assert_eq!(d.close_time, 46_800_000); // 1:00 PM = 13*3600 = 46800 seconds = 46800000 ms
     assert_eq!(d.status, crate::tdbe::CalendarStatus::EarlyClose);
@@ -534,7 +531,6 @@ fn parse_calendar_v3_weekend() {
     let days = parse_calendar_days_v3(&table).unwrap();
     assert_eq!(days.len(), 1);
     let d = &days[0];
-    assert!(!d.is_open);
     assert_eq!(d.status, crate::tdbe::CalendarStatus::Weekend);
 }
 
@@ -1447,7 +1443,7 @@ fn parse_calendar_days_v3_errors_on_unknown_type_text() {
 
 #[test]
 fn parse_calendar_days_v3_errors_on_null_type_cell() {
-    // `type` is the sole source of both `is_open` and `status`. A present-
+    // `type` is the source of `status`. A present-
     // but-null cell on a rows-present response cannot be classified, so it is
     // a typed decode error rather than a silent closed-day fill.
     let table = proto::DataTable {

@@ -875,8 +875,7 @@ macro_rules! tick_array_to_arrow_ipc_projected {
         /// `rows` must point to `len` initialised `$tick` values valid for the
         /// call; `presence` must be a valid [`ThetaDataDxColumnPresence`] (its
         /// name pointers valid for the call), typically from
-        /// `thetadatadx_<tick>_present_columns`. For calendar rows, `is_open`
-        /// must contain a valid C `bool` value.
+        /// `thetadatadx_<tick>_present_columns`.
         #[no_mangle]
         pub unsafe extern "C" fn $fn_name(
             rows: *const $tick,

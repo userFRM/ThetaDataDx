@@ -4,13 +4,11 @@ static_assert(sizeof(CalendarDay) == 64 && alignof(CalendarDay) == 64,
               "ThetaDataDxCalendarDay layout drifted from Rust");
 static_assert(offsetof(CalendarDay, date) == 0,
               "ThetaDataDxCalendarDay.date offset drifted from Rust");
-static_assert(offsetof(CalendarDay, is_open) == 4,
-              "ThetaDataDxCalendarDay.is_open offset drifted from Rust");
-static_assert(offsetof(CalendarDay, open_time) == 8,
+static_assert(offsetof(CalendarDay, open_time) == 4,
               "ThetaDataDxCalendarDay.open_time offset drifted from Rust");
-static_assert(offsetof(CalendarDay, close_time) == 12,
+static_assert(offsetof(CalendarDay, close_time) == 8,
               "ThetaDataDxCalendarDay.close_time offset drifted from Rust");
-static_assert(offsetof(CalendarDay, status) == 16,
+static_assert(offsetof(CalendarDay, status) == 12,
               "ThetaDataDxCalendarDay.status offset drifted from Rust");
 static_assert(sizeof(EodTick) == 128 && alignof(EodTick) == 64,
               "ThetaDataDxEodTick layout drifted from Rust");

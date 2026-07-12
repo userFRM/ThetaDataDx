@@ -83,10 +83,8 @@ fn column_decoder(def: &TickTypeDef, col: &ColumnDef) -> (&'static str, &'static
         "String" => ("row_text", "String::new()"),
         // Logical char: `'\0'` is the absent fill (no contract right).
         "right" => ("row_contract_right", "'\\0'"),
-        "bool" => ("row_bool", "false"),
-        // Conservative absent fill: pairs with the `is_open: false`
-        // seed so a (never observed) type-less calendar row reads as a
-        // closed day rather than an open one.
+        // Conservative absent fill: a (never observed) type-less
+        // calendar row reads as a closed day rather than an open one.
         "calendar_status" => (
             "row_calendar_status",
             "crate::tdbe::CalendarStatus::FullClose",
@@ -255,9 +253,10 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 /// The set names the public schema *field* (e.g. `condition_flags`,
 /// `expiration`) — the name the Arrow / Polars builders key on — not the
 /// wire spelling the alias table resolves. `CalendarDay` is the exception:
-/// the hand-written v3 parser maps the single `type` wire column to both
-/// `is_open` and `status`, so its generated impl delegates to the matching
-/// calendar-specific presence table instead of the generic first-claim helper.
+/// the hand-written v3 parser renames the wire columns (`type` -> `status`,
+/// `open`/`close` -> the time fields), so its generated impl delegates to the
+/// matching calendar-specific presence table instead of the generic
+/// first-claim helper.
 fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
     writeln!(out, "impl crate::columns::WireColumns for {type_name} {{").unwrap();
     out.push_str("    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n");

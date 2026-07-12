@@ -10,7 +10,6 @@ use napi::bindgen_prelude::BigInt;
 #[derive(Clone)]
 pub struct CalendarDay {
     pub date: i32,
-    pub is_open: bool,
     pub open_time: i32,
     pub close_time: i32,
     pub status: String,
@@ -705,7 +704,6 @@ fn calendar_days_to_class_vec(ticks: &[tick::CalendarDay]) -> Vec<CalendarDay> {
         .map(|t| {
             CalendarDay {
                 date: t.date,
-                is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
                 status: t.status.as_str().to_string(),
@@ -1403,7 +1401,6 @@ fn calendar_day_reconstruct_rows(rows: Vec<CalendarDay>) -> napi::Result<Vec<tic
         .map(|r| -> napi::Result<tick::CalendarDay> {
             Ok(tick::CalendarDay {
                 date: r.date,
-                is_open: r.is_open,
                 open_time: r.open_time,
                 close_time: r.close_time,
                 status: match thetadatadx::CalendarStatus::from_wire_text(&r.status) { Some(status) => status, None => return Err(napi::Error::from_reason(format!("[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {:?}", r.status))) },

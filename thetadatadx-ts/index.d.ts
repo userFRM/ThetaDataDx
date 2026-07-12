@@ -3278,7 +3278,6 @@ export interface BatchesOptions {
 /** Calendar day. Market open/close schedule. */
 export interface CalendarDay {
   date: number
-  isOpen: boolean
   openTime: number
   closeTime: number
   status: string

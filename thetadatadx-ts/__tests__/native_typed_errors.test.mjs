@@ -83,7 +83,6 @@ function looksLikeArrowIpcStream(buf) {
 function validCalendarDay(status) {
   return {
     date: 20260102,
-    isOpen: true,
     openTime: 34200000,
     closeTime: 57600000,
     status,

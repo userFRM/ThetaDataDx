@@ -1065,7 +1065,7 @@ fn serialize_calendar_days(days: &[thetadatadx::CalendarDay]) -> Value {
         .iter()
         .map(|d| {
             json!({
-                "date": d.date, "is_open": d.is_open,
+                "date": d.date,
                 "open_time": d.open_time, "close_time": d.close_time,
                 "status": d.status.as_str(),
             })

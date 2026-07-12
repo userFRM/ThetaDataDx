@@ -114,7 +114,7 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     out.push_str("    use super::*;\n");
     out.push_str("    use super::tick;\n");
     out.push_str(
-        "    use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};\n",
+        "    use arrow::array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
     out.push_str("    use arrow::array::RecordBatchOptions;\n");
     out.push_str("    use arrow::record_batch::RecordBatch;\n");

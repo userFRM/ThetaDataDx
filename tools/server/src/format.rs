@@ -2062,7 +2062,6 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
         ReturnType::CalendarDays => {
             EndpointOutput::CalendarDays(thetadatadx::columns::Ticks::from(vec![CalendarDay {
                 date: calendar_date,
-                is_open: true,
                 open_time: 0,
                 close_time: 0,
                 status: thetadatadx::CalendarStatus::Open,
@@ -3449,7 +3448,6 @@ mod tests {
     fn calendar_single_day_header_is_date_leading_when_present() {
         let open_day = |date: i32| CalendarDay {
             date,
-            is_open: true,
             open_time: 34_200_000,
             close_time: 57_600_000,
             status: thetadatadx::CalendarStatus::Open,

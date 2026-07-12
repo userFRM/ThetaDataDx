@@ -1074,7 +1074,7 @@ ts_class_vec = "index_price_at_time_ticks_to_class_vec"
 pyclass = "IndexPriceAtTimeTick"
 
 [types.CalendarDay]
-doc = """Calendar day -- 5 fields. Market open/close schedule.
+doc = """Calendar day -- 4 fields. Market open/close schedule.
 
 `status` carries the vendor's own day-type vocabulary (`open` /
 `early_close` / `full_close` / `weekend`); unknown wire text fails
@@ -1087,7 +1087,6 @@ parser = "parse_calendar_days"
 required = ["date"]
 columns = [
     { name = "date",       field = "date",       type = "i32", doc = "Calendar date as a YYYYMMDD integer. 0 when the server omits the column (single-day endpoints)." },
-    { name = "is_open",    field = "is_open",    type = "bool", doc = "Whether the market trades at all on this date (true for open and early-close days)." },
     { name = "open_time",  field = "open_time",  type = "i32", doc = "Market open time, milliseconds since midnight ET." },
     { name = "close_time", field = "close_time", type = "i32", doc = "Market close time, milliseconds since midnight ET." },
     { name = "status",     field = "status",     type = "calendar_status", doc = "Vendor day classification: open, early_close, full_close, or weekend." },

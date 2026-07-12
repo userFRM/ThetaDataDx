@@ -593,9 +593,8 @@ fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
     for column in &def.columns {
         let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
         let default = match column.r#type.as_str() {
-            // The calendar day-type default pairs with the
-            // `is_open = false` default: a bare fixture row reads as a
-            // closed day, never as a phantom open session.
+            // A bare fixture row reads as a closed day, never as a
+            // phantom open session.
             "calendar_status" => "\"full_close\".to_string()",
             _ => match rust_type {
                 "i32" => "0i32",

@@ -25,7 +25,6 @@ use arrow::record_batch::RecordBatch;
 #[derive(Clone)]
 pub(crate) struct CalendarDay {
     #[pyo3(get)] pub date: i32,
-    #[pyo3(get)] pub is_open: bool,
     #[pyo3(get)] pub open_time: i32,
     #[pyo3(get)] pub close_time: i32,
     #[pyo3(get)] pub status: String,
@@ -33,18 +32,17 @@ pub(crate) struct CalendarDay {
 #[pymethods]
 impl CalendarDay {
     #[new]
-    #[pyo3(signature = (*, date = 0i32, is_open = false, open_time = 0i32, close_time = 0i32, status = "full_close".to_string()))]
-    fn new(date: i32, is_open: bool, open_time: i32, close_time: i32, status: String) -> Self {
+    #[pyo3(signature = (*, date = 0i32, open_time = 0i32, close_time = 0i32, status = "full_close".to_string()))]
+    fn new(date: i32, open_time: i32, close_time: i32, status: String) -> Self {
         Self {
             date,
-            is_open,
             open_time,
             close_time,
             status,
         }
     }
     fn __repr__(&self) -> String {
-        format!("CalendarDay(date={}, is_open={}, open_time={}, close_time={}, status={:?})", self.date, self.is_open, self.open_time, self.close_time, self.status)
+        format!("CalendarDay(date={}, open_time={}, close_time={}, status={:?})", self.date, self.open_time, self.close_time, self.status)
     }
 }
 
@@ -1701,7 +1699,6 @@ impl CalendarDayList {
         for t in &ticks {
             inner.push(            tick::CalendarDay {
                 date: t.date,
-                is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
                 status: match thetadatadx::CalendarStatus::from_wire_text(&t.status) { Some(status) => status, None => return Err(pyo3::exceptions::PyValueError::new_err(format!("status must be one of open, early_close, full_close, weekend; got {:?}", t.status))) },
@@ -1757,7 +1754,6 @@ impl CalendarDayList {
         let t = &self.inner[resolved as usize];
         let obj =             CalendarDay {
                 date: t.date,
-                is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
                 status: t.status.as_str().to_string(),
@@ -1778,7 +1774,6 @@ impl CalendarDayList {
         for t in &self.inner {
             let obj =                 CalendarDay {
                     date: t.date,
-                    is_open: t.is_open,
                     open_time: t.open_time,
                     close_time: t.close_time,
                     status: t.status.as_str().to_string(),
@@ -1845,7 +1840,6 @@ impl CalendarDayListIter {
         self.cursor += 1;
         Some(            CalendarDay {
                 date: t.date,
-                is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
                 status: t.status.as_str().to_string(),
@@ -7038,7 +7032,6 @@ pub(crate) fn calendar_days_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ti
     for t in &ticks {
         let obj =             CalendarDay {
                 date: t.date,
-                is_open: t.is_open,
                 open_time: t.open_time,
                 close_time: t.close_time,
                 status: t.status.as_str().to_string(),
