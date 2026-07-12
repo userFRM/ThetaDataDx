@@ -454,6 +454,54 @@ impl Config {
         guard.market_data.request_timeout_secs
     }
 
+    /// Set the initial per-stream HTTP/2 flow-control window (in KB) for the
+    /// market-data gRPC channel. A larger window raises the throughput ceiling
+    /// on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
+    /// is clamped into ``[64, 2_097_151]`` KB at validate/connect time.
+    /// Default is ``1024`` (1 MiB).
+    ///
+    /// Examples
+    /// --------
+    ///     cfg = Config.production()
+    ///     cfg.market_data_stream_window_size_kb = 4096
+    #[setter]
+    fn set_market_data_stream_window_size_kb(&self, kb: usize) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.stream_window_size_kb = kb;
+    }
+
+    /// Current per-stream HTTP/2 flow-control window (KB) for the market-data
+    /// gRPC channel (default ``1024``).
+    #[getter]
+    fn get_market_data_stream_window_size_kb(&self) -> usize {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.stream_window_size_kb
+    }
+
+    /// Set the initial connection-level HTTP/2 flow-control window (in KB) for
+    /// the market-data gRPC channel. A larger window raises the throughput
+    /// ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
+    /// The value is clamped into ``[64, 2_097_151]`` KB at validate/connect
+    /// time. Default is ``8192`` (8 MiB).
+    ///
+    /// Examples
+    /// --------
+    ///     cfg = Config.production()
+    ///     cfg.market_data_connection_window_size_kb = 16384
+    #[setter]
+    fn set_market_data_connection_window_size_kb(&self, kb: usize) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.connection_window_size_kb = kb;
+    }
+
+    /// Current connection-level HTTP/2 flow-control window (KB) for the
+    /// market-data gRPC channel (default ``8192``).
+    #[getter]
+    fn get_market_data_connection_window_size_kb(&self) -> usize {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.connection_window_size_kb
+    }
+
     /// Current ``retry.initial_delay`` value in ms.
     #[getter]
     fn get_retry_initial_delay_ms(&self) -> u64 {

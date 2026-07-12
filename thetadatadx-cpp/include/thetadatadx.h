@@ -2000,6 +2000,48 @@ void thetadatadx_config_set_request_timeout_secs(ThetaDataDxConfig* config, uint
  */
 int32_t thetadatadx_config_get_request_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out);
 
+/**
+ * Set the initial per-stream HTTP/2 flow-control window, in KB, for the
+ * market-data gRPC channel.
+ *
+ * A larger window raises the throughput ceiling on bulk streaming pulls
+ * before HTTP/2 backpressure kicks in.
+ * @param config Config handle to mutate; no-op when NULL.
+ * @param kb Window size in KB; clamped into [64, 2097151] KB at
+ *           validate/connect time. Default 1024 (1 MiB).
+ */
+void thetadatadx_config_set_market_data_stream_window_size_kb(ThetaDataDxConfig* config, size_t kb);
+
+/**
+ * Read the current per-stream HTTP/2 flow-control window (KB) for the
+ * market-data gRPC channel.
+ * @param config Config handle to read.
+ * @param out_kb Receives the configured KB value on success.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_market_data_stream_window_size_kb(const ThetaDataDxConfig* config, size_t* out_kb);
+
+/**
+ * Set the initial connection-level HTTP/2 flow-control window, in KB, for
+ * the market-data gRPC channel.
+ *
+ * A larger window raises the throughput ceiling on bulk streaming pulls
+ * before HTTP/2 backpressure kicks in.
+ * @param config Config handle to mutate; no-op when NULL.
+ * @param kb Window size in KB; clamped into [64, 2097151] KB at
+ *           validate/connect time. Default 8192 (8 MiB).
+ */
+void thetadatadx_config_set_market_data_connection_window_size_kb(ThetaDataDxConfig* config, size_t kb);
+
+/**
+ * Read the current connection-level HTTP/2 flow-control window (KB) for
+ * the market-data gRPC channel.
+ * @param config Config handle to read.
+ * @param out_kb Receives the configured KB value on success.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_market_data_connection_window_size_kb(const ThetaDataDxConfig* config, size_t* out_kb);
+
 /* ── MarketDataClient ── */
 
 /** Connect a market-data client to ThetaData servers.

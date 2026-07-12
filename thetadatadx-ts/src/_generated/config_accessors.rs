@@ -672,6 +672,66 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.market_data.request_timeout_secs))
     }
 
+    /// Set the initial per-stream HTTP/2 flow-control window (in KB) for the
+    /// market-data gRPC channel. A larger window raises the throughput ceiling
+    /// on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
+    /// is clamped into `[64, 2_097_151]` KB at validate/connect time. Default
+    /// `1024n` (1 MiB). KB are taken as a `BigInt` for parity with the other
+    /// byte/KB-denominated knobs.
+    #[napi(js_name = "setMarketDataStreamWindowSizeKb")]
+    pub fn set_market_data_stream_window_size_kb(&self, kb: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setMarketDataStreamWindowSizeKb", &kb)?;
+        let value = usize::try_from(value)
+            .map_err(|_| napi::Error::from_reason("value exceeds usize on this platform"))?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.market_data.stream_window_size_kb = value;
+        Ok(())
+    }
+
+    /// Current per-stream HTTP/2 flow-control window (KB) for the market-data
+    /// gRPC channel (default `1024n`, returned as a `BigInt`).
+    #[napi(getter, js_name = "marketDataStreamWindowSizeKb")]
+    pub fn market_data_stream_window_size_kb(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.market_data.stream_window_size_kb as u64))
+    }
+
+    /// Set the initial connection-level HTTP/2 flow-control window (in KB) for
+    /// the market-data gRPC channel. A larger window raises the throughput
+    /// ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
+    /// The value is clamped into `[64, 2_097_151]` KB at validate/connect
+    /// time. Default `8192n` (8 MiB). KB are taken as a `BigInt` for parity
+    /// with the other byte/KB-denominated knobs.
+    #[napi(js_name = "setMarketDataConnectionWindowSizeKb")]
+    pub fn set_market_data_connection_window_size_kb(&self, kb: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setMarketDataConnectionWindowSizeKb", &kb)?;
+        let value = usize::try_from(value)
+            .map_err(|_| napi::Error::from_reason("value exceeds usize on this platform"))?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.market_data.connection_window_size_kb = value;
+        Ok(())
+    }
+
+    /// Current connection-level HTTP/2 flow-control window (KB) for the
+    /// market-data gRPC channel (default `8192n`, returned as a `BigInt`).
+    #[napi(getter, js_name = "marketDataConnectionWindowSizeKb")]
+    pub fn market_data_connection_window_size_kb(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.market_data.connection_window_size_kb as u64))
+    }
+
     /// Current `retry.initial_delay` value (ms, returned as BigInt).
     #[napi(getter, js_name = "retryInitialDelayMs")]
     pub fn retry_initial_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {

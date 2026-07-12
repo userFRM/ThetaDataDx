@@ -363,6 +363,46 @@
         return out;
     }
 
+    /// Set the initial per-stream HTTP/2 flow-control window, in KB, for the
+    /// market-data gRPC channel. A larger window raises the throughput ceiling
+    /// on bulk streaming pulls before HTTP/2 backpressure kicks in.
+    /// @p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
+    /// Default is `1024` (1 MiB).
+    void set_market_data_stream_window_size_kb(std::size_t kb) {
+        thetadatadx_config_set_market_data_stream_window_size_kb(handle_.get(), kb);
+    }
+
+    /// Read the current per-stream HTTP/2 flow-control window (KB) for the
+    /// market-data gRPC channel.
+    ///
+    /// Returns the configured KB value, or `0` on a null handle (matching the
+    /// C ABI's `-1` failure mapping at the boundary).
+    std::size_t get_market_data_stream_window_size_kb() const {
+        std::size_t out{};
+        thetadatadx_config_get_market_data_stream_window_size_kb(handle_.get(), &out);
+        return out;
+    }
+
+    /// Set the initial connection-level HTTP/2 flow-control window, in KB, for
+    /// the market-data gRPC channel. A larger window raises the throughput
+    /// ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
+    /// @p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
+    /// Default is `8192` (8 MiB).
+    void set_market_data_connection_window_size_kb(std::size_t kb) {
+        thetadatadx_config_set_market_data_connection_window_size_kb(handle_.get(), kb);
+    }
+
+    /// Read the current connection-level HTTP/2 flow-control window (KB) for
+    /// the market-data gRPC channel.
+    ///
+    /// Returns the configured KB value, or `0` on a null handle (matching the
+    /// C ABI's `-1` failure mapping at the boundary).
+    std::size_t get_market_data_connection_window_size_kb() const {
+        std::size_t out{};
+        thetadatadx_config_get_market_data_connection_window_size_kb(handle_.get(), &out);
+        return out;
+    }
+
     ///
     std::uint64_t get_retry_initial_delay_ms() const {
         std::uint64_t out{};

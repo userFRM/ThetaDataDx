@@ -69,15 +69,16 @@ pub struct MarketDataConfig {
     /// gRPC flow control: initial stream window size in KB.
     ///
     /// Sets the per-stream HTTP/2 flow-control window on every market-data
-    /// channel. Default 64 KB matches the HTTP/2 spec default;
-    /// validation clamps to `[64, 1024]`.
-    pub window_size_kb: usize,
+    /// channel. Default 1024 KB (1 MiB) — well above the 64 KiB HTTP/2 spec
+    /// window, which throttles bulk pulls; validation clamps to
+    /// `[64, 2_097_151]`.
+    pub stream_window_size_kb: usize,
 
     /// gRPC flow control: initial connection window size in KB.
     ///
     /// Sets the connection-level HTTP/2 flow-control window on every
-    /// Market-data channel. Default 64 KB; validation clamps to `[64, 1024]`.
-    /// Increase for high-throughput bulk queries.
+    /// market-data channel. Default 8192 KB (8 MiB); validation clamps to
+    /// `[64, 2_097_151]`. Increase for high-throughput bulk queries.
     pub connection_window_size_kb: usize,
 
     /// TCP connect timeout for the market-data channel, in seconds.
@@ -177,8 +178,8 @@ impl MarketDataConfig {
             max_message_size: 4 * 1024 * 1024,
             keepalive_secs: 30,
             keepalive_timeout_secs: 10,
-            window_size_kb: 64,
-            connection_window_size_kb: 64,
+            stream_window_size_kb: 1_024,
+            connection_window_size_kb: 8_192,
             connect_timeout_secs: 10,
             // 5 min — bounds a server that holds the stream open while
             // sending no chunks (h2 keepalive only catches a fully dead

@@ -1424,6 +1424,157 @@ Current market-data `request_timeout_secs` setting in seconds
 default at request time rather than disabling the deadline.
 """
 
+[[accessor]]
+symbol = "thetadatadx_config_set_market_data_stream_window_size_kb"
+kind = "set"
+param = "kb"
+abi_type = "usize"
+path = "market_data.stream_window_size_kb"
+doc = """
+Set the initial per-stream HTTP/2 flow-control window, in KB, for the
+market-data gRPC channel on a config handle. A larger window raises the
+throughput ceiling on bulk streaming pulls before HTTP/2 backpressure
+kicks in. Default `1024` (1 MiB); `DirectConfig` validation (and the
+connect path) clamps the applied value into `[64, 2_097_151]` KB.
+"""
+cpp_doc = """
+Set the initial per-stream HTTP/2 flow-control window, in KB, for the
+market-data gRPC channel. A larger window raises the throughput ceiling
+on bulk streaming pulls before HTTP/2 backpressure kicks in.
+@p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
+Default is `1024` (1 MiB).
+"""
+py_doc = """
+Set the initial per-stream HTTP/2 flow-control window (in KB) for the
+market-data gRPC channel. A larger window raises the throughput ceiling
+on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
+is clamped into ``[64, 2_097_151]`` KB at validate/connect time.
+Default is ``1024`` (1 MiB).
+
+Examples
+--------
+    cfg = Config.production()
+    cfg.market_data_stream_window_size_kb = 4096
+"""
+ts_doc = """
+Set the initial per-stream HTTP/2 flow-control window (in KB) for the
+market-data gRPC channel. A larger window raises the throughput ceiling
+on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
+is clamped into `[64, 2_097_151]` KB at validate/connect time. Default
+`1024n` (1 MiB). KB are taken as a `BigInt` for parity with the other
+byte/KB-denominated knobs.
+"""
+py_param = "kb"
+ts_param = "kb"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_market_data_stream_window_size_kb"
+kind = "get"
+param = "out_kb"
+abi_type = "usize"
+path = "market_data.stream_window_size_kb"
+out_safety = """
+        // SAFETY: out_kb null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current per-stream HTTP/2 flow-control window (KB) for the
+market-data gRPC channel (default `1024`).
+
+Writes the configured value into `*out_kb`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current per-stream HTTP/2 flow-control window (KB) for the
+market-data gRPC channel.
+
+Returns the configured KB value, or `0` on a null handle (matching the
+C ABI's `-1` failure mapping at the boundary).
+"""
+py_doc = """
+Current per-stream HTTP/2 flow-control window (KB) for the market-data
+gRPC channel (default ``1024``).
+"""
+ts_doc = """
+Current per-stream HTTP/2 flow-control window (KB) for the market-data
+gRPC channel (default `1024n`, returned as a `BigInt`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_market_data_connection_window_size_kb"
+kind = "set"
+param = "kb"
+abi_type = "usize"
+path = "market_data.connection_window_size_kb"
+doc = """
+Set the initial connection-level HTTP/2 flow-control window, in KB, for
+the market-data gRPC channel on a config handle. A larger window raises
+the throughput ceiling on bulk streaming pulls before HTTP/2
+backpressure kicks in. Default `8192` (8 MiB); `DirectConfig`
+validation (and the connect path) clamps the applied value into
+`[64, 2_097_151]` KB.
+"""
+cpp_doc = """
+Set the initial connection-level HTTP/2 flow-control window, in KB, for
+the market-data gRPC channel. A larger window raises the throughput
+ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
+@p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
+Default is `8192` (8 MiB).
+"""
+py_doc = """
+Set the initial connection-level HTTP/2 flow-control window (in KB) for
+the market-data gRPC channel. A larger window raises the throughput
+ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
+The value is clamped into ``[64, 2_097_151]`` KB at validate/connect
+time. Default is ``8192`` (8 MiB).
+
+Examples
+--------
+    cfg = Config.production()
+    cfg.market_data_connection_window_size_kb = 16384
+"""
+ts_doc = """
+Set the initial connection-level HTTP/2 flow-control window (in KB) for
+the market-data gRPC channel. A larger window raises the throughput
+ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
+The value is clamped into `[64, 2_097_151]` KB at validate/connect
+time. Default `8192n` (8 MiB). KB are taken as a `BigInt` for parity
+with the other byte/KB-denominated knobs.
+"""
+py_param = "kb"
+ts_param = "kb"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_market_data_connection_window_size_kb"
+kind = "get"
+param = "out_kb"
+abi_type = "usize"
+path = "market_data.connection_window_size_kb"
+out_safety = """
+        // SAFETY: out_kb null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current connection-level HTTP/2 flow-control window (KB) for
+the market-data gRPC channel (default `8192`).
+
+Writes the configured value into `*out_kb`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current connection-level HTTP/2 flow-control window (KB) for
+the market-data gRPC channel.
+
+Returns the configured KB value, or `0` on a null handle (matching the
+C ABI's `-1` failure mapping at the boundary).
+"""
+py_doc = """
+Current connection-level HTTP/2 flow-control window (KB) for the
+market-data gRPC channel (default ``8192``).
+"""
+ts_doc = """
+Current connection-level HTTP/2 flow-control window (KB) for the
+market-data gRPC channel (default `8192n`, returned as a `BigInt`).
+"""
+
 
 # ── retry Duration getters (ms) ────────────────────────────────────
 #

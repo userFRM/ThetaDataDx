@@ -573,20 +573,18 @@ rust_only = true
 issue = "#595"
 
 [[class]]
-name = "MarketDataConfig.window_size_kb"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
+name = "MarketDataConfig.stream_window_size_kb"
+python = true       # `Config.market_data_stream_window_size_kb` property
+typescript = true   # `Config.setMarketDataStreamWindowSizeKb` / `marketDataStreamWindowSizeKb` napi setter+getter
+cpp = true          # `Config::set_market_data_stream_window_size_kb` over `thetadatadx_config_set_market_data_stream_window_size_kb`
+setter = "market_data_stream_window_size_kb"
 
 [[class]]
 name = "MarketDataConfig.connection_window_size_kb"
-python = false
-typescript = false
-cpp = false
-rust_only = true
-issue = "#595"
+python = true       # `Config.market_data_connection_window_size_kb` property
+typescript = true   # `Config.setMarketDataConnectionWindowSizeKb` / `marketDataConnectionWindowSizeKb` napi setter+getter
+cpp = true          # `Config::set_market_data_connection_window_size_kb` over `thetadatadx_config_set_market_data_connection_window_size_kb`
+setter = "market_data_connection_window_size_kb"
 
 [[class]]
 name = "MarketDataConfig.connect_timeout_secs"

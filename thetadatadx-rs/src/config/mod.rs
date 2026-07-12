@@ -991,9 +991,14 @@ impl DirectConfig {
         if let Err(e) = crate::fpss::ring::check_ring_size(self.streaming.ring_size) {
             return Err(Error::config_invalid("streaming.ring_size", e.to_string()));
         }
-        self.market_data.window_size_kb = self.market_data.window_size_kb.clamp(64, 1_024);
-        self.market_data.connection_window_size_kb =
-            self.market_data.connection_window_size_kb.clamp(64, 1_024);
+        // h2 caps a flow-control window at 2^31 - 1 bytes, so 2_097_151 KB
+        // (the largest whole-KB value under that ceiling) is the upper bound.
+        self.market_data.stream_window_size_kb =
+            self.market_data.stream_window_size_kb.clamp(64, 2_097_151);
+        self.market_data.connection_window_size_kb = self
+            .market_data
+            .connection_window_size_kb
+            .clamp(64, 2_097_151);
         // The market-data channel needs a routable port. A `0` port is never a
         // valid dial target, so reject it up front rather than at the connect
         // attempt.
@@ -1241,7 +1246,7 @@ mod config_file {
     #[derive(Debug, Deserialize)]
     #[serde(default, deny_unknown_fields)]
     struct GrpcSection {
-        window_size_kb: usize,
+        stream_window_size_kb: usize,
         connection_window_size_kb: usize,
         /// Max inbound message size, in MB. `None` (key absent) leaves the
         /// `[market_data].max_message_size` byte value in force; an explicit
@@ -1256,7 +1261,7 @@ mod config_file {
         fn default() -> Self {
             let prod = DirectConfig::production_defaults();
             Self {
-                window_size_kb: prod.market_data.window_size_kb,
+                stream_window_size_kb: prod.market_data.stream_window_size_kb,
                 connection_window_size_kb: prod.market_data.connection_window_size_kb,
                 // Absent by default so `[market_data].max_message_size`
                 // remains the single source of truth unless the operator
@@ -1336,8 +1341,8 @@ mod config_file {
         /// ring_size = 131072
         ///
         /// [grpc]
-        /// window_size_kb = 64
-        /// connection_window_size_kb = 64
+        /// stream_window_size_kb = 1024
+        /// connection_window_size_kb = 8192
         /// ```
         ///
         /// # Errors
@@ -1417,7 +1422,7 @@ mod config_file {
             out.market_data.max_message_size = max_message_size;
             out.market_data.keepalive_secs = cf.market_data.keepalive_time_secs;
             out.market_data.keepalive_timeout_secs = cf.market_data.keepalive_timeout_secs;
-            out.market_data.window_size_kb = cf.grpc.window_size_kb;
+            out.market_data.stream_window_size_kb = cf.grpc.stream_window_size_kb;
             out.market_data.connection_window_size_kb = cf.grpc.connection_window_size_kb;
             // mdds.connect_timeout_secs is not yet TOML-surfaced; keep production default.
 
@@ -1767,11 +1772,11 @@ mod tests {
         fn grpc_section_sets_window_sizes() {
             let toml = r#"
                 [grpc]
-                window_size_kb = 128
+                stream_window_size_kb = 128
                 connection_window_size_kb = 256
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.market_data.window_size_kb, 128);
+            assert_eq!(config.market_data.stream_window_size_kb, 128);
             assert_eq!(config.market_data.connection_window_size_kb, 256);
         }
 
@@ -1937,8 +1942,8 @@ mod tests {
                 prod.market_data.max_message_size
             );
             assert_eq!(
-                config.market_data.window_size_kb,
-                prod.market_data.window_size_kb
+                config.market_data.stream_window_size_kb,
+                prod.market_data.stream_window_size_kb
             );
             assert_eq!(
                 config.market_data.connection_window_size_kb,
@@ -2075,12 +2080,12 @@ mod tests {
     #[test]
     fn validate_clamps_market_data_window_sizes_into_range() {
         let mut config = DirectConfig::production_defaults();
-        config.market_data.window_size_kb = 2_048;
+        config.market_data.stream_window_size_kb = 3_000_000;
         config.market_data.connection_window_size_kb = 32;
         let config = config
             .validate()
             .expect("market-data window sizes are clamped");
-        assert_eq!(config.market_data.window_size_kb, 1_024);
+        assert_eq!(config.market_data.stream_window_size_kb, 2_097_151);
         assert_eq!(config.market_data.connection_window_size_kb, 64);
     }
 
@@ -2088,7 +2093,7 @@ mod tests {
     fn validate_preserves_in_range_values() {
         let config = DirectConfig::production_defaults();
         let validated = config.validate().expect("production defaults validate");
-        assert_eq!(validated.market_data.window_size_kb, 64);
+        assert_eq!(validated.market_data.stream_window_size_kb, 1_024);
         assert_eq!(validated.streaming.timeout_ms, 10_000);
         assert_eq!(validated.streaming.ping_interval_ms, 100);
         assert_eq!(validated.streaming.connect_timeout_ms, 2_000);

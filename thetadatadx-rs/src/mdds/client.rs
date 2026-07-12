@@ -567,12 +567,15 @@ async fn open_channel_pool(
     let connect_timeout = Duration::from_secs(config.market_data.connect_timeout_secs);
     let max_message_size = config.market_data.max_message_size;
     // HTTP/2 session tuning from the operator's config: flow-control
-    // windows (`window_size_kb` / `connection_window_size_kb`, already
-    // clamped to [64, 1024] KB by `DirectConfig::validate`) and the
+    // windows (`stream_window_size_kb` / `connection_window_size_kb`, already
+    // clamped to [64, 2_097_151] KB by `DirectConfig::validate`) and the
     // keepalive cadence (`keepalive_secs` / `keepalive_timeout_secs`).
     let tuning = ChannelTuning {
         initial_stream_window_size: u32::try_from(
-            config.market_data.window_size_kb.saturating_mul(1024),
+            config
+                .market_data
+                .stream_window_size_kb
+                .saturating_mul(1024),
         )
         .unwrap_or(u32::MAX),
         initial_connection_window_size: u32::try_from(

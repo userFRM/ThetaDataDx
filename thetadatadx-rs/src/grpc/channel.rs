@@ -50,15 +50,15 @@ const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
 
 /// HTTP/2 session tuning threaded from `DirectConfig::mdds` —
 /// flow-control windows and keepalive cadence. The short channel
-/// constructors use [`ChannelTuning::default`] (the HTTP/2 spec
-/// windows, 30 s / 10 s keepalive — the values production config
-/// defaults to); `MarketDataClient::connect` threads the operator's
-/// configured values through [`Channel::connect_tls_tuned`] /
-/// [`Channel::connect_h2c_tuned`].
+/// constructors use [`ChannelTuning::default`] (the 64 KiB HTTP/2 spec
+/// windows, 30 s / 10 s keepalive — a deliberately untuned connection,
+/// below the larger production-config defaults); `MarketDataClient::connect`
+/// threads the operator's configured values through
+/// [`Channel::connect_tls_tuned`] / [`Channel::connect_h2c_tuned`].
 #[derive(Debug, Clone, Copy)]
 pub struct ChannelTuning {
     /// Initial per-stream flow-control window, in bytes. Mirrors
-    /// `MarketDataConfig::window_size_kb`.
+    /// `MarketDataConfig::stream_window_size_kb`.
     pub initial_stream_window_size: u32,
     /// Initial connection-level flow-control window, in bytes.
     /// Mirrors `MarketDataConfig::connection_window_size_kb`.
@@ -75,8 +75,9 @@ pub struct ChannelTuning {
 impl Default for ChannelTuning {
     fn default() -> Self {
         Self {
-            // HTTP/2 spec initial windows (64 KiB) — the same wire
-            // shape the production config defaults to.
+            // HTTP/2 spec initial windows (64 KiB) — a deliberately
+            // untuned connection for the short constructors, below the
+            // larger production-config defaults.
             initial_stream_window_size: 64 * 1024,
             initial_connection_window_size: 64 * 1024,
             keepalive_interval: Duration::from_secs(30),

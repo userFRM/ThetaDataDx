@@ -1000,6 +1000,89 @@ pub unsafe extern "C" fn thetadatadx_config_get_request_timeout_secs(
     })
 }
 
+/// Set the initial per-stream HTTP/2 flow-control window, in KB, for the
+/// market-data gRPC channel on a config handle. A larger window raises the
+/// throughput ceiling on bulk streaming pulls before HTTP/2 backpressure
+/// kicks in. Default `1024` (1 MiB); `DirectConfig` validation (and the
+/// connect path) clamps the applied value into `[64, 2_097_151]` KB.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_market_data_stream_window_size_kb(
+    config: *mut ThetaDataDxConfig,
+    kb: usize,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.market_data.stream_window_size_kb = kb;
+    })
+}
+
+/// Read the current per-stream HTTP/2 flow-control window (KB) for the
+/// market-data gRPC channel (default `1024`).
+///
+/// Writes the configured value into `*out_kb`. Returns `0` on success,
+/// `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_market_data_stream_window_size_kb(
+    config: *const ThetaDataDxConfig,
+    out_kb: *mut usize,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_kb.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_kb null-checked above; caller pins the storage for the call duration.
+        unsafe {
+            *out_kb = config.inner.market_data.stream_window_size_kb;
+        }
+        0
+    })
+}
+
+/// Set the initial connection-level HTTP/2 flow-control window, in KB, for
+/// the market-data gRPC channel on a config handle. A larger window raises
+/// the throughput ceiling on bulk streaming pulls before HTTP/2
+/// backpressure kicks in. Default `8192` (8 MiB); `DirectConfig`
+/// validation (and the connect path) clamps the applied value into
+/// `[64, 2_097_151]` KB.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_market_data_connection_window_size_kb(
+    config: *mut ThetaDataDxConfig,
+    kb: usize,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.market_data.connection_window_size_kb = kb;
+    })
+}
+
+/// Read the current connection-level HTTP/2 flow-control window (KB) for
+/// the market-data gRPC channel (default `8192`).
+///
+/// Writes the configured value into `*out_kb`. Returns `0` on success,
+/// `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_market_data_connection_window_size_kb(
+    config: *const ThetaDataDxConfig,
+    out_kb: *mut usize,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_kb.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_kb null-checked above; caller pins the storage for the call duration.
+        unsafe {
+            *out_kb = config.inner.market_data.connection_window_size_kb;
+        }
+        0
+    })
+}
+
 /// Read the current `retry.initial_delay` setting (ms). Returns `0` on
 /// success, `-1` if either pointer is null.
 #[no_mangle]
