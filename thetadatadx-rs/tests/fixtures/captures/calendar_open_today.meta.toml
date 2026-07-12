@@ -9,7 +9,6 @@ expected_rows = 1
 expected_headers = ["type", "open", "close"]
 
 # First row: regular open session, 09:30 - 16:00 ET.
-first_row_is_open = 1
 first_row_open_time = 34200000   # 09:30:00.000 ET in ms.
 first_row_close_time = 57600000  # 16:00:00.000 ET in ms.
 first_row_status = 0             # CALENDAR_STATUS_OPEN.

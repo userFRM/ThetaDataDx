@@ -2478,12 +2478,6 @@ typescript = "i32"
 
 [[value_field]]
 class = "CalendarDay"
-name = "is_open"
-python = "bool"
-typescript = "bool"
-
-[[value_field]]
-class = "CalendarDay"
 name = "status"
 python = "String"
 typescript = "String"

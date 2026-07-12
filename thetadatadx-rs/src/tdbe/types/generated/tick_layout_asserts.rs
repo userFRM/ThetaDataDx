@@ -17,10 +17,9 @@ mod layout_asserts {
         assert_eq!(size_of::<CalendarDay>(), 64);
         assert_eq!(align_of::<CalendarDay>(), 64);
         assert_eq!(offset_of!(CalendarDay, date), 0);
-        assert_eq!(offset_of!(CalendarDay, is_open), 4);
-        assert_eq!(offset_of!(CalendarDay, open_time), 8);
-        assert_eq!(offset_of!(CalendarDay, close_time), 12);
-        assert_eq!(offset_of!(CalendarDay, status), 16);
+        assert_eq!(offset_of!(CalendarDay, open_time), 4);
+        assert_eq!(offset_of!(CalendarDay, close_time), 8);
+        assert_eq!(offset_of!(CalendarDay, status), 12);
     }
 
     #[test]

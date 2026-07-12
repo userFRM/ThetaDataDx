@@ -41,7 +41,7 @@ pub(super) fn display_fields(collection: &str) -> &'static [&'static str] {
         "TradeGreeksImpliedVolatilityTicks" => &["ms_of_day", "price", "implied_volatility"],
         "PriceTicks" => &["date", "ms_of_day", "price"],
         "IndexPriceAtTimeTicks" => &["date", "ms_of_day", "price"],
-        "CalendarDays" => &["date", "is_open", "status"],
+        "CalendarDays" => &["date", "open_time", "close_time", "status"],
         "InterestRateTicks" => &["date", "rate"],
         "OptionContracts" => &["symbol", "expiration", "strike", "right"],
         other => panic!("no display fields declared for collection {other}"),
