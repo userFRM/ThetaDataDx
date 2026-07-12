@@ -207,11 +207,9 @@ pub(crate) fn validate_symbol(value: &str, param_name: &str) -> Result<(), Endpo
 ///
 /// Mirrors the upstream enum at
 /// `https://docs.thetadata.us/operations/option_history_quote.html`.
-/// The SDK additionally accepts decimal millisecond shorthand
-/// (`"60000"`, `"300000"`, ...) and snaps it to the nearest preset via
-/// [`crate::mdds::endpoints::normalize_interval`]; this validator
-/// recognises both shapes so the CLI / MCP layer rejects garbage
-/// before the gRPC dispatch.
+/// This is a closed set: the server accepts these preset strings and
+/// nothing else, so the validator rejects anything outside it (including
+/// raw-millisecond shorthand) before the gRPC dispatch.
 ///
 /// Only compiled under `__internal` — used by `validate_interval`.
 ///
@@ -226,16 +224,17 @@ const VALID_INTERVAL_PRESETS: &[&str] = &[
     "30m", "1h",
 ];
 
-/// Validate an `interval` parameter against the upstream enum and the
-/// millisecond-shorthand shape.
+/// Validate an `interval` parameter against the upstream enum.
 ///
-/// Accepts any preset in [`VALID_INTERVAL_PRESETS`] or a positive integer
-/// of milliseconds (snapped to the nearest preset downstream).
+/// Accepts only the presets in [`VALID_INTERVAL_PRESETS`] — the closed
+/// set the server serves. The interval string is forwarded to the wire
+/// verbatim, so anything outside the enum is rejected here rather than
+/// silently reshaped.
 ///
 /// # Errors
 ///
 /// Returns [`EndpointError::InvalidParams`] when `value` is empty, names
-/// a bar size beyond the `1h` ceiling, or matches no accepted shape. The
+/// a bar size beyond the `1h` ceiling, or matches no preset. The
 /// beyond-`1h` case carries a diagnostic pointing at `1h` / the
 /// `*_history_eod` endpoints.
 ///
@@ -244,17 +243,11 @@ const VALID_INTERVAL_PRESETS: &[&str] = &[
 pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), EndpointError> {
     if value.is_empty() {
         return Err(EndpointError::InvalidParams(format!(
-            "'{param_name}' must be a non-empty string from the upstream enum ({}) or a millisecond value (e.g. '60000'), got empty string",
+            "'{param_name}' must be one of the upstream presets ({}), got empty string",
             VALID_INTERVAL_PRESETS.join(", "),
         )));
     }
     if VALID_INTERVAL_PRESETS.contains(&value) {
-        return Ok(());
-    }
-    if value.bytes().all(|b| b.is_ascii_digit()) {
-        // Millisecond shorthand: `normalize_interval` will snap to the
-        // nearest documented preset. Any positive integer is accepted
-        // here; the snap range covers `0` (-> "tick") through `1h`.
         return Ok(());
     }
     // Targeted diagnostic for multi-hour / daily / weekly shorthand
@@ -268,7 +261,7 @@ pub(crate) fn validate_interval(value: &str, param_name: &str) -> Result<(), End
         )));
     }
     Err(EndpointError::InvalidParams(format!(
-        "'{param_name}' must be one of the upstream presets ({}) or a millisecond value (e.g. '60000'), got: '{value}'",
+        "'{param_name}' must be one of the upstream presets ({}), got: '{value}'",
         VALID_INTERVAL_PRESETS.join(", "),
     )))
 }
@@ -576,12 +569,18 @@ mod internal_tests {
     }
 
     #[test]
-    fn interval_accepts_upstream_enum_and_ms_shorthand() {
+    fn interval_accepts_only_upstream_enum() {
         for good in [
             "tick", "10ms", "100ms", "500ms", "1s", "5s", "10s", "15s", "30s", "1m", "5m", "10m",
-            "15m", "30m", "1h", "0", "60000", "300000",
+            "15m", "30m", "1h",
         ] {
             assert!(validate_interval(good, "interval").is_ok(), "{good}");
+        }
+        // Raw-millisecond shorthand is not in the upstream enum — the
+        // wire forwards the interval verbatim, so these are rejected
+        // rather than snapped to a preset.
+        for bad in ["0", "60000", "300000", "250", "7"] {
+            assert!(validate_interval(bad, "interval").is_err(), "{bad}");
         }
     }
 

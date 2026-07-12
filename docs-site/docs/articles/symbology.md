@@ -29,7 +29,7 @@ Strikes are dollars across every surface, including the bundled server's [WebSoc
 - Dates are `YYYYMMDD` strings (`"20250303"`). The HTTP server also accepts ISO `YYYY-MM-DD`.
 - Date ranges are inclusive on both ends.
 - Time-of-day inputs (`start_time`, `end_time`, `time_of_day`) are Eastern Time wall-clock `HH:MM:SS` (at-time endpoints take milliseconds: `HH:MM:SS.SSS`).
-- `interval` accepts a preset (`1s`, `1m`, `1h`, …) or a millisecond count as a string (`"60000"`).
+- `interval` is one of the presets: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
 
 ## Timestamps out
 

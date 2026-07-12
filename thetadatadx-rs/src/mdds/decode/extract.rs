@@ -90,8 +90,7 @@ pub fn extract_number_column(table: &proto::DataTable, header: &str) -> Vec<Opti
 /// `list_dates` / `list_expirations` carry `YYYYMMDD` values as
 /// `Number` cells and `list_strikes` carries the strike as a `Number`
 /// or `Price` cell, yet every binding presents these lists as
-/// `Vec<String>` with a numeric-aware sort (see [`sorted_list_values`]).
-/// Rejecting numeric cells here would break those endpoints on every
+/// `Vec<String>`. Rejecting numeric cells here would break those endpoints on every
 /// call, so the coercion is intentional rather than a swallowed drift.
 ///
 /// To keep an unexpected numeric cell observable (a text column that
@@ -286,61 +285,9 @@ pub fn response_symbol(table: &proto::DataTable) -> ResponseSymbol {
     )
 }
 
-/// Sort list-endpoint values ascending for the public `list_*` returns.
-///
-/// Numeric-aware: when every value parses as a finite `f64` (strikes,
-/// dates, expirations) the sort is numeric — a lexicographic sort would
-/// order `"1000"` before `"320"`. Otherwise (symbols, roots) the sort
-/// is lexicographic. The wire returns these lists unsorted; one
-/// deterministic ascending order on every binding is part of the
-/// public contract.
-#[must_use]
-pub fn sorted_list_values(mut values: Vec<String>) -> Vec<String> {
-    let all_numeric = !values.is_empty()
-        && values
-            .iter()
-            .all(|v| v.parse::<f64>().is_ok_and(f64::is_finite));
-    if all_numeric {
-        values.sort_by(|a, b| {
-            // The `all_numeric` gate already proved every element parses
-            // as a finite `f64`, and `values` is not mutated between that
-            // check and this sort, so the `unwrap_or` fallbacks are
-            // unreachable; they keep the comparator total without
-            // re-introducing the gate's invariant as a `expect`.
-            let a: f64 = a.parse().unwrap_or(f64::MAX);
-            let b: f64 = b.parse().unwrap_or(f64::MAX);
-            a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
-        });
-    } else {
-        values.sort();
-    }
-    values
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn sorted_list_values_orders_numeric_strings_numerically() {
-        let values = vec!["661", "725", "320", "789", "1000", "640"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        assert_eq!(
-            sorted_list_values(values),
-            vec!["320", "640", "661", "725", "789", "1000"]
-        );
-    }
-
-    #[test]
-    fn sorted_list_values_orders_symbols_lexicographically() {
-        let values = vec!["MSFT", "AAPL", "SPY"]
-            .into_iter()
-            .map(String::from)
-            .collect();
-        assert_eq!(sorted_list_values(values), vec!["AAPL", "MSFT", "SPY"]);
-    }
 
     /// `extract_text_column` must resolve the schema-side `root`
     /// against an upstream-renamed `symbol` column via

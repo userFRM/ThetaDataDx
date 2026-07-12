@@ -544,7 +544,6 @@ pub(super) fn mdds_query_field_expr(
                 format!("vec![{arg_name}.clone()]")
             }
         }
-        "interval" => format!("normalize_interval(&{arg_name})"),
         "time_of_day" => format!("normalize_time_of_day(&{arg_name})"),
         // Date-semantic wire fields. The validators accept both
         // `YYYYMMDD` and `YYYY-MM-DD`; the wire contract is the compact

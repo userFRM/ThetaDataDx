@@ -100,59 +100,6 @@ impl From<&[String]> for SymbolInput {
 // from `wire_semantics` above are shared with build-time code via
 // `#[path]` reuse and stay out of this file.
 
-/// Convert an interval to the format the MDDS server accepts.
-///
-/// Users can pass either:
-/// - Shorthand directly: `"tick"`, `"10ms"`, `"100ms"`, `"500ms"`,
-///   `"1s"`, `"5s"`, `"10s"`, `"15s"`, `"30s"`, `"1m"`, `"5m"`,
-///   `"10m"`, `"15m"`, `"30m"`, `"1h"`.
-/// - Milliseconds as a string (e.g. `"60000"` or `"300000"`). Values
-///   are snapped to the nearest documented preset.
-///
-/// The full upstream enum is reproduced verbatim in
-/// `docs.thetadata.us/operations/option_history_quote.html` (and every
-/// other endpoint with an `interval` parameter). The enum tops out at
-/// `1h`: larger shorthand (`2h` / `4h` / `1d`) is rejected by the
-/// service with `Invalid interval` (verified live), so millisecond
-/// inputs past one hour snap DOWN to `1h` — the largest legal bar —
-/// rather than forwarding a string the upstream cannot serve. Daily
-/// bars come from the `*_history_eod` endpoints.
-///
-/// The `"0"` sentinel snaps to `"tick"` — the upstream every-event
-/// vocabulary — so the zero input maps to every-event sampling rather
-/// than a silent fixed-bar default. Callers wanting a fixed bar should
-/// pass an explicit preset.
-fn normalize_interval(interval: &str) -> String {
-    if interval.ends_with('s') || interval.ends_with('m') || interval.ends_with('h') {
-        return interval.to_string();
-    }
-    if interval == "tick" {
-        return "tick".to_string();
-    }
-
-    match interval.parse::<u64>() {
-        Ok(ms) => match ms {
-            0 => "tick".to_string(),
-            1..=10 => "10ms".to_string(),
-            11..=100 => "100ms".to_string(),
-            101..=500 => "500ms".to_string(),
-            501..=1000 => "1s".to_string(),
-            1_001..=5_000 => "5s".to_string(),
-            5_001..=10_000 => "10s".to_string(),
-            10_001..=15_000 => "15s".to_string(),
-            15_001..=30_000 => "30s".to_string(),
-            30_001..=60_000 => "1m".to_string(),
-            60_001..=300_000 => "5m".to_string(),
-            300_001..=600_000 => "10m".to_string(),
-            600_001..=900_000 => "15m".to_string(),
-            900_001..=1_800_000 => "30m".to_string(),
-            _ => "1h".to_string(),
-        },
-        // Not a number -- pass through and let the server decide.
-        Err(_) => interval.to_string(),
-    }
-}
-
 /// Convert `time_of_day` values into the canonical `HH:MM:SS.SSS` format.
 ///
 /// ThetaData's v3 at-time endpoints expect a formatted ET wall-clock time
@@ -282,47 +229,5 @@ mod tests {
         assert_eq!(normalize_time_of_day("86400000"), "86400000");
         assert_eq!(normalize_time_of_day("09:61"), "09:61");
         assert_eq!(normalize_time_of_day("not-a-time"), "not-a-time");
-    }
-
-    #[test]
-    fn normalize_interval_passes_shorthand_through() {
-        assert_eq!(normalize_interval("tick"), "tick");
-        assert_eq!(normalize_interval("10ms"), "10ms");
-        assert_eq!(normalize_interval("1m"), "1m");
-        assert_eq!(normalize_interval("5m"), "5m");
-        assert_eq!(normalize_interval("1h"), "1h");
-    }
-
-    #[test]
-    fn normalize_interval_rounds_milliseconds_to_preset() {
-        assert_eq!(normalize_interval("60000"), "1m");
-        assert_eq!(normalize_interval("300000"), "5m");
-        assert_eq!(normalize_interval("900000"), "15m");
-        assert_eq!(normalize_interval("3600000"), "1h");
-        // Millisecond inputs past one hour snap DOWN to `1h`, the
-        // largest bar in the upstream enum — `2h` / `4h` / `1d` wire
-        // strings are rejected by the service with `Invalid interval`
-        // (verified live), so forwarding them would turn a servable
-        // request into an upstream failure.
-        assert_eq!(normalize_interval("7200000"), "1h");
-        assert_eq!(normalize_interval("86400000"), "1h");
-    }
-
-    #[test]
-    fn normalize_interval_snaps_zero_to_tick() {
-        // The upstream `tick` keyword is the every-event vocabulary, so
-        // the zero sentinel snaps to it (every-event sampling) rather
-        // than a fixed sub-second bar.
-        assert_eq!(normalize_interval("0"), "tick");
-    }
-
-    #[test]
-    fn normalize_interval_snaps_small_milliseconds_to_documented_presets() {
-        // 10ms-and-under -> 10ms; 11-100ms -> 100ms. Each sub-100ms
-        // input snaps to the nearest documented preset, including the
-        // 10ms bar.
-        assert_eq!(normalize_interval("10"), "10ms");
-        assert_eq!(normalize_interval("11"), "100ms");
-        assert_eq!(normalize_interval("100"), "100ms");
     }
 }
