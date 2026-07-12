@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **`ping_interval_ms` default is now `100`, matching the terminal.** The client heartbeat previously defaulted to `250 ms`; the Theta Terminal pings on a fixed `100 ms` period, and with `flush_mode` removed the ping is the sole flush trigger for queued outbound control frames, so the default now matches the terminal exactly (subscribe / unsubscribe reach the server within one `100 ms` interval instead of `250 ms`). The knob and its `[100, 300_000]` range are unchanged; override it if you prefer the old cadence.
+ 
+- **exposed `stream_window_size` and `connection_window_size` to client libraries and raised default window sizes
 
 ### Removed
 
