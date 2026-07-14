@@ -6,7 +6,7 @@
 // and the trait definitions share a single compilation unit.
 
 #[cfg(feature = "arrow")]
-use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
+use arrow_array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};
 #[cfg(feature = "arrow")]
 use arrow_array::{RecordBatch, RecordBatchOptions};
 #[cfg(feature = "arrow")]
@@ -24,27 +24,23 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
     fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_is_open: Vec<bool> = Vec::with_capacity(n);
         let mut col_open_time: Vec<i32> = Vec::with_capacity(n);
         let mut col_close_time: Vec<i32> = Vec::with_capacity(n);
         let mut col_status: Vec<String> = Vec::with_capacity(n);
         for t in self {
             col_date.push(t.date);
-            col_is_open.push(t.is_open);
             col_open_time.push(t.open_time);
             col_close_time.push(t.close_time);
             col_status.push(t.status.as_str().to_string());
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("date", DataType::Int32, false),
-            Field::new("is_open", DataType::Boolean, false),
             Field::new("open_time", DataType::Int32, false),
             Field::new("close_time", DataType::Int32, false),
             Field::new("status", DataType::Utf8, false),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
-            Arc::new(BooleanArray::from(col_is_open)) as ArrayRef,
             Arc::new(Int32Array::from(col_open_time)) as ArrayRef,
             Arc::new(Int32Array::from(col_close_time)) as ArrayRef,
             Arc::new(StringArray::from(col_status)) as ArrayRef,
@@ -56,18 +52,15 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
     fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
         let n = self.len();
         let has_date = present.contains("date");
-        let has_is_open = present.contains("is_open");
         let has_open_time = present.contains("open_time");
         let has_close_time = present.contains("close_time");
         let has_status = present.contains("status");
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
-        let mut col_is_open: Vec<bool> = Vec::with_capacity(if has_is_open { n } else { 0 });
         let mut col_open_time: Vec<i32> = Vec::with_capacity(if has_open_time { n } else { 0 });
         let mut col_close_time: Vec<i32> = Vec::with_capacity(if has_close_time { n } else { 0 });
         let mut col_status: Vec<String> = Vec::with_capacity(if has_status { n } else { 0 });
         for t in self {
             if has_date { col_date.push(t.date); }
-            if has_is_open { col_is_open.push(t.is_open); }
             if has_open_time { col_open_time.push(t.open_time); }
             if has_close_time { col_close_time.push(t.close_time); }
             if has_status { col_status.push(t.status.as_str().to_string()); }
@@ -84,10 +77,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
         if has_date {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
-        }
-        if has_is_open {
-            fields.push(Field::new("is_open", DataType::Boolean, false));
-            columns.push(Arc::new(BooleanArray::from(col_is_open)) as ArrayRef);
         }
         if has_open_time {
             fields.push(Field::new("open_time", DataType::Int32, false));
@@ -112,20 +101,17 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
     fn to_polars(&self) -> PolarsResult<DataFrame> {
         let n = self.len();
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_is_open: Vec<bool> = Vec::with_capacity(n);
         let mut col_open_time: Vec<i32> = Vec::with_capacity(n);
         let mut col_close_time: Vec<i32> = Vec::with_capacity(n);
         let mut col_status: Vec<String> = Vec::with_capacity(n);
         for t in self {
             col_date.push(t.date);
-            col_is_open.push(t.is_open);
             col_open_time.push(t.open_time);
             col_close_time.push(t.close_time);
             col_status.push(t.status.as_str().to_string());
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
-            Series::new(PlSmallStr::from_static("is_open"), col_is_open).into(),
             Series::new(PlSmallStr::from_static("open_time"), col_open_time).into(),
             Series::new(PlSmallStr::from_static("close_time"), col_close_time).into(),
             Series::new(PlSmallStr::from_static("status"), col_status).into(),
@@ -136,18 +122,15 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
     fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
         let n = self.len();
         let has_date = present.contains("date");
-        let has_is_open = present.contains("is_open");
         let has_open_time = present.contains("open_time");
         let has_close_time = present.contains("close_time");
         let has_status = present.contains("status");
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
-        let mut col_is_open: Vec<bool> = Vec::with_capacity(if has_is_open { n } else { 0 });
         let mut col_open_time: Vec<i32> = Vec::with_capacity(if has_open_time { n } else { 0 });
         let mut col_close_time: Vec<i32> = Vec::with_capacity(if has_close_time { n } else { 0 });
         let mut col_status: Vec<String> = Vec::with_capacity(if has_status { n } else { 0 });
         for t in self {
             if has_date { col_date.push(t.date); }
-            if has_is_open { col_is_open.push(t.is_open); }
             if has_open_time { col_open_time.push(t.open_time); }
             if has_close_time { col_close_time.push(t.close_time); }
             if has_status { col_status.push(t.status.as_str().to_string()); }
@@ -160,9 +143,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
         }
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
-        }
-        if has_is_open {
-            series.push(Series::new(PlSmallStr::from_static("is_open"), col_is_open).into());
         }
         if has_open_time {
             series.push(Series::new(PlSmallStr::from_static("open_time"), col_open_time).into());

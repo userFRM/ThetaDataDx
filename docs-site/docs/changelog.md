@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`interval` is forwarded verbatim.** The `interval` argument is no longer snapped to the nearest preset: a raw-millisecond value such as `"250"` or `"60000"` is now rejected client-side rather than silently mapped to `"500ms"` / `"1m"`. The server accepts only the closed preset enum (`tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`); the SDK now forwards the string as-is and validates against that set. Pass an explicit preset. This is a breaking change to the `interval` parameter.
 
+- **`CalendarDay.is_open` derived boolean.** Removed from every binding (Python `CalendarDay.is_open`, TypeScript `CalendarDay.isOpen`, C `ThetaDataDxCalendarDay.is_open`, and the Arrow / Polars `is_open` column). The calendar wire carries a single day-type column; `is_open` was an SDK-derived boolean (`status in {open, early_close}`) that the terminal never exposes. Read `status` instead — it carries the full `open` / `early_close` / `full_close` / `weekend` vocabulary — and treat `open` / `early_close` as trading days. This is a breaking change to the calendar tick schema.
+
 ## [0.1.1] - 2026-07-07
 
 ### Added

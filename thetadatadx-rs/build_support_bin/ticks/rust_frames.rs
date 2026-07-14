@@ -56,7 +56,7 @@ pub(super) fn render_rust_frames(schema: &Schema) -> String {
 
     out.push_str("#[cfg(feature = \"arrow\")]\n");
     out.push_str(
-        "use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};\n",
+        "use arrow_array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
     out.push_str("#[cfg(feature = \"arrow\")]\n");
     out.push_str("use arrow_array::{RecordBatch, RecordBatchOptions};\n");

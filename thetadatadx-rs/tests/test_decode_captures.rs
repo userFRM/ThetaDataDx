@@ -387,7 +387,6 @@ fn decode_captures_calendar_open_today() {
     assert_eq!(days.len(), table.data_table.len());
 
     let first = days.first().unwrap();
-    assert_eq!(first.is_open as i64, meta_int(&meta, "first_row_is_open"));
     assert_eq!(
         first.open_time as i64,
         meta_int(&meta, "first_row_open_time")

@@ -545,7 +545,7 @@ fn index_snapshot_market_value_drops_bid_ask() {
 }
 
 /// `calendar_open_today` sends `type,open,close` with no `date` column. The
-/// hand-written parser maps `type` to both `is_open` and `status`; the
+/// hand-written parser maps `type` to `status`; the
 /// projected frame must carry those decoded fields plus the two session times
 /// and must not fabricate `date`.
 #[test]
@@ -557,7 +557,7 @@ fn calendar_open_today_projects_v3_fields_from_fixture() {
 
     let batch = days.as_slice().to_arrow_projected(&present).unwrap();
     let cols = arrow_columns(&batch);
-    assert_eq!(cols, ["is_open", "open_time", "close_time", "status"]);
+    assert_eq!(cols, ["open_time", "close_time", "status"]);
 
     let df = days.as_slice().to_polars_projected(&present).unwrap();
     assert_eq!(
@@ -574,10 +574,7 @@ fn calendar_open_today_projects_v3_fields_from_fixture() {
 #[test]
 fn calendar_year_headers_project_all_v3_fields() {
     let cols = projected_columns::<CalendarDay>(&["date", "type", "open", "close"]);
-    assert_eq!(
-        cols,
-        ["date", "is_open", "open_time", "close_time", "status"]
-    );
+    assert_eq!(cols, ["date", "open_time", "close_time", "status"]);
 }
 
 // ── The full (hand-built) path is unchanged ───────────────────────────────

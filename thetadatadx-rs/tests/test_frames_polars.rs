@@ -26,7 +26,6 @@ fn dtype_of(df: &DataFrame, name: &str) -> DataType {
 fn calendar_day_to_polars() {
     let ticks = vec![tick::CalendarDay {
         date: 20240102,
-        is_open: true,
         open_time: 34200000,
         close_time: 57600000,
         status: thetadatadx::CalendarStatus::Open,
@@ -35,7 +34,7 @@ fn calendar_day_to_polars() {
     assert_eq!(df.height(), 1);
     assert_eq!(
         columns(&df),
-        vec!["date", "is_open", "open_time", "close_time", "status"]
+        vec!["date", "open_time", "close_time", "status"]
     );
     assert_eq!(dtype_of(&df, "date"), DataType::Int32);
     assert_eq!(dtype_of(&df, "open_time"), DataType::Int32);

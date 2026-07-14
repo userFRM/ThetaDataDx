@@ -33,7 +33,6 @@ fn dtype_of(batch: &RecordBatch, name: &str) -> DataType {
 fn calendar_day_to_arrow() {
     let ticks = vec![tick::CalendarDay {
         date: 20240102,
-        is_open: true,
         open_time: 34200000,
         close_time: 57600000,
         status: thetadatadx::CalendarStatus::Open,
@@ -42,7 +41,7 @@ fn calendar_day_to_arrow() {
     assert_eq!(batch.num_rows(), 1);
     assert_eq!(
         columns(&batch),
-        vec!["date", "is_open", "open_time", "close_time", "status"]
+        vec!["date", "open_time", "close_time", "status"]
     );
     assert_eq!(dtype_of(&batch, "date"), DataType::Int32);
 }

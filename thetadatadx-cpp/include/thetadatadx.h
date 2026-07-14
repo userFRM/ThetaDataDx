@@ -65,15 +65,12 @@ typedef struct ThetaDataDxClient ThetaDataDxClient;
  * session open/close times and a THETADATADX_CALENDAR_STATUS_* day-type code. */
 THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t date;
-    /* C99 bool (1 byte): whether the market trades at all on this date
-     * (true for open and early-close days). 3 bytes padding follow. */
-    bool is_open;
     int32_t open_time;
     int32_t close_time;
     /* One of the THETADATADX_CALENDAR_STATUS_* codes; string form via
      * thetadatadx_calendar_status_name(). */
     int32_t status;
-    uint8_t _tail_padding[44];
+    uint8_t _tail_padding[48];
 } ThetaDataDxCalendarDay THETADATADX_ALIGN64_END;
 
 /* End-of-day OHLC + closing-quote tick (*_history_eod) -- one row per

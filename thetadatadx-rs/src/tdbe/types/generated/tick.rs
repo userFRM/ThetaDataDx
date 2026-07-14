@@ -8,7 +8,7 @@
 // `Display` / `OptionContract` impls, then re-exports through
 // `tdbe::types::tick`.
 
-/// Calendar day -- 5 fields. Market open/close schedule.
+/// Calendar day -- 4 fields. Market open/close schedule.
 ///
 /// `status` carries the vendor's own day-type vocabulary (`open` /
 /// `early_close` / `full_close` / `weekend`); unknown wire text fails
@@ -21,8 +21,6 @@
 pub struct CalendarDay {
     /// Calendar date as a YYYYMMDD integer. 0 when the server omits the column (single-day endpoints).
     pub date: i32,
-    /// Whether the market trades at all on this date (true for open and early-close days).
-    pub is_open: bool,
     /// Market open time, milliseconds since midnight ET.
     pub open_time: i32,
     /// Market close time, milliseconds since midnight ET.

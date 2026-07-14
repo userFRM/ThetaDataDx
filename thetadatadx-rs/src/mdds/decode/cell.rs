@@ -545,42 +545,6 @@ pub(crate) fn row_contract_right(
     }
 }
 
-/// Decode a logical boolean cell (`Number` 0 / 1 → `bool`).
-///
-/// Used by schema columns typed `bool` (e.g. `CalendarDay.is_open`).
-/// `NullValue` yields `Ok(None)` so the absent-column fill stays
-/// `false`.
-///
-/// # Errors
-///
-/// Returns [`DecodeError::UnknownEnumVariant`] for numeric payloads
-/// outside `{0, 1}`, [`DecodeError::TypeMismatch`] on any other
-/// variant, and [`DecodeError::MissingCell`] when the row is shorter
-/// than `idx`.
-#[inline]
-pub(crate) fn row_bool(
-    row: &proto::DataValueList,
-    idx: usize,
-) -> Result<Option<bool>, DecodeError> {
-    let Some(dv) = row.values.get(idx) else {
-        return Err(DecodeError::MissingCell { column: idx });
-    };
-    match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Number(0)) => Ok(Some(false)),
-        Some(proto::data_value::DataType::Number(1)) => Ok(Some(true)),
-        Some(proto::data_value::DataType::Number(n)) => Err(DecodeError::UnknownEnumVariant {
-            field: "bool",
-            raw: n.to_string(),
-        }),
-        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
-        other => Err(DecodeError::TypeMismatch {
-            column: idx,
-            expected: "Number",
-            observed: observed_name(other),
-        }),
-    }
-}
-
 /// Decode a calendar day-type cell to the typed
 /// [`crate::tdbe::types::enums::CalendarStatus`].
 ///

@@ -12,7 +12,7 @@ const cfg = {
   method: { rust: "calendar_open_today", python: "calendar_open_today", ts: "calendarOpenToday", cpp: "calendar_open_today" },
   required: [],
   optional: [],
-  print: ["date", "is_open", "status"],
+  print: ["date", "open_time", "close_time", "status"],
   returns: "CalendarDay",
 }
 </script>
@@ -42,7 +42,6 @@ Rows of `CalendarDay`:
 | Field | Type | Description |
 |---|---|---|
 | `date` | i32 | Calendar date as a YYYYMMDD integer. 0 when the server omits the column (single-day endpoints). |
-| `is_open` | bool | Whether the market trades at all on this date (true for open and early-close days). |
 | `open_time` | i32 | Market open time, milliseconds since midnight ET. |
 | `close_time` | i32 | Market close time, milliseconds since midnight ET. |
 | `status` | string | Vendor day classification: open, early_close, full_close, or weekend. |
