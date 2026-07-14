@@ -2005,7 +2005,7 @@ int32_t thetadatadx_config_get_request_timeout_secs(const ThetaDataDxConfig* con
  * before HTTP/2 backpressure kicks in.
  * @param config Config handle to mutate; no-op when NULL.
  * @param kb Window size in KB; clamped into [64, 2097151] KB at
- *           validate/connect time. Default 1024 (1 MiB).
+ *           validate/connect time. Default 8192 (8 MiB).
  */
 void thetadatadx_config_set_market_data_stream_window_size_kb(ThetaDataDxConfig* config, size_t kb);
 
@@ -2026,7 +2026,7 @@ int32_t thetadatadx_config_get_market_data_stream_window_size_kb(const ThetaData
  * before HTTP/2 backpressure kicks in.
  * @param config Config handle to mutate; no-op when NULL.
  * @param kb Window size in KB; clamped into [64, 2097151] KB at
- *           validate/connect time. Default 8192 (8 MiB).
+ *           validate/connect time. Default 16384 (16 MiB).
  */
 void thetadatadx_config_set_market_data_connection_window_size_kb(ThetaDataDxConfig* config, size_t kb);
 

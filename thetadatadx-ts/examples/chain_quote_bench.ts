@@ -8,7 +8,7 @@
 // sizes can be measured against the live backend.
 //
 // Run with:
-//     npx tsx examples/chain_quote_bench.ts -- [symbol] [expiration] [date] [interval]
+//     npx tsx examples/chain_quote_bench.ts [symbol] [expiration] [date] [interval]
 //
 // Args (all optional):
 //   symbol      option root (default SPXW)
@@ -38,10 +38,10 @@ const USAGE = `usage: chain_quote_bench.ts [symbol] [expiration] [date] [interva
 // / `setMarketDataConnectionWindowSizeKb` before connect. Edit and rerun to
 // benchmark different values; validate/connect clamps both into
 // [64, 2_097_151] KB.
-// const STREAM_WINDOW_SIZE_KB = 8_192;
-const STREAM_WINDOW_SIZE_KB = 64;
-// const CONNECTION_WINDOW_SIZE_KB = 32_768;
-const CONNECTION_WINDOW_SIZE_KB = 64;
+const STREAM_WINDOW_SIZE_KB = 8_192;
+// const STREAM_WINDOW_SIZE_KB = 64;
+const CONNECTION_WINDOW_SIZE_KB = 32_768;
+// const CONNECTION_WINDOW_SIZE_KB = 64;
 
 const MIB = 1024.0 * 1024.0;
 

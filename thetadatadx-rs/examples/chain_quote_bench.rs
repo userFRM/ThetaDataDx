@@ -10,7 +10,7 @@
 //!         [symbol] [expiration] [date] [interval]
 //!
 //! Args (all optional):
-//!   symbol      option root (default SPX)
+//!   symbol      option root (default SPXW)
 //!   expiration  contract expiration YYYYMMDD (default 20260710)
 //!   date        history date YYYYMMDD (default = expiration, i.e. a 0DTE pull)
 //!   interval    tick | 1s | 1m | ... (default tick)
@@ -32,7 +32,7 @@ use thetadatadx::{Credentials, DirectConfig, MarketDataClient, QuoteTick};
 
 const USAGE: &str = "\
 usage: chain_quote_bench [symbol] [expiration] [date] [interval]
-       defaults: SPX 20260710 <expiration> tick
+       defaults: SPXW 20260710 <expiration> tick
        date defaults to <expiration> (a 0DTE full-chain pull)
        h2 windows come from the STREAM_WINDOW_SIZE_KB / CONNECTION_WINDOW_SIZE_KB
        constants in this file; edit and rebuild to test different values

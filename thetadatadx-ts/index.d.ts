@@ -483,13 +483,13 @@ export declare class Config {
    * market-data gRPC channel. A larger window raises the throughput ceiling
    * on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
    * is clamped into `[64, 2_097_151]` KB at validate/connect time. Default
-   * `1024n` (1 MiB). KB are taken as a `BigInt` for parity with the other
+   * `8192n` (8 MiB). KB are taken as a `BigInt` for parity with the other
    * byte/KB-denominated knobs.
    */
   setMarketDataStreamWindowSizeKb(kb: bigint): void
   /**
    * Current per-stream HTTP/2 flow-control window (KB) for the market-data
-   * gRPC channel (default `1024n`, returned as a `BigInt`).
+   * gRPC channel (default `8192n`, returned as a `BigInt`).
    */
   get marketDataStreamWindowSizeKb(): bigint
   /**
@@ -497,13 +497,13 @@ export declare class Config {
    * the market-data gRPC channel. A larger window raises the throughput
    * ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
    * The value is clamped into `[64, 2_097_151]` KB at validate/connect
-   * time. Default `8192n` (8 MiB). KB are taken as a `BigInt` for parity
+   * time. Default `16384n` (16 MiB). KB are taken as a `BigInt` for parity
    * with the other byte/KB-denominated knobs.
    */
   setMarketDataConnectionWindowSizeKb(kb: bigint): void
   /**
    * Current connection-level HTTP/2 flow-control window (KB) for the
-   * market-data gRPC channel (default `8192n`, returned as a `BigInt`).
+   * market-data gRPC channel (default `16384n`, returned as a `BigInt`).
    */
   get marketDataConnectionWindowSizeKb(): bigint
   /** Current `retry.initial_delay` value (ms, returned as BigInt). */
