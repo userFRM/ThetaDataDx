@@ -237,7 +237,7 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
     canon["market_data.connect_timeout_secs"] = _norm_int(market_data["connect_timeout_secs"])
     canon["market_data.keepalive_secs"] = _norm_int(market_data["keepalive_secs"])
     canon["market_data.keepalive_timeout_secs"] = _norm_int(market_data["keepalive_timeout_secs"])
-    canon["market_data.window_size_kb"] = _norm_int(market_data["window_size_kb"])
+    canon["market_data.stream_window_size_kb"] = _norm_int(market_data["stream_window_size_kb"])
     canon["market_data.connection_window_size_kb"] = _norm_int(
         market_data["connection_window_size_kb"]
     )
@@ -898,7 +898,7 @@ impl MddsConfig {
             max_message_size: 4 * 1024 * 1024,
             keepalive_secs: 30,
             keepalive_timeout_secs: 10,
-            window_size_kb: 64,
+            stream_window_size_kb: 64,
             connection_window_size_kb: 64,
             connect_timeout_secs: 10,
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,

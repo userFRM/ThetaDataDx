@@ -205,6 +205,10 @@ class Config:
     """Byte ceiling above which a buffered (non-``.stream()``) historical response logs a warning pointing the caller at the streaming surface. ``0`` disables the warning; the default is ``100 * 1024 * 1024`` (100 MiB). The data is still delivered."""
     request_timeout_secs: int
     """Default per-request deadline, in seconds, for market-data queries. Bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever. ``0`` no longer disables the default: it is floored to the ``300``-second default at request time. The default is ``300`` (5 minutes)."""
+    market_data_stream_window_size_kb: int
+    """Initial per-stream HTTP/2 flow-control window (KB) for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into ``[64, 2_097_151]`` KB at validate/connect time. The default is ``8192`` (8 MiB)."""
+    market_data_connection_window_size_kb: int
+    """Initial connection-level HTTP/2 flow-control window (KB) for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into ``[64, 2_097_151]`` KB at validate/connect time. The default is ``16384`` (16 MiB)."""
     reconnect_policy: str
     """Active reconnect policy name: ``"auto"``, ``"manual"``, or ``"custom"`` (the last reported when a :attr:`reconnect_callback` is installed)."""
     reconnect_max_attempts: int

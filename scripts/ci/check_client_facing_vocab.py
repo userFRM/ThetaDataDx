@@ -61,6 +61,7 @@ SWEEP_GLOBS = (
     "thetadatadx-py/examples/**/*",
     "thetadatadx-ts/examples/**/*",
     "thetadatadx-cpp/examples/**/*",
+    "thetadatadx-rs/examples/**/*",
     # Published type declarations (the IDE-hover surface).
     "thetadatadx-py/**/*.pyi",
     "thetadatadx-ts/**/*.d.ts",
