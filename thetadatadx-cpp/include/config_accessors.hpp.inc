@@ -367,7 +367,7 @@
     /// market-data gRPC channel. A larger window raises the throughput ceiling
     /// on bulk streaming pulls before HTTP/2 backpressure kicks in.
     /// @p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
-    /// Default is `1024` (1 MiB).
+    /// Default is `8192` (8 MiB).
     void set_market_data_stream_window_size_kb(std::size_t kb) {
         thetadatadx_config_set_market_data_stream_window_size_kb(handle_.get(), kb);
     }
@@ -387,7 +387,7 @@
     /// the market-data gRPC channel. A larger window raises the throughput
     /// ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
     /// @p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
-    /// Default is `8192` (8 MiB).
+    /// Default is `16384` (16 MiB).
     void set_market_data_connection_window_size_kb(std::size_t kb) {
         thetadatadx_config_set_market_data_connection_window_size_kb(handle_.get(), kb);
     }

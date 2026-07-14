@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **`ping_interval_ms` default is now `100`, matching the terminal.** The client heartbeat previously defaulted to `250 ms`; the Theta Terminal pings on a fixed `100 ms` period, and with `flush_mode` removed the ping is the sole flush trigger for queued outbound control frames, so the default now matches the terminal exactly (subscribe / unsubscribe reach the server within one `100 ms` interval instead of `250 ms`). The knob and its `[100, 300_000]` range are unchanged; override it if you prefer the old cadence.
- 
-- **exposed `stream_window_size` and `connection_window_size` to client libraries and raised default window sizes
+
+- **HTTP/2 flow-control window sizes are tunable across every binding, and the market-data `window_size_kb` field is renamed to `stream_window_size_kb`.** The per-stream and per-connection HTTP/2 windows (`stream_window_size_kb`, `connection_window_size_kb`) are now exposed through the Python, TypeScript, C++, and C bindings, not just Rust. The validation clamp is raised from `[64, 1024]` to `[64, 2_097_151]` KB — the largest whole-KB value under the HTTP/2 `2^31 - 1` byte window cap — so bulk pulls are no longer throttled by a 1 MiB per-stream ceiling, and the defaults are raised to `stream_window_size_kb = 8192` / `connection_window_size_kb = 16384`. The Rust field `MarketDataConfig::window_size_kb` and the `[grpc] window_size_kb` config-file key are renamed to `stream_window_size_kb`; because the grpc config section rejects unknown keys, an existing `config.toml` using the old key now fails to load until it is renamed. This is a breaking change to the configuration surface.
 
 ### Removed
 

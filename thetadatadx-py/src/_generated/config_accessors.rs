@@ -458,7 +458,7 @@ impl Config {
     /// market-data gRPC channel. A larger window raises the throughput ceiling
     /// on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
     /// is clamped into ``[64, 2_097_151]`` KB at validate/connect time.
-    /// Default is ``1024`` (1 MiB).
+    /// Default is ``8192`` (8 MiB).
     ///
     /// Examples
     /// --------
@@ -471,7 +471,7 @@ impl Config {
     }
 
     /// Current per-stream HTTP/2 flow-control window (KB) for the market-data
-    /// gRPC channel (default ``1024``).
+    /// gRPC channel (default ``8192``).
     #[getter]
     fn get_market_data_stream_window_size_kb(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -482,7 +482,7 @@ impl Config {
     /// the market-data gRPC channel. A larger window raises the throughput
     /// ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
     /// The value is clamped into ``[64, 2_097_151]`` KB at validate/connect
-    /// time. Default is ``8192`` (8 MiB).
+    /// time. Default is ``16384`` (16 MiB).
     ///
     /// Examples
     /// --------
@@ -495,7 +495,7 @@ impl Config {
     }
 
     /// Current connection-level HTTP/2 flow-control window (KB) for the
-    /// market-data gRPC channel (default ``8192``).
+    /// market-data gRPC channel (default ``16384``).
     #[getter]
     fn get_market_data_connection_window_size_kb(&self) -> usize {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

@@ -676,7 +676,7 @@ impl Config {
     /// market-data gRPC channel. A larger window raises the throughput ceiling
     /// on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
     /// is clamped into `[64, 2_097_151]` KB at validate/connect time. Default
-    /// `1024n` (1 MiB). KB are taken as a `BigInt` for parity with the other
+    /// `8192n` (8 MiB). KB are taken as a `BigInt` for parity with the other
     /// byte/KB-denominated knobs.
     #[napi(js_name = "setMarketDataStreamWindowSizeKb")]
     pub fn set_market_data_stream_window_size_kb(&self, kb: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
@@ -692,7 +692,7 @@ impl Config {
     }
 
     /// Current per-stream HTTP/2 flow-control window (KB) for the market-data
-    /// gRPC channel (default `1024n`, returned as a `BigInt`).
+    /// gRPC channel (default `8192n`, returned as a `BigInt`).
     #[napi(getter, js_name = "marketDataStreamWindowSizeKb")]
     pub fn market_data_stream_window_size_kb(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self
@@ -706,7 +706,7 @@ impl Config {
     /// the market-data gRPC channel. A larger window raises the throughput
     /// ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
     /// The value is clamped into `[64, 2_097_151]` KB at validate/connect
-    /// time. Default `8192n` (8 MiB). KB are taken as a `BigInt` for parity
+    /// time. Default `16384n` (16 MiB). KB are taken as a `BigInt` for parity
     /// with the other byte/KB-denominated knobs.
     #[napi(js_name = "setMarketDataConnectionWindowSizeKb")]
     pub fn set_market_data_connection_window_size_kb(&self, kb: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
@@ -722,7 +722,7 @@ impl Config {
     }
 
     /// Current connection-level HTTP/2 flow-control window (KB) for the
-    /// market-data gRPC channel (default `8192n`, returned as a `BigInt`).
+    /// market-data gRPC channel (default `16384n`, returned as a `BigInt`).
     #[napi(getter, js_name = "marketDataConnectionWindowSizeKb")]
     pub fn market_data_connection_window_size_kb(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self

@@ -749,7 +749,7 @@ impl DirectConfig {
     /// Validate configuration values and reject out-of-range tuning knobs.
     ///
     /// Returns the configuration with market-data HTTP/2 window sizes clamped
-    /// into `[64, 1024]` KB on success. Returns
+    /// into `[64, 2_097_151]` KB on success. Returns
     /// [`Error::Config`] when any wired streaming
     /// knob (`timeout_ms`, `connect_timeout_ms`, `ping_interval_ms`)
     /// falls outside its documented range — silent rounding would
@@ -1341,8 +1341,8 @@ mod config_file {
         /// ring_size = 131072
         ///
         /// [grpc]
-        /// stream_window_size_kb = 1024
-        /// connection_window_size_kb = 8192
+        /// stream_window_size_kb = 8192
+        /// connection_window_size_kb = 16384
         /// ```
         ///
         /// # Errors
@@ -2093,7 +2093,8 @@ mod tests {
     fn validate_preserves_in_range_values() {
         let config = DirectConfig::production_defaults();
         let validated = config.validate().expect("production defaults validate");
-        assert_eq!(validated.market_data.stream_window_size_kb, 1_024);
+        assert_eq!(validated.market_data.stream_window_size_kb, 8_192);
+        assert_eq!(validated.market_data.connection_window_size_kb, 16_384);
         assert_eq!(validated.streaming.timeout_ms, 10_000);
         assert_eq!(validated.streaming.ping_interval_ms, 100);
         assert_eq!(validated.streaming.connect_timeout_ms, 2_000);

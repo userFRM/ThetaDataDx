@@ -1,6 +1,6 @@
 //! Full-chain option quote streaming benchmark.
 //!
-//! Pulls an entire option chain's quote history over the streaming MDDS
+//! Pulls an entire option chain's quote history over the streaming market-data
 //! endpoint and reports TTFB, throughput, and an approximate in-memory decoded
 //! volume so the effect of the h2 flow-control window sizes can be measured
 //! against the live backend.

@@ -1434,7 +1434,7 @@ doc = """
 Set the initial per-stream HTTP/2 flow-control window, in KB, for the
 market-data gRPC channel on a config handle. A larger window raises the
 throughput ceiling on bulk streaming pulls before HTTP/2 backpressure
-kicks in. Default `1024` (1 MiB); `DirectConfig` validation (and the
+kicks in. Default `8192` (8 MiB); `DirectConfig` validation (and the
 connect path) clamps the applied value into `[64, 2_097_151]` KB.
 """
 cpp_doc = """
@@ -1442,14 +1442,14 @@ Set the initial per-stream HTTP/2 flow-control window, in KB, for the
 market-data gRPC channel. A larger window raises the throughput ceiling
 on bulk streaming pulls before HTTP/2 backpressure kicks in.
 @p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
-Default is `1024` (1 MiB).
+Default is `8192` (8 MiB).
 """
 py_doc = """
 Set the initial per-stream HTTP/2 flow-control window (in KB) for the
 market-data gRPC channel. A larger window raises the throughput ceiling
 on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
 is clamped into ``[64, 2_097_151]`` KB at validate/connect time.
-Default is ``1024`` (1 MiB).
+Default is ``8192`` (8 MiB).
 
 Examples
 --------
@@ -1461,7 +1461,7 @@ Set the initial per-stream HTTP/2 flow-control window (in KB) for the
 market-data gRPC channel. A larger window raises the throughput ceiling
 on bulk streaming pulls before HTTP/2 backpressure kicks in. The value
 is clamped into `[64, 2_097_151]` KB at validate/connect time. Default
-`1024n` (1 MiB). KB are taken as a `BigInt` for parity with the other
+`8192n` (8 MiB). KB are taken as a `BigInt` for parity with the other
 byte/KB-denominated knobs.
 """
 py_param = "kb"
@@ -1478,7 +1478,7 @@ out_safety = """
 """
 doc = """
 Read the current per-stream HTTP/2 flow-control window (KB) for the
-market-data gRPC channel (default `1024`).
+market-data gRPC channel (default `8192`).
 
 Writes the configured value into `*out_kb`. Returns `0` on success,
 `-1` if either pointer is null.
@@ -1492,11 +1492,11 @@ C ABI's `-1` failure mapping at the boundary).
 """
 py_doc = """
 Current per-stream HTTP/2 flow-control window (KB) for the market-data
-gRPC channel (default ``1024``).
+gRPC channel (default ``8192``).
 """
 ts_doc = """
 Current per-stream HTTP/2 flow-control window (KB) for the market-data
-gRPC channel (default `1024n`, returned as a `BigInt`).
+gRPC channel (default `8192n`, returned as a `BigInt`).
 """
 
 [[accessor]]
@@ -1509,7 +1509,7 @@ doc = """
 Set the initial connection-level HTTP/2 flow-control window, in KB, for
 the market-data gRPC channel on a config handle. A larger window raises
 the throughput ceiling on bulk streaming pulls before HTTP/2
-backpressure kicks in. Default `8192` (8 MiB); `DirectConfig`
+backpressure kicks in. Default `16384` (16 MiB); `DirectConfig`
 validation (and the connect path) clamps the applied value into
 `[64, 2_097_151]` KB.
 """
@@ -1518,14 +1518,14 @@ Set the initial connection-level HTTP/2 flow-control window, in KB, for
 the market-data gRPC channel. A larger window raises the throughput
 ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
 @p kb is clamped into `[64, 2_097_151]` KB at validate/connect time.
-Default is `8192` (8 MiB).
+Default is `16384` (16 MiB).
 """
 py_doc = """
 Set the initial connection-level HTTP/2 flow-control window (in KB) for
 the market-data gRPC channel. A larger window raises the throughput
 ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
 The value is clamped into ``[64, 2_097_151]`` KB at validate/connect
-time. Default is ``8192`` (8 MiB).
+time. Default is ``16384`` (16 MiB).
 
 Examples
 --------
@@ -1537,7 +1537,7 @@ Set the initial connection-level HTTP/2 flow-control window (in KB) for
 the market-data gRPC channel. A larger window raises the throughput
 ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in.
 The value is clamped into `[64, 2_097_151]` KB at validate/connect
-time. Default `8192n` (8 MiB). KB are taken as a `BigInt` for parity
+time. Default `16384n` (16 MiB). KB are taken as a `BigInt` for parity
 with the other byte/KB-denominated knobs.
 """
 py_param = "kb"
@@ -1554,7 +1554,7 @@ out_safety = """
 """
 doc = """
 Read the current connection-level HTTP/2 flow-control window (KB) for
-the market-data gRPC channel (default `8192`).
+the market-data gRPC channel (default `16384`).
 
 Writes the configured value into `*out_kb`. Returns `0` on success,
 `-1` if either pointer is null.
@@ -1568,11 +1568,11 @@ C ABI's `-1` failure mapping at the boundary).
 """
 py_doc = """
 Current connection-level HTTP/2 flow-control window (KB) for the
-market-data gRPC channel (default ``8192``).
+market-data gRPC channel (default ``16384``).
 """
 ts_doc = """
 Current connection-level HTTP/2 flow-control window (KB) for the
-market-data gRPC channel (default `8192n`, returned as a `BigInt`).
+market-data gRPC channel (default `16384n`, returned as a `BigInt`).
 """
 
 

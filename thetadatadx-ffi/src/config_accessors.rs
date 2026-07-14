@@ -1003,7 +1003,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_request_timeout_secs(
 /// Set the initial per-stream HTTP/2 flow-control window, in KB, for the
 /// market-data gRPC channel on a config handle. A larger window raises the
 /// throughput ceiling on bulk streaming pulls before HTTP/2 backpressure
-/// kicks in. Default `1024` (1 MiB); `DirectConfig` validation (and the
+/// kicks in. Default `8192` (8 MiB); `DirectConfig` validation (and the
 /// connect path) clamps the applied value into `[64, 2_097_151]` KB.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_market_data_stream_window_size_kb(
@@ -1017,7 +1017,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_market_data_stream_window_size_k
 }
 
 /// Read the current per-stream HTTP/2 flow-control window (KB) for the
-/// market-data gRPC channel (default `1024`).
+/// market-data gRPC channel (default `8192`).
 ///
 /// Writes the configured value into `*out_kb`. Returns `0` on success,
 /// `-1` if either pointer is null.
@@ -1044,7 +1044,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_stream_window_size_k
 /// Set the initial connection-level HTTP/2 flow-control window, in KB, for
 /// the market-data gRPC channel on a config handle. A larger window raises
 /// the throughput ceiling on bulk streaming pulls before HTTP/2
-/// backpressure kicks in. Default `8192` (8 MiB); `DirectConfig`
+/// backpressure kicks in. Default `16384` (16 MiB); `DirectConfig`
 /// validation (and the connect path) clamps the applied value into
 /// `[64, 2_097_151]` KB.
 #[no_mangle]
@@ -1059,7 +1059,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_market_data_connection_window_si
 }
 
 /// Read the current connection-level HTTP/2 flow-control window (KB) for
-/// the market-data gRPC channel (default `8192`).
+/// the market-data gRPC channel (default `16384`).
 ///
 /// Writes the configured value into `*out_kb`. Returns `0` on success,
 /// `-1` if either pointer is null.
