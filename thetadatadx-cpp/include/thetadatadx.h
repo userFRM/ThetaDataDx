@@ -2039,6 +2039,59 @@ void thetadatadx_config_set_market_data_connection_window_size_kb(ThetaDataDxCon
  */
 int32_t thetadatadx_config_get_market_data_connection_window_size_kb(const ThetaDataDxConfig* config, size_t* out_kb);
 
+/**
+ * Set the automatic bulk-fetch sharding policy for buffered history pulls.
+ *
+ * Under Auto (the default) a large history pull is sized with a cheap
+ * density probe and, when worthwhile, split into balanced disjoint
+ * sub-requests across the account's concurrent-request budget, then merged
+ * back into exactly the rows of the single-stream response: single-contract,
+ * stock, and index pulls keep the exact single-stream row order, while
+ * option-chain pulls come back in a deterministic canonical order
+ * (expiration, strike, right ascending; calls before puts; time-ascending
+ * within each contract). Small pulls and non-history endpoints are never
+ * sharded.
+ * @param config Config handle to mutate.
+ * @param policy 0 = Auto (default), 1 = Off (single stream per query, in
+ *               the server's own row order).
+ * @return 0 on success, -1 when policy is outside {0, 1} or config is null
+ *         (check thetadatadx_last_error()).
+ */
+int32_t thetadatadx_config_set_bulk_fetch(ThetaDataDxConfig* config, int32_t policy);
+
+/**
+ * Read the configured bulk-fetch sharding policy, using the same encoding
+ * as thetadatadx_config_set_bulk_fetch.
+ * @param config Config handle to read.
+ * @param out_policy Receives 0 (Auto) or 1 (Off).
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_bulk_fetch(const ThetaDataDxConfig* config, int32_t* out_policy);
+
+/**
+ * Set the upper bound on concurrent sub-requests per sharded bulk fetch,
+ * using the widened (has_value, n) shape.
+ * @param config Config handle to mutate.
+ * @param has_value false uses the account's full concurrent-request budget
+ *                  (the tier-derived channel-pool size) and ignores n; true
+ *                  caps the fan-out at n. The applied value is clamped into
+ *                  [1, pool_size] when a plan is built.
+ * @param n The fan-out cap, honoured only when has_value is true.
+ * @return 0 on success, -1 if config is null.
+ */
+int32_t thetadatadx_config_set_shard_concurrency(ThetaDataDxConfig* config, bool has_value, uint32_t n);
+
+/**
+ * Read the configured shard-concurrency cap, using the same widened
+ * (has_value, n) shape.
+ * @param config Config handle to read.
+ * @param out_has_value Receives false when the full tier budget applies,
+ *                      true when an explicit cap is set.
+ * @param out_n Receives the cap (0 when unset, the cap otherwise).
+ * @return 0 on success, -1 if any pointer is null.
+ */
+int32_t thetadatadx_config_get_shard_concurrency(const ThetaDataDxConfig* config, bool* out_has_value, uint32_t* out_n);
+
 /* ── MarketDataClient ── */
 
 /** Connect a market-data client to ThetaData servers.

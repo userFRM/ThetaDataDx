@@ -502,6 +502,58 @@ impl Config {
         guard.market_data.connection_window_size_kb
     }
 
+    /// Automatic bulk-fetch sharding policy for history pulls (buffered and
+    /// chunk-streaming alike). Accepts ``"auto"`` (default: large history
+    /// pulls are split into balanced concurrent sub-requests across the
+    /// account's concurrent-request budget — buffered pulls are merged back
+    /// into exactly the rows of the single-stream response, single-contract,
+    /// stock, and index pulls in the exact single-stream order and
+    /// option-chain pulls in a deterministic canonical order grouped by
+    /// expiration, strike, and right; streaming pulls forward each band's
+    /// chunks as they arrive, every chunk exactly once but interleaved
+    /// across bands in arrival order; small pulls are never sharded) or
+    /// ``"off"`` (every query runs as a single stream, in the server's own
+    /// row and chunk order), case-insensitive.
+    #[setter]
+    fn set_bulk_fetch(&self, policy: &str) -> PyResult<()> {
+        let parsed = config::BulkFetchPolicy::parse(policy).ok_or_else(|| {
+            crate::errors::invalid_parameter_err(format!(
+                "unknown bulk_fetch: {policy:?} (expected \"auto\" or \"off\")"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.bulk_fetch = parsed;
+        Ok(())
+    }
+
+    /// Current bulk-fetch sharding policy as a lowercase string.
+    #[getter]
+    fn get_bulk_fetch(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.bulk_fetch.as_str()
+    }
+
+    /// Upper bound on concurrent sub-requests per sharded bulk fetch.
+    /// ``None`` (the default) uses the account's full concurrent-request
+    /// budget (the tier-derived channel-pool size resolved at connect time);
+    /// an ``int`` caps the fan-out. The applied value is clamped into
+    /// ``[1, pool_size]`` when a plan is built, and validation floors an
+    /// explicit ``0`` to ``1``.
+    #[setter]
+    fn set_shard_concurrency(&self, n: Option<u32>) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.shard_concurrency = n;
+    }
+
+    /// Current ``shard_concurrency`` setting. ``None`` means a sharded pull
+    /// uses the account's full concurrent-request budget; an ``int`` is the
+    /// configured cap.
+    #[getter]
+    fn get_shard_concurrency(&self) -> Option<u32> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.shard_concurrency
+    }
+
     /// Current ``retry.initial_delay`` value in ms.
     #[getter]
     fn get_retry_initial_delay_ms(&self) -> u64 {

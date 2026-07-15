@@ -24,6 +24,73 @@
 /// unaffected by this floor.
 pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 
+/// Policy for automatic sharding of large history pulls — the buffered
+/// `.await` on a history builder and the chunk-streaming `.stream*`
+/// calls alike.
+///
+/// Under `Auto` (the default) a large history pull is first sized with
+/// a cheap density probe; when the estimated response is large enough
+/// that one stream cannot saturate the account's concurrent-request
+/// budget, the SDK splits the query into balanced disjoint
+/// sub-requests along a filter axis (a date band or a time band) and
+/// runs them across the tier's channel pool.
+///
+/// The buffered path merges the results into exactly the rows the
+/// single stream would have returned. Row order: single-contract,
+/// stock, and index pulls keep the exact single-stream order;
+/// option-chain pulls come back grouped by
+/// `(expiration, strike, right)` ascending — calls before puts,
+/// time-ascending within each contract — a deterministic canonical
+/// order, because the server enumerates chain contracts in an internal
+/// order no client can reproduce.
+///
+/// The streaming path forwards each band's chunks to the handler as
+/// they arrive — no merge, no materialize, so it reaches the full
+/// fan-out throughput. Every chunk is delivered exactly once, but
+/// chunks from different bands interleave in arrival order rather
+/// than the single stream's order; each band of a single-contract /
+/// stock / index pull is internally time-ascending. Use the buffered
+/// path (which merges) or `Off` when a single-stream order matters.
+///
+/// Small pulls and non-history endpoints are never sharded, so `Auto`
+/// leaves them byte-identical to `Off`.
+///
+/// `Off` disables the probe and the fan-out entirely: every query runs
+/// as today's single stream, in the server's own row and chunk order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum BulkFetchPolicy {
+    /// Shard large history pulls across the tier's request budget
+    /// (default).
+    #[default]
+    Auto,
+    /// Always issue a single stream per query.
+    Off,
+}
+
+impl BulkFetchPolicy {
+    /// Canonical lowercase string for this policy, matching the
+    /// cross-binding encoding.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Off => "off",
+        }
+    }
+
+    /// Parse the cross-binding string encoding (case-insensitive).
+    /// Returns `None` for unrecognised input.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "auto" => Some(Self::Auto),
+            "off" => Some(Self::Off),
+            _ => None,
+        }
+    }
+}
+
 /// Market-data client tuning.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -137,6 +204,34 @@ pub struct MarketDataConfig {
     /// effectively disables it too (no realistic response reaches
     /// that size).
     pub warn_on_buffered_threshold_bytes: usize,
+
+    /// Automatic bulk-fetch sharding policy for history pulls — buffered
+    /// `.await` and chunk-streaming `.stream*` alike.
+    ///
+    /// See [`BulkFetchPolicy`]. Default [`BulkFetchPolicy::Auto`]: large
+    /// history pulls are probed and, when worthwhile, split into balanced
+    /// concurrent sub-requests across the tier's channel pool. Buffered
+    /// pulls merge the shards back into exactly the rows of the
+    /// single-stream response — single-contract, stock, and index pulls
+    /// in the exact single-stream order, option-chain pulls in a
+    /// deterministic canonical order (`(expiration, strike, right)`
+    /// ascending, calls before puts, time-ascending within each
+    /// contract). Streaming pulls forward each band's chunks to the
+    /// handler as they arrive: exactly-once delivery, but chunks from
+    /// different bands interleave in arrival order rather than the
+    /// single stream's order. [`BulkFetchPolicy::Off`] keeps every query
+    /// on a single stream, in the server's own row and chunk order.
+    pub bulk_fetch: BulkFetchPolicy,
+
+    /// Upper bound on concurrent sub-requests per sharded bulk fetch.
+    ///
+    /// `None` (default) uses the account's full concurrent-request budget
+    /// (the tier-derived channel-pool size resolved at connect time). An
+    /// explicit value is clamped to `[1, pool_size]` when a plan is built —
+    /// the pool size is the server-enforced ceiling, so a sharded query can
+    /// never hold more in-flight requests than the tier allows. Validation
+    /// floors an explicit `0` to `1`.
+    pub shard_concurrency: Option<u32>,
 }
 
 impl MarketDataConfig {
@@ -193,6 +288,10 @@ impl MarketDataConfig {
             // operator-visible "you are on the wrong API for this
             // workload" signal at this boundary.
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
+            bulk_fetch: BulkFetchPolicy::Auto,
+            // None = the tier's full concurrent-request budget, resolved
+            // at connect time from the auth response.
+            shard_concurrency: None,
         }
     }
 }

@@ -624,8 +624,13 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     let doc = format!(
         "Stream `{name}` rows into `callback` without materialising the full \
          response in memory. `callback(chunk: {tick}[]) => void` is invoked once \
-         per server chunk; the chunk is freed before the next is fetched, so peak \
-         memory tracks a single chunk rather than the whole result. This is the \
+         per server chunk; the chunk is freed before that stream's next chunk is \
+         fetched, so peak memory tracks a single chunk rather than the whole \
+         result. Under `bulkFetch = \"auto\"` a large history pull may fan out \
+         across concurrent sub-requests: every chunk is still delivered exactly \
+         once, but chunks from different sub-requests interleave in arrival order \
+         rather than the single-stream order (set `bulkFetch = \"off\"` to \
+         restore it). This is the \
          memory-bounded companion to the `{camel}` method — prefer it \
          for multi-day or full-universe pulls. The returned Promise resolves when \
          the stream drains and rejects (typed like the buffered method) on a wire \

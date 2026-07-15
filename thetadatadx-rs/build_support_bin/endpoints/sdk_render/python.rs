@@ -932,7 +932,11 @@ fn write_sync_stream_terminal(
     let doc = format!(
         "Stream chunks of `{}` rows into `handler` without materialising the full \
          response in memory. `handler(chunk: list[Tick]) -> None` is called once per \
-         gRPC chunk; the chunk is freed before the next is fetched. A `RuntimeError` \
+         gRPC chunk; the chunk is freed before the stream's next chunk is fetched. \
+         Under `bulk_fetch = \"auto\"` a large history pull may fan out across \
+         concurrent sub-requests: every chunk is still delivered exactly once, but \
+         chunks from different sub-requests interleave in arrival order rather than \
+         the single-stream order (`bulk_fetch = \"off\"` restores it). A `RuntimeError` \
          raised by `handler` aborts the stream and propagates as the method's return \
          value.",
         endpoint.name
@@ -1014,8 +1018,13 @@ fn write_async_stream_terminal(
     let doc = format!(
         "Async companion to `stream()` — awaitable yields `None` when the \
          streamed response of `{}` rows finishes. `handler(chunk: list[Tick]) \
-         -> None` runs once per gRPC chunk, in order, on a worker thread; the \
-         next chunk is not fetched until it returns. Cancelling the awaitable \
+         -> None` runs once per gRPC chunk, one call at a time, on a worker \
+         thread; a stream's next chunk is not fetched until its handler call \
+         returns. Under `bulk_fetch = \"auto\"` a large history pull may fan \
+         out across concurrent sub-requests: every chunk is still delivered \
+         exactly once, but chunks from different sub-requests interleave in \
+         arrival order rather than the single-stream order (`bulk_fetch = \
+         \"off\"` restores it). Cancelling the awaitable \
          drops the in-flight gRPC stream (RST_STREAM on the underlying h2 \
          stream) and fetches no further chunks. A handler already running when \
          cancellation lands runs to completion — Python is not interruptible \
