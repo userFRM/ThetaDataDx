@@ -48,6 +48,7 @@ pub mod decode;
 pub mod endpoint_args;
 mod endpoints;
 pub(crate) mod registry;
+pub mod shard;
 mod stream;
 mod tier;
 pub(crate) mod validate;

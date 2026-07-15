@@ -93,6 +93,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 |---|---|---|
 | Request deadlines | `timeout_ms` per request (builder / kwarg) | Hard per-call deadline; expiry raises a timeout error and frees the slot. |
 | Retries | `retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter`, `retry_max_elapsed_secs` | Backoff schedule for transient market-data-request faults. |
+| Bulk downloads | `bulk_fetch`, `shard_concurrency`, `stream_window_size_kb`, `connection_window_size_kb` | Automatic sharding of large history pulls across your tier, plus the HTTP/2 flow-control windows that set per-stream throughput. See [Bulk Downloads](/articles/bulk-downloads). |
 | Streaming reconnect | `reconnect_policy`, `reconnect_max_attempts`, `reconnect_wait_ms`, `reconnect_wait_max_ms`, `reconnect_jitter`, `reconnect_stable_window_secs`, … | Automatic streaming reconnection. See [Reconnection & Monitoring](/streaming/reliability). |
 | Streaming latency | `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Event-buffer capacity and I/O timeouts. |
 | Flat files | `flatfiles_max_attempts`, `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`, `flatfiles_jitter` | Retry budget for bulk downloads. |
@@ -101,7 +102,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 
 Every field above is available on all four language surfaces under the naming convention shown earlier; unknown values fail at configuration time, not at first request.
 
-Market-data request concurrency is not in this table because it isn't configurable: it is set by your subscription tier. See [Concurrent Requests](/articles/concurrent-requests).
+Your tier's concurrency cap itself is not configurable; it is set by your subscription. `shard_concurrency` only limits how much of that cap a single sharded pull consumes. See [Concurrent Requests](/articles/concurrent-requests).
 
 ## Config file (Rust)
 

@@ -47,6 +47,7 @@ pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
         let def = &schema.types[*type_name];
         generate_parser(&mut parsers, type_name, def);
         generate_present_columns(&mut parsers, type_name, def);
+        generate_chain_sort_key(&mut parsers, type_name, def);
     }
 
     let parsers_dest = Path::new(&out_dir).join("decode_generated.rs");
@@ -299,4 +300,28 @@ fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef
     out.push_str("        ])\n");
     out.push_str("    }\n");
     out.push_str("}\n\n");
+}
+
+/// Emit `impl ChainSortKey for <Tick>` next to the parser. Tick types
+/// carrying the injected contract-identity trio (`contract_id = true`)
+/// yield the ranked `(expiration, strike, right)` key the bulk-fetch
+/// buffered merge orders chain rows by; every other type yields `None`,
+/// so its sharded pulls concatenate in band order. Generated from the
+/// same schema flag that injects the trio, so the key and the fields it
+/// reads can never drift apart.
+fn generate_chain_sort_key(out: &mut String, type_name: &str, def: &TickTypeDef) {
+    writeln!(
+        out,
+        "impl crate::mdds::shard::ChainSortKey for {type_name} {{"
+    )
+    .unwrap();
+    out.push_str("    fn chain_sort_key(&self) -> Option<crate::mdds::shard::ChainKey> {\n");
+    if def.contract_id {
+        out.push_str(
+            "        Some(crate::mdds::shard::ChainKey::new(self.expiration, self.strike, self.right))\n",
+        );
+    } else {
+        out.push_str("        None\n");
+    }
+    out.push_str("    }\n}\n\n");
 }

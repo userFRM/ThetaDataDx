@@ -4,6 +4,7 @@
 
 / — ThetaDataDx: Every ThetaData endpoint, market-data, streaming, and bulk, over REST, four native SDKs, or an MCP server for AI.
 /articles/ai-llms — Building with AI / LLMs: Machine-readable entry points for coding assistants and LLM agents.
+/articles/bulk-downloads — Bulk Downloads: Download large history fast with the flow-control window, automatic sharding, and buffered or streaming delivery.
 /articles/concurrent-requests — Concurrent Requests: How many market-data requests run in parallel per subscription tier.
 /articles/configuration — Configuration: Environments, retries, timeouts, and the streaming knobs.
 /articles/data-issues — Data Issues?: A short checklist before filing a data problem.

@@ -732,6 +732,70 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.market_data.connection_window_size_kb as u64))
     }
 
+    /// Automatic bulk-fetch sharding policy for history pulls (buffered and
+    /// chunk-streaming alike). Accepts `"auto"` (default: large history pulls
+    /// are split into balanced concurrent sub-requests across the account's
+    /// concurrent-request budget — buffered pulls are merged back into exactly
+    /// the rows of the single-stream response, single-contract, stock, and
+    /// index pulls in the exact single-stream order and option-chain pulls in
+    /// a deterministic canonical order grouped by expiration, strike, and
+    /// right; streaming pulls forward each band's chunks as they arrive, every
+    /// chunk exactly once but interleaved across bands in arrival order; small
+    /// pulls are never sharded) or `"off"` (every query runs as a single
+    /// stream, in the server's own row and chunk order), case-insensitive.
+    #[napi(js_name = "setBulkFetch")]
+    pub fn set_bulk_fetch(&self, policy: String) -> napi::Result<()> {
+        let parsed = config::BulkFetchPolicy::parse(&policy).ok_or_else(|| {
+            crate::invalid_parameter_err(format!(
+                "setBulkFetch: unknown policy {policy:?}; expected \"auto\" or \"off\""
+            ))
+        })?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.market_data.bulk_fetch = parsed;
+        Ok(())
+    }
+
+    /// Current bulk-fetch sharding policy as a lowercase string.
+    #[napi(getter, js_name = "bulkFetch")]
+    pub fn bulk_fetch(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.market_data.bulk_fetch.as_str())
+    }
+
+    /// Set the upper bound on concurrent sub-requests per sharded bulk fetch.
+    /// Pass `null` or `undefined` (the default) to use the account's full
+    /// concurrent-request budget (the tier-derived channel-pool size resolved
+    /// at connect time); pass a `number` to cap the fan-out. The applied value
+    /// is clamped into `[1, pool_size]` when a plan is built (the pool size is
+    /// the server-enforced tier ceiling).
+    #[napi(js_name = "setShardConcurrency")]
+    pub fn set_shard_concurrency(&self, n: Option<u32>) -> napi::Result<()> {
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.market_data.shard_concurrency = n;
+        Ok(())
+    }
+
+    /// Current `shardConcurrency` setting. `null` means a sharded pull uses
+    /// the account's full concurrent-request budget; a `number` is the
+    /// configured cap.
+    #[napi(getter, js_name = "shardConcurrency")]
+    pub fn shard_concurrency(&self) -> napi::Result<Option<u32>> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.market_data.shard_concurrency)
+    }
+
     /// Current `retry.initial_delay` value (ms, returned as BigInt).
     #[napi(getter, js_name = "retryInitialDelayMs")]
     pub fn retry_initial_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {

@@ -258,6 +258,25 @@ impl MarketDataClient {
         &self.config
     }
 
+    /// Owned dispatch handle for the bulk-fetch shard machinery.
+    ///
+    /// Snapshots the `Arc`-backed pieces one top-level request needs
+    /// (semaphore, session token, channel pool, retry policy, `QueryInfo`
+    /// template) so a spawned shard task dispatches exactly like this
+    /// client without borrowing it — spawned futures must be `'static`.
+    pub(crate) fn shard_dispatch(&self) -> crate::mdds::shard::ShardDispatch {
+        crate::mdds::shard::ShardDispatch::new(
+            Arc::clone(&self.request_semaphore),
+            self.session.clone(),
+            self.channels.clone(),
+            self.config.retry,
+            // Template with an empty UUID; each attempt stamps the UUID
+            // from its own session snapshot.
+            self.build_query_info(String::new()),
+            self.channels.size(),
+        )
+    }
+
     /// Deterministically tear the market-data client down.
     ///
     /// The market-data client owns only the `Arc`-backed gRPC channel pool —

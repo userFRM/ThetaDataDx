@@ -1575,6 +1575,207 @@ Current connection-level HTTP/2 flow-control window (KB) for the
 market-data gRPC channel (default `16384n`, returned as a `BigInt`).
 """
 
+[[accessor]]
+symbol = "thetadatadx_config_set_bulk_fetch"
+kind = "enum"
+param = "policy"
+abi_type = "i32"
+path = "market_data.bulk_fetch"
+enum_type = "thetadatadx::BulkFetchPolicy"
+enum_core = "config::BulkFetchPolicy"
+enum_expected = "expected 0 (Auto) or 1 (Off)"
+py_err = 'unknown bulk_fetch: {policy:?} (expected "auto" or "off")'
+ts_err = 'setBulkFetch: unknown policy {policy:?}; expected "auto" or "off"'
+doc = """
+Set the automatic bulk-fetch sharding policy for history pulls, covering
+both the buffered and the chunk-streaming call paths.
+
+- `policy = 0`: Auto (default) — large history pulls are sized with a
+  cheap density probe and, when worthwhile, split into balanced disjoint
+  sub-requests across the account's concurrent-request budget. Buffered
+  pulls merge the shards back into exactly the rows of the single-stream
+  response: single-contract, stock, and index pulls keep the exact
+  single-stream row order, while option-chain pulls come back in a
+  deterministic canonical order (expiration, strike, right ascending;
+  calls before puts; time-ascending within each contract). Streaming
+  pulls forward each band's chunks to the handler as they arrive: every
+  chunk exactly once, but chunks from different bands interleave in
+  arrival order rather than the single stream's order. Small pulls and
+  non-history endpoints are never sharded.
+- `policy = 1`: Off — every query runs as a single stream, in the
+  server's own row and chunk order.
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+`policy` is outside the documented `{0, 1}` set or `config` is null. A
+rejected `policy` value carries
+`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an
+out-of-domain enum int surfaces the same typed class across every binding.
+"""
+cpp_doc = """
+Set the automatic bulk-fetch sharding policy for history pulls (buffered
+and chunk-streaming alike): 0=Auto (default; large pulls are split into
+balanced concurrent sub-requests — buffered pulls merge back into
+exactly the single-stream rows, with option-chain pulls in a
+deterministic canonical contract order and every other pull in the
+exact single-stream row order; streaming pulls forward each band's
+chunks as they arrive, exactly once but interleaved across bands in
+arrival order), 1=Off (every query runs as a single stream, in the
+server's own row and chunk order). Throws
+@c thetadatadx::InvalidParameterError on an out-of-domain policy (and
+@c thetadatadx::ConfigError on a null handle), routing through the typed
+leaf the FFI error code selects.
+"""
+py_doc = """
+Automatic bulk-fetch sharding policy for history pulls (buffered and
+chunk-streaming alike). Accepts ``"auto"`` (default: large history
+pulls are split into balanced concurrent sub-requests across the
+account's concurrent-request budget — buffered pulls are merged back
+into exactly the rows of the single-stream response, single-contract,
+stock, and index pulls in the exact single-stream order and
+option-chain pulls in a deterministic canonical order grouped by
+expiration, strike, and right; streaming pulls forward each band's
+chunks as they arrive, every chunk exactly once but interleaved
+across bands in arrival order; small pulls are never sharded) or
+``"off"`` (every query runs as a single stream, in the server's own
+row and chunk order), case-insensitive.
+"""
+ts_doc = """
+Automatic bulk-fetch sharding policy for history pulls (buffered and
+chunk-streaming alike). Accepts `"auto"` (default: large history pulls
+are split into balanced concurrent sub-requests across the account's
+concurrent-request budget — buffered pulls are merged back into exactly
+the rows of the single-stream response, single-contract, stock, and
+index pulls in the exact single-stream order and option-chain pulls in
+a deterministic canonical order grouped by expiration, strike, and
+right; streaming pulls forward each band's chunks as they arrive, every
+chunk exactly once but interleaved across bands in arrival order; small
+pulls are never sharded) or `"off"` (every query runs as a single
+stream, in the server's own row and chunk order), case-insensitive.
+"""
+py_param = "policy"
+ts_param = "policy"
+[[accessor.variant]]
+int = 0
+rust = "Auto"
+label = "auto"
+[[accessor.variant]]
+int = 1
+rust = "Off"
+label = "off"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_bulk_fetch"
+kind = "enum"
+param = "out_policy"
+abi_type = "i32"
+path = "market_data.bulk_fetch"
+enum_type = "thetadatadx::BulkFetchPolicy"
+enum_core = "config::BulkFetchPolicy"
+doc = """
+Read the configured bulk-fetch sharding policy. Same encoding as
+`thetadatadx_config_set_bulk_fetch`. Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current bulk-fetch sharding policy (same encoding as the setter).
+"""
+py_doc = """
+Current bulk-fetch sharding policy as a lowercase string.
+"""
+ts_doc = """
+Current bulk-fetch sharding policy as a lowercase string.
+"""
+[[accessor.variant]]
+int = 0
+rust = "Auto"
+label = "auto"
+[[accessor.variant]]
+int = 1
+rust = "Off"
+label = "off"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_shard_concurrency"
+kind = "option"
+param = "n"
+abi_type = "u32"
+path = "market_data.shard_concurrency"
+doc = """
+Set the upper bound on concurrent sub-requests per sharded bulk fetch.
+
+* `has_value = false` encodes `None` (the default): a sharded pull uses
+  the account's full concurrent-request budget (the tier-derived
+  channel-pool size resolved at connect time). `n` is ignored.
+* `has_value = true` encodes `Some(n)`: a sharded pull spreads across at
+  most `n` sub-requests. The applied value is clamped into
+  `[1, pool_size]` when a plan is built — the pool size is the
+  server-enforced tier ceiling — and validation floors an explicit `0`
+  to `1`.
+
+Returns `0` on success, `-1` if `config` is null.
+"""
+cpp_doc = """
+Set the upper bound on concurrent sub-requests per sharded bulk fetch.
+Pass @c std::nullopt (the @c None default) to use the account's full
+concurrent-request budget; pass an explicit @c std::uint32_t to cap the
+fan-out. The applied value is clamped into `[1, pool_size]` when a plan
+is built (the pool size is the server-enforced tier ceiling).
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Upper bound on concurrent sub-requests per sharded bulk fetch.
+``None`` (the default) uses the account's full concurrent-request
+budget (the tier-derived channel-pool size resolved at connect time);
+an ``int`` caps the fan-out. The applied value is clamped into
+``[1, pool_size]`` when a plan is built, and validation floors an
+explicit ``0`` to ``1``.
+"""
+ts_doc = """
+Set the upper bound on concurrent sub-requests per sharded bulk fetch.
+Pass `null` or `undefined` (the default) to use the account's full
+concurrent-request budget (the tier-derived channel-pool size resolved
+at connect time); pass a `number` to cap the fan-out. The applied value
+is clamped into `[1, pool_size]` when a plan is built (the pool size is
+the server-enforced tier ceiling).
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_shard_concurrency"
+kind = "option"
+param = "out_n"
+abi_type = "u32"
+path = "market_data.shard_concurrency"
+doc = """
+Read the current `market_data.shard_concurrency` setting.
+
+* `*out_has_value = false` → the config holds `None` (full tier
+  budget). `*out_n` is left as `0`.
+* `*out_has_value = true` → the config holds `Some(*out_n)`.
+
+Returns `0` on success, `-1` if any pointer is null.
+"""
+cpp_doc = """
+Read the current @c market_data.shard_concurrency setting. Returns
+@c std::nullopt for the full-tier-budget sentinel; returns the wrapped
+@c std::uint32_t when an explicit cap is set.
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Current ``shard_concurrency`` setting. ``None`` means a sharded pull
+uses the account's full concurrent-request budget; an ``int`` is the
+configured cap.
+"""
+ts_doc = """
+Current `shardConcurrency` setting. `null` means a sharded pull uses
+the account's full concurrent-request budget; a `number` is the
+configured cap.
+"""
 
 # ── retry Duration getters (ms) ────────────────────────────────────
 #

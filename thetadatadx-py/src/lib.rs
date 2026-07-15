@@ -12,7 +12,6 @@ use thetadatadx::fpss;
 
 mod async_runtime;
 mod bench_streaming;
-mod chunking;
 mod coerce;
 mod errors;
 mod flatfile_methods;
@@ -1836,7 +1835,11 @@ pub(crate) fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyRes
 ///     [('20200101', '20201230'), ('20201231', '20211230'), ('20211231', '20221230'), ('20221231', '20231230'), ('20231231', '20231231')]
 #[pyfunction]
 fn split_date_range(start: &str, end: &str) -> PyResult<Vec<(String, String)>> {
-    chunking::split_date_range(start, end).map_err(|e| PyValueError::new_err(e.to_string()))
+    // The pure date math lives in the core crate (shared with the
+    // bulk-fetch shard planner's date axis); this wrapper only maps the
+    // error into `ValueError`.
+    thetadatadx::mdds::shard::split_date_range(start, end)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 // ── Module ──

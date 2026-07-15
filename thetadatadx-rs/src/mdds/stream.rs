@@ -63,56 +63,9 @@ impl MarketDataClient {
     /// (`decode::DecodeError::ChunkHeaderDrift`).
     pub(crate) async fn collect_stream(
         &self,
-        mut stream: ServerStreaming<proto::ResponseData>,
+        stream: ServerStreaming<proto::ResponseData>,
     ) -> Result<proto::DataTable, Error> {
-        let mut all_rows = Vec::new();
-        let mut headers: Vec<String> = Vec::new();
-        let mut chunk_index: usize = 0;
-
-        let max_message_size = stream.max_message_size();
-
-        while let Some(response) = stream.next().await {
-            let response = response?;
-
-            // Use original_size as a rough pre-allocation hint on the first chunk.
-            // Each DataValueList row is ~64 bytes on average (header-dependent),
-            // so original_size / 64 gives a reasonable row-count estimate.
-            //
-            // Cap the hint at `max_message_size` so a hostile
-            // `original_size = i32::MAX` cannot inflate `all_rows`'
-            // capacity past the channel's configured ceiling before the
-            // decompression layer rejects the payload.
-            if all_rows.is_empty() && response.original_size > 0 {
-                let hint = usize::try_from(response.original_size).unwrap_or(0);
-                all_rows.reserve(hint.min(max_message_size) / 64);
-            }
-
-            let table = decode_chunk(response, max_message_size)?;
-            if headers.is_empty() {
-                headers = table.headers;
-            } else if !table.headers.is_empty() && table.headers != headers {
-                // Mid-stream schema drift: surface the mismatch so
-                // downstream decoders do not read columns under the wrong
-                // names. Silently keeping the first chunk's headers and
-                // piling later rows under them would mislabel the data.
-                return Err(decode::DecodeError::ChunkHeaderDrift {
-                    chunk_index,
-                    first: headers.join(","),
-                    chunk: table.headers.join(","),
-                }
-                .into());
-            }
-            all_rows.extend(table.data_table);
-            chunk_index += 1;
-        }
-
-        // An empty stream is valid (e.g. no trades on a holiday) — return an
-        // empty DataTable instead of Error::NoData. Callers that need to
-        // distinguish "no data" can check `table.data_table.is_empty()`.
-        Ok(proto::DataTable {
-            headers,
-            data_table: all_rows,
-        })
+        collect_stream_table(stream).await
     }
 
     /// Process streamed responses chunk-by-chunk without materializing all rows.
@@ -273,6 +226,535 @@ impl MarketDataClient {
         }
         Ok(())
     }
+
+    /// Drain one server stream for the generated `.stream(handler)` path:
+    /// parse each chunk with `parser`, hand the tick slice to the shared
+    /// `handler` under its lock, and mark `delivered` once a non-empty
+    /// chunk has reached it (the no-resume replay guard read by
+    /// [`super::macros::run_streaming_retry_loop`]).
+    ///
+    /// Shared verbatim between the single-stream arm and each shard of a
+    /// bulk-fetch fan-out — the handler `Mutex` is what lets concurrent
+    /// shards forward into one user callback. The handler takes `&[T]`
+    /// (raw rows) and never reads column presence, so no `ColumnPresence`
+    /// is computed here — that per-chunk work exists only on the
+    /// [`Self::deliver_chunk_ticks`] path, whose handler reads it. The
+    /// first parse failure is terminal: it breaks the drain and surfaces
+    /// after the stream is released.
+    ///
+    /// # Errors
+    ///
+    /// Propagates stream / decode errors from the chunk drain, or the
+    /// first `parser` failure.
+    pub(crate) async fn deliver_chunk_slices<T, E, P, F>(
+        &self,
+        stream: ServerStreaming<proto::ResponseData>,
+        parser: P,
+        handler: &std::sync::Mutex<F>,
+        delivered: &std::sync::atomic::AtomicBool,
+    ) -> Result<(), Error>
+    where
+        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
+        E: Into<Error>,
+        F: FnMut(&[T]) + Send,
+    {
+        let mut decode_error: Option<Error> = None;
+        let drain_result = self
+            .for_each_chunk_control(stream, |headers, rows| {
+                if decode_error.is_some() {
+                    return ControlFlow::Break(());
+                }
+                let chunk_table = proto::DataTable {
+                    headers: headers.to_vec(),
+                    data_table: rows.to_vec(),
+                };
+                match parser(&chunk_table) {
+                    Ok(ticks) => {
+                        // The mutex is uncontended in steady state (chunks
+                        // of one call chain arrive one at a time; shards
+                        // of a fan-out serialize on it per chunk); a
+                        // poisoned mutex only surfaces if a handler
+                        // panicked mid-callback, which is already a hard
+                        // error path.
+                        if let Ok(mut h) = handler.lock() {
+                            (*h)(&ticks);
+                        }
+                        // Only mark the stream as delivered once a chunk
+                        // carried rows: an empty chunk (headers-only
+                        // keepalive / terminator) hands the downstream no
+                        // rows, so a refresh replay from chunk zero would
+                        // duplicate nothing. Gating here keeps a
+                        // recoverable `Unauthenticated` after only empty
+                        // chunks from being forced terminal.
+                        if !ticks.is_empty() {
+                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        ControlFlow::Continue(())
+                    }
+                    Err(e) => {
+                        decode_error = Some(e.into());
+                        ControlFlow::Break(())
+                    }
+                }
+            })
+            .await;
+        drain_result.and_then(|()| match decode_error {
+            Some(e) => Err(e),
+            None => Ok(()),
+        })
+    }
+
+    /// [`Self::deliver_chunk_slices`] with the presence-carrying
+    /// [`crate::columns::Ticks`] wrap the `stream_ticks` terminal hands
+    /// its handler (the SDK bindings read the per-chunk column set).
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Self::deliver_chunk_slices`].
+    pub(crate) async fn deliver_chunk_ticks<T, E, P, F>(
+        &self,
+        stream: ServerStreaming<proto::ResponseData>,
+        parser: P,
+        handler: &std::sync::Mutex<F>,
+        delivered: &std::sync::atomic::AtomicBool,
+    ) -> Result<(), Error>
+    where
+        T: crate::columns::WireColumns,
+        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
+        E: Into<Error>,
+        F: FnMut(crate::columns::Ticks<T>) + Send,
+    {
+        let mut decode_error: Option<Error> = None;
+        let drain_result = self
+            .for_each_chunk_control(stream, |headers, rows| {
+                if decode_error.is_some() {
+                    return ControlFlow::Break(());
+                }
+                let chunk_table = proto::DataTable {
+                    headers: headers.to_vec(),
+                    data_table: rows.to_vec(),
+                };
+                match parser(&chunk_table) {
+                    Ok(rows) => {
+                        let columns = chunk_columns::<T>(&chunk_table);
+                        let ticks = crate::columns::Ticks::new(rows, columns);
+                        let delivered_nonempty = !ticks.is_empty();
+                        if let Ok(mut h) = handler.lock() {
+                            (*h)(ticks);
+                        }
+                        if delivered_nonempty {
+                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        ControlFlow::Continue(())
+                    }
+                    Err(e) => {
+                        decode_error = Some(e.into());
+                        ControlFlow::Break(())
+                    }
+                }
+            })
+            .await;
+        drain_result.and_then(|()| match decode_error {
+            Some(e) => Err(e),
+            None => Ok(()),
+        })
+    }
+
+    /// Async twin of [`Self::deliver_chunk_slices`] for the
+    /// `stream_async` terminal.
+    ///
+    /// The handler lock is a `tokio::sync::Mutex` held across the
+    /// handler future's await: under a bulk-fetch fan-out, concurrent
+    /// shard bands deliver through one shared handler, and only a guard
+    /// that survives the await keeps handler executions from
+    /// overlapping — the documented one-call-at-a-time contract (a
+    /// `std::sync` guard cannot be held across an await). The chunk is
+    /// parsed on the sync side and dropped before the handler future is
+    /// awaited, preserving the chunk-freed-before-handler-runs bound; on
+    /// a single stream the lock is uncontended and the behaviour is
+    /// unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Self::deliver_chunk_slices`].
+    pub(crate) async fn deliver_chunk_slices_async<T, E, P, F, HFut>(
+        &self,
+        stream: ServerStreaming<proto::ResponseData>,
+        parser: P,
+        handler: &tokio::sync::Mutex<F>,
+        delivered: &std::sync::atomic::AtomicBool,
+    ) -> Result<(), Error>
+    where
+        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
+        E: Into<Error>,
+        F: FnMut(&[T]) -> HFut + Send,
+        HFut: Future<Output = ()> + Send,
+    {
+        let mut decode_error: Option<Error> = None;
+        let drain_result = self
+            .for_each_chunk_async_control(stream, |headers, rows| {
+                // Synchronous section: parse the chunk. The handler runs
+                // in the returned future, where the async lock can be
+                // held across its await.
+                let mut stop_stream = decode_error.is_some();
+                let ticks = if stop_stream {
+                    None
+                } else {
+                    let chunk_table = proto::DataTable {
+                        headers,
+                        data_table: rows,
+                    };
+                    match parser(&chunk_table) {
+                        Ok(ticks) => Some(ticks),
+                        Err(e) => {
+                            decode_error = Some(e.into());
+                            stop_stream = true;
+                            None
+                        }
+                    }
+                };
+                async move {
+                    if let Some(ticks) = ticks {
+                        let mut h = handler.lock().await;
+                        let user_fut = (*h)(&ticks);
+                        // Mark delivered once the handler has taken a
+                        // non-empty chunk, so a later transient cannot
+                        // replay an already-delivered prefix. Empty
+                        // chunks (headers-only keepalive) hand the
+                        // handler no rows, so a replay would duplicate
+                        // nothing.
+                        if !ticks.is_empty() {
+                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        // `HFut` is an independent type, so the handler
+                        // future cannot borrow the slice: free the chunk
+                        // before running the handler, keeping peak memory
+                        // at one chunk per stream.
+                        drop(ticks);
+                        user_fut.await;
+                    }
+                    if stop_stream {
+                        ControlFlow::Break(())
+                    } else {
+                        ControlFlow::Continue(())
+                    }
+                }
+            })
+            .await;
+        drain_result.and_then(|()| match decode_error {
+            Some(e) => Err(e),
+            None => Ok(()),
+        })
+    }
+
+    /// Async twin of [`Self::deliver_chunk_ticks`] for the
+    /// `stream_ticks_async` terminal. Same across-the-await handler lock
+    /// as [`Self::deliver_chunk_slices_async`].
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Self::deliver_chunk_slices`].
+    pub(crate) async fn deliver_chunk_ticks_async<T, E, P, F, HFut>(
+        &self,
+        stream: ServerStreaming<proto::ResponseData>,
+        parser: P,
+        handler: &tokio::sync::Mutex<F>,
+        delivered: &std::sync::atomic::AtomicBool,
+    ) -> Result<(), Error>
+    where
+        T: crate::columns::WireColumns,
+        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
+        E: Into<Error>,
+        F: FnMut(crate::columns::Ticks<T>) -> HFut + Send,
+        HFut: Future<Output = ()> + Send,
+    {
+        let mut decode_error: Option<Error> = None;
+        let drain_result = self
+            .for_each_chunk_async_control(stream, |headers, rows| {
+                let mut stop_stream = decode_error.is_some();
+                let ticks = if stop_stream {
+                    None
+                } else {
+                    let chunk_table = proto::DataTable {
+                        headers,
+                        data_table: rows,
+                    };
+                    match parser(&chunk_table) {
+                        Ok(rows) => {
+                            let columns = chunk_columns::<T>(&chunk_table);
+                            Some(crate::columns::Ticks::new(rows, columns))
+                        }
+                        Err(e) => {
+                            decode_error = Some(e.into());
+                            stop_stream = true;
+                            None
+                        }
+                    }
+                };
+                async move {
+                    if let Some(ticks) = ticks {
+                        let delivered_nonempty = !ticks.is_empty();
+                        let mut h = handler.lock().await;
+                        let user_fut = (*h)(ticks);
+                        if delivered_nonempty {
+                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        user_fut.await;
+                    }
+                    if stop_stream {
+                        ControlFlow::Break(())
+                    } else {
+                        ControlFlow::Continue(())
+                    }
+                }
+            })
+            .await;
+        drain_result.and_then(|()| match decode_error {
+            Some(e) => Err(e),
+            None => Ok(()),
+        })
+    }
+}
+
+/// Free-function body of [`MarketDataClient::collect_stream`]: drain all
+/// streamed `ResponseData` chunks into one merged `DataTable`.
+///
+/// A free function because the receiver contributes nothing — every
+/// input lives on the stream. Semantics are exactly the method's:
+/// first-chunk header capture, mid-stream header-drift rejection,
+/// `original_size`-capped pre-allocation, and "empty stream is a valid
+/// empty table". The bulk-fetch shard driver collects its spawned
+/// per-shard streams through [`collect_stream_typed`] instead, which
+/// shares this chunk contract but parses each chunk as it lands.
+///
+/// # Errors
+///
+/// Same conditions as [`MarketDataClient::collect_stream`].
+pub(crate) async fn collect_stream_table(
+    mut stream: ServerStreaming<proto::ResponseData>,
+) -> Result<proto::DataTable, Error> {
+    let mut all_rows = Vec::new();
+    let mut headers: Vec<String> = Vec::new();
+    let mut chunk_index: usize = 0;
+
+    let max_message_size = stream.max_message_size();
+
+    while let Some(response) = stream.next().await {
+        let response = response?;
+
+        // Use original_size as a rough pre-allocation hint on the first chunk.
+        // Each DataValueList row is ~64 bytes on average (header-dependent),
+        // so original_size / 64 gives a reasonable row-count estimate.
+        //
+        // Cap the hint at `max_message_size` so a hostile
+        // `original_size = i32::MAX` cannot inflate `all_rows`'
+        // capacity past the channel's configured ceiling before the
+        // decompression layer rejects the payload.
+        if all_rows.is_empty() && response.original_size > 0 {
+            let hint = usize::try_from(response.original_size).unwrap_or(0);
+            all_rows.reserve(hint.min(max_message_size) / 64);
+        }
+
+        let table = decode_chunk(response, max_message_size)?;
+        if headers.is_empty() {
+            headers = table.headers;
+        } else if !table.headers.is_empty() && table.headers != headers {
+            // Mid-stream schema drift: surface the mismatch so
+            // downstream decoders do not read columns under the wrong
+            // names. Silently keeping the first chunk's headers and
+            // piling later rows under them would mislabel the data.
+            return Err(decode::DecodeError::ChunkHeaderDrift {
+                chunk_index,
+                first: headers.join(","),
+                chunk: table.headers.join(","),
+            }
+            .into());
+        }
+        all_rows.extend(table.data_table);
+        chunk_index += 1;
+    }
+
+    // An empty stream is valid (e.g. no trades on a holiday) — return an
+    // empty DataTable instead of Error::NoData. Callers that need to
+    // distinguish "no data" can check `table.data_table.is_empty()`.
+    Ok(proto::DataTable {
+        headers,
+        data_table: all_rows,
+    })
+}
+
+/// Typed twin of [`collect_stream_table`] for the buffered bulk-fetch
+/// shard path: drain one band's response stream, running the endpoint's
+/// `parser` on each chunk while the chunk is decode-hot, and accumulate
+/// the typed rows — the band never materializes its proto table, so a
+/// multi-million-row band costs one chunk of proto cells at a time
+/// plus its typed rows.
+///
+/// Chunk semantics are exactly [`collect_stream_table`]'s: first-chunk
+/// header capture, mid-stream header-drift rejection, first-chunk-header
+/// backfill for the parser (the contract the streaming delivery paths
+/// apply per chunk), `original_size`-capped pre-allocation, and "empty
+/// stream is a valid empty band". On top of those it folds the band's
+/// `root` (symbol) column chunk-by-chunk
+/// ([`super::shard::RootColumn`]), so the merged frame's presence /
+/// symbol come out identical to the single-stream path's whole-table
+/// `response_symbol` pass without a second pass over the rows.
+///
+/// Runs inside a shard's `run_unary_retry_loop` attempt closure; all
+/// accumulation state is local to one call, so a replayed attempt
+/// starts from an empty band.
+///
+/// # Errors
+///
+/// Same conditions as [`collect_stream_table`], plus the first `parser`
+/// failure (typed decode error), which is terminal for the attempt.
+pub(crate) async fn collect_stream_typed<T, E, P>(
+    mut stream: ServerStreaming<proto::ResponseData>,
+    parser: P,
+) -> Result<super::shard::TypedBand<T>, Error>
+where
+    P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
+    E: Into<Error>,
+{
+    let mut collect = TypedCollect::default();
+    let max_message_size = stream.max_message_size();
+    while let Some(response) = stream.next().await {
+        let response = response?;
+        // Same first-chunk row-count hint as `collect_stream_table`
+        // (~64 B per wire row), capped at the channel ceiling; the typed
+        // vector holds one element per wire row.
+        if collect.rows.is_empty() && response.original_size > 0 {
+            let hint = usize::try_from(response.original_size).unwrap_or(0);
+            collect.rows.reserve(hint.min(max_message_size) / 64);
+        }
+        let table = decode_chunk(response, max_message_size)?;
+        collect.fold_chunk(table, &parser)?;
+    }
+    Ok(collect.into_band())
+}
+
+/// Accumulator behind [`collect_stream_typed`]: one shard band's typed
+/// rows, response schema, and root-column fold.
+///
+/// The per-chunk step lives on this struct rather than inline in the
+/// drain loop so the chunk contract — header capture / drift rejection,
+/// parse-under-band-schema, root constancy fold, row append — is
+/// unit-testable with synthetic chunks (`ServerStreaming` has no
+/// in-memory constructor; see `streaming_decode_contract`).
+struct TypedCollect<T> {
+    headers: Vec<String>,
+    /// Resolved once from the band schema (alias-aware, like
+    /// `response_symbol`); `None` until headers arrive or when the
+    /// schema has no root column.
+    root_idx: Option<usize>,
+    root: super::shard::RootColumn,
+    rows: Vec<T>,
+    chunk_index: usize,
+}
+
+impl<T> Default for TypedCollect<T> {
+    fn default() -> Self {
+        Self {
+            headers: Vec::new(),
+            root_idx: None,
+            root: super::shard::RootColumn::default(),
+            rows: Vec::new(),
+            chunk_index: 0,
+        }
+    }
+}
+
+impl<T> TypedCollect<T> {
+    /// Fold one decoded chunk: enforce the first-chunk header contract,
+    /// parse the chunk under the band schema, fold its root cells while
+    /// they are cache-hot, and append the typed rows.
+    fn fold_chunk<P, E>(&mut self, mut table: proto::DataTable, parser: &P) -> Result<(), Error>
+    where
+        P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
+        E: Into<Error>,
+    {
+        if self.headers.is_empty() {
+            self.headers = std::mem::take(&mut table.headers);
+            if !self.headers.is_empty() {
+                let refs: Vec<&str> = self.headers.iter().map(String::as_str).collect();
+                self.root_idx = super::decode::headers::find_header(&refs, "root");
+            }
+        } else if !table.headers.is_empty() && table.headers != self.headers {
+            // Mid-stream schema drift: same rejection as
+            // `collect_stream_table`, so downstream decoders never read
+            // columns under the wrong names.
+            return Err(decode::DecodeError::ChunkHeaderDrift {
+                chunk_index: self.chunk_index,
+                first: self.headers.join(","),
+                chunk: table.headers.join(","),
+            }
+            .into());
+        }
+        self.chunk_index += 1;
+        // Parse under the band schema (first-chunk headers backfilled
+        // onto headers-only chunks). The headers move in and back out —
+        // no per-chunk clone.
+        let chunk = proto::DataTable {
+            headers: std::mem::take(&mut self.headers),
+            data_table: table.data_table,
+        };
+        let parsed = parser(&chunk).map_err(Into::into)?;
+        if let Some(idx) = self.root_idx {
+            if !chunk.data_table.is_empty() {
+                self.root.observe_chunk(
+                    self.rows.len(),
+                    chunk
+                        .data_table
+                        .iter()
+                        .map(|row| super::decode::extract::root_cell_text(row, idx)),
+                );
+            }
+        }
+        self.headers = chunk.headers;
+        self.rows.extend(parsed);
+        Ok(())
+    }
+
+    fn into_band(self) -> super::shard::TypedBand<T> {
+        super::shard::TypedBand {
+            headers: self.headers,
+            rows: self.rows,
+            root: self.root,
+        }
+    }
+}
+
+/// Drain a response stream chunk-at-a-time, handing each decoded chunk —
+/// with the first chunk's headers backfilled onto headers-only chunks —
+/// to `f`. Peak memory stays bounded by one chunk. Used by the bulk-fetch
+/// density probe, whose fold only ever needs one chunk of bars at a time.
+///
+/// # Errors
+///
+/// Propagates decode / decompress / header-drift errors and whatever `f`
+/// returns.
+pub(crate) async fn fold_stream_chunks<F>(
+    mut stream: ServerStreaming<proto::ResponseData>,
+    mut f: F,
+) -> Result<(), Error>
+where
+    F: FnMut(&proto::DataTable) -> Result<(), Error>,
+{
+    let mut saved_headers: Option<Vec<String>> = None;
+    let mut chunk_index: usize = 0;
+    let max_message_size = stream.max_message_size();
+    while let Some(response) = stream.next().await {
+        let mut table =
+            decode_chunk_checked(response?, max_message_size, &mut saved_headers, chunk_index)?;
+        if table.headers.is_empty() {
+            if let Some(h) = saved_headers.as_ref() {
+                table.headers.clone_from(h);
+            }
+        }
+        f(&table)?;
+        chunk_index += 1;
+    }
+    Ok(())
 }
 
 /// Decode one streamed `ResponseData` and apply the first-chunk header
@@ -541,6 +1023,164 @@ mod streaming_decode_contract {
             order.push(f(headers, data_table).await);
         }
         assert_eq!(order, vec![2, 1, 3]);
+    }
+
+    /// Bare `DataTable` chunk for driving `TypedCollect::fold_chunk`
+    /// directly (the buffered shard collector's per-chunk step; the
+    /// stream driver above it only decodes and hands chunks over).
+    fn typed_chunk(headers: &[&str], rows: &[(&str, i64)]) -> proto::DataTable {
+        proto::DataTable {
+            headers: headers.iter().map(|s| (*s).to_string()).collect(),
+            data_table: rows
+                .iter()
+                .map(|(sym, count)| proto::DataValueList {
+                    values: vec![
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Text(sym.to_string())),
+                        },
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Number(*count)),
+                        },
+                    ],
+                })
+                .collect(),
+        }
+    }
+
+    /// Test parser: one typed row per wire row, carrying the `count`
+    /// cell. Length-preserving like every generated tick parser.
+    fn parse_counts(table: &proto::DataTable) -> Result<Vec<i64>, decode::DecodeError> {
+        Ok(table
+            .data_table
+            .iter()
+            .map(
+                |row| match row.values.get(1).and_then(|v| v.data_type.as_ref()) {
+                    Some(proto::data_value::DataType::Number(n)) => *n,
+                    _ => -1,
+                },
+            )
+            .collect())
+    }
+
+    #[test]
+    fn typed_collect_parses_per_chunk_and_folds_root_constancy() {
+        // The buffered shard collector must decode chunk-at-a-time (rows
+        // parsed and appended per chunk, never a whole-band proto table)
+        // and fold the root column's constancy the way the streaming
+        // path's `chunk_columns` reads it per chunk.
+        let mut collect = TypedCollect::default();
+        collect
+            .fold_chunk(
+                typed_chunk(&["symbol", "count"], &[("SPY", 1), ("SPY", 2)]),
+                &parse_counts,
+            )
+            .expect("first chunk folds");
+        // A chunk that carries no headers parses under the preserved
+        // first-chunk schema — the same backfill the streaming delivery
+        // paths apply per chunk.
+        collect
+            .fold_chunk(typed_chunk(&[], &[("SPY", 3)]), &parse_counts)
+            .expect("headerless chunk folds under the saved schema");
+        let band = collect.into_band();
+        assert_eq!(band.rows, vec![1, 2, 3]);
+        assert_eq!(band.headers, vec!["symbol", "count"]);
+        // The wire root column ("symbol" resolves via the shared header
+        // alias) was constant: one broadcast value, no per-row
+        // materialization.
+        assert_eq!(
+            band.root,
+            crate::mdds::shard::RootColumn::Uniform(Some("SPY".into()))
+        );
+    }
+
+    #[test]
+    fn typed_collect_materializes_per_row_root_on_divergence() {
+        let mut collect = TypedCollect::default();
+        collect
+            .fold_chunk(
+                typed_chunk(&["symbol", "count"], &[("SPY", 1), ("SPY", 2)]),
+                &parse_counts,
+            )
+            .expect("first chunk folds");
+        collect
+            .fold_chunk(
+                typed_chunk(&["symbol", "count"], &[("QQQ", 3)]),
+                &parse_counts,
+            )
+            .expect("divergent chunk folds");
+        let band = collect.into_band();
+        // The uniform prefix expanded, so per-row values stay aligned
+        // with the typed rows — exactly what the whole-table
+        // `response_symbol` pass would have produced.
+        assert_eq!(
+            band.root,
+            crate::mdds::shard::RootColumn::PerRow(vec![
+                Some("SPY".into()),
+                Some("SPY".into()),
+                Some("QQQ".into()),
+            ])
+        );
+    }
+
+    #[test]
+    fn typed_collect_without_root_header_stays_unobserved() {
+        let mut collect = TypedCollect::default();
+        collect
+            .fold_chunk(typed_chunk(&["ms", "count"], &[("x", 1)]), &parse_counts)
+            .expect("chunk folds");
+        assert_eq!(
+            collect.into_band().root,
+            crate::mdds::shard::RootColumn::Unobserved
+        );
+    }
+
+    #[test]
+    fn typed_collect_rejects_mid_stream_header_drift() {
+        // Same rejection as `collect_stream_table` / the streaming
+        // paths: a later chunk whose non-empty headers disagree with the
+        // band schema fails before its rows are parsed.
+        let mut collect = TypedCollect::default();
+        collect
+            .fold_chunk(
+                typed_chunk(&["symbol", "count"], &[("SPY", 1)]),
+                &parse_counts,
+            )
+            .expect("first chunk folds");
+        let err = collect
+            .fold_chunk(typed_chunk(&["ticker", "n"], &[("SPY", 2)]), &parse_counts)
+            .expect_err("drifting headers must be rejected");
+        let Error::Decode {
+            source: Some(src), ..
+        } = &err
+        else {
+            panic!("drift must surface as Error::Decode, got {err:?}");
+        };
+        assert!(
+            matches!(
+                src.downcast_ref::<decode::DecodeError>(),
+                Some(decode::DecodeError::ChunkHeaderDrift { chunk_index: 1, .. })
+            ),
+            "drift source must be ChunkHeaderDrift at chunk_index 1, got {src:?}"
+        );
+    }
+
+    #[test]
+    fn typed_collect_surfaces_the_first_parser_failure() {
+        let failing = |_: &proto::DataTable| -> Result<Vec<i64>, decode::DecodeError> {
+            Err(decode::DecodeError::MissingRequiredHeader {
+                header: "count",
+                rows: 1,
+                available: "symbol".to_string(),
+            })
+        };
+        let mut collect = TypedCollect::default();
+        let err = collect
+            .fold_chunk(typed_chunk(&["symbol", "count"], &[("SPY", 1)]), &failing)
+            .expect_err("parser failure is terminal for the chunk");
+        assert!(
+            matches!(err, Error::Decode { .. }),
+            "expected a decode-class error, got {err:?}"
+        );
     }
 
     #[test]
