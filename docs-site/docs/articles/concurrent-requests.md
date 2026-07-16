@@ -32,8 +32,14 @@ results = asyncio.run(asyncio.gather(*(pull(d) for d in days)))
 
 With a Pro subscription, eight of those requests run concurrently and the rest wait their turn. On Free, they run one at a time. Same code either way.
 
+## One giant request, split for you
+
+The pattern above parallelizes work you have already split into many requests. The SDK also does the reverse for you: a **single** large history request is split into balanced pieces, run in parallel across your tier's concurrent-request budget, and reassembled into exactly the rows one request would have returned. You write one ordinary query and it runs at your tier's concurrency. This is on by default.
+
+See [Bulk Downloads](/articles/bulk-downloads) for the full picture: how the split works, buffered versus streaming delivery, the `bulk_fetch` and `shard_concurrency` knobs, API examples, and measured performance.
+
 ## When parallelism pays
 
-Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. It does nothing for one giant request, so split the request first ([Request Sizing](/articles/request-sizing)), then let your tier's capacity work through the pieces.
+Concurrency multiplies throughput on multi-request workloads: per-day backfills, per-contract chain pulls, anything you can split with `split_date_range`. For a single large request you no longer have to split it yourself, since `bulk_fetch` does it automatically ([above](#one-giant-request-split-for-you)); splitting manually still works when you want direct control over the pieces.
 
 If the service reports exhaustion during peak hours, the SDK retries with backoff before surfacing an error. Long-running bulk jobs should expect occasional retries at peak; see [Data Issues?](/articles/data-issues) if a job stalls beyond that.

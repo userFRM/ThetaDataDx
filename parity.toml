@@ -306,6 +306,20 @@ python = true
 typescript = true
 cpp = true
 
+[[class]]
+name = "MarketDataConfig.bulk_fetch"
+python = true       # `Config.bulk_fetch` property ("auto"/"off")
+typescript = true   # `Config.setBulkFetch` / `bulkFetch` napi setter+getter
+cpp = true          # `Config::set_bulk_fetch` over `thetadatadx_config_set_bulk_fetch`
+setter = "bulk_fetch"
+
+[[class]]
+name = "MarketDataConfig.shard_concurrency"
+python = true       # `Config.shard_concurrency` property (Optional[int])
+typescript = true   # `Config.setShardConcurrency` / `shardConcurrency` napi setter+getter
+cpp = true          # `Config::set_shard_concurrency` over `thetadatadx_config_set_shard_concurrency`
+setter = "shard_concurrency"
+
 # ─── ReconnectConfig cross-binding setters ─────────────────────────────
 #
 # Streaming reconnect policy + per-class attempt budgets + stable-window

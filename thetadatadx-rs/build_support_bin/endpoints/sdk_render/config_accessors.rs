@@ -899,6 +899,15 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                             set_js = set_js, field = field, param = param, err = err, path = a.path,
                         )?;
                     }
+                    // u32 fields fit a JS `number` natively; napi decodes
+                    // `Option<u32>` verbatim.
+                    "u32" => {
+                        write!(
+                            out,
+                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<u32>) -> napi::Result<()> {{\n{LOCK}\n        guard.{path} = {param};\n        Ok(())\n    }}\n\n",
+                            set_js = set_js, field = field, param = param, path = a.path,
+                        )?;
+                    }
                     // Wider seeds arrive as `BigInt`; decoded losslessly.
                     "u64" => {
                         write!(
@@ -916,6 +925,13 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                         write!(
                             out,
                             "    #[napi(getter, js_name = \"{get_js}\")]\n    pub fn {field}(&self) -> napi::Result<Option<u32>> {{\n{RLOCK}\n        Ok(guard.{path}.map(u32::from))\n    }}\n\n",
+                            get_js = get_js, field = field, path = a.path,
+                        )?;
+                    }
+                    "u32" => {
+                        write!(
+                            out,
+                            "    #[napi(getter, js_name = \"{get_js}\")]\n    pub fn {field}(&self) -> napi::Result<Option<u32>> {{\n{RLOCK}\n        Ok(guard.{path})\n    }}\n\n",
                             get_js = get_js, field = field, path = a.path,
                         )?;
                     }

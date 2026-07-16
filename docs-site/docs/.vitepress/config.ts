@@ -64,6 +64,7 @@ export default defineConfig({
           { text: 'Option Greeks', link: '/articles/option-greeks' },
           { text: 'Request Sizing', link: '/articles/request-sizing' },
           { text: 'Concurrent Requests', link: '/articles/concurrent-requests' },
+          { text: 'Bulk Downloads', link: '/articles/bulk-downloads' },
           { text: 'Configuration', link: '/articles/configuration' },
           { text: 'Flat Files', link: '/articles/flat-files' },
           { text: 'Data Issues?', link: '/articles/data-issues' },

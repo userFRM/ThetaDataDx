@@ -1083,6 +1083,153 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_connection_window_si
     })
 }
 
+/// Set the automatic bulk-fetch sharding policy for history pulls, covering
+/// both the buffered and the chunk-streaming call paths.
+///
+/// - `policy = 0`: Auto (default) — large history pulls are sized with a
+///   cheap density probe and, when worthwhile, split into balanced disjoint
+///   sub-requests across the account's concurrent-request budget. Buffered
+///   pulls merge the shards back into exactly the rows of the single-stream
+///   response: single-contract, stock, and index pulls keep the exact
+///   single-stream row order, while option-chain pulls come back in a
+///   deterministic canonical order (expiration, strike, right ascending;
+///   calls before puts; time-ascending within each contract). Streaming
+///   pulls forward each band's chunks to the handler as they arrive: every
+///   chunk exactly once, but chunks from different bands interleave in
+///   arrival order rather than the single stream's order. Small pulls and
+///   non-history endpoints are never sharded.
+/// - `policy = 1`: Off — every query runs as a single stream, in the
+///   server's own row and chunk order.
+///
+/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+/// `policy` is outside the documented `{0, 1}` set or `config` is null. A
+/// rejected `policy` value carries
+/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an
+/// out-of-domain enum int surfaces the same typed class across every binding.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_bulk_fetch(
+    config: *mut ThetaDataDxConfig,
+    policy: i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            crate::error::set_error_with_code(
+                "thetadatadx_config_set_bulk_fetch: config handle is null",
+                crate::error::THETADATADX_ERR_CONFIG,
+            );
+            return -1;
+        }
+        let value = match policy {
+            0 => thetadatadx::BulkFetchPolicy::Auto,
+            1 => thetadatadx::BulkFetchPolicy::Off,
+            other => {
+                crate::error::set_error_with_code(
+                    &format!(
+                        "thetadatadx_config_set_bulk_fetch: invalid policy {other}; expected 0 (Auto) or 1 (Off)"
+                    ),
+                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                );
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        let config = unsafe { &mut *config };
+        config.inner.market_data.bulk_fetch = value;
+        0
+    })
+}
+
+/// Read the configured bulk-fetch sharding policy. Same encoding as
+/// `thetadatadx_config_set_bulk_fetch`. Returns `0` on success, `-1` if
+/// either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_bulk_fetch(
+    config: *const ThetaDataDxConfig,
+    out_policy: *mut i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_policy.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match config.inner.market_data.bulk_fetch {
+            thetadatadx::BulkFetchPolicy::Auto => 0,
+            thetadatadx::BulkFetchPolicy::Off => 1,
+            _ => 1,
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out_policy = value;
+        }
+        0
+    })
+}
+
+/// Set the upper bound on concurrent sub-requests per sharded bulk fetch.
+///
+/// * `has_value = false` encodes `None` (the default): a sharded pull uses
+///   the account's full concurrent-request budget (the tier-derived
+///   channel-pool size resolved at connect time). `n` is ignored.
+/// * `has_value = true` encodes `Some(n)`: a sharded pull spreads across at
+///   most `n` sub-requests. The applied value is clamped into
+///   `[1, pool_size]` when a plan is built — the pool size is the
+///   server-enforced tier ceiling — and validation floors an explicit `0`
+///   to `1`.
+///
+/// Returns `0` on success, `-1` if `config` is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_shard_concurrency(
+    config: *mut ThetaDataDxConfig,
+    has_value: bool,
+    n: u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        let config = unsafe { &mut *config };
+        config.inner.market_data.shard_concurrency = if has_value { Some(n) } else { None };
+        0
+    })
+}
+
+/// Read the current `market_data.shard_concurrency` setting.
+///
+/// * `*out_has_value = false` → the config holds `None` (full tier
+///   budget). `*out_n` is left as `0`.
+/// * `*out_has_value = true` → the config holds `Some(*out_n)`.
+///
+/// Returns `0` on success, `-1` if any pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_shard_concurrency(
+    config: *const ThetaDataDxConfig,
+    out_has_value: *mut bool,
+    out_n: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_has_value.is_null() || out_n.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let (has_value, value) = match config.inner.market_data.shard_concurrency {
+            Some(v) => (true, v),
+            None => (false, 0),
+        };
+        // SAFETY: out_has_value / out_n null-checked above; caller pins the storage they point at for the call duration.
+        unsafe {
+            *out_has_value = has_value;
+            *out_n = value;
+        }
+        0
+    })
+}
+
 /// Read the current `retry.initial_delay` setting (ms). Returns `0` on
 /// success, `-1` if either pointer is null.
 #[no_mangle]

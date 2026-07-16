@@ -275,7 +275,7 @@ pub use backoff::JitterMode;
 pub use client::{Client, ConnectionStatus, FlatFiles, StreamSurface, SubscriptionInfo};
 pub use client_builder::ClientBuilder;
 pub use config::{
-    DirectConfig, FlatFilesConfig, MarketDataEnvironment, ReconnectAttemptClass,
+    BulkFetchPolicy, DirectConfig, FlatFilesConfig, MarketDataEnvironment, ReconnectAttemptClass,
     ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingEnvironment,
 };
 pub use error::{
@@ -357,6 +357,19 @@ pub mod streaming {
 /// crate root so both `thetadatadx::MarketDataClient` and
 /// `thetadatadx::market_data::MarketDataClient` resolve.
 pub use mdds::{MarketDataClient, SubscriptionTier};
+
+/// Bulk-fetch shard planning (manual mode): describe a history query as a
+/// [`ShardQuery`], obtain the balanced [`ShardPlan`] via
+/// [`MarketDataClient::bulk_fetch_plan`], and run the [`ShardBand`]
+/// sub-requests under your own concurrency. The automatic path
+/// ([`BulkFetchPolicy::Auto`]) uses exactly these plans.
+pub use mdds::shard::{ShardBand, ShardPlan, ShardQuery};
+
+/// Date-range split math for history requests beyond the server's 365-day
+/// cap: [`split_date_range`] divides an inclusive `(start, end)` span into
+/// contiguous server-accepted chunks. Also exposed to Python as
+/// `thetadatadx.split_date_range`.
+pub use mdds::shard::{split_date_range, ChunkError};
 
 /// Market-data query consumer surface.
 ///

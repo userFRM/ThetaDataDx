@@ -403,6 +403,62 @@
         return out;
     }
 
+    /// Set the automatic bulk-fetch sharding policy for history pulls (buffered
+    /// and chunk-streaming alike): 0=Auto (default; large pulls are split into
+    /// balanced concurrent sub-requests — buffered pulls merge back into
+    /// exactly the single-stream rows, with option-chain pulls in a
+    /// deterministic canonical contract order and every other pull in the
+    /// exact single-stream row order; streaming pulls forward each band's
+    /// chunks as they arrive, exactly once but interleaved across bands in
+    /// arrival order), 1=Off (every query runs as a single stream, in the
+    /// server's own row and chunk order). Throws
+    /// @c thetadatadx::InvalidParameterError on an out-of-domain policy (and
+    /// @c thetadatadx::ConfigError on a null handle), routing through the typed
+    /// leaf the FFI error code selects.
+    void set_bulk_fetch(int policy) {
+        if (thetadatadx_config_set_bulk_fetch(handle_.get(), policy) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /// Current bulk-fetch sharding policy (same encoding as the setter).
+    int get_bulk_fetch() const {
+        int32_t out{};
+        thetadatadx_config_get_bulk_fetch(handle_.get(), &out);
+        return out;
+    }
+
+    /// Set the upper bound on concurrent sub-requests per sharded bulk fetch.
+    /// Pass @c std::nullopt (the @c None default) to use the account's full
+    /// concurrent-request budget; pass an explicit @c std::uint32_t to cap the
+    /// fan-out. The applied value is clamped into `[1, pool_size]` when a plan
+    /// is built (the pool size is the server-enforced tier ceiling).
+    ///
+    /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+    /// routing through the typed class the FFI error code selects.
+    void set_shard_concurrency(std::optional<std::uint32_t> n) {
+        const bool has_value = n.has_value();
+        const std::uint32_t arg = n.value_or(0);
+        if (thetadatadx_config_set_shard_concurrency(handle_.get(), has_value, arg) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /// Read the current @c market_data.shard_concurrency setting. Returns
+    /// @c std::nullopt for the full-tier-budget sentinel; returns the wrapped
+    /// @c std::uint32_t when an explicit cap is set.
+    ///
+    /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+    /// routing through the typed class the FFI error code selects.
+    std::optional<std::uint32_t> get_shard_concurrency() const {
+        bool has_value = false;
+        std::uint32_t n = 0;
+        if (thetadatadx_config_get_shard_concurrency(handle_.get(), &has_value, &n) != 0) {
+            detail::throw_last_ffi_error();
+        }
+        return has_value ? std::optional<std::uint32_t>{n} : std::nullopt;
+    }
+
     ///
     std::uint64_t get_retry_initial_delay_ms() const {
         std::uint64_t out{};

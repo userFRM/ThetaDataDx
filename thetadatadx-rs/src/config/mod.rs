@@ -57,8 +57,8 @@ pub use env::{
 pub use environment::{MarketDataEnvironment, StreamingEnvironment};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{bounds as streaming_bounds, StreamingConfig};
-pub use mdds::MarketDataConfig;
 pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
+pub use mdds::{BulkFetchPolicy, MarketDataConfig};
 pub use metrics::MetricsConfig;
 pub use reconnect::{
     bounds as reconnect_bounds, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig,
@@ -999,6 +999,12 @@ impl DirectConfig {
             .market_data
             .connection_window_size_kb
             .clamp(64, 2_097_151);
+        // An explicit shard concurrency of 0 has no meaning ("shard across
+        // zero requests"); floor it to 1 so the plan builder's invariant
+        // `1 <= n <= pool_size` holds by construction. The pool-size upper
+        // bound is tier-derived and known only at connect time, so the plan
+        // builder applies it.
+        self.market_data.shard_concurrency = self.market_data.shard_concurrency.map(|n| n.max(1));
         // The market-data channel needs a routable port. A `0` port is never a
         // valid dial target, so reject it up front rather than at the connect
         // attempt.

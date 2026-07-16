@@ -71,6 +71,14 @@ impl ChannelPool {
         }
     }
 
+    /// Number of channels in the pool. The pool is sized to the tier's
+    /// concurrent-request cap at connect time, so this doubles as the
+    /// server-enforced ceiling the bulk-fetch shard planner clamps to.
+    #[must_use]
+    pub(crate) fn size(&self) -> usize {
+        self.inner.channels.len()
+    }
+
     /// Number of channels in the pool.
     ///
     /// Reachable only under `__test-helpers` — production code uses the

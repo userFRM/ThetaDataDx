@@ -251,19 +251,11 @@ pub fn response_symbol(table: &proto::DataTable) -> ResponseSymbol {
     if table.data_table.is_empty() {
         return ResponseSymbol::Constant("".into());
     }
-    // Borrow the cell text; a local fn (not a closure) so the returned `&str`
-    // borrows from the `row` argument.
-    fn cell(row: &proto::DataValueList, col_idx: usize) -> Option<&str> {
-        match row.values.get(col_idx).and_then(|dv| dv.data_type.as_ref()) {
-            Some(proto::data_value::DataType::Text(s)) => Some(s.as_str()),
-            _ => None,
-        }
-    }
-    let first = cell(&table.data_table[0], col_idx);
+    let first = root_cell_text(&table.data_table[0], col_idx);
     if table
         .data_table
         .iter()
-        .all(|row| cell(row, col_idx) == first)
+        .all(|row| root_cell_text(row, col_idx) == first)
     {
         return match first {
             Some(first) => {
@@ -280,9 +272,21 @@ pub fn response_symbol(table: &proto::DataTable) -> ResponseSymbol {
         table
             .data_table
             .iter()
-            .map(|row| cell(row, col_idx).unwrap_or("").into())
+            .map(|row| root_cell_text(row, col_idx).unwrap_or("").into())
             .collect(),
     )
+}
+
+/// Borrow a row's `root` (symbol) cell text: `Some` for a `Text` cell,
+/// `None` for anything else (null / non-text), matching the per-column
+/// projection's null handling. Shared by [`response_symbol`] and the
+/// bulk-fetch shard collector's per-chunk root fold, so both classify
+/// cells identically by construction.
+pub(crate) fn root_cell_text(row: &proto::DataValueList, col_idx: usize) -> Option<&str> {
+    match row.values.get(col_idx).and_then(|dv| dv.data_type.as_ref()) {
+        Some(proto::data_value::DataType::Text(s)) => Some(s.as_str()),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
