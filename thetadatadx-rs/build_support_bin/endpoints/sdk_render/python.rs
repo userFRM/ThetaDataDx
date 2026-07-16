@@ -929,16 +929,22 @@ fn write_sync_stream_terminal(
     builder_params: &[&GeneratedParam],
 ) {
     let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
+    // Only shardable history endpoints can fan out; the rest are always
+    // single-stream, so omit the fan-out note for them (see `endpoint_can_fan_out`).
+    let fan_out = if super::endpoint_can_fan_out(&endpoint.name) {
+        " Under `bulk_fetch = \"auto\"` a large history pull may fan out across \
+         concurrent sub-requests: every chunk is still delivered exactly once, but \
+         chunks from different sub-requests interleave in arrival order rather than \
+         the single-stream order (`bulk_fetch = \"off\"` restores it)."
+    } else {
+        ""
+    };
     let doc = format!(
         "Stream chunks of `{}` rows into `handler` without materialising the full \
          response in memory. `handler(chunk: list[Tick]) -> None` is called once per \
-         gRPC chunk; the chunk is freed before the stream's next chunk is fetched. \
-         Under `bulk_fetch = \"auto\"` a large history pull may fan out across \
-         concurrent sub-requests: every chunk is still delivered exactly once, but \
-         chunks from different sub-requests interleave in arrival order rather than \
-         the single-stream order (`bulk_fetch = \"off\"` restores it). A `RuntimeError` \
-         raised by `handler` aborts the stream and propagates as the method's return \
-         value.",
+         gRPC chunk; the chunk is freed before the stream's next chunk is fetched.{fan_out} \
+         A `RuntimeError` raised by `handler` aborts the stream and propagates as the \
+         method's return value.",
         endpoint.name
     );
     out.push_str(&render_rust_doc_block("    ", &doc));
@@ -1015,16 +1021,22 @@ fn write_async_stream_terminal(
     builder_params: &[&GeneratedParam],
 ) {
     let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
+    // Only shardable history endpoints can fan out (see `endpoint_can_fan_out`).
+    let fan_out = if super::endpoint_can_fan_out(&endpoint.name) {
+        " Under `bulk_fetch = \"auto\"` a large history pull may fan \
+         out across concurrent sub-requests: every chunk is still delivered \
+         exactly once, but chunks from different sub-requests interleave in \
+         arrival order rather than the single-stream order (`bulk_fetch = \
+         \"off\"` restores it)."
+    } else {
+        ""
+    };
     let doc = format!(
         "Async companion to `stream()` — awaitable yields `None` when the \
          streamed response of `{}` rows finishes. `handler(chunk: list[Tick]) \
          -> None` runs once per gRPC chunk, one call at a time, on a worker \
          thread; a stream's next chunk is not fetched until its handler call \
-         returns. Under `bulk_fetch = \"auto\"` a large history pull may fan \
-         out across concurrent sub-requests: every chunk is still delivered \
-         exactly once, but chunks from different sub-requests interleave in \
-         arrival order rather than the single-stream order (`bulk_fetch = \
-         \"off\"` restores it). Cancelling the awaitable \
+         returns.{fan_out} Cancelling the awaitable \
          drops the in-flight gRPC stream (RST_STREAM on the underlying h2 \
          stream) and fetches no further chunks. A handler already running when \
          cancellation lands runs to completion — Python is not interruptible \
