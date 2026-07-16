@@ -585,7 +585,7 @@ impl StockHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -634,7 +634,7 @@ impl StockHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2166,7 +2166,7 @@ impl StockAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2220,7 +2220,7 @@ impl StockAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2406,7 +2406,7 @@ impl StockAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2460,7 +2460,7 @@ impl StockAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2923,7 +2923,7 @@ impl OptionListContractsBuilder {
         }, |py, ticks| option_contracts_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
@@ -2979,7 +2979,7 @@ impl OptionListContractsBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
@@ -5130,7 +5130,7 @@ impl OptionHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -5196,7 +5196,7 @@ impl OptionHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7118,7 +7118,7 @@ impl OptionHistoryOpenInterestBuilder {
         }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7194,7 +7194,7 @@ impl OptionHistoryOpenInterestBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7522,7 +7522,7 @@ impl OptionHistoryGreeksEodBuilder {
         }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7608,7 +7608,7 @@ impl OptionHistoryGreeksEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12841,7 +12841,7 @@ impl OptionAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12908,7 +12908,7 @@ impl OptionAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13157,7 +13157,7 @@ impl OptionAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13224,7 +13224,7 @@ impl OptionAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13739,7 +13739,7 @@ impl IndexHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13788,7 +13788,7 @@ impl IndexHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14540,7 +14540,7 @@ impl IndexAtTimePriceBuilder {
         }, |py, ticks| index_price_at_time_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14590,7 +14590,7 @@ impl IndexAtTimePriceBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14916,7 +14916,7 @@ impl InterestRateHistoryEodBuilder {
         }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14965,7 +14965,7 @@ impl InterestRateHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 # `VERSION` tracks the C++ binding alongside the Rust Cargo manifests
 # (`Cargo.toml`, `thetadatadx-rs/Cargo.toml`, `tools/*/Cargo.toml`) and the
 # TypeScript `package.json` files; all bindings carry the same version.
-project(thetadatadx-cpp VERSION 0.1.1 LANGUAGES CXX)
+project(thetadatadx-cpp VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

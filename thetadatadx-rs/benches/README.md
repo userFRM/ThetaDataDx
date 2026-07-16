@@ -87,7 +87,6 @@
 | Benchmark | Median | Description |
 |-----------|--------|-------------|
 | `trade_tick_get_price` | 885 ps | TradeTick::get_price() |
-| `quote_tick_midpoint` | 2.03 ns | QuoteTick::midpoint_value() |
 | `ohlc_tick_all_prices` | 2.51 ns | All 4 OHLC price conversions |
 
 ## Key Takeaways

@@ -621,16 +621,22 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     let vec_converter = ts_class_vec_converter(&endpoint.return_type);
     let mut out = String::new();
 
+    // Only shardable history endpoints can fan out (see `endpoint_can_fan_out`).
+    let fan_out = if super::endpoint_can_fan_out(&endpoint.name) {
+        " Under `bulkFetch = \"auto\"` a large history pull may fan out \
+         across concurrent sub-requests: every chunk is still delivered exactly \
+         once, but chunks from different sub-requests interleave in arrival order \
+         rather than the single-stream order (set `bulkFetch = \"off\"` to \
+         restore it)."
+    } else {
+        ""
+    };
     let doc = format!(
         "Stream `{name}` rows into `callback` without materialising the full \
          response in memory. `callback(chunk: {tick}[]) => void` is invoked once \
          per server chunk; the chunk is freed before that stream's next chunk is \
          fetched, so peak memory tracks a single chunk rather than the whole \
-         result. Under `bulkFetch = \"auto\"` a large history pull may fan out \
-         across concurrent sub-requests: every chunk is still delivered exactly \
-         once, but chunks from different sub-requests interleave in arrival order \
-         rather than the single-stream order (set `bulkFetch = \"off\"` to \
-         restore it). This is the \
+         result.{fan_out} This is the \
          memory-bounded companion to the `{camel}` method — prefer it \
          for multi-day or full-universe pulls. The returned Promise resolves when \
          the stream drains and rejects (typed like the buffered method) on a wire \
@@ -912,6 +918,29 @@ mod tests {
         assert!(rendered.contains("callback.call_async_catch(rows).await"));
         assert!(rendered.contains("let callback_error ="));
         assert!(!rendered.contains("callback.call(rows"));
+    }
+
+    // Fan-out note gating (see `endpoint_can_fan_out`): a daily-only EOD
+    // stream is never sharded, so its doc must not claim a fan-out; a
+    // shardable intraday-history stream must keep the note.
+    #[test]
+    fn stream_doc_omits_fan_out_note_for_non_shardable_endpoint() {
+        let rendered = render_typescript_endpoint_stream_method(&stock_history_eod_endpoint());
+        assert!(
+            !rendered.contains("may fan out"),
+            "eod stream must not claim a fan-out"
+        );
+    }
+
+    #[test]
+    fn stream_doc_keeps_fan_out_note_for_shardable_history_endpoint() {
+        let mut ep = stock_history_eod_endpoint();
+        ep.name = "stock_history_trade".to_string();
+        let rendered = render_typescript_endpoint_stream_method(&ep);
+        assert!(
+            rendered.contains("may fan out"),
+            "shardable history stream must keep the fan-out note"
+        );
     }
 }
 

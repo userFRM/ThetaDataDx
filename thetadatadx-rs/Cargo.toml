@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx-rs"
-version = "0.1.1"
+version = "0.2.0"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
@@ -234,9 +234,10 @@ arc-swap = "1.7"
 # choice, not us.
 mimalloc = { version = "0.1", default-features = false, optional = true }
 
-# Optional prost-build for the `refresh_grpc_snapshot` developer
-# binary. Stays out of the default dep graph (the build script keeps
-# its own copy under `[build-dependencies]`).
+# Optional prost-build for the `refresh_grpc_snapshot` developer binary
+# and the build script's grpc-codegen path. Stays out of the default dep
+# graph; the `grpc-codegen = ["dep:prost-build"]` feature enables it here
+# and in `[build-dependencies]` together.
 prost-build = { version = "=0.14.4", optional = true }
 
 [dev-dependencies]
@@ -268,11 +269,14 @@ toml = "1.1.2"
 libc = "0.2"
 
 [build-dependencies]
-# `prost-build` compiles `proto/mdds.proto` into Rust message types;
-# the in-house client stubs are emitted by a custom service
-# generator under `build_support/grpc/`, replacing the old code generator # VOCAB-OK: dep history
-# entirely.
-prost-build = "=0.14.4"
+# `prost-build` compiles `proto/mdds.proto` into Rust message types; the
+# in-house client stubs are emitted by a custom service generator under
+# `build_support/grpc/`. Optional and gated behind `grpc-codegen`: a
+# normal build uses the committed `proto/beta_endpoints.snapshot.rs` and
+# never invokes `protoc`, so `prost-build` stays out of the default build
+# graph. Enabled (in both this table and `[dependencies]`) by the single
+# `grpc-codegen = ["dep:prost-build"]` feature.
+prost-build = { version = "=0.14.4", optional = true }
 regex = "1.12.3"
 # Case conversion for the build-time / codegen identifier emitters
 # (snake_case / UpperCamelCase / lowerCamelCase). Standard build-time

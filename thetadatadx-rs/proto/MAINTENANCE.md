@@ -37,25 +37,32 @@ proto/
 
 ## What happens on `cargo build`
 
-1. **Proto compilation**: `tonic-prost-build` compiles `mdds.proto` into Rust gRPC
-   client stubs and message types. Output: `$OUT_DIR/beta_endpoints.rs`, exposed
-   at `crate::proto`.
+The gRPC client stubs and message types are **not** compiled on a normal
+build. They are pre-generated and committed at
+`proto/beta_endpoints.snapshot.rs` (included directly by `src/lib.rs` and
+exposed at `crate::proto`), so a default `cargo build` needs no `protoc`.
+Regenerating them from `mdds.proto` happens only under the `grpc-codegen`
+feature — see "replace `mdds.proto`" below.
 
-2. **Endpoint surface validation + generation**: the build loads
-   `endpoint_surface.toml`, parses `mdds.proto` to extract wire metadata,
-   validates the surface spec against the wire contract, and generates the
-   endpoint registry, shared endpoint runtime dispatch, and `MarketDataClient`
-   endpoint declarations. Outputs: `$OUT_DIR/registry_generated.rs`,
-   `$OUT_DIR/endpoint_generated.rs`,
+The build script (`build_support/`) still runs on every build to generate:
+
+1. **Endpoint surface validation + generation**: the build loads
+   `endpoint_surface.toml`, parses `mdds.proto` (as text, no `protoc`) to
+   extract wire metadata, validates the surface spec against the wire
+   contract, and generates the endpoint registry, shared endpoint runtime
+   dispatch, and `MarketDataClient` endpoint declarations. Outputs:
+   `$OUT_DIR/registry_generated.rs`, `$OUT_DIR/endpoint_generated.rs`,
    `$OUT_DIR/mdds_list_endpoints_generated.rs`,
    `$OUT_DIR/mdds_parsed_endpoints_generated.rs`.
 
-3. **Tick parser codegen**: the build reads `tick_schema.toml` and generates
+2. **Tick parser codegen**: the build reads `tick_schema.toml` and generates
    `DataTable` parser functions. Output: `$OUT_DIR/decode_generated.rs`.
    The public tick structs live in `thetadatadx-rs/src/tdbe/types/tick.rs` and must stay
    aligned with that schema.
 
-All three steps are automatic. Just run `cargo build`.
+Both steps are automatic and need no `protoc`. Under the `grpc-codegen`
+feature the build additionally recompiles `mdds.proto` with `protoc` and
+drift-checks the committed snapshot; CI runs that check.
 
 ## Endpoint surface spec structure
 
@@ -145,7 +152,10 @@ concrete endpoint entry.
 **Step 4 — Build and test**
 
 ```bash
-cargo build        # generates stubs + structs + parser
+# If mdds.proto changed, regenerate the committed gRPC snapshot first
+# (needs protoc) and commit the diff:
+cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen
+cargo build        # generates endpoint structs + tick parser (uses the committed snapshot)
 cargo test         # verify nothing broke
 cargo clippy       # zero warnings
 ```
@@ -158,7 +168,10 @@ When ThetaData ships a new version:
 
 1. Back up the current file: `cp mdds.proto mdds.proto.bak`
 2. Drop in the new `mdds.proto`
-3. Run `cargo build` — if the proto is valid, stubs regenerate automatically
+3. Regenerate + commit the gRPC snapshot (this is the only step that needs
+   `protoc`): `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen`,
+   then commit the `proto/beta_endpoints.snapshot.rs` diff. CI drift-checks
+   this under `--features grpc-codegen`, so a stale snapshot fails the build.
 4. If any RPCs were renamed or removed, `cargo build` will fail validation when
    `endpoint_surface.toml` no longer matches the wire contract. Fix the spec.
 5. If new RPCs were added, add corresponding entries to `endpoint_surface.toml`.

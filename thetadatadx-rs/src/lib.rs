@@ -208,7 +208,15 @@ pub(crate) use mdds::decode;
 /// genuinely need.
 #[allow(clippy::pedantic)]
 pub(crate) mod proto {
-    include!(concat!(env!("OUT_DIR"), "/beta_endpoints.rs"));
+    // The gRPC client stubs are pre-generated and committed at
+    // `proto/beta_endpoints.snapshot.rs`, so a normal build needs no
+    // `protoc`. The snapshot is regenerated (and drift-checked against
+    // `proto/mdds.proto`) only under the `grpc-codegen` feature; see
+    // `build_support/grpc/` and `proto/MAINTENANCE.md`.
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/proto/beta_endpoints.snapshot.rs"
+    ));
 }
 
 /// Wire-payload re-exports for offline-decode callers.
