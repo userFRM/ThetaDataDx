@@ -666,6 +666,187 @@ Current `streaming.ring_size` value (returned as a `BigInt`; default
 """
 
 [[accessor]]
+symbol = "thetadatadx_config_set_wait_mode"
+kind = "enum"
+param = "mode"
+abi_type = "i32"
+path = "streaming.wait_mode"
+enum_type = "thetadatadx::WaitMode"
+enum_core = "config::WaitMode"
+null_err = "other"
+enum_expected = "expected 0 (Spin), 1 (BusySpin), 2 (Park) or 3 (Backoff)"
+py_err = 'unknown wait_mode: {mode:?} (expected "spin", "busyspin", "park" or "backoff")'
+ts_err = 'setWaitMode: unknown mode {mode:?}; expected "spin", "busyspin", "park" or "backoff"'
+doc = """
+Set how the streaming consumer waits when the event ring is momentarily
+empty.
+
+- `mode = 0`: Spin (default) — adaptive spin then a yield ramp; never sleeps.
+- `mode = 1`: BusySpin — pure spin, no yield, never sleeps. Lowest jitter.
+- `mode = 2`: Park — spin/yield ramp then sleep the park interval. Low CPU.
+- `mode = 3`: Backoff — spins while events flow, sleeps once idle, resumes.
+
+`Spin` and `BusySpin` both hold ~100% of one core and differ only in
+jitter; only `Park` and `Backoff` lower idle CPU. The park / backoff sleep
+length is `thetadatadx_config_set_park_interval_us`.
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+`mode` is outside the documented `{0, 1, 2, 3}` set or `config` is null. A
+rejected `mode` carries `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER`
+so an out-of-domain enum int surfaces the same typed class across every
+binding.
+"""
+cpp_doc = """
+Set the streaming consumer wait mode: 0=Spin (default), 1=BusySpin,
+2=Park, 3=Backoff. Spin and BusySpin both hold ~100% of one core (differ
+only in jitter); only Park and Backoff lower idle CPU. Throws @c
+thetadatadx::InvalidParameterError on an out-of-domain mode (and @c
+thetadatadx::ThetaDataError on a null handle).
+"""
+py_doc = """
+Set how the streaming consumer waits when the event ring is empty.
+Accepts ``"spin"`` (default), ``"busyspin"``, ``"park"``, or
+``"backoff"`` (case-insensitive). ``"spin"`` and ``"busyspin"`` both hold
+~100% of one core and differ only in jitter; only ``"park"`` and
+``"backoff"`` lower idle CPU. The park / backoff sleep length is
+``park_interval_us``.
+"""
+ts_doc = """
+Set how the streaming consumer waits when the event ring is empty.
+Accepts `"spin"` (default), `"busyspin"`, `"park"`, or `"backoff"`
+(case-insensitive). `"spin"` and `"busyspin"` both hold ~100% of one core
+and differ only in jitter; only `"park"` and `"backoff"` lower idle CPU.
+The park / backoff sleep length is `parkIntervalUs`.
+"""
+py_param = "mode"
+ts_param = "mode"
+[[accessor.variant]]
+int = 0
+rust = "Spin"
+label = "spin"
+[[accessor.variant]]
+int = 1
+rust = "BusySpin"
+label = "busyspin"
+[[accessor.variant]]
+int = 2
+rust = "Park"
+label = "park"
+[[accessor.variant]]
+int = 3
+rust = "Backoff"
+label = "backoff"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_wait_mode"
+kind = "enum"
+param = "out_mode"
+abi_type = "i32"
+path = "streaming.wait_mode"
+enum_type = "thetadatadx::WaitMode"
+enum_core = "config::WaitMode"
+doc = """
+Read the configured streaming consumer wait mode. Same encoding as
+`thetadatadx_config_set_wait_mode` (0=Spin, 1=BusySpin, 2=Park, 3=Backoff).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming consumer wait mode (same encoding as the setter).
+"""
+py_doc = """
+Current streaming consumer wait mode as a lowercase string.
+"""
+ts_doc = """
+Current streaming consumer wait mode as a lowercase string.
+"""
+[[accessor.variant]]
+int = 0
+rust = "Spin"
+label = "spin"
+[[accessor.variant]]
+int = 1
+rust = "BusySpin"
+label = "busyspin"
+[[accessor.variant]]
+int = 2
+rust = "Park"
+label = "park"
+[[accessor.variant]]
+int = 3
+rust = "Backoff"
+label = "backoff"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_park_interval_us"
+kind = "set"
+param = "us"
+abi_type = "u64"
+path = "streaming.park_interval_us"
+doc = """
+Set the park / backoff idle sleep length in MICROSECONDS for the streaming
+consumer. Used only when the wait mode is `Park` or `Backoff`; ignored by
+`Spin` / `BusySpin`. This is the worst-case delivery latency added to an
+event that arrives while the consumer is parked. The OS timer honours sleeps
+down to ~50 us (below that, kernel timer slack dominates, so 50 is the
+floor); a 100 us park is a valid low-latency option (a few percent of a core in live
+premarket). The client pings every ~100 ms, so a value beyond the ping
+cadence saves no extra CPU and only adds latency. Validated to
+`[50, 1_000_000]` us at connect time. Default `1000` (= 1 ms).
+"""
+cpp_doc = """
+Set the park / backoff idle sleep length in microseconds for the streaming
+consumer. Used only by the Park / Backoff wait modes. Validated
+[50, 1000000]. Default 1000 (= 1 ms).
+"""
+py_doc = """
+Set the park / backoff idle sleep length in microseconds for the streaming
+consumer. Used only when the wait mode is ``"park"`` or ``"backoff"``.
+Validated ``[50, 1000000]`` at connect time. Default ``1000`` (= 1 ms).
+"""
+ts_doc = """
+Set the park / backoff idle sleep length in microseconds for the streaming
+consumer. Used only when the wait mode is `"park"` or `"backoff"`. Validated
+`[50, 1000000]` at connect time. Default `1000` (= 1 ms).
+
+Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+"""
+py_param = "us"
+ts_param = "us"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_park_interval_us"
+kind = "get"
+param = "out_us"
+abi_type = "u64"
+path = "streaming.park_interval_us"
+out_safety = """
+        // SAFETY: out_us checked non-null by the generated null guard; the
+        // FFI contract pins the `u64` storage for the call. Writing the
+        // `streaming.park_interval_us` field cannot tear under a concurrent
+        // reader because the FFI surface is not thread-safe on a single
+        // config handle.
+"""
+doc = """
+Read the current streaming `park_interval_us` setting (default `1000`,
+= 1 ms).
+
+Writes the configured microsecond sleep length into `*out_us`. Returns
+`0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming park_interval_us (default 1000, = 1 ms). Returns the
+default on a null config handle.
+"""
+py_doc = """
+Current streaming ``park_interval_us`` value in microseconds (default
+``1000``, = 1 ms).
+"""
+ts_doc = """
+Current streaming `park_interval_us` value in microseconds (returned as a
+`BigInt`; default `1000`, = 1 ms).
+"""
+
+[[accessor]]
 symbol = "thetadatadx_config_set_retry_max_elapsed_secs"
 kind = "set"
 param = "secs"

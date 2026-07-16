@@ -56,7 +56,7 @@ pub use env::{
 };
 pub use environment::{MarketDataEnvironment, StreamingEnvironment};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
-pub use fpss::{bounds as streaming_bounds, StreamingConfig};
+pub use fpss::{bounds as streaming_bounds, StreamingConfig, WaitMode};
 pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
 pub use mdds::{BulkFetchPolicy, MarketDataConfig};
 pub use metrics::MetricsConfig;
@@ -828,6 +828,14 @@ impl DirectConfig {
                 i64::from(*streaming_bounds::KEEPALIVE_RETRIES.end()),
             ));
         }
+        if !streaming_bounds::PARK_INTERVAL_US.contains(&self.streaming.park_interval_us) {
+            return Err(Error::config_out_of_range(
+                "streaming.park_interval_us",
+                to_i64(self.streaming.park_interval_us),
+                to_i64(*streaming_bounds::PARK_INTERVAL_US.start()),
+                to_i64(*streaming_bounds::PARK_INTERVAL_US.end()),
+            ));
+        }
         if self.reconnect.replay_burst_size == 0 {
             return Err(Error::config_invalid(
                 "reconnect.replay_burst_size",
@@ -1149,6 +1157,7 @@ impl DirectConfig {
 mod config_file {
     use super::{
         DirectConfig, MarketDataConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
+        WaitMode,
     };
     use crate::error::Error;
     use serde::Deserialize;
@@ -1217,6 +1226,14 @@ mod config_file {
         /// form in `[streaming]` TOML, where serde cannot express a bare
         /// optional cleanly under `#[serde(default)]`.
         consumer_cpu: i64,
+        /// Consumer idle-wait mode: `"spin"` (default), `"busyspin"`,
+        /// `"park"`, or `"backoff"` (case-insensitive). An unrecognised
+        /// value is a load error.
+        wait_mode: String,
+        /// Park / backoff idle sleep length (microseconds). Default `1000`
+        /// (= 1 ms), validated `[50, 1_000_000]`. Only consulted when
+        /// `wait_mode` is `"park"` or `"backoff"`.
+        park_interval_us: u64,
     }
 
     impl Default for FpssSection {
@@ -1237,6 +1254,8 @@ mod config_file {
                     .consumer_cpu
                     .and_then(|c| i64::try_from(c).ok())
                     .unwrap_or(-1),
+                wait_mode: prod.streaming.wait_mode.as_str().to_string(),
+                park_interval_us: prod.streaming.park_interval_us,
             }
         }
     }
@@ -1449,6 +1468,19 @@ mod config_file {
             out.streaming.connect_timeout_ms = cf.streaming.connect_timeout;
             // A negative TOML `consumer_cpu` (default `-1`) means unpinned.
             out.streaming.consumer_cpu = usize::try_from(cf.streaming.consumer_cpu).ok();
+            out.streaming.wait_mode =
+                WaitMode::parse(&cf.streaming.wait_mode).ok_or_else(|| {
+                    Error::config_invalid(
+                        "streaming.wait_mode",
+                        format!(
+                        "unknown wait_mode {:?}; expected \"spin\", \"busyspin\", \"park\", or \
+                         \"backoff\"",
+                        cf.streaming.wait_mode
+                    ),
+                    )
+                })?;
+            // Range-checked with the other streaming knobs in `validate`.
+            out.streaming.park_interval_us = cf.streaming.park_interval_us;
 
             out.reconnect.wait_ms = cf.streaming.reconnect_wait;
             out.reconnect.wait_rate_limited_ms = cf.streaming.reconnect_wait_rate_limited;

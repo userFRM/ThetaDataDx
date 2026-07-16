@@ -66,6 +66,28 @@ ring_size = 131072
 # it unpinned; set a core index to reduce scheduler jitter on a busy box.
 consumer_cpu = -1
 
+# How the streaming consumer waits when no events are ready.
+#   "spin"     (default) adaptive: short spin then a yield ramp, never sleeps.
+#   "busyspin" pure spin, no yield, never sleeps. Lowest jitter; pin a core.
+#   "park"     spin/yield ramp then sleep(park_interval_us). Low, fixed CPU.
+#   "backoff"  spins while events flow, sleeps(park_interval_us) once idle,
+#              then resumes spinning — low latency active, low CPU idle.
+# NOTE: "spin" and "busyspin" both hold ~100% of one core and differ only in
+# jitter. Only "park" and "backoff" lower idle CPU. "backoff" is the
+# hands-free choice for a 24/7 consumer.
+wait_mode = "spin"
+
+# Park/backoff idle sleep length in MICROSECONDS; only used when wait_mode is
+# "park" or "backoff". Default 1000 (= 1 ms). Worst-case added delivery latency
+# per parked event. The OS timer honors sleeps down to ~50us (below that,
+# kernel timer slack dominates, so 50 is the floor); a 100us park is a valid
+# low-latency option (a few percent of a core in live premarket, well under
+# the ~100% a spin holds; a shorter interval wakes more and costs a bit more
+# than the 1ms default, for ~150us wake latency). The client pings every ~100ms, so parking beyond
+# ~100ms (100000us) saves no extra CPU and only adds latency/backlog.
+# Validated [50, 1000000].
+park_interval_us = 1000
+
 # ── Credentials ──────────────────────────────────────────────────────────────
 # Credentials are loaded separately from this file, via the credential API
 # (Credentials::from_file("creds.txt") or Credentials::new(email, password))

@@ -295,6 +295,10 @@ class Config:
         """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster or ``"DEV"`` for the dev cluster. The streaming and market-data channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
     consumer_cpu: Optional[int]
     """CPU core to pin the streaming consumer thread to; ``None`` (default) leaves it under the OS scheduler. An out-of-range or offline core is a best-effort no-op."""
+    wait_mode: Literal["spin", "busyspin", "park", "backoff"]
+    """How the streaming consumer waits when the event ring is empty. ``"spin"`` (default) and ``"busyspin"`` both hold ~100% of one core and differ only in jitter; only ``"park"`` and ``"backoff"`` lower idle CPU. ``"backoff"`` is the hands-free low-latency-when-active / low-CPU-when-idle choice. The park / backoff sleep length is :attr:`park_interval_us`."""
+    park_interval_us: int
+    """Park / backoff idle sleep length in microseconds (default ``1000``, = 1 ms); used only when :attr:`wait_mode` is ``"park"`` or ``"backoff"``. Worst-case delivery latency added per parked event. The OS timer honors sleeps down to ~50us (below that, kernel timer slack dominates, so 50 is the floor); a 100us park is a valid low-latency option (a few percent of a core in live premarket (versus ~100% for spin)). Validated ``[50, 1000000]`` at connect time."""
 
     def __repr__(self) -> str:
         """Return a representation with the host, port, and stream-host count."""

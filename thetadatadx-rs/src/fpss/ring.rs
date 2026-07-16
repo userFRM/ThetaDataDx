@@ -37,65 +37,176 @@
 //!
 //! # Wait Strategy
 //!
-//! [`AdaptiveWaitStrategy`] runs a fixed low-latency three-phase wait
-//! tuned for FPSS tick intervals (~100us during active trading).
+//! [`AdaptiveWaitStrategy`] carries the selected [`WaitMode`] and drives
+//! the consumer's per-empty-poll wait. The default (`Spin`) is the fixed
+//! low-latency spin+yield ramp tuned for FPSS tick intervals (~100us
+//! during active trading); [`DrainWaiter`] adds the stateful `Backoff`
+//! idle escalation on top.
 
 use std::hint;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 use disruptor::{Producer, RingBufferFull, Sequence};
 
 use super::events::FpssEventInternal;
+use crate::config::WaitMode;
 use crate::util::cache_padded::CachePadded;
 
-/// Low-latency wait strategy for the FPSS event ring consumer.
+/// Idle-wait strategy for the FPSS event-ring consumer.
 ///
-/// A zero-sized `Copy` type — the disruptor's `WaitStrategy` trait is
-/// `Copy + Send`, so it lives in registers and the per-poll cost is the
-/// fixed `wait_for` body with no indirection.
+/// A small `Copy` carrier — the disruptor's `WaitStrategy` trait is
+/// `Copy + Send`, so it is passed by value with no indirection. It holds
+/// the selected [`WaitMode`] and the sleep interval used by
+/// [`WaitMode::Park`] and [`WaitMode::Backoff`]; the drain loop reads it
+/// on every ring-empty poll.
 ///
-/// On each ring-empty poll it runs three phases sized to cover the
-/// typical inter-tick interval (~100us during active trading):
-/// 1. **Spin** -- busy-wait 100 times (~300ns at ~3ns per iteration).
-/// 2. **Yield** -- `thread::yield_now()` 10 times, to smooth brief
-///    pauses between bursts.
-/// 3. **Spin-loop hint** -- a trailing `spin_loop` hint that covers idle
-///    periods (pre-market, post-market) without ever parking.
+/// # CPU vs latency
 ///
-/// This never sleeps: lowest latency at the cost of higher idle CPU,
-/// the correct trade-off for real-time market data.
-#[derive(Copy, Clone, Debug, Default)]
-pub struct AdaptiveWaitStrategy;
+/// [`WaitMode::Spin`] and [`WaitMode::BusySpin`] **both hold ~100% of one
+/// core** while the stream is connected — they differ only in scheduler
+/// jitter, not CPU. Only [`WaitMode::Park`] and [`WaitMode::Backoff`]
+/// lower idle CPU, by sleeping between polls.
+///
+/// The stateless `wait_for` below covers `Spin` / `BusySpin` / `Park`
+/// exactly. `Backoff`'s idle escalation is stateful and lives in
+/// [`DrainWaiter`], which the drain loop constructs; `wait_for`'s
+/// `Backoff` arm falls back to the low-latency active wait so the
+/// disruptor-facing impl stays total.
+#[derive(Copy, Clone, Debug)]
+pub struct AdaptiveWaitStrategy {
+    /// Selected wait behaviour.
+    pub(crate) mode: WaitMode,
+    /// Sleep length for `Park` and `Backoff`; ignored by `Spin` /
+    /// `BusySpin`.
+    pub(crate) park: Duration,
+}
 
 impl AdaptiveWaitStrategy {
-    /// Number of busy-wait spins before the yield phase.
+    /// Number of busy-wait spins before the yield phase (active ramp).
     const SPIN_ITERS: u32 = 100;
     /// Number of `thread::yield_now()` calls after the spin phase.
     const YIELD_ITERS: u32 = 10;
 
-    /// The fixed low-latency strategy: 100 spins + 10 yields before a
-    /// trailing `spin_loop` hint; never sleeps.
+    /// The default low-latency strategy: [`WaitMode::Spin`] with a 1 ms
+    /// park interval (unused by `Spin`). Byte-identical to the historical
+    /// fixed wait.
     #[must_use]
     pub fn low_latency() -> Self {
-        Self
+        Self::from_mode(WaitMode::Spin, Duration::from_millis(1))
+    }
+
+    /// Build the carrier from a selected mode and park interval.
+    #[must_use]
+    pub fn from_mode(mode: WaitMode, park: Duration) -> Self {
+        Self { mode, park }
+    }
+
+    /// Phases 1-2 of the active ramp: busy-spin then `yield_now`. Never
+    /// sleeps. Shared by the `Spin` / `Backoff`-active wait and by `Park`
+    /// (which follows it with a sleep instead of the trailing hint).
+    #[inline]
+    fn spin_yield(&self) {
+        for _ in 0..Self::SPIN_ITERS {
+            hint::spin_loop();
+        }
+        for _ in 0..Self::YIELD_ITERS {
+            thread::yield_now();
+        }
+    }
+
+    /// Low-latency active wait: the spin+yield ramp plus a trailing
+    /// `spin_loop` hint; never sleeps. The `Spin` behaviour, and the
+    /// active phase of `Backoff`.
+    #[inline]
+    fn active_wait(&self) {
+        self.spin_yield();
+        hint::spin_loop();
     }
 }
 
 impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
     #[inline]
     fn wait_for(&self, _sequence: Sequence) {
-        // Phase 1: Spin (lowest latency)
-        for _ in 0..Self::SPIN_ITERS {
-            hint::spin_loop();
+        match self.mode {
+            // Pure busy-spin: one hint, re-poll immediately. Lowest jitter,
+            // still ~100% of one core.
+            WaitMode::BusySpin => hint::spin_loop(),
+            // Adaptive spin+yield ramp (the default). `Backoff`'s stateless
+            // fallback matches `Spin`; its idle escalation is applied by
+            // `DrainWaiter`, which owns the consecutive-idle state.
+            WaitMode::Spin | WaitMode::Backoff => self.active_wait(),
+            // Ramp, then park the thread for the configured interval.
+            WaitMode::Park => {
+                self.spin_yield();
+                thread::sleep(self.park);
+            }
         }
-        // Phase 2: Yield (moderate)
-        for _ in 0..Self::YIELD_ITERS {
-            thread::yield_now();
+    }
+}
+
+/// Idle window after which [`WaitMode::Backoff`] escalates from the
+/// low-latency active wait to parking.
+///
+/// ~2 ms: comfortably longer than the active spin+yield ramp (which
+/// resolves in microseconds on an idle core), so a brief lull between
+/// bursts of live ticks keeps spinning at full responsiveness, while a
+/// genuinely idle session (a closed market) crosses it well within one
+/// ~100 ms ping cycle and drops to the park sleep. Not user-configurable:
+/// the user knob is the park interval; this is the fixed hand-off point.
+const BACKOFF_IDLE_THRESHOLD: Duration = Duration::from_millis(2);
+
+/// Drain-side wait driver.
+///
+/// Wraps the `Copy` [`AdaptiveWaitStrategy`] with the per-drain-loop state
+/// [`WaitMode::Backoff`] needs — the start of the current uninterrupted
+/// idle run. The disruptor `WaitStrategy` itself stays `Copy` and
+/// stateless; this is the SDK drain loop's own waiter, constructed fresh
+/// for each pull (`next_event`) call and once per callback drain
+/// (`for_each_scoped`).
+pub(crate) struct DrainWaiter {
+    strategy: AdaptiveWaitStrategy,
+    /// `Backoff` only: when the current idle run began, or `None` while
+    /// events are flowing (or when the mode is not `Backoff`).
+    idle_since: Option<Instant>,
+}
+
+impl DrainWaiter {
+    #[inline]
+    pub(crate) fn new(strategy: AdaptiveWaitStrategy) -> Self {
+        Self {
+            strategy,
+            idle_since: None,
         }
-        // Phase 3: Spin-loop hint (low CPU, still responsive)
-        hint::spin_loop();
+    }
+
+    /// Wait after a poll found the ring momentarily empty.
+    #[inline]
+    pub(crate) fn on_empty(&mut self) {
+        use disruptor::wait_strategies::WaitStrategy as _;
+        match self.strategy.mode {
+            WaitMode::Backoff => {
+                // Spin at full responsiveness until the idle run passes the
+                // threshold, then park until an event resets the run.
+                let since = *self.idle_since.get_or_insert_with(Instant::now);
+                if since.elapsed() >= BACKOFF_IDLE_THRESHOLD {
+                    thread::sleep(self.strategy.park);
+                } else {
+                    self.strategy.active_wait();
+                }
+            }
+            // Spin / BusySpin / Park are stateless — defer to the carrier.
+            _ => self.strategy.wait_for(0),
+        }
+    }
+
+    /// Record that a poll delivered at least one event, ending the idle
+    /// run so `Backoff` returns to the low-latency active wait.
+    #[inline]
+    pub(crate) fn on_progress(&mut self) {
+        self.idle_since = None;
     }
 }
 
@@ -374,6 +485,53 @@ mod tests {
         // Smoke: the fixed low-latency `wait_for` completes promptly and
         // never parks.
         AdaptiveWaitStrategy::low_latency().wait_for(0);
+    }
+
+    #[test]
+    fn park_mode_sleeps_each_empty() {
+        // Park sleeps the configured interval on every empty poll.
+        let strat = AdaptiveWaitStrategy::from_mode(WaitMode::Park, Duration::from_millis(5));
+        let mut w = DrainWaiter::new(strat);
+        let t = Instant::now();
+        w.on_empty();
+        assert!(
+            t.elapsed() >= Duration::from_millis(4),
+            "park must sleep ~the interval"
+        );
+    }
+
+    #[test]
+    fn backoff_escalates_to_park_after_idle_window_then_resets_on_progress() {
+        // Backoff spins while the idle run is short, parks once it crosses
+        // the threshold, and returns to spinning after a delivered event.
+        let strat = AdaptiveWaitStrategy::from_mode(WaitMode::Backoff, Duration::from_millis(5));
+        let mut w = DrainWaiter::new(strat);
+
+        // Pre-threshold: the first empty spins, it does not park.
+        let t0 = Instant::now();
+        w.on_empty();
+        assert!(
+            t0.elapsed() < Duration::from_millis(5),
+            "a fresh idle run must spin, not park"
+        );
+
+        // Let the idle run cross the threshold; the next empty parks.
+        thread::sleep(BACKOFF_IDLE_THRESHOLD);
+        let t1 = Instant::now();
+        w.on_empty();
+        assert!(
+            t1.elapsed() >= Duration::from_millis(4),
+            "past the idle window, an empty must park"
+        );
+
+        // A delivered event resets the run back to spinning.
+        w.on_progress();
+        let t2 = Instant::now();
+        w.on_empty();
+        assert!(
+            t2.elapsed() < Duration::from_millis(5),
+            "after progress, the idle run restarts and spins"
+        );
     }
 
     #[test]

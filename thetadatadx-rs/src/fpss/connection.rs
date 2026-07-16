@@ -67,8 +67,8 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     /// reconnect promotes the last stable host to the front.
     pub hosts: &'a [(String, u16)],
     pub ring_size: usize,
-    /// Fixed low-latency event-ring consumer wait strategy
-    /// ([`super::ring::AdaptiveWaitStrategy`]).
+    /// Selected event-ring consumer wait strategy — mode + park interval
+    /// ([`super::ring::AdaptiveWaitStrategy`]); default `Spin`.
     pub wait_strategy: super::ring::AdaptiveWaitStrategy,
     /// Optional CPU core to pin the event-ring consumer thread to;
     /// `None` leaves it under the OS scheduler. Mirrors

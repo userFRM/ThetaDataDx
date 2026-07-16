@@ -320,6 +320,63 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.streaming.ring_size as u64))
     }
 
+    /// Set how the streaming consumer waits when the event ring is empty.
+    /// Accepts `"spin"` (default), `"busyspin"`, `"park"`, or `"backoff"`
+    /// (case-insensitive). `"spin"` and `"busyspin"` both hold ~100% of one core
+    /// and differ only in jitter; only `"park"` and `"backoff"` lower idle CPU.
+    /// The park / backoff sleep length is `parkIntervalUs`.
+    #[napi(js_name = "setWaitMode")]
+    pub fn set_wait_mode(&self, mode: String) -> napi::Result<()> {
+        let parsed = config::WaitMode::parse(&mode).ok_or_else(|| {
+            crate::invalid_parameter_err(format!(
+                "setWaitMode: unknown mode {mode:?}; expected \"spin\", \"busyspin\", \"park\" or \"backoff\""
+            ))
+        })?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.wait_mode = parsed;
+        Ok(())
+    }
+
+    /// Current streaming consumer wait mode as a lowercase string.
+    #[napi(getter, js_name = "waitMode")]
+    pub fn wait_mode(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.streaming.wait_mode.as_str())
+    }
+
+    /// Set the park / backoff idle sleep length in microseconds for the streaming
+    /// consumer. Used only when the wait mode is `"park"` or `"backoff"`. Validated
+    /// `[50, 1000000]` at connect time. Default `1000` (= 1 ms).
+    ///
+    /// Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+    #[napi(js_name = "setParkIntervalUs")]
+    pub fn set_park_interval_us(&self, us: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
+        let value = bigint_to_u64("setParkIntervalUs", &us)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        guard.streaming.park_interval_us = value;
+        Ok(())
+    }
+
+    /// Current streaming `park_interval_us` value in microseconds (returned as a
+    /// `BigInt`; default `1000`, = 1 ms).
+    #[napi(getter, js_name = "parkIntervalUs")]
+    pub fn park_interval_us(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(napi::bindgen_prelude::BigInt::from(guard.streaming.park_interval_us))
+    }
+
     /// Set the wall-clock envelope (seconds) for one
     /// market-data-channel retry sequence, measured from the first
     /// attempt. `0n` disables the envelope (attempt budget only).

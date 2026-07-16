@@ -88,6 +88,8 @@ impl FpssParams {
         fpss::StreamingClientBuilder::new(&self.creds, self.streaming.hosts())
             .ring_size(self.streaming.ring_size)
             .consumer_cpu(self.streaming.consumer_cpu)
+            .wait_mode(self.streaming.wait_mode)
+            .park_interval_us(self.streaming.park_interval_us)
             .reconnect_policy(self.reconnect.policy.clone())
             .reconnect_wait_ms(self.reconnect.wait_ms)
             .reconnect_wait_max_ms(self.reconnect.wait_max_ms)

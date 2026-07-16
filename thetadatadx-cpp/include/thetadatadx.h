@@ -1589,6 +1589,49 @@ void thetadatadx_config_set_streaming_ring_size(ThetaDataDxConfig* config, size_
 int32_t thetadatadx_config_get_streaming_ring_size(const ThetaDataDxConfig* config, size_t* out);
 
 /**
+ * Set how the streaming consumer waits when the event ring is empty.
+ *   mode=0: Spin (default) -- adaptive spin then a yield ramp; never sleeps.
+ *   mode=1: BusySpin -- pure spin, no yield, never sleeps. Lowest jitter.
+ *   mode=2: Park -- spin/yield ramp then sleep the park interval. Low CPU.
+ *   mode=3: Backoff -- spins while events flow, sleeps once idle, resumes.
+ * Spin and BusySpin both hold ~100% of one core (differ only in jitter);
+ * only Park and Backoff lower idle CPU. Park/backoff sleep length is
+ * thetadatadx_config_set_park_interval_us.
+ * @param config Config handle to mutate.
+ * @param mode Wait mode selector (0 = Spin, 1 = BusySpin, 2 = Park, 3 = Backoff).
+ * @return 0 on success, -1 on an invalid mode or null config.
+ */
+int32_t thetadatadx_config_set_wait_mode(ThetaDataDxConfig* config, int32_t mode);
+
+/**
+ * Read the configured streaming consumer wait mode. Same encoding as
+ * thetadatadx_config_set_wait_mode.
+ * @param config Config handle to read.
+ * @param out_mode Receives the wait mode on success.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_wait_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
+
+/**
+ * Set the park / backoff idle sleep length in MICROSECONDS for the streaming
+ * consumer. Used only by the Park / Backoff wait modes; ignored by Spin /
+ * BusySpin. The OS timer honors sleeps down to ~50us (below that, kernel
+ * timer slack dominates, so 50 is the floor). Validated [50, 1000000] at
+ * connect time. Default 1000 (= 1 ms).
+ * @param config Config handle to mutate.
+ * @param us Idle sleep length in microseconds.
+ */
+void thetadatadx_config_set_park_interval_us(ThetaDataDxConfig* config, uint64_t us);
+
+/**
+ * Read the current streaming park_interval_us setting (default 1000, = 1 ms).
+ * @param config Config handle to read.
+ * @param out_us Receives the microsecond sleep length on success.
+ * @return 0 on success, -1 if either pointer is null.
+ */
+int32_t thetadatadx_config_get_park_interval_us(const ThetaDataDxConfig* config, uint64_t* out_us);
+
+/**
  * Set the wall-clock envelope (seconds) for one market-data-channel
  * retry sequence, measured from the first attempt. 0 disables the
  * envelope (attempt budget only). Default 300.

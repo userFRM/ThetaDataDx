@@ -60,3 +60,26 @@ Incoming events are buffered between the connection and your callback. If your c
 | `panic_count()` | Callback panics or binding-contained exceptions counted by the delivery boundary. In TypeScript, JavaScript exceptions follow Node's normal exception handling; fix callback failures, they cost events. |
 
 Every accessor exists on all four bindings under the language's naming convention (`ringOccupancy()` in TypeScript, `ring_occupancy()` elsewhere). The buffer capacity is configurable via `streaming_ring_size`; keep the callback fast and capacity rarely matters.
+
+## Idle CPU and the consumer wait mode
+
+The streaming consumer runs a thread that waits for the next event. By default it busy-spins for the lowest possible latency, which holds **~100% of one core the whole time the stream is connected**, including overnight, weekends, and holidays when nothing is trading. A long-running or 24/7 consumer therefore burns a full core continuously. `wait_mode` trades a little latency for that core back:
+
+| `wait_mode` | Idle CPU | Latency | Use it when |
+|---|---:|---|---|
+| `spin` (default) | ~100% | lowest | a dedicated core and latency is everything |
+| `busyspin` | ~100% | lowest, least jitter | a pinned core and you want the last sliver of jitter reduction |
+| `park` | ~0-1% | fixed, `park_interval_us` | you want a predictable low-CPU sleep between polls |
+| `backoff` | ~0-1% | full speed while events flow | a 24/7 consumer that should stay fast in-hours and idle cheap |
+
+`spin` and `busyspin` both hold ~100% of a core and differ only in jitter, so neither saves CPU. Only `park` and `backoff` lower it, by sleeping between polls. `backoff` is the hands-free choice: it stays at full spinning responsiveness while events are arriving and only drops to sleeping after a short idle lull, so you keep low latency during market hours and pay about ~1% of a core on a quiet weekend, with no manual switching.
+
+`park_interval_us` sets the sleep length for `park` and `backoff`, in microseconds (default `1000` = 1 ms, range `[50, 1000000]`). It bounds the extra latency a parked event can wait. The OS timer floors at ~50 us, so a request shorter than that just hits kernel slack. A 100 us park measures about a few percent of a core with ~150 us wake latency, so you can park close to spin-latency for almost no CPU.
+
+```python
+cfg = Config.production()
+cfg.wait_mode = "backoff"       # low latency when active, low CPU when idle
+cfg.park_interval_us = 1000     # idle sleep length in microseconds; default 1 ms
+```
+
+See [Configuration](/articles/configuration) for how each binding exposes these.

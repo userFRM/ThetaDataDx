@@ -219,6 +219,48 @@ impl Config {
         guard.streaming.ring_size
     }
 
+    /// Set how the streaming consumer waits when the event ring is empty.
+    /// Accepts ``"spin"`` (default), ``"busyspin"``, ``"park"``, or
+    /// ``"backoff"`` (case-insensitive). ``"spin"`` and ``"busyspin"`` both hold
+    /// ~100% of one core and differ only in jitter; only ``"park"`` and
+    /// ``"backoff"`` lower idle CPU. The park / backoff sleep length is
+    /// ``park_interval_us``.
+    #[setter]
+    fn set_wait_mode(&self, mode: &str) -> PyResult<()> {
+        let parsed = config::WaitMode::parse(mode).ok_or_else(|| {
+            crate::errors::invalid_parameter_err(format!(
+                "unknown wait_mode: {mode:?} (expected \"spin\", \"busyspin\", \"park\" or \"backoff\")"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_mode = parsed;
+        Ok(())
+    }
+
+    /// Current streaming consumer wait mode as a lowercase string.
+    #[getter]
+    fn get_wait_mode(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_mode.as_str()
+    }
+
+    /// Set the park / backoff idle sleep length in microseconds for the streaming
+    /// consumer. Used only when the wait mode is ``"park"`` or ``"backoff"``.
+    /// Validated ``[50, 1000000]`` at connect time. Default ``1000`` (= 1 ms).
+    #[setter]
+    fn set_park_interval_us(&self, us: u64) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.park_interval_us = us;
+    }
+
+    /// Current streaming ``park_interval_us`` value in microseconds (default
+    /// ``1000``, = 1 ms).
+    #[getter]
+    fn get_park_interval_us(&self) -> u64 {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.park_interval_us
+    }
+
     /// Set the wall-clock envelope (seconds) for one
     /// market-data-channel retry sequence, measured from the first
     /// attempt. ``0`` disables the envelope (attempt budget only).
