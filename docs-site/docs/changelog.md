@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A normal `cargo build` of the Rust crate no longer requires a system `protoc`.** The crate now ships the pre-generated gRPC client code (committed at `proto/beta_endpoints.snapshot.rs` and included directly), so a default build never shells out to `protoc` — fixing build failures for users who lack a runnable `protoc`. The proto compile and its byte-for-byte drift check against `mdds.proto` are gated behind the `grpc-codegen` cargo feature (and `prost-build` moves out of the default build graph); regenerate the snapshot with `cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen`. CI still drift-checks the snapshot under that feature, so an edited `mdds.proto` with a stale snapshot fails the build.
+
 - **Python sync snapshot endpoints no longer carry a hardcoded 5-second cap.** The Python sync snapshot methods wrapped every call in a fixed 5-second timeout that fired before the caller's `timeout_ms` and the configured request timeout, making large snapshots (bulk greeks, wide option chains) unusable from the sync API. Snapshots now route through the normal request path and honor the request's own deadline. TypeScript, C++, and Rust were unaffected.
 
 ## [0.1.1] - 2026-07-07

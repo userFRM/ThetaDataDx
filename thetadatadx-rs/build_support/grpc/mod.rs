@@ -1,9 +1,13 @@
 //! Build-time gRPC client codegen entry points.
 //!
-//! Replaces `tonic-prost-build`. The build step reads
-//! `proto/mdds.proto`, invokes `prost-build` for the message types,
-//! and installs a custom service generator (see [`codegen`]) that
-//! emits one async function per RPC method.
+//! This module is compiled and run **only** under the `grpc-codegen`
+//! cargo feature. A normal build uses the committed snapshot at
+//! `proto/beta_endpoints.snapshot.rs` (included directly by `src/lib.rs`)
+//! and never invokes `protoc`. Under `grpc-codegen` the build step reads
+//! `proto/mdds.proto`, invokes `prost-build` for the message types, and
+//! installs a custom service generator (see [`codegen`]) that emits one
+//! async function per RPC method, then drift-checks the result against the
+//! committed snapshot.
 //!
 //! Each emitted function has shape:
 //!
