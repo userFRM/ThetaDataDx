@@ -31,6 +31,17 @@ max_message_size = 4194304
 # An explicit 0 is floored to 1.
 # shard_concurrency = 4
 
+# gRPC connect timeout (seconds). Default 10. Validated to [1, 300].
+# connect_timeout_secs = 10
+
+# Per-request market-data deadline (seconds). Default 300. Set 0 to disable
+# the per-request deadline. Not range-limited.
+# request_timeout_secs = 300
+
+# Buffered-response size (bytes) above which a warning is logged. Default
+# 104857600 (100 MiB).
+# warn_on_buffered_threshold_bytes = 104857600
+
 # ── Real-Time Streaming (TLS/TCP) ────────────────────────────────────────────
 # The client tries each host in order until one connects.
 
