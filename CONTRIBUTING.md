@@ -18,7 +18,7 @@ issues.
 - **maturin** - for building the PyO3 Python bindings (`pip install "maturin>=1.9.4,<2.0"`)
 - **Node.js 18+** - for the TypeScript/Node.js SDK
 
-Note: `protoc` is required even if you're not modifying `.proto` files, because `build.rs` compiles protos during `cargo build`.
+Note: a normal `cargo build` does not need `protoc`. The crate ships the committed gRPC snapshot (`proto/beta_endpoints.snapshot.rs`); `protoc` is only needed with `--features grpc-codegen` to regenerate that snapshot after editing a `.proto` file.
 
 ## Development Setup
 
