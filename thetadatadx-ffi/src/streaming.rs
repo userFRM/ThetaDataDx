@@ -231,6 +231,8 @@ fn streaming_builder(
     thetadatadx::fpss::StreamingClient::builder(&params.creds, params.streaming.hosts())
         .ring_size(params.streaming.ring_size)
         .consumer_cpu(params.streaming.consumer_cpu)
+        .wait_mode(params.streaming.wait_mode)
+        .park_interval_us(params.streaming.park_interval_us)
         .reconnect_policy(params.reconnect.policy.clone())
         .reconnect_wait_ms(params.reconnect.wait_ms)
         .reconnect_wait_max_ms(params.reconnect.wait_max_ms)

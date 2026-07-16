@@ -180,6 +180,39 @@
         return out;
     }
 
+    /// Set the streaming consumer wait mode: 0=Spin (default), 1=BusySpin,
+    /// 2=Park, 3=Backoff. Spin and BusySpin both hold ~100% of one core (differ
+    /// only in jitter); only Park and Backoff lower idle CPU. Throws @c
+    /// thetadatadx::InvalidParameterError on an out-of-domain mode (and @c
+    /// thetadatadx::ThetaDataError on a null handle).
+    void set_wait_mode(int mode) {
+        if (thetadatadx_config_set_wait_mode(handle_.get(), mode) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /// Current streaming consumer wait mode (same encoding as the setter).
+    int get_wait_mode() const {
+        int32_t out{};
+        thetadatadx_config_get_wait_mode(handle_.get(), &out);
+        return out;
+    }
+
+    /// Set the park / backoff idle sleep length in microseconds for the streaming
+    /// consumer. Used only by the Park / Backoff wait modes. Validated
+    /// [50, 1000000]. Default 1000 (= 1 ms).
+    void set_park_interval_us(std::uint64_t us) {
+        thetadatadx_config_set_park_interval_us(handle_.get(), us);
+    }
+
+    /// Current streaming park_interval_us (default 1000, = 1 ms). Returns the
+    /// default on a null config handle.
+    std::uint64_t get_park_interval_us() const {
+        std::uint64_t out{};
+        thetadatadx_config_get_park_interval_us(handle_.get(), &out);
+        return out;
+    }
+
     /// Set the wall-clock envelope (seconds) for one
     /// market-data-channel retry sequence. 0 disables. Default 300.
     void set_retry_max_elapsed_secs(std::uint64_t secs) {

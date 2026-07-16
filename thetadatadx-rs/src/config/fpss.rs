@@ -1,5 +1,87 @@
 //! Streaming (TCP) sub-configuration.
 
+/// How the streaming event-ring consumer waits when the ring is
+/// momentarily empty.
+///
+/// The choice is a CPU-vs-latency trade. [`Spin`](Self::Spin) and
+/// [`BusySpin`](Self::BusySpin) **both hold ~100% of one core** whenever
+/// the stream is connected — they differ only in scheduler jitter, not
+/// CPU. Only [`Park`](Self::Park) and [`Backoff`](Self::Backoff) lower
+/// idle CPU. If you are picking between `Spin` and `BusySpin` to save
+/// CPU: neither does — use `Backoff` (automatic) or `Park` (fixed sleep).
+///
+/// Two further strategies were considered and deliberately left out: a
+/// condvar-style `Block` (the ~100 ms FPSS ping keeps the ring active, so
+/// blocking's edge over `Backoff` — 0% vs ~1% idle CPU, instant vs
+/// interval wake — is marginal, and it would add lost-wakeup-prone
+/// signalling on the producer hot path) and a pure `Yield` (redundant
+/// with `Spin`).
+///
+/// Bindings encode the mode as the lowercase strings `"spin"`,
+/// `"busyspin"`, `"park"`, and `"backoff"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum WaitMode {
+    /// Adaptive spin: a short busy-spin then a `yield_now` ramp, then a
+    /// `spin_loop` hint — never sleeps. The default, and byte-for-byte the
+    /// historical behaviour. The `yield_now` ramp lets the OS run other
+    /// runnable threads between polls, so it is the friendlier of the two
+    /// never-sleep modes on a shared core. ~100% of one core.
+    #[default]
+    Spin,
+    /// Pure busy-spin: a single `spin_loop` hint per empty poll, no
+    /// `yield_now`, no sleep — the tightest re-poll loop. Lowest and
+    /// least-jittery delivery latency because the consumer never
+    /// deschedules; in exchange it never yields the core, so pair it with
+    /// a dedicated / isolated core (see [`StreamingConfig::consumer_cpu`]).
+    /// Same ~100% of one core as `Spin`, just without the yield. For
+    /// latency-critical consumers on dedicated hardware.
+    BusySpin,
+    /// Park: the same spin + `yield_now` ramp as `Spin`, then
+    /// `thread::sleep(park_interval)` instead of spinning. Idle CPU drops
+    /// to ~0-1% of a core; an event arriving while parked is delivered up
+    /// to one park interval late (plus OS timer slack). The sleep length
+    /// is [`StreamingConfig::park_interval_us`]. For consumers that idle
+    /// through closed markets and accept a fixed latency floor even when
+    /// active.
+    Park,
+    /// Backoff (automatic): spins and yields at full responsiveness while
+    /// events are flowing, and after a short idle window with no events
+    /// escalates to `thread::sleep(park_interval)` until events resume,
+    /// then snaps back to spinning. Low latency when active, low CPU when
+    /// idle, with no latency floor during active trading — the hands-free
+    /// choice for a 24/7 consumer. Reuses
+    /// [`StreamingConfig::park_interval_us`] as its idle sleep length.
+    Backoff,
+}
+
+impl WaitMode {
+    /// Canonical lowercase string for this mode, matching the
+    /// cross-binding encoding.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Spin => "spin",
+            Self::BusySpin => "busyspin",
+            Self::Park => "park",
+            Self::Backoff => "backoff",
+        }
+    }
+
+    /// Parse the cross-binding string encoding (case-insensitive).
+    /// Returns `Option::None` for unrecognised input.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "spin" => Some(Self::Spin),
+            "busyspin" => Some(Self::BusySpin),
+            "park" => Some(Self::Park),
+            "backoff" => Some(Self::Backoff),
+            _ => None,
+        }
+    }
+}
+
 /// Streaming client tuning.
 ///
 /// The timing knobs (`timeout_ms`, `ping_interval_ms`,
@@ -124,6 +206,42 @@ pub struct StreamingConfig {
     /// out-of-range or offline core is a best-effort no-op at the
     /// affinity layer (a `warn` is logged) rather than a hard error.
     pub consumer_cpu: Option<usize>,
+
+    /// Consumer idle-wait mode for the streaming event ring.
+    ///
+    /// [`WaitMode::Spin`] (default) and [`WaitMode::BusySpin`] both hold
+    /// ~100% of one core while connected and differ only in jitter;
+    /// [`WaitMode::Park`] and [`WaitMode::Backoff`] lower idle CPU.
+    /// `Backoff` is the hands-free low-latency-when-active /
+    /// low-CPU-when-idle choice for a 24/7 consumer. Applied at connect
+    /// time to both the unified `Client` dispatcher and a standalone
+    /// `StreamingClient`. See [`WaitMode`].
+    pub wait_mode: WaitMode,
+
+    /// Sleep length, in microseconds, for [`WaitMode::Park`] and the idle
+    /// phase of [`WaitMode::Backoff`]. Default `1000` (= 1 ms, keeping the
+    /// historical park behaviour). Ignored by `Spin` / `BusySpin`.
+    ///
+    /// This is the worst-case delivery latency added to an event that
+    /// arrives while the consumer is parked, and it bounds how many frames
+    /// accumulate on the ring per wake. The OS timer honours sleeps down to
+    /// ~50 us; below that, kernel timer slack dominates, so `50` is the
+    /// validated floor. A `100` us park is a valid low-latency option —
+    /// measured a few percent of a core in live premarket, well under the ~100% a spin holds — a bit
+    /// more idle CPU than the `1000` us (1 ms) default, since a shorter
+    /// interval wakes more often, for ~150 us wake latency.
+    /// The client pings the server every ~100 ms
+    /// ([`Self::ping_interval_ms`]), so the session is never idle much
+    /// longer than that cadence: a park beyond ~100 ms (100_000 us) does
+    /// not find a quieter ring, it just wakes to a larger backlog of
+    /// control frames — no extra CPU saving, only more latency and higher
+    /// ring occupancy. Validated to `[50, 1_000_000]` us: the `1_000_000`
+    /// us (1 s) ceiling is a guardrail (it bounds worst-case latency to one
+    /// second and keeps a park accidentally left on into active trading
+    /// from overrunning the default `131_072`-slot ring before the next
+    /// drain), not a recommendation — keep it at or below the ~100 ms ping
+    /// cadence.
+    pub park_interval_us: u64,
 }
 
 impl StreamingConfig {
@@ -160,6 +278,8 @@ impl StreamingConfig {
             keepalive_interval_secs: 2,
             keepalive_retries: 2,
             consumer_cpu: None,
+            wait_mode: WaitMode::Spin,
+            park_interval_us: 1_000,
         }
     }
 }
@@ -181,6 +301,12 @@ pub mod bounds {
     pub const KEEPALIVE_INTERVAL_SECS: std::ops::RangeInclusive<u64> = 1..=75;
     /// Allowed range for [`super::StreamingConfig::keepalive_retries`].
     pub const KEEPALIVE_RETRIES: std::ops::RangeInclusive<u32> = 1..=10;
+    /// Allowed range for [`super::StreamingConfig::park_interval_us`], in
+    /// microseconds. The `50` us floor is the practical OS timer resolution
+    /// (below it, kernel timer slack dominates); the `1_000_000` us (1 s)
+    /// ceiling is a guardrail against a park left on into active trading
+    /// (see the field docs), not a recommended value.
+    pub const PARK_INTERVAL_US: std::ops::RangeInclusive<u64> = 50..=1_000_000;
 }
 
 impl Default for StreamingConfig {
@@ -203,10 +329,30 @@ mod tests {
         assert_eq!(cfg.keepalive_interval_secs, 2);
         assert_eq!(cfg.keepalive_retries, 2);
         assert_eq!(cfg.consumer_cpu, None);
+        // Default wait mode is the historical low-latency spin, with the
+        // park interval defaulted to 1000 us (= 1 ms) but unused until
+        // Park/Backoff is selected.
+        assert_eq!(cfg.wait_mode, WaitMode::Spin);
+        assert_eq!(cfg.park_interval_us, 1_000);
         // Kernel-side half-open detection at the defaults:
         // idle + interval * retries = 5 + 2*2 = 9 seconds.
         let detection = cfg.keepalive_idle_secs
             + cfg.keepalive_interval_secs * u64::from(cfg.keepalive_retries);
         assert_eq!(detection, 9);
+    }
+
+    #[test]
+    fn wait_mode_label_round_trip() {
+        for mode in [
+            WaitMode::Spin,
+            WaitMode::BusySpin,
+            WaitMode::Park,
+            WaitMode::Backoff,
+        ] {
+            assert_eq!(WaitMode::parse(mode.as_str()), Some(mode));
+        }
+        // Case-insensitive, and unknown labels reject.
+        assert_eq!(WaitMode::parse("BACKOFF"), Some(WaitMode::Backoff));
+        assert_eq!(WaitMode::parse("block"), None);
     }
 }

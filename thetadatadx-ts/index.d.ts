@@ -333,6 +333,29 @@ export declare class Config {
    */
   get streamingRingSize(): bigint
   /**
+   * Set how the streaming consumer waits when the event ring is empty.
+   * Accepts `"spin"` (default), `"busyspin"`, `"park"`, or `"backoff"`
+   * (case-insensitive). `"spin"` and `"busyspin"` both hold ~100% of one core
+   * and differ only in jitter; only `"park"` and `"backoff"` lower idle CPU.
+   * The park / backoff sleep length is `parkIntervalUs`.
+   */
+  setWaitMode(mode: string): void
+  /** Current streaming consumer wait mode as a lowercase string. */
+  get waitMode(): string
+  /**
+   * Set the park / backoff idle sleep length in microseconds for the streaming
+   * consumer. Used only when the wait mode is `"park"` or `"backoff"`. Validated
+   * `[50, 1000000]` at connect time. Default `1000` (= 1 ms).
+   *
+   * Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+   */
+  setParkIntervalUs(us: bigint): void
+  /**
+   * Current streaming `park_interval_us` value in microseconds (returned as a
+   * `BigInt`; default `1000`, = 1 ms).
+   */
+  get parkIntervalUs(): bigint
+  /**
    * Set the wall-clock envelope (seconds) for one
    * market-data-channel retry sequence, measured from the first
    * attempt. `0n` disables the envelope (attempt budget only).

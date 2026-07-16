@@ -683,6 +683,30 @@ python = true
 typescript = true
 cpp = true
 
+# `StreamingConfig.wait_mode` consumer idle-wait mode, exposed on every
+# binding (Python `Config.wait_mode`
+# `Literal["spin","busyspin","park","backoff"]`, TypeScript `waitMode` /
+# `setWaitMode`, C++ `set_wait_mode` / `get_wait_mode`, C ABI
+# `thetadatadx_config_set_wait_mode` as an i32 enum). `Spin` and `BusySpin`
+# are both ~100% CPU and differ only in jitter; only `Park` / `Backoff`
+# lower idle CPU.
+[[class]]
+name = "StreamingConfig.wait_mode"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.park_interval_us` park / backoff idle sleep length (us),
+# exposed on every binding (Python `Config.park_interval_us` `int`,
+# TypeScript `parkIntervalUs` / `setParkIntervalUs` `bigint`, C++
+# `set_park_interval_us` / `get_park_interval_us`, C ABI
+# `thetadatadx_config_set_park_interval_us` `u64`).
+[[class]]
+name = "StreamingConfig.park_interval_us"
+python = true
+typescript = true
+cpp = true
+
 # ─── AuthConfig / MetricsConfig cross-binding setters ──────────────────
 #
 # Operator-tuning knobs on `DirectConfig.auth` + `DirectConfig.metrics`.
@@ -1973,6 +1997,34 @@ cpp = true
 returns = "String"
 cpp_returns = "i32"
 python_pyi_returns = 'Literal["full", "none"]'
+
+# The streaming wait-mode readback. A value-constrained enum getter on
+# every binding (Python `Config.wait_mode`, TypeScript `get waitMode()`,
+# C++ `Config::get_wait_mode()` returning the enum's `int` discriminant).
+# `python_pyi_returns` pins the `.pyi` value set so a variant drift fails.
+[[method]]
+class = "Config"
+name = "waitMode"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+python_pyi_returns = 'Literal["spin", "busyspin", "park", "backoff"]'
+
+# The streaming park/backoff interval readback. Pins the readback TYPE on
+# the `.pyi` lane the way `streamingRingSize` does, so a stub drift to a
+# non-integer would fail. u64 element: napi widens to BigInt, C++ to
+# uint64_t, the stub to int.
+[[method]]
+class = "Config"
+name = "parkIntervalUs"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u64"
 
 # Custom reconnect-policy callback registration. A field-shaped getter
 # is meaningless for a callback, so the registration is tracked as a

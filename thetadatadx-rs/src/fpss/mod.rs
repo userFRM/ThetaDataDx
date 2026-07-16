@@ -56,7 +56,6 @@ pub use self::session::{reconnect_delay, reconnect_delay_for};
 // stored inside `StreamingClient::poller_state` and never reach the public
 // signature surface; these imports are crate-internal only.
 use self::ring::{RingCursors, RingEvent};
-use disruptor::wait_strategies::WaitStrategy; // VOCAB-OK: internal crate name, not user-facing
 use disruptor::{EventPoller, Polling, SingleProducerBarrier}; // VOCAB-OK: internal crate name, not user-facing
 
 /// Hidden test-internals surface for vendor-failure-mode resilience tests
@@ -129,7 +128,7 @@ use std::time::Duration;
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::ReconnectPolicy;
+use crate::config::{ReconnectPolicy, WaitMode};
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -478,7 +477,10 @@ impl<'a> StreamingClientBuilder<'a> {
             keepalive_idle_secs: fpss.keepalive_idle_secs,
             keepalive_interval_secs: fpss.keepalive_interval_secs,
             keepalive_retries: fpss.keepalive_retries,
-            wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
+            wait_strategy: ring::AdaptiveWaitStrategy::from_mode(
+                fpss.wait_mode,
+                Duration::from_micros(fpss.park_interval_us),
+            ),
             consumer_cpu: fpss.consumer_cpu,
         }
     }
@@ -507,6 +509,24 @@ impl<'a> StreamingClientBuilder<'a> {
     #[must_use]
     pub fn consumer_cpu(mut self, core: Option<usize>) -> Self {
         self.consumer_cpu = core;
+        self
+    }
+
+    /// Consumer idle-wait mode. Default [`WaitMode::Spin`] — the historical
+    /// low-latency wait. `Park` / `Backoff` lower idle CPU; see
+    /// [`crate::config::StreamingConfig::wait_mode`] and [`Self::park_interval_us`].
+    #[must_use]
+    pub fn wait_mode(mut self, mode: WaitMode) -> Self {
+        self.wait_strategy.mode = mode;
+        self
+    }
+
+    /// Park / backoff idle sleep length in microseconds. Default `1000`
+    /// (= 1 ms); ignored unless the wait mode is `Park` or `Backoff`. See
+    /// [`crate::config::StreamingConfig::park_interval_us`].
+    #[must_use]
+    pub fn park_interval_us(mut self, us: u64) -> Self {
+        self.wait_strategy.park = Duration::from_micros(us);
         self
     }
 
@@ -691,8 +711,8 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) keepalive_idle_secs: u64,
     pub(crate) keepalive_interval_secs: u64,
     pub(crate) keepalive_retries: u32,
-    /// Fixed low-latency event-ring consumer wait strategy
-    /// ([`ring::AdaptiveWaitStrategy`]).
+    /// Selected event-ring consumer wait strategy — mode + park interval
+    /// ([`ring::AdaptiveWaitStrategy`]); default [`WaitMode::Spin`].
     pub(crate) wait_strategy: ring::AdaptiveWaitStrategy,
     /// Optional CPU core to pin the event-ring consumer thread to;
     /// `None` (default) leaves it under the OS scheduler. Mirrors
@@ -912,10 +932,10 @@ pub struct StreamingClient {
     /// can scale [`StreamingClient::ring_occupancy`] samples without
     /// re-reading their own configuration.
     ring_size: usize,
-    /// Fixed low-latency event-ring consumer wait strategy applied by
-    /// the blocking poll loops ([`Self::next_event`] /
-    /// [`Self::for_each_scoped`]) when the ring is momentarily empty, so
-    /// the consumer-side wait matches the ring builder's strategy.
+    /// Selected event-ring consumer wait strategy (mode + park interval)
+    /// applied by the blocking poll loops ([`Self::next_event`] /
+    /// [`Self::for_each_scoped`], via [`ring::DrainWaiter`]) when the ring
+    /// is momentarily empty. Default [`WaitMode::Spin`].
     wait_strategy: ring::AdaptiveWaitStrategy,
     /// Optional CPU core to pin the consumer drain thread to; `None`
     /// (default) leaves it under the OS scheduler. Applied by the drain
@@ -1075,6 +1095,17 @@ impl StreamingClient {
                 i64::from(keepalive_retries),
                 i64::from(*crate::config::streaming_bounds::KEEPALIVE_RETRIES.start()),
                 i64::from(*crate::config::streaming_bounds::KEEPALIVE_RETRIES.end()),
+            ));
+        }
+        // Same [50, 1_000_000] us bound the config validator enforces, applied
+        // here so the standalone builder path (`park_interval_us`) cannot bypass it.
+        let park_interval_us = u64::try_from(wait_strategy.park.as_micros()).unwrap_or(u64::MAX);
+        if !crate::config::streaming_bounds::PARK_INTERVAL_US.contains(&park_interval_us) {
+            return Err(Error::config_out_of_range(
+                "fpss.park_interval_us",
+                to_i64(park_interval_us),
+                to_i64(*crate::config::streaming_bounds::PARK_INTERVAL_US.start()),
+                to_i64(*crate::config::streaming_bounds::PARK_INTERVAL_US.end()),
             ));
         }
         // Cold connect: walk the declared host order left to right.
@@ -1697,11 +1728,13 @@ impl StreamingClient {
         // after the staging lock is acquired — not here at entry — so a
         // failed `ReentrantDrain` attempt never claims the consumer-thread
         // identity. See `record_drainer_and_pin`.
-        let waiter = self.wait_strategy;
+        // Fresh per call: `next_event` returns on the first event, so the
+        // Backoff idle window is measured from this call's first empty poll.
+        let mut waiter = ring::DrainWaiter::new(self.wait_strategy);
         loop {
             match self.try_next_event_internal()? {
                 TryNext::Event(event) => return Ok(Some(event)),
-                TryNext::Empty => waiter.wait_for(0),
+                TryNext::Empty => waiter.on_empty(),
                 TryNext::Shutdown => return self.shutdown_outcome(),
             }
         }
@@ -2065,7 +2098,9 @@ impl StreamingClient {
         // The drain owner + CPU pin are recorded inside `poll_batch`, after
         // the staging lock is acquired, so the identity reflects the proven
         // drainer rather than whichever thread merely entered this loop.
-        let waiter = self.wait_strategy;
+        // Persistent across the whole drain: a delivered batch resets the
+        // Backoff idle window (see `on_progress`), an empty poll advances it.
+        let mut waiter = ring::DrainWaiter::new(self.wait_strategy);
         loop {
             // Drain one batch inside the caller's scope. `on_event` fires
             // once per event, exactly as in `for_each`; the scope only
@@ -2082,9 +2117,10 @@ impl StreamingClient {
                 // lock when it polls); it is handled defensively in case an
                 // `on_event` callback re-entered a drain.
                 PollOutcome::Drained(0) | PollOutcome::Busy => {
-                    waiter.wait_for(0);
+                    waiter.on_empty();
                 }
-                PollOutcome::Drained(_) => {}
+                // A delivered batch ends any Backoff idle run.
+                PollOutcome::Drained(_) => waiter.on_progress(),
             }
         }
     }
@@ -3090,8 +3126,8 @@ mod builder_tests {
         );
     }
 
-    /// The default builder threads the fixed low-latency wait strategy
-    /// into the connect args, and the ring poller builds with it.
+    /// The default builder threads the default (Spin) low-latency wait
+    /// strategy into the connect args, and the ring poller builds with it.
     #[test]
     fn builder_threads_low_latency_wait_strategy() {
         use crate::fpss::ring::RingCursors;
@@ -3155,6 +3191,23 @@ mod builder_tests {
             Err(e) => e,
         };
         assert!(err.to_string().contains("ping_interval_ms"));
+    }
+
+    /// Same defence for `park_interval_us`: the builder path must enforce
+    /// the same `[50, 1_000_000]` us bound the config validator does, so a
+    /// Park / Backoff sleep cannot exceed the documented maximum.
+    #[test]
+    fn build_rejects_out_of_range_park_interval_us() {
+        let creds = Credentials::new("user", "pw");
+        let hosts: Vec<(String, u16)> = vec![("127.0.0.1".to_owned(), 1)];
+        let res = StreamingClientBuilder::new(&creds, &hosts)
+            .park_interval_us(2_000_000) // above the 1_000_000 us (1 s) maximum
+            .build();
+        let err = match res {
+            Ok(_) => panic!("must reject"),
+            Err(e) => e,
+        };
+        assert!(err.to_string().contains("park_interval_us"), "{err}");
     }
 
     /// The fluent builder is the only channel through which tuning

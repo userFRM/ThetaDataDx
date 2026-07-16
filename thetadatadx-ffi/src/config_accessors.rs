@@ -506,6 +506,134 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_ring_size(
     })
 }
 
+/// Set how the streaming consumer waits when the event ring is momentarily
+/// empty.
+///
+/// - `mode = 0`: Spin (default) — adaptive spin then a yield ramp; never sleeps.
+/// - `mode = 1`: BusySpin — pure spin, no yield, never sleeps. Lowest jitter.
+/// - `mode = 2`: Park — spin/yield ramp then sleep the park interval. Low CPU.
+/// - `mode = 3`: Backoff — spins while events flow, sleeps once idle, resumes.
+///
+/// `Spin` and `BusySpin` both hold ~100% of one core and differ only in
+/// jitter; only `Park` and `Backoff` lower idle CPU. The park / backoff sleep
+/// length is `thetadatadx_config_set_park_interval_us`.
+///
+/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+/// `mode` is outside the documented `{0, 1, 2, 3}` set or `config` is null. A
+/// rejected `mode` carries `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER`
+/// so an out-of-domain enum int surfaces the same typed class across every
+/// binding.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_wait_mode(
+    config: *mut ThetaDataDxConfig,
+    mode: i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("thetadatadx_config_set_wait_mode: config handle is null");
+            return -1;
+        }
+        let value = match mode {
+            0 => thetadatadx::WaitMode::Spin,
+            1 => thetadatadx::WaitMode::BusySpin,
+            2 => thetadatadx::WaitMode::Park,
+            3 => thetadatadx::WaitMode::Backoff,
+            other => {
+                crate::error::set_error_with_code(
+                    &format!(
+                        "thetadatadx_config_set_wait_mode: invalid mode {other}; expected 0 (Spin), 1 (BusySpin), 2 (Park) or 3 (Backoff)"
+                    ),
+                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                );
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        let config = unsafe { &mut *config };
+        config.inner.streaming.wait_mode = value;
+        0
+    })
+}
+
+/// Read the configured streaming consumer wait mode. Same encoding as
+/// `thetadatadx_config_set_wait_mode` (0=Spin, 1=BusySpin, 2=Park, 3=Backoff).
+/// Returns `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_wait_mode(
+    config: *const ThetaDataDxConfig,
+    out_mode: *mut i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_mode.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match config.inner.streaming.wait_mode {
+            thetadatadx::WaitMode::Spin => 0,
+            thetadatadx::WaitMode::BusySpin => 1,
+            thetadatadx::WaitMode::Park => 2,
+            thetadatadx::WaitMode::Backoff => 3,
+            _ => 3,
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out_mode = value;
+        }
+        0
+    })
+}
+
+/// Set the park / backoff idle sleep length in MICROSECONDS for the streaming
+/// consumer. Used only when the wait mode is `Park` or `Backoff`; ignored by
+/// `Spin` / `BusySpin`. This is the worst-case delivery latency added to an
+/// event that arrives while the consumer is parked. The OS timer honours sleeps
+/// down to ~50 us (below that, kernel timer slack dominates, so 50 is the
+/// floor); a 100 us park is a valid low-latency option (a few percent of a core in live
+/// premarket). The client pings every ~100 ms, so a value beyond the ping
+/// cadence saves no extra CPU and only adds latency. Validated to
+/// `[50, 1_000_000]` us at connect time. Default `1000` (= 1 ms).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_park_interval_us(
+    config: *mut ThetaDataDxConfig,
+    us: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        config.inner.streaming.park_interval_us = us;
+    })
+}
+
+/// Read the current streaming `park_interval_us` setting (default `1000`,
+/// = 1 ms).
+///
+/// Writes the configured microsecond sleep length into `*out_us`. Returns
+/// `0` on success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_park_interval_us(
+    config: *const ThetaDataDxConfig,
+    out_us: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_us.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_us checked non-null by the generated null guard; the
+        // FFI contract pins the `u64` storage for the call. Writing the
+        // `streaming.park_interval_us` field cannot tear under a concurrent
+        // reader because the FFI surface is not thread-safe on a single
+        // config handle.
+        unsafe {
+            *out_us = config.inner.streaming.park_interval_us;
+        }
+        0
+    })
+}
+
 /// Set the wall-clock envelope (seconds) for one market-data-channel
 /// retry sequence, measured from the first attempt. `0` disables the
 /// envelope (attempt budget only). Default `300`.

@@ -871,6 +871,8 @@ impl Client {
         let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
             .ring_size(config.streaming.ring_size)
             .consumer_cpu(config.streaming.consumer_cpu)
+            .wait_mode(config.streaming.wait_mode)
+            .park_interval_us(config.streaming.park_interval_us)
             .reconnect_policy(config.reconnect.policy.clone())
             .reconnect_wait_ms(config.reconnect.wait_ms)
             .reconnect_wait_max_ms(config.reconnect.wait_max_ms)
