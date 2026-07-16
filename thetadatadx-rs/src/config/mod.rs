@@ -1156,8 +1156,8 @@ impl DirectConfig {
 #[cfg(feature = "config-file")]
 mod config_file {
     use super::{
-        DirectConfig, MarketDataConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
-        WaitMode,
+        BulkFetchPolicy, DirectConfig, MarketDataConfig, ReconnectAttemptLimits, ReconnectPolicy,
+        RetryPolicy, WaitMode,
     };
     use crate::error::Error;
     use serde::Deserialize;
@@ -1189,6 +1189,13 @@ mod config_file {
         keepalive_time_secs: u64,
         keepalive_timeout_secs: u64,
         max_message_size: usize,
+        /// Bulk-fetch sharding policy: `"auto"` (default) or `"off"`
+        /// (case-insensitive). An unrecognised value is a load error.
+        bulk_fetch: String,
+        /// Fan-out cap for `bulk_fetch = "auto"`. `None` (key absent) uses
+        /// the account's full concurrent-request budget; `validate` floors
+        /// any explicit value to `1`.
+        shard_concurrency: Option<u32>,
     }
 
     impl Default for MddsSection {
@@ -1203,6 +1210,8 @@ mod config_file {
                 keepalive_time_secs: prod.market_data.keepalive_secs,
                 keepalive_timeout_secs: prod.market_data.keepalive_timeout_secs,
                 max_message_size: prod.market_data.max_message_size,
+                bulk_fetch: prod.market_data.bulk_fetch.as_str().to_string(),
+                shard_concurrency: prod.market_data.shard_concurrency,
             }
         }
     }
@@ -1447,6 +1456,19 @@ mod config_file {
             out.market_data.max_message_size = max_message_size;
             out.market_data.keepalive_secs = cf.market_data.keepalive_time_secs;
             out.market_data.keepalive_timeout_secs = cf.market_data.keepalive_timeout_secs;
+            out.market_data.bulk_fetch = BulkFetchPolicy::parse(&cf.market_data.bulk_fetch)
+                .ok_or_else(|| {
+                    Error::config_invalid(
+                        "market_data.bulk_fetch",
+                        format!(
+                            "unknown bulk_fetch {:?}; expected \"auto\" or \"off\"",
+                            cf.market_data.bulk_fetch
+                        ),
+                    )
+                })?;
+            // `validate` floors an explicit `0` to `1`; `None` keeps the
+            // full-budget default.
+            out.market_data.shard_concurrency = cf.market_data.shard_concurrency;
             out.market_data.stream_window_size_kb = cf.grpc.stream_window_size_kb;
             out.market_data.connection_window_size_kb = cf.grpc.connection_window_size_kb;
             // mdds.connect_timeout_secs is not yet TOML-surfaced; keep production default.
@@ -1706,7 +1728,7 @@ mod tests {
 
     #[cfg(feature = "config-file")]
     mod config_file_tests {
-        use crate::config::DirectConfig;
+        use crate::config::{BulkFetchPolicy, DirectConfig};
 
         #[test]
         fn streaming_hosts_reject_zero_port_and_empty_host() {
@@ -1816,6 +1838,41 @@ mod tests {
             let config = DirectConfig::from_toml_str(toml).unwrap();
             assert_eq!(config.market_data.stream_window_size_kb, 128);
             assert_eq!(config.market_data.connection_window_size_kb, 256);
+        }
+
+        #[test]
+        fn market_data_section_sets_bulk_fetch_and_shard_concurrency() {
+            let toml = r#"
+                [market_data]
+                bulk_fetch = "off"
+                shard_concurrency = 4
+            "#;
+            let config = DirectConfig::from_toml_str(toml).unwrap();
+            assert_eq!(config.market_data.bulk_fetch, BulkFetchPolicy::Off);
+            assert_eq!(config.market_data.shard_concurrency, Some(4));
+        }
+
+        #[test]
+        fn market_data_bulk_fetch_defaults_to_auto_and_shard_none_when_absent() {
+            let config = DirectConfig::from_toml_str("").unwrap();
+            assert_eq!(config.market_data.bulk_fetch, BulkFetchPolicy::Auto);
+            assert_eq!(config.market_data.shard_concurrency, None);
+        }
+
+        #[test]
+        fn market_data_rejects_unknown_bulk_fetch() {
+            let err = DirectConfig::from_toml_str("[market_data]\nbulk_fetch = \"sometimes\"")
+                .unwrap_err();
+            assert!(err.to_string().contains("bulk_fetch"), "{err}");
+        }
+
+        #[test]
+        fn market_data_shard_concurrency_zero_floors_to_one() {
+            // `validate` floors an explicit 0 so the plan builder's
+            // `1 <= n <= pool_size` invariant holds by construction.
+            let config =
+                DirectConfig::from_toml_str("[market_data]\nshard_concurrency = 0").unwrap();
+            assert_eq!(config.market_data.shard_concurrency, Some(1));
         }
 
         #[test]
