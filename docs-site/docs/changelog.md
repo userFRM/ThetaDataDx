@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-16
+
 ### Added
 
 - **Selectable streaming consumer wait mode (`wait_mode`) with a manual park interval, across every binding.** The event-ring consumer's idle-wait strategy is now selectable: `spin` (default, unchanged — an adaptive busy-spin then a yield ramp, never sleeps), `busyspin` (pure spin, no yield, tightest re-poll and lowest jitter), `park` (spin/yield ramp then sleep, low but fixed idle CPU), and `backoff` (spins while events flow and, after a short idle window, sleeps until events resume, then snaps back to spinning — low latency when active, low CPU when idle, the hands-free choice for a 24/7 consumer). `spin` and `busyspin` both hold ~100% of one core and differ only in jitter; only `park` and `backoff` lower idle CPU. `park` and `backoff` sleep for `park_interval_us` microseconds (default `1000` = 1 ms, validated `[50, 1_000_000]`); the OS timer honors sleeps down to ~50 us (below that kernel timer slack dominates, so 50 is the floor) and a 100 us park is a valid low-latency option that measured a few percent of a core in live premarket; the client pings roughly every 100 ms, so a park longer than the ping cadence adds delivery latency without saving further CPU. Exposed on Rust (`StreamingConfig::wait_mode` / `park_interval_us`, builder `.wait_mode()` / `.park_interval_us()`), Python (`Config.wait_mode` / `park_interval_us`), TypeScript (`waitMode` / `setWaitMode`, `parkIntervalUs` / `setParkIntervalUs`), C++ (`set_wait_mode` / `get_wait_mode`, `set_park_interval_us` / `get_park_interval_us`), and the C ABI (`thetadatadx_config_set_wait_mode` / `_get_wait_mode`, `_set_park_interval_us` / `_get_park_interval_us`), and configurable in `config.toml` under `[streaming]`. The default is byte-for-byte the previous fixed low-latency wait, so callers who do not set it are unaffected.
@@ -36,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`interval` is forwarded verbatim.** The `interval` argument is no longer snapped to the nearest preset: a raw-millisecond value such as `"250"` or `"60000"` is now rejected client-side rather than silently mapped to `"500ms"` / `"1m"`. The server accepts only the closed preset enum (`tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`); the SDK now forwards the string as-is and validates against that set. Pass an explicit preset. This is a breaking change to the `interval` parameter.
 
 - **`CalendarDay.is_open` derived boolean.** Removed from every binding (Python `CalendarDay.is_open`, TypeScript `CalendarDay.isOpen`, C `ThetaDataDxCalendarDay.is_open`, and the Arrow / Polars `is_open` column). The calendar wire carries a single day-type column; `is_open` was an SDK-derived boolean (`status in {open, early_close}`) that the terminal never exposes. Read `status` instead — it carries the full `open` / `early_close` / `full_close` / `weekend` vocabulary — and treat `open` / `early_close` as trading days. This is a breaking change to the calendar tick schema.
+
+### Fixed
+
+- **Python sync snapshot endpoints no longer carry a hardcoded 5-second cap.** The Python sync snapshot methods wrapped every call in a fixed 5-second timeout that fired before the caller's `timeout_ms` and the configured request timeout, making large snapshots (bulk greeks, wide option chains) unusable from the sync API. Snapshots now route through the normal request path and honor the request's own deadline. TypeScript, C++, and Rust were unaffected.
 
 ## [0.1.1] - 2026-07-07
 
