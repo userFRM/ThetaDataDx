@@ -1724,7 +1724,7 @@ impl StockHistoryQuoteBuilder {
 /// Defaults (upstream):
 /// - `start_time`: `"09:30:00"`
 /// - `end_time`: `"16:00:00"`
-/// - `exclusive`: `false`
+/// - `exclusive`: `true`
 /// - `venue`: `"nqb"`
 #[pyclass(module = "thetadatadx", name = "StockHistoryTradeQuoteBuilder")]
 pub struct StockHistoryTradeQuoteBuilder {
@@ -6528,7 +6528,7 @@ impl OptionHistoryQuoteBuilder {
 /// - `right`: `"both"`
 /// - `start_time`: `"09:30:00"`
 /// - `end_time`: `"16:00:00"`
-/// - `exclusive`: `false`
+/// - `exclusive`: `true`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeQuoteBuilder")]
 pub struct OptionHistoryTradeQuoteBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -16099,9 +16099,9 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
+    /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
-    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=false, venue=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, *, date=None, start_time=None, end_time=None, exclusive=true, venue=None, start_date=None, end_date=None, timeout_ms=None))]
     fn stock_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -16152,7 +16152,7 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
+    /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
     ///
     ///
@@ -18953,8 +18953,8 @@ impl MarketDataView {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=false, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `exclusive`: `true`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, exclusive=true, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
     fn option_history_trade_quote(
         &self,
         py: Python<'_>,
@@ -19022,7 +19022,7 @@ impl MarketDataView {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
+    /// - `exclusive`: `true`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).

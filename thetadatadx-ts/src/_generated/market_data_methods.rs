@@ -209,7 +209,7 @@ pub struct StockHistoryTradeQuoteOptions {
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted.
     pub exclusive: Option<bool>,
     /// Venue/exchange filter. Accepted values: `nqb`, `utp_cta`.
     pub venue: Option<String>,
@@ -765,7 +765,7 @@ pub struct OptionHistoryTradeQuoteOptions {
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
     /// End time filter
     pub end_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted.
     pub exclusive: Option<bool>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -3132,7 +3132,7 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
+    /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTradeQuote")]
     pub async fn stock_history_trade_quote(
@@ -6055,7 +6055,7 @@ impl MarketDataView {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
+    /// - `exclusive`: `true`
     #[napi(js_name = "optionHistoryTradeQuote")]
     pub async fn option_history_trade_quote(
         &self,
@@ -12124,7 +12124,7 @@ impl MarketDataClient {
     /// Defaults (upstream):
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
+    /// - `exclusive`: `true`
     /// - `venue`: `"nqb"`
     #[napi(js_name = "stockHistoryTradeQuote")]
     pub async fn stock_history_trade_quote(
@@ -15047,7 +15047,7 @@ impl MarketDataClient {
     /// - `right`: `"both"`
     /// - `start_time`: `"09:30:00"`
     /// - `end_time`: `"16:00:00"`
-    /// - `exclusive`: `false`
+    /// - `exclusive`: `true`
     #[napi(js_name = "optionHistoryTradeQuote")]
     pub async fn option_history_trade_quote(
         &self,
