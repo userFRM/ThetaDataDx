@@ -34,7 +34,7 @@ With a Pro subscription, eight of those requests run concurrently and the rest w
 
 ## One giant request, split for you
 
-The pattern above parallelizes work you have already split into many requests. The SDK also does the reverse for you: a **single** large history request is split into balanced pieces, run in parallel across your tier's concurrent-request budget, and reassembled into exactly the rows one request would have returned. You write one ordinary query and it runs at your tier's concurrency. This is on by default.
+The pattern above parallelizes work you have already split into many requests. The SDK also does the reverse for you: a **single** large history request has its time or date range split into equal pieces, run in parallel across your tier's concurrent-request budget, and reassembled into exactly the rows one request would have returned. You write one ordinary query and it runs at your tier's concurrency. This is on by default.
 
 See [Bulk Downloads](/articles/bulk-downloads) for the full picture: how the split works, buffered versus streaming delivery, the `bulk_fetch` and `shard_concurrency` knobs, API examples, and measured performance.
 

@@ -790,9 +790,10 @@ impl Config {
     }
 
     /// Automatic bulk-fetch sharding policy for history pulls (buffered and
-    /// chunk-streaming alike). Accepts `"auto"` (default: large history pulls
-    /// are split into balanced concurrent sub-requests across the account's
-    /// concurrent-request budget — buffered pulls are merged back into exactly
+    /// chunk-streaming alike). Accepts `"auto"` (default: a large history
+    /// pull's requested time or date range is split into equal concurrent
+    /// bands across the account's concurrent-request budget — buffered pulls
+    /// are merged back into exactly
     /// the rows of the single-stream response, single-contract, stock, and
     /// index pulls in the exact single-stream order and option-chain pulls in
     /// a deterministic canonical order grouped by expiration, strike, and

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Streaming history builders (`*_stream()`) now shard concurrently like the buffered path, and shard sizing cuts the requested time or date range into equal concurrent bands from the request shape.** Under `bulk_fetch = "auto"` (the default), a large chunk-streaming history pull fans out across the same equal bands as its buffered sibling: every band streams as its own concurrent request, and each band's chunks reach the handler as they arrive — every chunk exactly once, with chunks from different bands interleaved in arrival order (use the buffered builder, or `bulk_fetch = "off"`, when the single stream's exact order matters). The split is decided from the request shape alone — a multi-day range cuts into equal date bands, a single day with an intraday window cuts into equal time bands — with no density-probe request and no per-endpoint tuning; provably small pulls still run as a single stream.
+
+- **`MarketDataClient::bulk_fetch_plan` is now `fn(&self, endpoint, query) -> Option<ShardPlan>` (was `async fn -> Result<Option<ShardPlan>, Error>`).** The plan is pure computation on the request shape, so there is nothing to await and no error to surface; call sites drop the `.await` and the `Result` handling. This is a breaking change to the Rust API.
+
 ## [0.2.0] - 2026-07-16
 
 ### Added

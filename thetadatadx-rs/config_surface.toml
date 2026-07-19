@@ -1771,9 +1771,10 @@ doc = """
 Set the automatic bulk-fetch sharding policy for history pulls, covering
 both the buffered and the chunk-streaming call paths.
 
-- `policy = 0`: Auto (default) — large history pulls are sized with a
-  cheap density probe and, when worthwhile, split into balanced disjoint
-  sub-requests across the account's concurrent-request budget. Buffered
+- `policy = 0`: Auto (default) — a large history pull's requested time
+  or date range is split into equal concurrent bands across the
+  account's concurrent-request budget, decided from the request shape
+  alone (no sizing request is issued). Buffered
   pulls merge the shards back into exactly the rows of the single-stream
   response: single-contract, stock, and index pulls keep the exact
   single-stream row order, while option-chain pulls come back in a
@@ -1794,8 +1795,9 @@ out-of-domain enum int surfaces the same typed class across every binding.
 """
 cpp_doc = """
 Set the automatic bulk-fetch sharding policy for history pulls (buffered
-and chunk-streaming alike): 0=Auto (default; large pulls are split into
-balanced concurrent sub-requests — buffered pulls merge back into
+and chunk-streaming alike): 0=Auto (default; a large pull's requested
+time or date range is split into equal concurrent bands — buffered
+pulls merge back into
 exactly the single-stream rows, with option-chain pulls in a
 deterministic canonical contract order and every other pull in the
 exact single-stream row order; streaming pulls forward each band's
@@ -1808,9 +1810,10 @@ leaf the FFI error code selects.
 """
 py_doc = """
 Automatic bulk-fetch sharding policy for history pulls (buffered and
-chunk-streaming alike). Accepts ``"auto"`` (default: large history
-pulls are split into balanced concurrent sub-requests across the
-account's concurrent-request budget — buffered pulls are merged back
+chunk-streaming alike). Accepts ``"auto"`` (default: a large history
+pull's requested time or date range is split into equal concurrent
+bands across the account's concurrent-request budget — buffered
+pulls are merged back
 into exactly the rows of the single-stream response, single-contract,
 stock, and index pulls in the exact single-stream order and
 option-chain pulls in a deterministic canonical order grouped by
@@ -1822,9 +1825,10 @@ row and chunk order), case-insensitive.
 """
 ts_doc = """
 Automatic bulk-fetch sharding policy for history pulls (buffered and
-chunk-streaming alike). Accepts `"auto"` (default: large history pulls
-are split into balanced concurrent sub-requests across the account's
-concurrent-request budget — buffered pulls are merged back into exactly
+chunk-streaming alike). Accepts `"auto"` (default: a large history
+pull's requested time or date range is split into equal concurrent
+bands across the account's concurrent-request budget — buffered pulls
+are merged back into exactly
 the rows of the single-stream response, single-contract, stock, and
 index pulls in the exact single-stream order and option-chain pulls in
 a deterministic canonical order grouped by expiration, strike, and

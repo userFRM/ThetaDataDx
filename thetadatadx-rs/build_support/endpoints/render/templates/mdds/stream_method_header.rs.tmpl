@@ -42,6 +42,28 @@
     /// Decode and decompress failures are terminal and surfaced
     /// immediately without retry.
     ///
+    /// # Bulk-fetch sharding
+    ///
+    /// Under [`crate::config::BulkFetchPolicy::Auto`] (the default), a
+    /// history pull large enough to clear the fan-out break-even is
+    /// split into equal disjoint bands — the same plan the buffered
+    /// sibling builder uses (see `mdds/shard.rs`) — and every band
+    /// streams concurrently as its own top-level request, forwarding
+    /// each chunk to `handler` as it arrives. Every chunk is still
+    /// delivered exactly once and chunks stay intact; only ORDER
+    /// changes: chunks from different bands interleave in arrival
+    /// order rather than the single stream's order. Each band of a
+    /// single-contract / stock pull is internally time-ascending;
+    /// bands of an option-chain pull each carry the server's own
+    /// per-band enumeration. The retry / no-replay guard above applies
+    /// per band. A band error fails the whole call and cancels the
+    /// sibling streams (chunks already delivered stay delivered, like
+    /// any mid-stream error), and dropping the future — the deadline
+    /// path — cancels every band. For the single stream's exact chunk
+    /// order, use the buffered sibling builder (which merges) or set
+    /// [`bulk_fetch = Off`](crate::config::BulkFetchPolicy::Off).
+    /// Small pulls never shard.
+    ///
     /// # Errors
     ///
     /// Returns [`Error`] if the gRPC call fails terminally or response

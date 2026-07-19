@@ -2083,20 +2083,24 @@ void thetadatadx_config_set_market_data_connection_window_size_kb(ThetaDataDxCon
 int32_t thetadatadx_config_get_market_data_connection_window_size_kb(const ThetaDataDxConfig* config, size_t* out_kb);
 
 /**
- * Set the automatic bulk-fetch sharding policy for buffered history pulls.
+ * Set the automatic bulk-fetch sharding policy for history pulls, covering
+ * both the buffered and the chunk-streaming call paths.
  *
- * Under Auto (the default) a large history pull is sized with a cheap
- * density probe and, when worthwhile, split into balanced disjoint
- * sub-requests across the account's concurrent-request budget, then merged
- * back into exactly the rows of the single-stream response: single-contract,
- * stock, and index pulls keep the exact single-stream row order, while
+ * Under Auto (the default) a large history pull's requested time or date
+ * range is split into equal concurrent bands across the account's
+ * concurrent-request budget, decided from the request shape alone (no
+ * sizing request is issued). Buffered pulls merge the shards back into
+ * exactly the rows of the single-stream response: single-contract, stock,
+ * and index pulls keep the exact single-stream row order, while
  * option-chain pulls come back in a deterministic canonical order
  * (expiration, strike, right ascending; calls before puts; time-ascending
- * within each contract). Small pulls and non-history endpoints are never
- * sharded.
+ * within each contract). Streaming pulls forward each band's chunks to the
+ * handler as they arrive: every chunk exactly once, but chunks from
+ * different bands interleave in arrival order rather than the single
+ * stream's order. Small pulls and non-history endpoints are never sharded.
  * @param config Config handle to mutate.
  * @param policy 0 = Auto (default), 1 = Off (single stream per query, in
- *               the server's own row order).
+ *               the server's own row and chunk order).
  * @return 0 on success, -1 when policy is outside {0, 1} or config is null
  *         (check thetadatadx_last_error()).
  */

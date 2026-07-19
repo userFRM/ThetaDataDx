@@ -21,9 +21,9 @@ keepalive_timeout_secs = 10
 max_message_size = 4194304
 
 # Bulk-fetch sharding policy for large history pulls. "auto" (default) splits
-# a big pull into balanced concurrent sub-requests across your tier's request
-# budget; "off" runs every query as a single stream in the server's own row
-# and chunk order. Case-insensitive.
+# a big pull's time or date range into equal concurrent bands across your
+# tier's request budget; "off" runs every query as a single stream in the
+# server's own row and chunk order. Case-insensitive.
 # bulk_fetch = "auto"
 
 # Fan-out cap for bulk_fetch = "auto". Absent (default) uses the account's

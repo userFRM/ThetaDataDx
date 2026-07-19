@@ -1214,9 +1214,10 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_connection_window_si
 /// Set the automatic bulk-fetch sharding policy for history pulls, covering
 /// both the buffered and the chunk-streaming call paths.
 ///
-/// - `policy = 0`: Auto (default) — large history pulls are sized with a
-///   cheap density probe and, when worthwhile, split into balanced disjoint
-///   sub-requests across the account's concurrent-request budget. Buffered
+/// - `policy = 0`: Auto (default) — a large history pull's requested time
+///   or date range is split into equal concurrent bands across the
+///   account's concurrent-request budget, decided from the request shape
+///   alone (no sizing request is issued). Buffered
 ///   pulls merge the shards back into exactly the rows of the single-stream
 ///   response: single-contract, stock, and index pulls keep the exact
 ///   single-stream row order, while option-chain pulls come back in a

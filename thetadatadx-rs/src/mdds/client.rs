@@ -273,8 +273,14 @@ impl MarketDataClient {
             // Template with an empty UUID; each attempt stamps the UUID
             // from its own session snapshot.
             self.build_query_info(String::new()),
-            self.channels.size(),
         )
+    }
+
+    /// Size of the gRPC channel pool — the tier's server-enforced
+    /// concurrent-request ceiling, which caps how wide a bulk-fetch
+    /// shard plan may fan out.
+    pub(crate) fn pool_size(&self) -> usize {
+        self.channels.size()
     }
 
     /// Deterministically tear the market-data client down.

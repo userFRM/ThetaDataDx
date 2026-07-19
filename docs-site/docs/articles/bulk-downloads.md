@@ -27,7 +27,7 @@ Raise them for even fatter streams if you have memory to spare, or lower them wh
 
 ## Automatic sharding
 
-A single large request does not have to be one stream. The SDK sizes the request, splits it into balanced pieces along its time range, runs them in parallel across your tier's concurrent-request budget, and reassembles them into exactly the rows one request would have returned.
+A single large request does not have to be one stream. The SDK splits the requested time (or date) range into equal concurrent pieces — straight from the shape of the request, with no sizing round-trip — runs them in parallel across your tier's concurrent-request budget, and reassembles them into exactly the rows one request would have returned.
 
 The number of pieces is your tier's concurrency:
 
@@ -38,7 +38,7 @@ The number of pieces is your tier's concurrency:
 | Standard | 4 |
 | Pro | 8 |
 
-On Pro, a full-day chain that runs in 546 s as one 8 MB stream comes back in about 155 s, a further 3.5x, because eight pieces fetch at once. Combined with the window that is roughly 5.6x faster than the protocol default. It scales down cleanly with tier: four pieces on Standard, two on Value, one on Free.
+On Pro, one big query becomes eight pieces fetching at once. How much that shortens the wall clock depends on how much of the fan-out the server actually runs in parallel under current conditions; the table below shows one measured day. It scales down cleanly with tier: four pieces on Standard, two on Value, one on Free.
 
 Sharding is on by default. Small pulls stay a single request, so there is nothing to tune for them. If you want control:
 
@@ -77,7 +77,7 @@ let ticks = client
 
 ### Streaming: chunks as they arrive
 
-The streaming terminal (`.stream(handler)`) hands you the result in chunks as each piece produces them, so you never hold the whole dataset in memory. It is the fastest path for the largest pulls because it skips building and ordering the full frame.
+The streaming terminal (`.stream(handler)`) hands you the result in chunks as each piece produces them, so you never hold the whole dataset in memory. It skips building and ordering the full frame, which makes it the path for results too large to hold whole.
 
 ```python
 rows = 0
@@ -103,21 +103,22 @@ Because pieces stream in parallel, chunks from different pieces interleave. Sort
 
 ### Which to use
 
-Both are fast. When the server is the bottleneck they finish in the same time. On a fast link the buffered call trails streaming by about 20 percent, the cost of assembling the complete ordered frame in memory that streaming skips. Pick by the shape of the job, not speed:
+Both shard and window the same way. Buffered spends extra client-side work assembling the complete ordered frame; streaming skips that. Pick by the shape of the job:
 
 - Buffered when you want the finished dataset, to save it, convert it, or work with it whole, and it fits in memory.
 - Streaming when the result may not fit in memory, or you want to process rows as they arrive. This is the path for the largest pulls.
 
 ## What it adds up to
 
-Measured on a full-day SPXW options chain (125,849,342 rows, `strike="*"`, `right="both"`, tick interval) on a Pro account. Absolute times depend on your tier, your distance to the server, and current load, so read them as one box on one day, not a guarantee.
+Measured on a full-day SPXW options chain (125,849,342 rows, `strike="*"`, `right="both"`, tick interval) on a Pro account, using the buffered path. Absolute times depend on your tier, your distance to the server, current load, and how much of the shard fan-out the server ran in parallel that day, so read them as one box on one day, not a guarantee.
 
 | Setup | Full-day chain | vs default |
 |---|---:|---:|
 | 64 KB window, single stream (protocol default) | 872.7 s | 1x |
 | 8 MB window, single stream | 546.3 s | 1.60x |
-| 8 MB window + 8-way sharding, streaming | 155.0 s | 5.63x |
 | 8 MB window + 8-way sharding, buffered | 183.8 s | 4.75x |
+
+Streaming shards the same way, and its realized gain rides on the same server-side parallelism, so we quote no wall clock for it.
 
 Every setup returns the same rows. A concrete single contract comes back byte-for-byte identical to a single request. A full chain comes back in a deterministic canonical order (ascending expiration, then strike, then calls before puts, in trading-time order within each contract). Set `bulk_fetch = "off"` if you want the server's own ordering instead.
 

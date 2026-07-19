@@ -724,39 +724,6 @@ impl<T> TypedCollect<T> {
     }
 }
 
-/// Drain a response stream chunk-at-a-time, handing each decoded chunk —
-/// with the first chunk's headers backfilled onto headers-only chunks —
-/// to `f`. Peak memory stays bounded by one chunk. Used by the bulk-fetch
-/// density probe, whose fold only ever needs one chunk of bars at a time.
-///
-/// # Errors
-///
-/// Propagates decode / decompress / header-drift errors and whatever `f`
-/// returns.
-pub(crate) async fn fold_stream_chunks<F>(
-    mut stream: ServerStreaming<proto::ResponseData>,
-    mut f: F,
-) -> Result<(), Error>
-where
-    F: FnMut(&proto::DataTable) -> Result<(), Error>,
-{
-    let mut saved_headers: Option<Vec<String>> = None;
-    let mut chunk_index: usize = 0;
-    let max_message_size = stream.max_message_size();
-    while let Some(response) = stream.next().await {
-        let mut table =
-            decode_chunk_checked(response?, max_message_size, &mut saved_headers, chunk_index)?;
-        if table.headers.is_empty() {
-            if let Some(h) = saved_headers.as_ref() {
-                table.headers.clone_from(h);
-            }
-        }
-        f(&table)?;
-        chunk_index += 1;
-    }
-    Ok(())
-}
-
 /// Decode one streamed `ResponseData` and apply the first-chunk header
 /// contract shared by [`MarketDataClient::for_each_chunk`] and
 /// [`MarketDataClient::for_each_chunk_async`]: record the first non-empty

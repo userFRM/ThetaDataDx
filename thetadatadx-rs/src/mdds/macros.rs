@@ -966,7 +966,7 @@ macro_rules! parsed_endpoint {
             ///
             /// Under [`crate::config::BulkFetchPolicy::Auto`] (the
             /// default), a history pull large enough to clear the
-            /// fan-out break-even is split into balanced disjoint
+            /// fan-out break-even is split into equal disjoint
             /// bands — the same plan the buffered `.await` path uses
             /// (see `mdds/shard.rs`) — and every band streams
             /// concurrently as its own top-level request, forwarding
@@ -1031,11 +1031,11 @@ macro_rules! parsed_endpoint {
                     let handler_mutex = &handler_mutex;
                     // ── Bulk-fetch auto-sharding (see `mdds/shard.rs`) ──
                     // Same gate as the buffered `IntoFuture` arm: policy
-                    // `Off`, non-history endpoints, small pulls, and probe
-                    // failures all resolve to `None` — the single-stream
-                    // arm below, exactly today's behaviour. Chunks are
-                    // forwarded as they arrive, so bands interleave in
-                    // arrival order (see the method docs).
+                    // `Off`, non-history endpoints, and small pulls all
+                    // resolve to `None` — the single-stream arm below,
+                    // exactly today's behaviour. Chunks are forwarded as
+                    // they arrive, so bands interleave in arrival order
+                    // (see the method docs).
                     #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                     let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                     $(shard_read_field!(shard_query, params, $field);)*
@@ -1043,7 +1043,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1143,7 +1143,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1259,7 +1259,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1352,7 +1352,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1438,10 +1438,10 @@ macro_rules! parsed_endpoint {
                         let params = proto::$query { $($field : $val),* };
                         // ── Bulk-fetch auto-sharding (see `mdds/shard.rs`) ──
                         // Project the axis-relevant wire fields and ask the
-                        // planner. Policy `Off`, non-history endpoints,
-                        // small pulls, and probe failures all resolve to
-                        // `None` — the single-stream arm below, exactly
-                        // today's behaviour.
+                        // planner. Policy `Off`, non-history endpoints, and
+                        // small pulls all resolve to `None` — the
+                        // single-stream arm below, exactly today's
+                        // behaviour.
                         #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                         let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                         $(shard_read_field!(shard_query, params, $field);)*
@@ -1449,7 +1449,7 @@ macro_rules! parsed_endpoint {
                             client,
                             stringify!($name),
                             &shard_query,
-                        ).await {
+                        ) {
                             Some(plan) => {
                                 // N independent top-level requests, one per
                                 // band. Each spawned task acquires its OWN

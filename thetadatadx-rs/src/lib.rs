@@ -368,7 +368,7 @@ pub mod streaming {
 pub use mdds::{MarketDataClient, SubscriptionTier};
 
 /// Bulk-fetch shard planning (manual mode): describe a history query as a
-/// [`ShardQuery`], obtain the balanced [`ShardPlan`] via
+/// [`ShardQuery`], obtain the equal-span [`ShardPlan`] via
 /// [`MarketDataClient::bulk_fetch_plan`], and run the [`ShardBand`]
 /// sub-requests under your own concurrency. The automatic path
 /// ([`BulkFetchPolicy::Auto`]) uses exactly these plans.
