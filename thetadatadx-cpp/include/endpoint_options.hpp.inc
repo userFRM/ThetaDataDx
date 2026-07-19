@@ -32,7 +32,7 @@ struct EndpointRequestOptions {
     std::optional<std::string> start_date;
     /// End date YYYYMMDD
     std::optional<std::string> end_date;
-    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted.
     std::optional<bool> exclusive;
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     std::optional<std::string> strike;

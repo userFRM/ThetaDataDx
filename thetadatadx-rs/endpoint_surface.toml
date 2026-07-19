@@ -312,11 +312,11 @@ binding = "method"
 
 [[param_groups.exclusive_flag.params]]
 name = "exclusive"
-description = "When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired."
+description = "When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted."
 param_type = "Bool"
 required = false
 binding = "builder"
-default = "false"
+default = "true"
 
 [param_groups.max_dte_filter]
 

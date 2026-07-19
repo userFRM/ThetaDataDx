@@ -27,7 +27,7 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub start_date: *const c_char,
     /// End date YYYYMMDD
     pub end_date: *const c_char,
-    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired.
+    /// When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted.
     pub exclusive: i32,
     /// Presence flag for `exclusive`; set to `1` to apply the value.
     pub has_exclusive: i32,

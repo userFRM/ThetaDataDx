@@ -137,9 +137,6 @@ CELLS = [
     # stock_history_trade_quote::with_date
     #   rationale: date=20250303 optional filter wiring
     ("stock_history_trade_quote", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.stock_history_trade_quote("AAPL", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # stock_history_trade_quote::with_exclusive
-    #   rationale: exclusive=true optional filter wiring
-    ("stock_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.stock_history_trade_quote("AAPL", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # stock_history_trade_quote::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
     ("stock_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: client.stock_history_trade_quote("AAPL", date="20250303", start_time="09:30:00", end_time="10:00:00", exclusive=True, venue="nqb", start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -623,9 +620,6 @@ CELLS = [
     # option_history_trade_quote::with_date
     #   rationale: date=20250303 optional filter wiring
     ("option_history_trade_quote", "with_date", "standard", "date=20250303 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
-    # option_history_trade_quote::with_exclusive
-    #   rationale: exclusive=true optional filter wiring
-    ("option_history_trade_quote", "with_exclusive", "standard", "exclusive=true optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", exclusive=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: client.option_history_trade_quote("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
