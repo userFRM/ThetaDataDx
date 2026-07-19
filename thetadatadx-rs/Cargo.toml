@@ -424,6 +424,17 @@ name = "grpc_mock_server"
 path = "tests/grpc_mock_server.rs"
 required-features = ["__test-helpers"]
 
+# Drives sharded bulk-fetch pulls (buffered + streaming) end-to-end
+# through the generated `stock_history_trade` builder against a
+# per-band scripted mock: fan-out shape, band merge, empty-band
+# folding, buffered band re-fetch, and the streaming partial-fetch
+# error. Gated on `__test-helpers` for the test-only client
+# constructor and the request-proto re-export.
+[[test]]
+name = "sharded_fanout"
+path = "tests/sharded_fanout.rs"
+required-features = ["__test-helpers"]
+
 # Pins endpoint-to-parser routing for the seven `option_history_*` /
 # `index_at_time_price` endpoints. Gated on `__test-helpers` for
 # `MarketDataClient::for_endpoint_routing_test` and the `grpc::{Channel, ChannelPool}`

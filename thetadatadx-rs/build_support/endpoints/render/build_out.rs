@@ -44,7 +44,6 @@ pub fn generate_all() -> Result<(), Box<dyn std::error::Error>> {
 const BUILD_OUT_TEMPLATES: &[&str] = &[
     "mdds/stream_method_header.rs.tmpl",
     "mdds/stub_call_error_arm.rs.tmpl",
-    "mdds/for_each_chunk_body.rs.tmpl",
     "mdds/metrics_result_block.rs.tmpl",
     "build_out/invoke_generated_endpoint_preamble.rs.tmpl",
     "build_out/invoke_generated_endpoint_stream_preamble.rs.tmpl",

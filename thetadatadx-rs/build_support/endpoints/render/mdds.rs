@@ -392,12 +392,17 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     )
     .unwrap();
     // Per-attempt stream body shared by both arms: open the stream via
-    // the generated stub, then drain chunk-by-chunk through the parser
-    // into `handler_mutex` — byte-for-byte the pre-shard delivery path.
+    // the generated stub, then drain chunk-by-chunk through
+    // `deliver_chunk_slices` — the same delivery primitive the
+    // `parsed_endpoint!` stream arms use, so the dedicated `*_stream`
+    // builders and the `.stream(handler)` methods of one endpoint agree
+    // on the no-resume `delivered` gating (non-empty chunks only) and
+    // on breaking the drain at the first decode failure.
     let stub_call = include_str!("templates/mdds/stub_call_error_arm.rs.tmpl")
         .replace("__GRPC_NAME__", &endpoint.grpc_name);
-    let chunk_body = include_str!("templates/mdds/for_each_chunk_body.rs.tmpl")
-        .replace("__PARSER_NAME__", &parser_name);
+    let chunk_body = format!(
+        "                    client.deliver_chunk_slices(stream, {parser_name}, handler_mutex, delivered).await\n"
+    );
     let field_idents = endpoint
         .fields
         .iter()

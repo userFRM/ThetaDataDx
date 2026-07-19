@@ -527,6 +527,36 @@ pub enum Error {
             crate::fpss::protocol::Contract,
         )>,
     },
+
+    /// A sharded chunk-streaming history pull (`.stream*` under
+    /// `bulk_fetch = "auto"`) completed with one or more bands lost:
+    /// every surviving band delivered its chunks to the handler in
+    /// full, and each listed [`crate::ShardBand`] names a window whose
+    /// data is missing (in band order). Re-issue the same call narrowed
+    /// to each listed window to fetch the gap.
+    ///
+    /// A failed band may have delivered a chunk prefix before failing —
+    /// MDDS has no resume token, so the SDK never replays a
+    /// mid-delivered band (that would hand the handler duplicate rows).
+    /// A re-pull of a listed window therefore re-delivers any prefix
+    /// the failed band already handed over; rows carry their timestamps
+    /// and the window is named exactly, so the caller can drop what it
+    /// already holds for that window before (or while) re-pulling.
+    /// Each band's underlying error is logged at `warn` with the band
+    /// window before this error is returned.
+    ///
+    /// Only the streaming path reports partial fetches: the buffered
+    /// `.await` path re-fetches a failed band transparently (nothing
+    /// has reached the caller) and fails wholesale if the band's retry
+    /// budget spends out. A streaming pull where NO chunk reached the
+    /// handler also fails wholesale with the underlying error, exactly
+    /// like a single stream.
+    #[error("partial shard fetch: {} band window(s) failed; re-pull the listed windows", .failed.len())]
+    PartialShardFetch {
+        /// Band windows whose data did not (fully) arrive, in band
+        /// order.
+        failed: Vec<crate::ShardBand>,
+    },
 }
 
 impl Error {

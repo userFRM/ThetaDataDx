@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`MarketDataClient::bulk_fetch_plan` is now `fn(&self, endpoint, query) -> Option<ShardPlan>` (was `async fn -> Result<Option<ShardPlan>, Error>`).** The plan is pure computation on the request shape, so there is nothing to await and no error to surface; call sites drop the `.await` and the `Result` handling. This is a breaking change to the Rust API.
 
+- **A failed band no longer takes down a large sharded pull.** A buffered `.await` band that dies mid-collection re-fetches from scratch within the standard retry budget — its rows had not reached the caller, so the replay is invisible and duplicate-free — and only a band that spends its whole budget fails the query. On a chunk-streaming `.stream` / `.stream_async` pull, a band that fails terminally no longer cancels its siblings: the surviving bands drain to completion (every one of their chunks reaches the handler), and the call returns the new `Error::PartialShardFetch` naming the failed band window(s) — the start/end of each lost date or time band — so you can re-pull exactly those slices instead of restarting the whole pull. A streaming band that fails before delivering any chunk still retries transparently, a pull where no chunk reached the handler at all still fails with the underlying error like a single stream, and the call deadline still cancels every band at once, so size `with_deadline` / `timeout_ms` to the whole pull. Mapped to `StreamError` / `THETADATADX_ERR_STREAM` on the Python, TypeScript, C++, and C surfaces.
+
+### Added
+
+- **Shard-decision logging.** The bulk-fetch planner now logs at `debug` why a pull did NOT shard (endpoint outside the shardable set, no cut axis in the request shape, fan-out width under two, an unparsable band window, a provably small bar grid, or a window too narrow for two bands) next to the existing "sharded" line, and every band's work is tagged with its window: retry warnings carry the band span, and each band emits a completion line with its row count and duration, so concurrent bands stay distinguishable in the log stream.
+
+### Fixed
+
+- **The dedicated `*_stream()` builders now share the `.stream(handler)` chunk-delivery path.** The four dedicated streaming builders (`stock_history_trade_stream`, `stock_history_quote_stream`, `option_history_trade_stream`, `option_history_quote_stream`) previously marked their no-replay guard on every parsed chunk — including empty keepalives — and kept draining the stream after a decode failure, while the `.stream(handler)` methods on the same endpoints marked the guard only once rows actually reached the handler and stopped at the first decode failure. Both surfaces now route through the same delivery primitive, so a transient error that arrives after only empty keepalive chunks retries instead of surfacing terminal, and a decode failure ends the drain immediately — identically on both.
+
 ## [0.2.0] - 2026-07-16
 
 ### Added

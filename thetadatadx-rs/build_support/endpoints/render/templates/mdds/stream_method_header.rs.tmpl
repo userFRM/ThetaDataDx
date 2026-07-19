@@ -56,11 +56,18 @@
     /// single-contract / stock pull is internally time-ascending;
     /// bands of an option-chain pull each carry the server's own
     /// per-band enumeration. The retry / no-replay guard above applies
-    /// per band. A band error fails the whole call and cancels the
-    /// sibling streams (chunks already delivered stay delivered, like
-    /// any mid-stream error), and dropping the future — the deadline
-    /// path — cancels every band. For the single stream's exact chunk
-    /// order, use the buffered sibling builder (which merges) or set
+    /// per band. A band that fails terminally does NOT cancel its
+    /// siblings: they drain to completion, and the call then returns
+    /// [`Error::PartialShardFetch`](crate::Error::PartialShardFetch)
+    /// naming the failed band window(s) so you can re-pull exactly
+    /// those slices — unless no chunk reached `handler` at all, in
+    /// which case the underlying error surfaces unchanged like a
+    /// single-stream failure. Dropping the future — the deadline path —
+    /// still cancels every band; on a very large pull, size
+    /// `with_deadline` (or the configured `request_timeout_secs`) to
+    /// the whole pull, since it also bounds the sibling drain after a
+    /// band failure. For the single stream's exact chunk order, use the
+    /// buffered sibling builder (which merges) or set
     /// [`bulk_fetch = Off`](crate::config::BulkFetchPolicy::Off).
     /// Small pulls never shard.
     ///

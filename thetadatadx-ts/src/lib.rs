@@ -630,13 +630,14 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => "NetworkError",
             _ => "StreamError",
         },
-        // FlatFiles availability + partial-reconnect failures are
-        // streaming-surface faults; pin them to `StreamError` so a
-        // `catch (e instanceof StreamError)` clause behaves identically
-        // to the C++ and C ABI mapping (both route these to the stream
-        // discriminant).
+        // FlatFiles availability, partial-reconnect, and partial
+        // shard-fetch failures are streaming-surface faults; pin them to
+        // `StreamError` so a `catch (e instanceof StreamError)` clause
+        // behaves identically to the C++ and C ABI mapping (both route
+        // these to the stream discriminant).
         thetadatadx::Error::FlatFilesUnavailable(_)
-        | thetadatadx::Error::PartialReconnect { .. } => "StreamError",
+        | thetadatadx::Error::PartialReconnect { .. }
+        | thetadatadx::Error::PartialShardFetch { .. } => "StreamError",
         _ => "ThetaDataError",
     }
 }
