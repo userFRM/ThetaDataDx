@@ -28,12 +28,10 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 /// `.await` on a history builder and the chunk-streaming `.stream*`
 /// calls alike.
 ///
-/// Under `Auto` (the default) a large history pull is first sized with
-/// a cheap density probe; when the estimated response is large enough
-/// that one stream cannot saturate the account's concurrent-request
-/// budget, the SDK splits the query into balanced disjoint
-/// sub-requests along a filter axis (a date band or a time band) and
-/// runs them across the tier's channel pool.
+/// Under `Auto` (the default) the SDK splits a large history pull into
+/// equal disjoint sub-requests along a filter axis (a date band or a
+/// time band) — cut from the request's own shape, with no sizing query
+/// — and runs them across the tier's channel pool.
 ///
 /// The buffered path merges the results into exactly the rows the
 /// single stream would have returned. Row order: single-contract,
@@ -55,8 +53,8 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 /// Small pulls and non-history endpoints are never sharded, so `Auto`
 /// leaves them byte-identical to `Off`.
 ///
-/// `Off` disables the probe and the fan-out entirely: every query runs
-/// as today's single stream, in the server's own row and chunk order.
+/// `Off` disables the fan-out entirely: every query runs as today's
+/// single stream, in the server's own row and chunk order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum BulkFetchPolicy {
@@ -209,8 +207,8 @@ pub struct MarketDataConfig {
     /// `.await` and chunk-streaming `.stream*` alike.
     ///
     /// See [`BulkFetchPolicy`]. Default [`BulkFetchPolicy::Auto`]: large
-    /// history pulls are probed and, when worthwhile, split into balanced
-    /// concurrent sub-requests across the tier's channel pool. Buffered
+    /// history pulls are split into equal concurrent sub-requests across
+    /// the tier's channel pool. Buffered
     /// pulls merge the shards back into exactly the rows of the
     /// single-stream response — single-contract, stock, and index pulls
     /// in the exact single-stream order, option-chain pulls in a

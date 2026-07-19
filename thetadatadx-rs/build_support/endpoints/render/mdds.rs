@@ -328,104 +328,153 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     )
     .unwrap();
     out.push_str("            let _metrics_start = std::time::Instant::now();\n");
-    out.push_str("            let _permit = client.request_semaphore.acquire().await\n");
-    out.push_str(
-        "                .map_err(|_| Error::config_internal(\"request semaphore closed\"))?;\n",
-    );
-    out.push_str("            let policy = client.config().retry;\n");
-    // Wrap the `FnMut + Send` handler in a `Mutex` so the per-attempt
-    // closure passed to `run_streaming_retry_loop` gets a fresh mutable
-    // borrow on each invocation (the closure may run twice on a
-    // post-refresh restart) and the returned future stays Send.
-    out.push_str("            let handler_mutex = std::sync::Mutex::new(handler);\n");
-    out.push_str("            let handler_mutex = &handler_mutex;\n");
-    // Set once a chunk reaches `handler`: the no-resume restart replays
-    // from chunk zero, so a later transient after delivery began is made
-    // terminal by `run_streaming_retry_loop` to avoid duplicating rows.
-    out.push_str("            let delivered = std::sync::atomic::AtomicBool::new(false);\n");
-    out.push_str("            let delivered = &delivered;\n");
-    out.push_str("            crate::mdds::macros::run_streaming_retry_loop(\n");
-    out.push_str("                client.session(),\n");
-    out.push_str("                &policy,\n");
-    writeln!(out, "                {endpoint_name_literal},").unwrap();
-    out.push_str("                delivered,\n");
-    out.push_str("                move |snap| {\n");
-    // Clone per-attempt: the FnMut closure may fire twice (post-refresh
-    // restart) and the `async move` block would otherwise move each
-    // captured binding into the first attempt's future, so non-Copy
-    // params clone fresh each iteration. Copy scalars (`Option<i32>` etc.)
-    // are copied into the future automatically and need no rebind.
-    for arg in method_params
-        .iter()
-        .map(|param| direct_method_arg_name(param))
-    {
-        writeln!(out, "                    let {arg} = {arg}.clone();").unwrap();
-    }
-    for param in &optional_params {
-        if matches!(
-            direct_optional_rust_type(param),
-            "Option<i32>" | "Option<f64>" | "Option<bool>"
-        ) {
-            continue;
-        }
-        writeln!(
-            out,
-            "                    let {0} = {0}.clone();",
-            param.name
-        )
-        .unwrap();
-    }
-    out.push_str("                    async move {\n");
-    out.push_str("                        let qi = client.build_query_info(snap.uuid.clone());\n");
-    writeln!(
-        out,
-        "                        let request = proto::{} {{",
-        endpoint.request_type
-    )
-    .unwrap();
-    out.push_str("                            query_info: Some(qi),\n");
+    // Build the wire parameters once, before the shard branch — every
+    // dispatch below (single stream, shard fan-out, retries) clones this
+    // same value, so the wire bytes are identical across paths. Mirrors
+    // the `parsed_endpoint!` stream arm in `src/mdds/macros.rs`.
     if endpoint.fields.is_empty() {
         writeln!(
             out,
-            "                            params: Some(proto::{} {{}}),",
+            "            let params = proto::{} {{}};",
             endpoint.query_type
         )
         .unwrap();
     } else {
         writeln!(
             out,
-            "                            params: Some(proto::{} {{",
+            "            let params = proto::{} {{",
             endpoint.query_type
         )
         .unwrap();
         for field in &endpoint.fields {
             let expr = mdds_query_field_expr(endpoint, field, false);
             if expr == field.name {
-                writeln!(out, "                                {expr},").unwrap();
+                writeln!(out, "                {expr},").unwrap();
             } else {
-                writeln!(
-                    out,
-                    "                                {}: {expr},",
-                    field.name
-                )
-                .unwrap();
+                writeln!(out, "                {}: {expr},", field.name).unwrap();
             }
         }
-        out.push_str("                            }),\n");
+        out.push_str("            };\n");
     }
-    out.push_str("                        };\n");
-    out.push_str(
-        &include_str!("templates/mdds/stub_call_error_arm.rs.tmpl")
-            .replace("__GRPC_NAME__", &endpoint.grpc_name)
-            .replace("__ENDPOINT_NAME_LITERAL__", &endpoint_name_literal),
+    // Wrap the `FnMut + Send` handler in a `Mutex` so the per-attempt
+    // closure — and, under a shard plan, every concurrent band — gets a
+    // fresh mutable borrow per chunk (the closure may run twice on a
+    // post-refresh restart) and the returned future stays Send. Defined
+    // before the shard branch so both arms share the one handler.
+    out.push_str("            let handler_mutex = std::sync::Mutex::new(handler);\n");
+    out.push_str("            let handler_mutex = &handler_mutex;\n");
+    // Bulk-fetch auto-sharding, same gate as the buffered `.await`
+    // builders: policy `Off` and small pulls resolve to `None` — the
+    // single-stream arm below, exactly the pre-shard behaviour. The
+    // planner's descriptor table is keyed by BUFFERED endpoint names, so
+    // the `_stream` suffix is stripped for the `auto_plan` lookup only;
+    // logs, metrics, and retry labels keep this endpoint's own name.
+    let buffered_name_literal = format!(
+        "{:?}",
+        endpoint
+            .name
+            .strip_suffix("_stream")
+            .expect("streaming endpoint name must end in `_stream`")
     );
-    out.push_str(
-        &include_str!("templates/mdds/for_each_chunk_body.rs.tmpl")
-            .replace("__PARSER_NAME__", &parser_name),
+    out.push_str("            #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.\n");
+    out.push_str("            let mut shard_query = crate::mdds::shard::ShardQuery::default();\n");
+    for field in &endpoint.fields {
+        writeln!(
+            out,
+            "            shard_read_field!(shard_query, params, {});",
+            field.name
+        )
+        .unwrap();
+    }
+    writeln!(
+        out,
+        "            match crate::mdds::shard::auto_plan(client, {buffered_name_literal}, &shard_query) {{"
+    )
+    .unwrap();
+    // Per-attempt stream body shared by both arms: open the stream via
+    // the generated stub, then drain chunk-by-chunk through
+    // `deliver_chunk_slices` — the same delivery primitive the
+    // `parsed_endpoint!` stream arms use, so the dedicated `*_stream`
+    // builders and the `.stream(handler)` methods of one endpoint agree
+    // on the no-resume `delivered` gating (non-empty chunks only) and
+    // on breaking the drain at the first decode failure.
+    let stub_call = include_str!("templates/mdds/stub_call_error_arm.rs.tmpl")
+        .replace("__GRPC_NAME__", &endpoint.grpc_name);
+    let chunk_body = format!(
+        "                    client.deliver_chunk_slices(stream, {parser_name}, handler_mutex, delivered).await\n"
     );
-    out.push_str("                    }\n");
-    out.push_str("                },\n");
-    out.push_str("            ).await?;\n");
+    let field_idents = endpoint
+        .fields
+        .iter()
+        .map(|field| field.name.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    out.push_str("                Some(plan) => {\n");
+    out.push_str("                    sharded_stream_fanout!(\n");
+    writeln!(
+        out,
+        "                        client, {}, plan, params,",
+        endpoint.name
+    )
+    .unwrap();
+    writeln!(out, "                        [{field_idents}],").unwrap();
+    out.push_str("                        |snap, banded, delivered| async move {\n");
+    writeln!(
+        out,
+        "                            let request = proto::{} {{",
+        endpoint.request_type
+    )
+    .unwrap();
+    out.push_str("                                query_info: Some(client.build_query_info(snap.uuid.clone())),\n");
+    out.push_str("                                params: Some(banded.clone()),\n");
+    out.push_str("                            };\n");
+    out.push_str(&stub_call);
+    out.push_str(&chunk_body);
+    out.push_str("                        }\n");
+    out.push_str("                    )?;\n");
+    out.push_str("                }\n");
+    out.push_str("                None => {\n");
+    out.push_str("                    let _permit = client.request_semaphore.acquire().await\n");
+    out.push_str(
+        "                        .map_err(|_| Error::config_internal(\"request semaphore closed\"))?;\n",
+    );
+    out.push_str("                    let policy = client.config().retry;\n");
+    // Set once a chunk reaches `handler`: the no-resume restart replays
+    // from chunk zero, so a later transient after delivery began is made
+    // terminal by `run_streaming_retry_loop` to avoid duplicating rows.
+    out.push_str(
+        "                    let delivered = std::sync::atomic::AtomicBool::new(false);\n",
+    );
+    out.push_str("                    let delivered = &delivered;\n");
+    out.push_str("                    crate::mdds::macros::run_streaming_retry_loop(\n");
+    out.push_str("                        client.session(),\n");
+    out.push_str("                        &policy,\n");
+    writeln!(out, "                        {endpoint_name_literal},").unwrap();
+    out.push_str("                        delivered,\n");
+    out.push_str("                        move |snap| {\n");
+    // Clone per-attempt: the FnMut closure may fire twice (post-refresh
+    // restart) and the proto request takes the params by value.
+    out.push_str("                            let params = params.clone();\n");
+    out.push_str("                            async move {\n");
+    out.push_str(
+        "                                let qi = client.build_query_info(snap.uuid.clone());\n",
+    );
+    writeln!(
+        out,
+        "                                let request = proto::{} {{",
+        endpoint.request_type
+    )
+    .unwrap();
+    out.push_str("                                    query_info: Some(qi),\n");
+    out.push_str("                                    params: Some(params),\n");
+    out.push_str("                                };\n");
+    out.push_str(&stub_call);
+    out.push_str(&chunk_body);
+    out.push_str("                            }\n");
+    out.push_str("                        },\n");
+    out.push_str("                    ).await?;\n");
+    out.push_str("                }\n");
+    out.push_str("            }\n");
     writeln!(
         out,
         "            metrics::histogram!(\"thetadatadx.grpc.latency_ms\", \"endpoint\" => {endpoint_name_literal})"

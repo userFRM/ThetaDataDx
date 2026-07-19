@@ -1,8 +1,13 @@
 //! Automatic sharding of large history pulls.
 //!
-//! One logical query becomes N balanced, disjoint sub-requests along a
-//! filter axis (date band, time band), dispatched concurrently across the
-//! tier's channel pool. The buffered `.await` path merges the shard
+//! One logical query becomes N disjoint sub-requests along a filter
+//! axis (date band, time band), dispatched concurrently across the
+//! tier's channel pool. Bands are cut from the request shape alone —
+//! equal wall-clock duration on the time axis, equal day count on the
+//! date axis — never from a sizing query. Balance is equal span, not
+//! equal rows: a deliberate trade that costs zero extra round-trips and
+//! zero per-endpoint tuning, and the concurrency win dominates the
+//! residual row imbalance between bands. The buffered `.await` path merges the shard
 //! responses back into exactly the rows the single-stream response would
 //! have carried — in the exact server order for single-contract / stock /
 //! index pulls, in a deterministic canonical contract order for chains
@@ -10,18 +15,19 @@
 //! each band's chunks to the user handler as they arrive — no merge, no
 //! materialize — so chunks from different bands interleave in arrival
 //! order (see `join_streaming_shards`). The server's per-account send
-//! rate caps a single stream well below the tier's aggregate budget, so a
-//! balanced fan-out multiplies bulk throughput without exceeding the
-//! tier's concurrent-request ceiling.
+//! rate caps a single stream well below the tier's aggregate budget, so
+//! the fan-out multiplies bulk throughput without exceeding the tier's
+//! concurrent-request ceiling.
 //!
 //! # Flow (buffered `.await` path)
 //!
 //! 1. The generated builder assembles its wire parameters once and
 //!    projects them into a [`ShardQuery`].
-//! 2. `auto_plan` applies the [`BulkFetchPolicy`], the per-endpoint
-//!    descriptor, axis selection, a cheap density probe, and the
-//!    row-estimate floor. Anything that does not clearly benefit resolves
-//!    to `None` and runs on today's single stream, byte-identical.
+//! 2. `auto_plan` applies the [`BulkFetchPolicy`], the shardable-endpoint
+//!    gate, axis selection, and the equal-span band cut — pure
+//!    computation, no request issued. Anything that does not clearly
+//!    benefit resolves to `None` and runs on today's single stream,
+//!    byte-identical.
 //! 3. Each [`ShardBand`] is applied onto a clone of the original wire
 //!    parameters — every shard is a normal terminal-parity query differing
 //!    only in its band fields.
@@ -36,13 +42,31 @@
 //! becomes `join_streaming_shards`, which drives the per-band streams
 //! concurrently and forwards chunks instead of joining tables.
 //!
+//! # Band failure — blast radius
+//!
+//! A transient band failure recovers per band, inside the band's own
+//! retry loop, before either join ever sees it: the buffered path
+//! re-fetches the failed band from scratch (its partial collection is
+//! attempt-local, nothing reached the caller, so the replay is
+//! dedup-free), and a streaming band retries the same way while it has
+//! not yet delivered a chunk. Only a band that exhausts its budget (or
+//! fails non-retryably) is terminal. On the buffered path that fails
+//! the whole query — a merged result missing a band cannot be
+//! represented. On the streaming path the siblings DRAIN TO COMPLETION
+//! instead of being cancelled — cancelling would truncate them at
+//! arbitrary chunk boundaries, leaving ragged half-delivered windows,
+//! while draining leaves exactly the failed bands' windows as the known
+//! gaps — and the call returns [`crate::Error::PartialShardFetch`]
+//! naming those windows so the caller can re-pull precisely the missing
+//! slices (see `join_streaming_shards`).
+//!
 //! # Semaphore safety
 //!
-//! The joining driver never holds a request permit: the probe takes and
-//! releases one before any shard spawns, and each shard acquires its own
-//! permit inside its spawned task. Since the semaphore is sized to the
-//! channel pool (== tier cap) and a plan never exceeds the pool size, N
-//! shards make progress even at `pool_size == 1` (they simply serialize).
+//! The joining driver never holds a request permit: each shard acquires
+//! its own permit inside its spawned task. Since the semaphore is sized
+//! to the channel pool (== tier cap) and a plan never exceeds the pool
+//! size, N shards make progress even at `pool_size == 1` (they simply
+//! serialize).
 
 use std::sync::Arc;
 
@@ -54,9 +78,8 @@ use crate::grpc::{ChannelLease, ChannelPool};
 use crate::proto;
 
 use super::client::MarketDataClient;
+use super::decode;
 use super::decode::headers::find_header;
-use super::decode::{self};
-use super::stream::fold_stream_chunks;
 
 // ─── Date-range split math (shared with the Python binding) ─────────────
 
@@ -272,8 +295,8 @@ pub enum ShardBand {
     },
 }
 
-/// A balanced fan-out plan for one logical history query: the per-shard
-/// band overrides, in output order.
+/// An equal-span fan-out plan for one logical history query: the
+/// per-shard band overrides, in output order.
 ///
 /// Power users running their own concurrency can request the plan through
 /// [`MarketDataClient::bulk_fetch_plan`] and apply each band to a clone of
@@ -376,92 +399,109 @@ pub(crate) fn set_wire_str<T: WireParam>(field: &mut T, v: &str) {
     field.set_str(v);
 }
 
-// ─── Per-endpoint descriptor ─────────────────────────────────────────────
+// ─── Shardable endpoints ─────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Family {
-    Options,
-    Stock,
-    Index,
-}
-
-#[derive(Clone, Copy)]
-struct EndpointShard {
-    family: Family,
-    /// Coarse response-rows-per-probe-event multiplier. The probe counts
-    /// trades (the OHLCVC `count` column); trade-anchored responses carry
-    /// ~1 row per trade, while NBBO/greeks streams print an order of
-    /// magnitude more rows per trade. 15 is the conservative middle of the
-    /// 10–30× intraday NBBO-to-trade ratio: high enough that genuinely
-    /// big quote pulls clear the floor, low enough that a modest pull
-    /// cannot be talked into a fan-out by a busy tape.
-    rows_per_event: u64,
-}
-
-const fn tick(family: Family, rows_per_event: u64) -> Option<EndpointShard> {
-    Some(EndpointShard {
-        family,
-        rows_per_event,
-    })
-}
-
-/// Shardability descriptor, keyed by the generated endpoint method name.
+/// The generated endpoint methods that may shard.
 ///
-/// Only intraday (tick / bar / greeks) bulk history endpoints appear:
-/// snapshots, lists, at-time queries, and the daily-only EOD / open-interest
-/// / greeks-EOD families return bounded responses — or a per-day probe that
-/// IS the pull — that a fan-out cannot help. Endpoints not listed here
-/// always run on the single-stream path.
-fn descriptor(endpoint: &str) -> Option<EndpointShard> {
-    use Family::{Index, Options, Stock};
-    match endpoint {
-        // Trade-anchored option history: ~1 row per probe event.
-        "option_history_trade"
-        | "option_history_ohlc"
-        | "option_history_trade_greeks_all"
-        | "option_history_trade_greeks_first_order"
-        | "option_history_trade_greeks_second_order"
-        | "option_history_trade_greeks_third_order"
-        | "option_history_trade_greeks_implied_volatility"
-        // Trade+quote pairs one NBBO with each trade: still ~1 row per trade.
-        | "option_history_trade_quote" => tick(Options, 1),
-        // Quote-anchored option history: NBBO/greeks rows per trade.
-        "option_history_quote"
-        | "option_history_greeks_all"
-        | "option_history_greeks_first_order"
-        | "option_history_greeks_second_order"
-        | "option_history_greeks_third_order"
-        | "option_history_greeks_implied_volatility" => tick(Options, 15),
-        "stock_history_trade" | "stock_history_trade_quote" | "stock_history_ohlc" => {
-            tick(Stock, 1)
+/// Only intraday (tick / bar / greeks) bulk history endpoints qualify:
+/// snapshots, lists, at-time queries, and the daily-only EOD /
+/// open-interest / greeks-EOD families return bounded responses that a
+/// fan-out cannot help. Endpoints not listed here always run on the
+/// single-stream path.
+///
+/// The defining property is machine-checkable against the endpoint
+/// registry: an endpoint belongs here exactly when its registry entry
+/// has a `history*` subcategory AND carries the intraday
+/// `start_time` / `end_time` window filters (the daily-only families —
+/// EOD, open interest, greeks-EOD — have no intraday window to band).
+/// `shardable_set_matches_registry_intraday_history` in this module's
+/// tests enforces that equality, so a new intraday history endpoint
+/// added to `endpoint_surface.toml` cannot silently never-shard.
+const SHARDABLE_HISTORY_ENDPOINTS: &[&str] = &[
+    "option_history_trade",
+    "option_history_ohlc",
+    "option_history_trade_quote",
+    "option_history_quote",
+    "option_history_trade_greeks_all",
+    "option_history_trade_greeks_first_order",
+    "option_history_trade_greeks_second_order",
+    "option_history_trade_greeks_third_order",
+    "option_history_trade_greeks_implied_volatility",
+    "option_history_greeks_all",
+    "option_history_greeks_first_order",
+    "option_history_greeks_second_order",
+    "option_history_greeks_third_order",
+    "option_history_greeks_implied_volatility",
+    "stock_history_trade",
+    "stock_history_trade_quote",
+    "stock_history_ohlc",
+    "stock_history_quote",
+    "index_history_price",
+    "index_history_ohlc",
+];
+
+/// Whether the generated endpoint method named `endpoint` may shard.
+fn is_shardable_history_endpoint(endpoint: &str) -> bool {
+    SHARDABLE_HISTORY_ENDPOINTS.contains(&endpoint)
+}
+
+/// Why a query did not shard. Logged at `debug` by [`auto_plan`] so an
+/// operator wondering why a pull ran on a single stream can see the
+/// gate that declined it; never part of the public surface
+/// ([`MarketDataClient::bulk_fetch_plan`] keeps its `Option` return).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ShardDecline {
+    /// Endpoint is outside [`SHARDABLE_HISTORY_ENDPOINTS`].
+    UnlistedEndpoint,
+    /// The request shape offers no cut axis (no multi-day range and no
+    /// single-day intraday window).
+    NoAxis,
+    /// Resolved fan-out width `< 2` — nothing to fan out across.
+    WidthUnderTwo,
+    /// An axis was selected but its window fields do not parse (or the
+    /// window is inverted), so no bands can be cut from it.
+    MalformedWindow,
+    /// Bounded-interval single-contract pull whose bar grid provably
+    /// stays under [`SHARD_MIN_GRID_ROWS`].
+    SmallGrid,
+    /// Window too narrow for two bands of [`MIN_SHARD_BAND_MS`].
+    NarrowWindow,
+}
+
+impl ShardDecline {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::UnlistedEndpoint => "endpoint is not a shardable history endpoint",
+            Self::NoAxis => "request shape has no cut axis",
+            Self::WidthUnderTwo => "fan-out width under two",
+            Self::MalformedWindow => "band window does not parse",
+            Self::SmallGrid => "bar grid provably small",
+            Self::NarrowWindow => "window too narrow for two bands",
         }
-        "stock_history_quote" => tick(Stock, 15),
-        "index_history_price" | "index_history_ohlc" => tick(Index, 1),
-        _ => None,
     }
 }
 
 // ─── Pure planning math ──────────────────────────────────────────────────
 
-/// Probe bin width along the time axis (one minute), and the probe's
-/// interval parameter. ~390 bins cover a regular session, enough
-/// resolution to place cuts within a minute of the ideal equal-work
-/// boundary while keeping the probe response tiny next to the pull it
-/// sizes.
-const PROBE_BIN_MS: i64 = 60_000;
-const PROBE_INTERVAL: &str = "1m";
+/// Bar-grid ceiling below which a bounded-interval query stays on the
+/// single stream. A single-contract (or stock / index) query at a
+/// bounded bar interval cannot return more than one row per grid slot;
+/// when that provable ceiling is this small, the single stream finishes
+/// within about one server prepare interval of a fan-out, so sharding
+/// cannot win. Chain cross-products and tick-interval pulls have no
+/// such ceiling and shard on the window alone.
+const SHARD_MIN_GRID_ROWS: u64 = 10_000_000;
 
-/// Estimated-response-rows floor below which a query stays on the single
-/// stream. Derived from the measured live envelope (~43 MiB/s steady-state
-/// per stream at the 8 MiB window; the server prepares a response for
-/// roughly tens of seconds before the first byte, per request): under
-/// ~10 M rows the single stream finishes within about one prepare interval
-/// of the fan-out, so the probe plus N prepares erase the win; above it
-/// the balanced fan-out's multiple wins decisively.
-const SHARD_MIN_EST_ROWS: u64 = 10_000_000;
+/// Minimum wall-clock span of one time band (five minutes). The server
+/// spends a roughly fixed prepare interval per request before the first
+/// byte, so a band much narrower than this pays fan-out overhead without
+/// meaningful work to parallelize; a window that cannot yield at least
+/// two such bands stays on the single stream.
+const MIN_SHARD_BAND_MS: i64 = 5 * 60_000;
 
-/// Regular-session window (09:30–16:00 ET) used to cap per-day row
-/// estimates when the query itself carries no parsable window.
+/// Regular-session window (09:30–16:00 ET): the per-day bar-grid span
+/// the small-pull gate assumes when the query itself carries no
+/// parsable window.
 const RTH_WINDOW_MS: i64 = 23_400_000;
 
 /// Parse a wire time-of-day (`HH:MM`, `HH:MM:SS`, `HH:MM:SS.mmm`, or bare
@@ -513,7 +553,7 @@ fn format_hms(ms: i64) -> String {
 }
 
 /// Interval width in ms. `None` for `tick` (or anything unrecognised,
-/// which errs toward the larger tick-density estimate).
+/// which errs toward treating the pull as unbounded tick density).
 fn interval_ms(s: &str) -> Option<i64> {
     let s = s.trim();
     if s.is_empty() || s.eq_ignore_ascii_case("tick") {
@@ -552,7 +592,7 @@ fn date_span_days(q: &ShardQuery) -> Option<i64> {
 /// cross-product). Only chain pulls have an a-priori-unbounded row count
 /// per grid slot; a concrete contract — and every stock / index query —
 /// is capped at one row per bar for bounded intervals, which the
-/// probe-free pre-gates in `plan_query` exploit.
+/// small-pull gates in `plan_query` exploit.
 fn chain_cross_product(q: &ShardQuery) -> bool {
     q.expiration.is_some()
         && (q.expiration.as_deref() == Some("*")
@@ -585,156 +625,40 @@ fn select_axis(q: &ShardQuery) -> Option<ShardAxis> {
     None
 }
 
-/// Place up to `n - 1` cut boundaries over a work histogram so the
-/// cumulative work between consecutive boundaries is as equal as the bins
-/// allow.
-///
-/// Returns strictly increasing bin boundaries in `1..bins.len()` (a
-/// boundary `k` cuts between bin `k - 1` and bin `k`). Every band the
-/// boundaries induce carries probe work > 0: a boundary is emitted only
-/// with work strictly before it (the cumulative target was reached) and
-/// strictly after it (boundaries cap at the last non-empty bin). A
-/// zero-work band is a shard the server answers with gRPC `NotFound`
-/// rather than an empty stream, so it must never be planned. Degenerate
-/// shapes therefore resolve conservatively: an empty or all-zero
-/// histogram, `n <= 1`, a single bin, or work concentrated in one bin
-/// yield no cuts, and the caller falls back to a single stream.
-fn equal_work_cuts(bins: &[u64], n: usize) -> Vec<usize> {
-    let total: u64 = bins.iter().sum();
-    if total == 0 || n <= 1 || bins.len() < 2 {
-        return Vec::new();
-    }
-    // Largest boundary that still leaves work after the cut: the index of
-    // the last non-empty bin (`total > 0` guarantees one exists). A
-    // boundary past it would isolate a zero-work trailing band — the
-    // 1-bar-histogram shape a short intraday window produces.
-    let last_boundary = bins
-        .iter()
-        .rposition(|&w| w > 0)
-        .expect("total > 0 implies a non-empty bin");
-    // `max(1)` keeps the target strictly advancing when total < n, so the
-    // dedup loop below always terminates.
-    let per = (total / n as u64).max(1);
-    let mut cuts: Vec<usize> = Vec::with_capacity(n - 1);
-    let mut cum = 0u64;
-    let mut target = per;
-    for (i, &w) in bins.iter().enumerate() {
-        cum += w;
-        while cum >= target && cuts.len() < n - 1 {
-            let boundary = i + 1;
-            // `boundary <= last_boundary` implies `boundary < bins.len()`
-            // and guarantees work on both sides of the cut.
-            if boundary <= last_boundary && cuts.last() != Some(&boundary) {
-                cuts.push(boundary);
-            }
-            target = target.saturating_add(per);
-        }
-    }
-    cuts
-}
-
-/// Materialize time bands from minute-bin cut boundaries.
+/// Materialize `n` equal-duration time bands over the inclusive window
+/// `[start_ms, end_ms]`. Caller guarantees `1 <= n <= window_ms`.
 ///
 /// Bands are inclusive `[start, end]` wire windows at millisecond
-/// resolution: band `k` ends at `cut_ms - 1` and band `k + 1` starts at
-/// `cut_ms`, so every tick lands in exactly one band. The server treats
-/// `start_time` / `end_time` as inclusive at millisecond resolution —
-/// verified live: adjacent inclusive bands built this way reproduce the
-/// single stream's row count exactly on full-day chain pulls. The first
-/// band starts at the query's own `start_time` and the last ends at its
-/// `end_time`, both verbatim.
-fn time_bands(start_ms: i64, end_ms: i64, cuts: &[usize]) -> Vec<ShardBand> {
-    let mut edges: Vec<i64> = vec![start_ms];
-    for &c in cuts {
-        let cut_ms = start_ms + (c as i64) * PROBE_BIN_MS;
-        if cut_ms > *edges.last().expect("edges seeded") && cut_ms <= end_ms {
-            edges.push(cut_ms);
-        }
-    }
-    edges.push(end_ms + 1);
-    edges
-        .windows(2)
-        .map(|w| ShardBand::Time {
-            start_time: format_hms(w[0]),
-            end_time: format_hms(w[1] - 1),
+/// resolution: band `k` ends 1 ms before band `k + 1` starts, so every
+/// tick lands in exactly one band. The server treats `start_time` /
+/// `end_time` as inclusive at millisecond resolution — verified live:
+/// adjacent inclusive bands built this way reproduce the single
+/// stream's row count exactly on full-day chain pulls. The first band
+/// starts at the query's own `start_time` and the last ends at its
+/// `end_time`; band durations differ by at most 1 ms.
+fn time_bands(start_ms: i64, end_ms: i64, n: i64) -> Vec<ShardBand> {
+    let window = end_ms - start_ms + 1;
+    (0..n)
+        .map(|k| ShardBand::Time {
+            start_time: format_hms(start_ms + window * k / n),
+            end_time: format_hms(start_ms + window * (k + 1) / n - 1),
         })
         .collect()
 }
 
-/// Materialize date bands from day-bin cut boundaries. Bands are
-/// contiguous inclusive `[start_date, end_date]` sub-ranges covering the
-/// query's range exactly once, matching the server's inclusive date
-/// semantics.
-fn date_bands(start_ord: i64, end_ord: i64, cuts: &[usize]) -> Vec<ShardBand> {
-    let mut edges: Vec<i64> = vec![start_ord];
-    for &c in cuts {
-        let cut_ord = start_ord + c as i64;
-        if cut_ord > *edges.last().expect("edges seeded") && cut_ord <= end_ord {
-            edges.push(cut_ord);
-        }
-    }
-    edges.push(end_ord + 1);
-    edges
-        .windows(2)
-        .map(|w| ShardBand::Date {
-            start_date: Ymd::from_ord(w[0]).to_yyyymmdd(),
-            end_date: Ymd::from_ord(w[1] - 1).to_yyyymmdd(),
+/// Materialize `n` equal-day-count date bands over the inclusive day
+/// ordinals `[start_ord, end_ord]`. Caller guarantees `1 <= n <= days`.
+/// Bands are contiguous inclusive `[start_date, end_date]` sub-ranges
+/// covering the query's range exactly once, matching the server's
+/// inclusive date semantics; band day counts differ by at most one.
+fn date_bands(start_ord: i64, end_ord: i64, n: i64) -> Vec<ShardBand> {
+    let days = end_ord - start_ord + 1;
+    (0..n)
+        .map(|k| ShardBand::Date {
+            start_date: Ymd::from_ord(start_ord + days * k / n).to_yyyymmdd(),
+            end_date: Ymd::from_ord(start_ord + days * (k + 1) / n - 1).to_yyyymmdd(),
         })
         .collect()
-}
-
-/// Density-probe fold: per-bin work, probe rows, and probe events.
-struct ProbeSummary {
-    bins: Vec<u64>,
-    rows: u64,
-    events: u64,
-}
-
-impl ProbeSummary {
-    fn new(bins: usize) -> Self {
-        Self {
-            bins: vec![0; bins],
-            rows: 0,
-            events: 0,
-        }
-    }
-
-    fn record(&mut self, bin: usize, count: i64) {
-        // A bar with a zero/absent trade count still stands for at least
-        // one response row (index bars carry no trade counts at all), so
-        // work is floored at 1 per probe row.
-        let work = u64::try_from(count).unwrap_or(0).max(1);
-        let idx = bin.min(self.bins.len().saturating_sub(1));
-        if let Some(slot) = self.bins.get_mut(idx) {
-            *slot += work;
-        }
-        self.rows += 1;
-        self.events += work;
-    }
-}
-
-/// Estimate the pull's response rows from the probe.
-///
-/// `rows_per_event x events` models tick-density responses; when the query
-/// carries a bounded bar interval, `probe_rows x bars_per_probe_row` caps
-/// the estimate at the bar grid's own ceiling. `probe_span_ms` is the wire
-/// span one probe row stands for — one probe bin (`PROBE_BIN_MS`) on the
-/// time axis, one day's intraday window on the date axis — so a probe row
-/// expands into at most `probe_span_ms / interval_ms` finer bars.
-fn estimate_rows(
-    desc: EndpointShard,
-    query_interval: Option<&str>,
-    probe: &ProbeSummary,
-    probe_span_ms: i64,
-) -> u64 {
-    let by_events = desc.rows_per_event.saturating_mul(probe.events);
-    match query_interval.and_then(interval_ms) {
-        Some(ivl) => {
-            let bars_per_row = u64::try_from(probe_span_ms / ivl.min(probe_span_ms)).unwrap_or(1);
-            by_events.min(probe.rows.saturating_mul(bars_per_row.max(1)))
-        }
-        None => by_events,
-    }
 }
 
 // ─── Dispatch handle (owned, task-portable) ──────────────────────────────
@@ -751,7 +675,6 @@ pub(crate) struct ShardDispatch {
     channels: ChannelPool,
     pub(crate) retry: RetryPolicy,
     query_info_template: proto::QueryInfo,
-    pool_size: usize,
 }
 
 impl ShardDispatch {
@@ -761,7 +684,6 @@ impl ShardDispatch {
         channels: ChannelPool,
         retry: RetryPolicy,
         query_info_template: proto::QueryInfo,
-        pool_size: usize,
     ) -> Self {
         Self {
             semaphore,
@@ -769,7 +691,6 @@ impl ShardDispatch {
             channels,
             retry,
             query_info_template,
-            pool_size,
         }
     }
 
@@ -787,240 +708,6 @@ impl ShardDispatch {
     }
 }
 
-// ─── Density probe ───────────────────────────────────────────────────────
-
-/// Owned probe parameters; rebuilt into a full request per retry attempt.
-enum ProbeParams {
-    OptionOhlc(proto::OptionHistoryOhlcRequestQuery),
-    StockOhlc(proto::StockHistoryOhlcRequestQuery),
-    IndexOhlc(proto::IndexHistoryOhlcRequestQuery),
-    OptionEod(proto::OptionHistoryEodRequestQuery),
-    StockEod(proto::StockHistoryEodRequestQuery),
-    IndexEod(proto::IndexHistoryEodRequestQuery),
-}
-
-impl ProbeParams {
-    async fn open(
-        &self,
-        d: &ShardDispatch,
-        qi: proto::QueryInfo,
-    ) -> Result<crate::grpc::ServerStreaming<proto::ResponseData>, Error> {
-        use crate::proto::beta_theta_terminal as stub;
-        // Bind the lease to a local so the pre-dispatch reservation lives
-        // across the open await (see `ChannelPool::next`).
-        let lease = d.channel();
-        let out = match self {
-            Self::OptionOhlc(p) => {
-                let req = proto::OptionHistoryOhlcRequest {
-                    query_info: Some(qi),
-                    params: Some(p.clone()),
-                };
-                stub::get_option_history_ohlc(&lease, req).await
-            }
-            Self::StockOhlc(p) => {
-                let req = proto::StockHistoryOhlcRequest {
-                    query_info: Some(qi),
-                    params: Some(p.clone()),
-                };
-                stub::get_stock_history_ohlc(&lease, req).await
-            }
-            Self::IndexOhlc(p) => {
-                let req = proto::IndexHistoryOhlcRequest {
-                    query_info: Some(qi),
-                    params: Some(p.clone()),
-                };
-                stub::get_index_history_ohlc(&lease, req).await
-            }
-            Self::OptionEod(p) => {
-                let req = proto::OptionHistoryEodRequest {
-                    query_info: Some(qi),
-                    params: Some(p.clone()),
-                };
-                stub::get_option_history_eod(&lease, req).await
-            }
-            Self::StockEod(p) => {
-                let req = proto::StockHistoryEodRequest {
-                    query_info: Some(qi),
-                    params: Some(p.clone()),
-                };
-                stub::get_stock_history_eod(&lease, req).await
-            }
-            Self::IndexEod(p) => {
-                let req = proto::IndexHistoryEodRequest {
-                    query_info: Some(qi),
-                    params: Some(p.clone()),
-                };
-                stub::get_index_history_eod(&lease, req).await
-            }
-        };
-        out.map_err(Into::into)
-    }
-}
-
-fn contract_spec_of(q: &ShardQuery) -> Option<proto::ContractSpec> {
-    Some(proto::ContractSpec {
-        symbol: q.symbol.clone().unwrap_or_default(),
-        expiration: q.expiration.clone().unwrap_or_default(),
-        strike: q.strike.clone(),
-        right: q.right.clone(),
-    })
-}
-
-/// Intraday OHLCVC probe over one trading day at [`PROBE_INTERVAL`].
-///
-/// The probe forwards the query's contract identity and time window but not
-/// its row-reducing filters (`venue`, `strike_range`, `max_dte`): the banded
-/// sub-requests carry every filter verbatim, so returned rows stay exact —
-/// only the size estimate can skew (a venue- or strike-filtered pull may be
-/// mis-sized against the default tape / full chain the probe counts).
-fn time_probe_params(family: Family, q: &ShardQuery, day: &str) -> ProbeParams {
-    match family {
-        Family::Options => ProbeParams::OptionOhlc(proto::OptionHistoryOhlcRequestQuery {
-            contract_spec: contract_spec_of(q),
-            date: Some(day.to_string()),
-            expiration: String::new(),
-            interval: PROBE_INTERVAL.to_string(),
-            start_time: q.start_time.clone(),
-            end_time: q.end_time.clone(),
-            strike_range: None,
-            start_date: None,
-            end_date: None,
-        }),
-        Family::Stock => ProbeParams::StockOhlc(proto::StockHistoryOhlcRequestQuery {
-            symbol: q.symbol.clone().unwrap_or_default(),
-            date: Some(day.to_string()),
-            interval: PROBE_INTERVAL.to_string(),
-            start_time: q.start_time.clone(),
-            end_time: q.end_time.clone(),
-            venue: None,
-            start_date: None,
-            end_date: None,
-        }),
-        Family::Index => ProbeParams::IndexOhlc(proto::IndexHistoryOhlcRequestQuery {
-            symbol: q.symbol.clone().unwrap_or_default(),
-            start_date: day.to_string(),
-            end_date: day.to_string(),
-            interval: PROBE_INTERVAL.to_string(),
-            start_time: q.start_time.clone(),
-            end_time: q.end_time.clone(),
-        }),
-    }
-}
-
-/// Per-day OHLCVC probe (EOD report) over the query's date range.
-fn date_probe_params(family: Family, q: &ShardQuery, start: &str, end: &str) -> ProbeParams {
-    match family {
-        Family::Options => ProbeParams::OptionEod(proto::OptionHistoryEodRequestQuery {
-            contract_spec: contract_spec_of(q),
-            start_date: start.to_string(),
-            end_date: end.to_string(),
-            expiration: String::new(),
-            max_dte: None,
-            strike_range: None,
-        }),
-        Family::Stock => ProbeParams::StockEod(proto::StockHistoryEodRequestQuery {
-            symbol: q.symbol.clone().unwrap_or_default(),
-            start_date: start.to_string(),
-            end_date: end.to_string(),
-        }),
-        Family::Index => ProbeParams::IndexEod(proto::IndexHistoryEodRequestQuery {
-            symbol: q.symbol.clone().unwrap_or_default(),
-            start_date: start.to_string(),
-            end_date: end.to_string(),
-        }),
-    }
-}
-
-/// How probe rows fold into axis bins.
-enum ProbeBinning {
-    /// Bin OHLC bars by minute offset from the window start.
-    TimeBins { start_ms: i64 },
-    /// Bin EOD rows by day offset from the range start.
-    DateBins { start_ord: i64 },
-}
-
-/// Run the density probe as a normal top-level request: its own semaphore
-/// permit, the standard retry / refresh shell, chunk-at-a-time decode
-/// (probe memory stays bounded by one chunk). The histogram is rebuilt
-/// from scratch on a retry attempt, so a restarted stream cannot
-/// double-count.
-async fn run_probe(
-    d: &ShardDispatch,
-    params: ProbeParams,
-    binning: ProbeBinning,
-    bins: usize,
-) -> Result<ProbeSummary, Error> {
-    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => "bulk_fetch_probe").increment(1);
-    let _permit = d
-        .semaphore
-        .acquire()
-        .await
-        .map_err(|_| Error::config_internal("request semaphore closed"))?;
-    // `Mutex` (not `RefCell`) so the retry future stays `Send` — the
-    // buffered builder futures are `Pin<Box<dyn Future + Send>>`. Locking
-    // is uncontended: the fold is strictly sequential per chunk.
-    let summary = std::sync::Mutex::new(ProbeSummary::new(bins));
-    super::macros::run_unary_retry_loop(&d.session, &d.retry, "bulk_fetch_probe", |snap| {
-        let params = &params;
-        let binning = &binning;
-        let summary = &summary;
-        async move {
-            // Fresh fold per attempt: a retried stream replays from chunk
-            // zero, so the previous partial histogram is discarded.
-            *summary
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = ProbeSummary::new(bins);
-            let stream = params.open(d, d.query_info(snap.uuid)).await?;
-            fold_stream_chunks(stream, |table| {
-                let mut s = summary
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                match binning {
-                    ProbeBinning::TimeBins { start_ms } => {
-                        for t in decode::parse_ohlc_ticks(table).map_err(Error::from)? {
-                            let bin = (i64::from(t.ms_of_day) - start_ms).max(0) / PROBE_BIN_MS;
-                            s.record(usize::try_from(bin).unwrap_or(usize::MAX), t.count);
-                        }
-                    }
-                    ProbeBinning::DateBins { start_ord } => {
-                        for t in decode::parse_eod_ticks(table).map_err(Error::from)? {
-                            let bin =
-                                ord_of_yyyymmdd_i32(t.date).map_or(0, |o| (o - start_ord).max(0));
-                            s.record(usize::try_from(bin).unwrap_or(usize::MAX), t.count);
-                        }
-                    }
-                }
-                Ok(())
-            })
-            .await
-        }
-    })
-    .await?;
-    Ok(summary
-        .into_inner()
-        .unwrap_or_else(std::sync::PoisonError::into_inner))
-}
-
-/// `YYYYMMDD` integer (as decoded ticks carry it) to a day ordinal.
-fn ord_of_yyyymmdd_i32(date: i32) -> Option<i64> {
-    if date <= 0 {
-        return None;
-    }
-    let (y, m, d) = (
-        date / 10_000,
-        (date / 100 % 100) as u32,
-        (date % 100) as u32,
-    );
-    is_valid_ymd(y, m, d).then(|| {
-        Ymd {
-            year: y as u32,
-            month: m,
-            day: d,
-        }
-        .to_ord()
-    })
-}
-
 // ─── Plan construction ───────────────────────────────────────────────────
 
 /// Resolved shard width: the configured `shard_concurrency` clamped into
@@ -1035,13 +722,11 @@ fn shard_width(config_width: Option<u32>, pool_size: usize) -> usize {
     }
 }
 
-/// Policy-gated plan for the automatic buffered path. Any reason not to
-/// shard — policy `Off`, an unlisted endpoint, no usable axis, a pull
-/// under the floor, or a failed probe — resolves to `None`, and the caller
-/// runs today's single stream. A probe failure is deliberately swallowed
-/// here (at `debug`): the pull itself must never fail because a sizing
-/// query did.
-pub(crate) async fn auto_plan(
+/// Policy-gated plan for the automatic paths. Any reason not to shard —
+/// policy `Off`, an unlisted endpoint, no usable axis, or a provably
+/// small or too-narrow pull — resolves to `None`, and the caller runs
+/// today's single stream.
+pub(crate) fn auto_plan(
     client: &MarketDataClient,
     endpoint: &'static str,
     q: &ShardQuery,
@@ -1049,165 +734,134 @@ pub(crate) async fn auto_plan(
     if client.config().market_data.bulk_fetch == BulkFetchPolicy::Off {
         return None;
     }
-    match plan_query(client, endpoint, q).await {
-        Ok(plan) => {
-            if let Some(p) = plan.as_ref() {
-                let axis = match p.bands.first() {
-                    Some(ShardBand::Time { .. }) => "time",
-                    Some(ShardBand::Date { .. }) => "date",
-                    None => "none",
-                };
-                tracing::debug!(
-                    endpoint,
-                    axis,
-                    shards = p.bands.len(),
-                    "bulk fetch sharded across the request pool"
-                );
-            }
-            plan
-        }
-        Err(err) => {
+    let width = shard_width(
+        client.config().market_data.shard_concurrency,
+        client.pool_size(),
+    );
+    match plan_query(endpoint, q, width) {
+        Ok(p) => {
+            let axis = match p.bands.first() {
+                Some(ShardBand::Time { .. }) => "time",
+                Some(ShardBand::Date { .. }) => "date",
+                None => "none",
+            };
             tracing::debug!(
                 endpoint,
-                error = %err,
-                "bulk-fetch density probe failed; falling back to a single stream"
+                axis,
+                shards = p.bands.len(),
+                "bulk fetch sharded across the request pool"
+            );
+            Some(p)
+        }
+        Err(decline) => {
+            tracing::debug!(
+                endpoint,
+                reason = decline.as_str(),
+                "bulk fetch not sharded — running on a single stream"
             );
             None
         }
     }
 }
 
-/// Build the shard plan the automatic path would use for `endpoint` and
-/// `query`, independent of the configured [`BulkFetchPolicy`].
+/// Build the shard plan for `endpoint` and `q` at fan-out width `width`,
+/// from the request shape alone — pure computation, no request issued.
+///
+/// Sharding splits a large history pull into equal wall-clock bands —
+/// equal duration along the time axis, equal day count along the date
+/// axis — run concurrently; it never issues a sizing query. Balance is
+/// equal span, not equal rows: a deliberate trade that costs zero extra
+/// round-trips and zero per-endpoint tuning, and the concurrency win
+/// dominates the residual row imbalance between bands.
 ///
 /// Shared by [`MarketDataClient::bulk_fetch_plan`] (manual mode) and
-/// [`auto_plan`]. Returns `Ok(None)` when the query should stay on a
-/// single stream.
-async fn plan_query(
-    client: &MarketDataClient,
-    endpoint: &str,
-    q: &ShardQuery,
-) -> Result<Option<ShardPlan>, Error> {
-    let Some(desc) = descriptor(endpoint) else {
-        return Ok(None);
-    };
-    let Some(axis) = select_axis(q) else {
-        return Ok(None);
-    };
-    let d = client.shard_dispatch();
-    let width = shard_width(client.config().market_data.shard_concurrency, d.pool_size);
-    if width < 2 {
-        return Ok(None);
+/// [`auto_plan`]. Declines — the query should stay on a single stream —
+/// carry the gate that fired ([`ShardDecline`], logged by `auto_plan`):
+/// an endpoint outside the shardable set, a shape with no cut axis,
+/// `width < 2`, a window too narrow for two bands of
+/// [`MIN_SHARD_BAND_MS`], or a bounded-interval single-contract pull
+/// whose bar grid provably stays under [`SHARD_MIN_GRID_ROWS`].
+fn plan_query(endpoint: &str, q: &ShardQuery, width: usize) -> Result<ShardPlan, ShardDecline> {
+    if !is_shardable_history_endpoint(endpoint) {
+        return Err(ShardDecline::UnlistedEndpoint);
     }
+    let axis = select_axis(q).ok_or(ShardDecline::NoAxis)?;
+    if width < 2 {
+        return Err(ShardDecline::WidthUnderTwo);
+    }
+    let width = i64::try_from(width).unwrap_or(i64::MAX);
+    // `select_axis` guarantees the axis fields are present; from here a
+    // missing or unparsable field is a malformed window, not a missing
+    // axis.
+    let window = ShardDecline::MalformedWindow;
     match axis {
         ShardAxis::Time => {
-            let (Some(start_time), Some(end_time)) =
-                (q.start_time.as_deref(), q.end_time.as_deref())
-            else {
-                return Ok(None);
-            };
-            let (Some(start_ms), Some(end_ms)) =
-                (parse_ms_of_day(start_time), parse_ms_of_day(end_time))
-            else {
-                return Ok(None);
-            };
+            let start_ms = parse_ms_of_day(q.start_time.as_deref().ok_or(window)?).ok_or(window)?;
+            let end_ms = parse_ms_of_day(q.end_time.as_deref().ok_or(window)?).ok_or(window)?;
             if end_ms <= start_ms {
-                return Ok(None);
+                return Err(window);
             }
-            // Probe-free pre-gate: a single-contract (or stock / index)
-            // query at a bounded bar interval cannot exceed one row per
-            // grid slot, so a provably-small pull skips the sizing probe
-            // entirely — `Auto` must add zero latency where it cannot
-            // help. Chain cross-products and tick-interval pulls are
-            // unbounded a priori and fall through to the probe (whose
-            // response is a ~390-bar day for concrete queries — cheap —
-            // and proportional to the pull for chains).
+            // Request-shape small-pull gate: a single-contract (or stock
+            // / index) query at a bounded bar interval cannot exceed one
+            // row per grid slot, so a provably-small pull never pays a
+            // fan-out. Chain cross-products and tick-interval pulls are
+            // unbounded a priori and shard on the window alone.
             if !chain_cross_product(q) {
                 if let Some(ivl) = q.interval.as_deref().and_then(interval_ms) {
                     let grid_rows =
                         u64::try_from((end_ms - start_ms) / ivl.max(1) + 1).unwrap_or(0);
-                    if grid_rows < SHARD_MIN_EST_ROWS {
-                        return Ok(None);
+                    if grid_rows < SHARD_MIN_GRID_ROWS {
+                        return Err(ShardDecline::SmallGrid);
                     }
                 }
             }
-            let day = match (&q.date, &q.start_date) {
-                (Some(day), _) => day.clone(),
-                (None, Some(day)) => day.clone(),
-                (None, None) => return Ok(None),
-            };
-            let bins = usize::try_from((end_ms - start_ms) / PROBE_BIN_MS + 1).unwrap_or(1);
-            let probe = run_probe(
-                &d,
-                time_probe_params(desc.family, q, &day),
-                ProbeBinning::TimeBins { start_ms },
-                bins,
-            )
-            .await?;
-            if estimate_rows(desc, q.interval.as_deref(), &probe, PROBE_BIN_MS) < SHARD_MIN_EST_ROWS
-            {
-                return Ok(None);
+            // Equal-duration bands, capped so each spans at least
+            // `MIN_SHARD_BAND_MS`; a window too narrow for two such
+            // bands stays on the single stream.
+            let n = ((end_ms - start_ms + 1) / MIN_SHARD_BAND_MS).min(width);
+            if n < 2 {
+                return Err(ShardDecline::NarrowWindow);
             }
-            let cuts = equal_work_cuts(&probe.bins, width);
-            if cuts.is_empty() {
-                return Ok(None);
-            }
-            Ok(Some(ShardPlan {
-                bands: time_bands(start_ms, end_ms, &cuts),
-            }))
+            Ok(ShardPlan {
+                bands: time_bands(start_ms, end_ms, n),
+            })
         }
         ShardAxis::Date => {
-            let (Some(start_date), Some(end_date)) =
-                (q.start_date.as_deref(), q.end_date.as_deref())
-            else {
-                return Ok(None);
-            };
-            let (Ok(start), Ok(end)) =
-                (Ymd::from_yyyymmdd(start_date), Ymd::from_yyyymmdd(end_date))
-            else {
-                return Ok(None);
-            };
-            let (start_ord, end_ord) = (start.to_ord(), end.to_ord());
-            let window_ms = match (
-                q.start_time.as_deref().and_then(parse_ms_of_day),
-                q.end_time.as_deref().and_then(parse_ms_of_day),
-            ) {
-                (Some(s), Some(e)) if e > s => e - s,
-                _ => RTH_WINDOW_MS,
-            };
-            // Probe-free pre-gate, same reasoning as the time axis: one
-            // contract at a bounded bar interval is capped at the grid,
-            // so a provably-small multi-day pull never pays the probe.
+            let start_ord = Ymd::from_yyyymmdd(q.start_date.as_deref().ok_or(window)?)
+                .map_err(|_| window)?
+                .to_ord();
+            let end_ord = Ymd::from_yyyymmdd(q.end_date.as_deref().ok_or(window)?)
+                .map_err(|_| window)?
+                .to_ord();
+            // Same small-pull gate as the time axis, with per-day rows
+            // capped by the query's own intraday window (the regular
+            // session when it carries none).
             if !chain_cross_product(q) {
                 if let Some(ivl) = q.interval.as_deref().and_then(interval_ms) {
+                    let window_ms = match (
+                        q.start_time.as_deref().and_then(parse_ms_of_day),
+                        q.end_time.as_deref().and_then(parse_ms_of_day),
+                    ) {
+                        (Some(s), Some(e)) if e > s => e - s,
+                        _ => RTH_WINDOW_MS,
+                    };
                     let days = u64::try_from(end_ord - start_ord + 1).unwrap_or(u64::MAX);
                     let per_day = u64::try_from(window_ms / ivl.max(1) + 1).unwrap_or(0);
-                    if days.saturating_mul(per_day) < SHARD_MIN_EST_ROWS {
-                        return Ok(None);
+                    if days.saturating_mul(per_day) < SHARD_MIN_GRID_ROWS {
+                        return Err(ShardDecline::SmallGrid);
                     }
                 }
             }
-            let bins = usize::try_from(end_ord - start_ord + 1).unwrap_or(1);
-            let probe = run_probe(
-                &d,
-                date_probe_params(desc.family, q, start_date, end_date),
-                ProbeBinning::DateBins { start_ord },
-                bins,
-            )
-            .await?;
-            // Per-day row estimates additionally cap at the bar grid the
-            // query's own window and interval allow (one probe row is one
-            // day, so `window_ms` is the per-row span).
-            if estimate_rows(desc, q.interval.as_deref(), &probe, window_ms) < SHARD_MIN_EST_ROWS {
-                return Ok(None);
+            // Equal-day-count bands, at most one band per day.
+            // `select_axis` only picks the date axis for `span >= 2`, so
+            // with `width >= 2` (checked above) two bands always fit.
+            let n = (end_ord - start_ord + 1).min(width);
+            if n < 2 {
+                return Err(ShardDecline::NarrowWindow);
             }
-            let cuts = equal_work_cuts(&probe.bins, width);
-            if cuts.is_empty() {
-                return Ok(None);
-            }
-            Ok(Some(ShardPlan {
-                bands: date_bands(start_ord, end_ord, &cuts),
-            }))
+            Ok(ShardPlan {
+                bands: date_bands(start_ord, end_ord, n),
+            })
         }
     }
 }
@@ -1223,27 +877,40 @@ impl MarketDataClient {
     /// plan stays available with `bulk_fetch = Off`. `endpoint` is the
     /// builder method name (for example `"option_history_quote"`).
     ///
-    /// Returns `Ok(None)` when the query should stay on a single stream:
-    /// the endpoint is not a bulk history endpoint, the shape offers no
-    /// cut axis, the density probe sizes the pull under the fan-out
-    /// break-even, or the probe's histogram offers no cut that leaves
-    /// work on both sides (for example a one-bar window).
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the density probe itself fails (network,
-    /// authentication, or decode failure). The automatic path treats the
-    /// same failure as "do not shard" instead.
-    pub async fn bulk_fetch_plan(
-        &self,
-        endpoint: &str,
-        query: &ShardQuery,
-    ) -> Result<Option<ShardPlan>, Error> {
-        plan_query(self, endpoint, query).await
+    /// Pure computation on the request shape — no request is issued.
+    /// Returns `None` when the query should stay on a single stream: the
+    /// endpoint is not a bulk history endpoint, the shape offers no cut
+    /// axis, or the pull is provably too small (or its window too
+    /// narrow) for a fan-out to help.
+    #[must_use]
+    pub fn bulk_fetch_plan(&self, endpoint: &str, query: &ShardQuery) -> Option<ShardPlan> {
+        let width = shard_width(
+            self.config().market_data.shard_concurrency,
+            self.pool_size(),
+        );
+        plan_query(endpoint, query, width).ok()
     }
 }
 
 // ─── Concurrent driver ───────────────────────────────────────────────────
+
+/// `tracing` span for one shard band's work. The endpoint macros
+/// instrument each band future with it, so every event inside the band
+/// — the retry-sleep warnings from `sleep_for_retry`, the per-band
+/// completion line, chunk-level debug — carries the band's window and
+/// concurrent bands stay distinguishable in the log stream.
+pub(crate) fn band_span(band: &ShardBand) -> tracing::Span {
+    match band {
+        ShardBand::Date {
+            start_date,
+            end_date,
+        } => tracing::debug_span!("shard_band", band_start = %start_date, band_end = %end_date),
+        ShardBand::Time {
+            start_time,
+            end_time,
+        } => tracing::debug_span!("shard_band", band_start = %start_time, band_end = %end_time),
+    }
+}
 
 /// A spawned shard request whose task is aborted when the handle drops.
 ///
@@ -1282,10 +949,20 @@ where
 /// of failing the pull: the bands partition the query, and the union can
 /// have data even when one band is empty. Only when EVERY shard reports
 /// `NotFound` is the first such error propagated, matching what a single
-/// stream returns for a genuinely empty query. Any other shard error (or
-/// panic) fails the whole logical query — the same contract as a
-/// single-stream error — and dropping the remaining [`ShardTask`] guards
-/// aborts their in-flight requests.
+/// stream returns for a genuinely empty query.
+///
+/// A band that fails mid-collection recovers transparently BEFORE it
+/// reaches this join: each band runs inside its own
+/// `run_unary_retry_loop`, whose attempt closure owns the whole band
+/// fetch (open + `collect_stream_typed`), so a transient error after
+/// partial collection discards the attempt-local buffer and re-fetches
+/// the band from scratch, up to `RetryPolicy::max_attempts`. Nothing is
+/// surfaced to the caller until the merge, which is what makes the
+/// replay dedup-free. Only a band that still fails after its budget (or
+/// fails terminally, or panics) fails the whole logical query — the
+/// same contract as a single-stream error, since a buffered result
+/// missing a band cannot be represented — and dropping the remaining
+/// [`ShardTask`] guards aborts their in-flight requests.
 pub(crate) async fn join_shards<T>(
     tasks: Vec<ShardTask<TypedBand<T>>>,
 ) -> Result<Vec<TypedBand<T>>, Error> {
@@ -1323,8 +1000,10 @@ pub(crate) async fn join_shards<T>(
 // ─── Concurrent streaming driver ─────────────────────────────────────────
 
 /// One in-line per-band streaming shard, driven by
-/// [`join_streaming_shards`]. Resolves to whether the band delivered any
-/// non-empty chunk to the shared handler.
+/// [`join_streaming_shards`]. Resolves to `(delivered, outcome)`:
+/// whether the band handed any non-empty chunk to the shared handler
+/// (reported on failure too — the driver needs it to tell a partial
+/// fetch from a wholesale one), and the band's terminal outcome.
 ///
 /// Streaming shards are plain futures rather than spawned [`ShardTask`]s
 /// because they call the user's chunk handler directly: the `.stream*`
@@ -1335,9 +1014,10 @@ pub(crate) async fn join_shards<T>(
 /// band's `ServerStreaming` (RST_STREAM) and releases its semaphore
 /// permit.
 pub(crate) type ShardStreamFuture<'a> =
-    std::pin::Pin<Box<dyn std::future::Future<Output = Result<bool, Error>> + Send + 'a>>;
+    std::pin::Pin<Box<dyn std::future::Future<Output = (bool, Result<(), Error>)> + Send + 'a>>;
 
-/// Drive per-band streaming shards concurrently to completion.
+/// Drive per-band streaming shards concurrently, each to its own
+/// terminal state. `shards[i]` must be the future for `bands[i]`.
 ///
 /// All bands are polled on the caller's task, so chunks reach the shared
 /// handler in arrival order across bands; the caller (the fan-out arm in
@@ -1351,58 +1031,99 @@ pub(crate) type ShardStreamFuture<'a> =
 /// gRPC `NotFound`, which folds to an empty contribution; only when
 /// every band is empty — NotFound-folded or completed without
 /// delivering a chunk — is the first `NotFound` propagated, matching
-/// what a single stream returns for a genuinely empty query. The fold
-/// relies on MDDS issuing `NotFound` only as a pre-stream verdict: a band
-/// that delivered chunks and then terminated `NotFound` would be folded
-/// rather than surfaced, but the server never returns `NotFound` after
-/// data. Any other band error fails the whole logical stream as soon as
-/// it lands
-/// (chunks other bands already delivered stay delivered, like any
-/// mid-stream error), and returning drops the remaining band futures,
-/// aborting their in-flight requests.
+/// what a single stream returns for a genuinely empty query. Only a
+/// band that delivered nothing folds: MDDS issues `NotFound` as a
+/// pre-stream verdict, and were a band ever to deliver chunks and then
+/// terminate `NotFound`, it would surface as a failed band rather than
+/// silently folding its delivered rows away.
+///
+/// # Band failure bounds the blast radius
+///
+/// A band that fails terminally (its per-band retry budget spent, or a
+/// non-retryable error) does NOT cancel its siblings: the remaining
+/// bands DRAIN TO COMPLETION, delivering their chunks as normal, and
+/// the failure is reported once every band has reached its own terminal
+/// state. Draining is deliberate — cancelling siblings would truncate
+/// them at arbitrary chunk boundaries, leaving ragged half-delivered
+/// windows no caller could reason about, while draining leaves exactly
+/// the failed bands' windows as the known gaps. The wall-clock cost of
+/// draining is bounded by the call's deadline
+/// (`run_with_optional_deadline` wraps the whole fan-out), and dropping
+/// the join future — the deadline path — still cancels every band at
+/// once.
 ///
 /// # Errors
 ///
-/// Returns the first non-`NotFound` band error unchanged, or the first
-/// `NotFound` when every band was empty.
+/// - Some band failed and any band delivered rows:
+///   [`Error::PartialShardFetch`] naming the failed bands' windows (in
+///   band order), so the caller can re-pull exactly those slices. Each
+///   band's underlying error is logged at `warn` inside its band span.
+/// - Some band failed and NO chunk was delivered by any band: the first
+///   failed band's error unchanged — the pull failed wholesale, exactly
+///   as a single stream would surface it.
+/// - No band failed and every band was empty: the first `NotFound`.
 pub(crate) async fn join_streaming_shards(
-    mut shards: Vec<ShardStreamFuture<'_>>,
+    bands: &[ShardBand],
+    shards: Vec<ShardStreamFuture<'_>>,
 ) -> Result<(), Error> {
+    debug_assert_eq!(bands.len(), shards.len());
+    let mut shards: Vec<(usize, ShardStreamFuture<'_>)> = shards.into_iter().enumerate().collect();
     let mut first_not_found: Option<Error> = None;
     let mut any_rows = false;
+    let mut failed: Vec<usize> = Vec::new();
+    let mut first_failure: Option<Error> = None;
     std::future::poll_fn(|cx| {
         let mut i = 0;
         while i < shards.len() {
-            match shards[i].as_mut().poll(cx) {
-                std::task::Poll::Ready(Ok(delivered)) => {
+            let (band_index, fut) = &mut shards[i];
+            match fut.as_mut().poll(cx) {
+                std::task::Poll::Ready((delivered, outcome)) => {
                     any_rows |= delivered;
-                    drop(shards.swap_remove(i));
-                }
-                std::task::Poll::Ready(Err(err)) => {
-                    if matches!(
-                        err,
-                        Error::Grpc {
-                            kind: GrpcStatusKind::NotFound,
-                            ..
+                    if let Err(err) = outcome {
+                        let not_found = matches!(
+                            err,
+                            Error::Grpc {
+                                kind: GrpcStatusKind::NotFound,
+                                ..
+                            }
+                        );
+                        if not_found && !delivered {
+                            tracing::debug!("empty shard band (NotFound) folded to zero chunks");
+                            first_not_found.get_or_insert(err);
+                        } else {
+                            tracing::warn!(
+                                band = ?bands[*band_index],
+                                error = %err,
+                                "shard band failed terminally; sibling bands drain to completion"
+                            );
+                            failed.push(*band_index);
+                            first_failure.get_or_insert(err);
                         }
-                    ) {
-                        tracing::debug!("empty shard band (NotFound) folded to zero chunks");
-                        first_not_found.get_or_insert(err);
-                        drop(shards.swap_remove(i));
-                    } else {
-                        return std::task::Poll::Ready(Err(err));
                     }
+                    drop(shards.swap_remove(i));
                 }
                 std::task::Poll::Pending => i += 1,
             }
         }
         if shards.is_empty() {
-            std::task::Poll::Ready(Ok(()))
+            std::task::Poll::Ready(())
         } else {
             std::task::Poll::Pending
         }
     })
-    .await?;
+    .await;
+    if let Some(err) = first_failure {
+        // Wholesale failure — the handler saw nothing — surfaces the
+        // underlying error unchanged, like a single stream; a genuinely
+        // partial fetch names the lost windows instead.
+        if !any_rows {
+            return Err(err);
+        }
+        failed.sort_unstable();
+        return Err(Error::PartialShardFetch {
+            failed: failed.into_iter().map(|i| bands[i].clone()).collect(),
+        });
+    }
     match first_not_found {
         // Every band was empty — NotFound-folded, or completed without a
         // delivered chunk — so the whole query is empty and the caller
@@ -1886,113 +1607,204 @@ mod tests {
         }
     }
 
-    // ── cut placement ──
+    // ── plan construction ──
 
-    #[test]
-    fn cuts_on_empty_histogram_yield_no_split() {
-        assert!(equal_work_cuts(&[], 8).is_empty());
-        assert!(equal_work_cuts(&[0, 0, 0, 0], 8).is_empty());
-    }
-
-    #[test]
-    fn cuts_with_n_of_one_yield_no_split() {
-        assert!(equal_work_cuts(&[5, 5, 5, 5], 1).is_empty());
-        assert!(equal_work_cuts(&[5, 5, 5, 5], 0).is_empty());
-    }
-
-    #[test]
-    fn uniform_histogram_cuts_into_equal_bands() {
-        // 8 uniform bins, 4 shards → boundaries every 2 bins.
-        let cuts = equal_work_cuts(&[10; 8], 4);
-        assert_eq!(cuts, vec![2, 4, 6]);
-    }
-
-    #[test]
-    fn skewed_histogram_balances_cumulative_work() {
-        // The measured intraday shape: a heavy open. Equal-TIME bands
-        // would put ~10x the work into the first band; equal-WORK cuts
-        // must land most boundaries inside the heavy region.
-        let hist = [100, 80, 40, 10, 5, 5, 5, 5];
-        let cuts = equal_work_cuts(&hist, 4);
-        assert!(cuts.windows(2).all(|w| w[0] < w[1]), "strictly increasing");
-        assert!(cuts.len() <= 3);
-        // No band's work may exceed ~2 target shares (a bin is atomic, so
-        // perfect balance is impossible, but gross skew must be gone).
-        let total: u64 = hist.iter().sum();
-        let per = total / 4;
-        let mut edges = vec![0usize];
-        edges.extend(&cuts);
-        edges.push(hist.len());
-        for w in edges.windows(2) {
-            let band: u64 = hist[w[0]..w[1]].iter().sum();
-            assert!(
-                band <= per * 2,
-                "band {w:?} carries {band} of {total} (target {per})"
-            );
+    /// Full-chain single-day tick query over the regular session — the
+    /// headline sharding shape.
+    fn chain_day_query() -> ShardQuery {
+        ShardQuery {
+            symbol: Some("SPXW".into()),
+            expiration: Some("*".into()),
+            strike: Some("*".into()),
+            right: Some("both".into()),
+            date: Some("20260710".into()),
+            start_time: Some("09:30:00".into()),
+            end_time: Some("16:00:00".into()),
+            interval: Some("tick".into()),
+            ..ShardQuery::default()
         }
     }
 
     #[test]
-    fn all_work_in_one_bin_yields_no_cuts() {
-        // A bin is the atomic unit: with every event in one bin, any
-        // boundary would leave a zero-work band on one side — a shard
-        // the server answers with NotFound — so no cut is usable and
-        // the planner falls back to a single stream.
-        assert!(equal_work_cuts(&[0, 0, 0, 1_000, 0, 0], 8).is_empty());
-    }
-
-    #[test]
-    fn sparse_probe_yields_only_viable_bands_or_none() {
-        // The live short-window shape: a 1-minute window probes to a
-        // ~1-bar histogram, which cannot honor a requested N of 6. One
-        // non-empty bin admits no cut → single-stream fallback
-        // (`plan_query` declines on empty cuts).
-        assert!(equal_work_cuts(&[1_000, 0], 6).is_empty());
-        assert!(equal_work_cuts(&[1_000], 6).is_empty());
-        // Two non-empty bins admit exactly one cut — two viable bands,
-        // not six, and none empty.
-        assert_eq!(equal_work_cuts(&[10, 10, 0, 0], 6), vec![1]);
-    }
-
-    #[test]
-    fn every_emitted_band_carries_probe_work() {
-        // A zero-work band is a shard the server answers with NotFound;
-        // no histogram shape may plan one. Trailing zeros were the live
-        // failure; leading and interior zeros pin the rest.
-        for (hist, n) in [
-            (&[100u64, 80, 40, 10, 5, 5, 0, 0][..], 4),
-            (&[5, 0, 5, 0, 0][..], 4),
-            (&[1, 1, 1, 0][..], 8),
-            (&[0, 7, 0, 7, 0][..], 3),
-        ] {
-            let cuts = equal_work_cuts(hist, n);
-            let mut edges = vec![0usize];
-            edges.extend(&cuts);
-            edges.push(hist.len());
-            for w in edges.windows(2) {
-                let band: u64 = hist[w[0]..w[1]].iter().sum();
-                assert!(
-                    band > 0,
-                    "zero-work band {w:?} for hist {hist:?}, n={n} (cuts {cuts:?})"
-                );
-            }
+    fn plan_cuts_a_chain_day_into_equal_time_bands() {
+        let plan = plan_query("option_history_quote", &chain_day_query(), 8)
+            .expect("full-day chain must shard");
+        assert_eq!(plan.bands.len(), 8);
+        let windows: Vec<(i64, i64)> = plan.bands.iter().map(band_window_ms).collect();
+        assert_eq!(windows[0].0, parse_ms_of_day("09:30:00").unwrap());
+        assert_eq!(
+            windows.last().unwrap().1,
+            parse_ms_of_day("16:00:00").unwrap()
+        );
+        for w in windows.windows(2) {
+            assert_eq!(w[1].0, w[0].1 + 1, "bands must abut at +1 ms");
         }
     }
 
     #[test]
-    fn more_shards_than_bins_caps_at_bin_count() {
-        let cuts = equal_work_cuts(&[7, 7, 7], 8);
-        assert!(cuts.len() <= 2, "at most bins-1 boundaries, got {cuts:?}");
-        assert!(cuts.windows(2).all(|w| w[0] < w[1]));
-        assert!(cuts.iter().all(|c| (1..=2).contains(c)));
+    fn narrow_window_reduces_band_count_or_declines() {
+        // Too narrow for two minimum-width bands: single stream.
+        let mut query = chain_day_query();
+        query.end_time = Some("09:36:00".into());
+        assert_eq!(
+            plan_query("option_history_quote", &query, 8),
+            Err(ShardDecline::NarrowWindow)
+        );
+        // Wide enough for exactly two: two bands, not the full width.
+        let mut query = chain_day_query();
+        query.end_time = Some("09:41:00".into());
+        let plan = plan_query("option_history_quote", &query, 8).expect("two bands fit");
+        assert_eq!(plan.bands.len(), 2);
     }
 
     #[test]
-    fn tiny_totals_terminate_and_stay_bounded() {
-        // total < n exercises the per == 0 → max(1) guard.
-        let cuts = equal_work_cuts(&[1, 1, 1], 8);
-        assert!(cuts.len() <= 2);
-        assert!(cuts.windows(2).all(|w| w[0] < w[1]));
+    fn width_under_two_declines() {
+        assert_eq!(
+            plan_query("option_history_quote", &chain_day_query(), 1),
+            Err(ShardDecline::WidthUnderTwo)
+        );
+        assert_eq!(
+            plan_query("option_history_quote", &chain_day_query(), 0),
+            Err(ShardDecline::WidthUnderTwo)
+        );
+    }
+
+    #[test]
+    fn unlisted_endpoint_declines() {
+        assert_eq!(
+            plan_query("option_history_eod", &chain_day_query(), 8),
+            Err(ShardDecline::UnlistedEndpoint)
+        );
+        assert_eq!(
+            plan_query("stock_snapshot_quote", &chain_day_query(), 8),
+            Err(ShardDecline::UnlistedEndpoint)
+        );
+    }
+
+    #[test]
+    fn malformed_window_declines() {
+        // An axis is selected (both time fields present) but the window
+        // does not parse / is inverted: the malformed-window gate names
+        // the reason instead of silently reporting "no axis".
+        let mut query = chain_day_query();
+        query.start_time = Some("garbage".into());
+        assert_eq!(
+            plan_query("option_history_quote", &query, 8),
+            Err(ShardDecline::MalformedWindow)
+        );
+        let mut query = chain_day_query();
+        query.start_time = Some("16:00:00".into());
+        query.end_time = Some("09:30:00".into());
+        assert_eq!(
+            plan_query("option_history_quote", &query, 8),
+            Err(ShardDecline::MalformedWindow)
+        );
+    }
+
+    #[test]
+    fn bounded_interval_gates_concrete_contracts_not_chains() {
+        // A concrete contract at a bounded bar interval is capped at the
+        // bar grid — provably small over one session — so it stays on
+        // the single stream.
+        let mut concrete = chain_day_query();
+        concrete.expiration = Some("20260710".into());
+        concrete.strike = Some("6000".into());
+        concrete.right = Some("call".into());
+        concrete.interval = Some("1s".into());
+        assert_eq!(
+            plan_query("option_history_quote", &concrete, 8),
+            Err(ShardDecline::SmallGrid)
+        );
+        // The same contract at tick interval has no grid ceiling.
+        concrete.interval = Some("tick".into());
+        assert!(plan_query("option_history_quote", &concrete, 8).is_ok());
+        // A chain cross-product at the same bounded interval is unbounded
+        // per grid slot and still shards.
+        let mut chain = chain_day_query();
+        chain.interval = Some("1s".into());
+        assert!(plan_query("option_history_quote", &chain, 8).is_ok());
+    }
+
+    #[test]
+    fn date_axis_bounded_interval_gates_small_grids() {
+        // Date-axis twin of the time-axis grid gate: a stock query at a
+        // bounded bar interval over a multi-day range is capped at one
+        // row per grid slot per day (the regular session when the query
+        // carries no window), so a provably-small pull declines.
+        let mut query = ShardQuery {
+            symbol: Some("AAPL".into()),
+            start_date: Some("20240101".into()),
+            end_date: Some("20240131".into()),
+            interval: Some("1m".into()),
+            ..ShardQuery::default()
+        };
+        assert_eq!(
+            plan_query("stock_history_ohlc", &query, 8),
+            Err(ShardDecline::SmallGrid)
+        );
+        // The same range at tick interval has no grid ceiling and shards.
+        query.interval = Some("tick".into());
+        assert!(plan_query("stock_history_ohlc", &query, 8).is_ok());
+        // A bounded interval fine enough that the day-count × per-day
+        // grid clears SHARD_MIN_GRID_ROWS shards too: 60 days × 10ms
+        // over the assumed regular session is ~140 M grid slots.
+        query.interval = Some("10ms".into());
+        query.end_date = Some("20240229".into());
+        assert!(plan_query("stock_history_ohlc", &query, 8).is_ok());
+    }
+
+    #[test]
+    fn multi_day_range_splits_into_equal_date_bands() {
+        let query = ShardQuery {
+            symbol: Some("AAPL".into()),
+            start_date: Some("20240101".into()),
+            end_date: Some("20240131".into()),
+            interval: Some("tick".into()),
+            ..ShardQuery::default()
+        };
+        let plan = plan_query("stock_history_trade", &query, 4).expect("31 days must shard");
+        assert_eq!(plan.bands.len(), 4);
+        // Bands are contiguous, cover the range exactly once, and their
+        // day counts differ by at most one.
+        let ords: Vec<(i64, i64)> = plan
+            .bands
+            .iter()
+            .map(|b| match b {
+                ShardBand::Date {
+                    start_date,
+                    end_date,
+                } => (
+                    Ymd::from_yyyymmdd(start_date).unwrap().to_ord(),
+                    Ymd::from_yyyymmdd(end_date).unwrap().to_ord(),
+                ),
+                ShardBand::Time { .. } => panic!("expected date bands"),
+            })
+            .collect();
+        assert_eq!(ords[0].0, Ymd::from_yyyymmdd("20240101").unwrap().to_ord());
+        assert_eq!(
+            ords.last().unwrap().1,
+            Ymd::from_yyyymmdd("20240131").unwrap().to_ord()
+        );
+        for w in ords.windows(2) {
+            assert_eq!(w[1].0, w[0].1 + 1, "date bands must be contiguous");
+        }
+        let days: Vec<i64> = ords.iter().map(|(s, e)| e - s + 1).collect();
+        let (min, max) = (days.iter().min().unwrap(), days.iter().max().unwrap());
+        assert!(max - min <= 1, "unequal band day counts: {days:?}");
+        assert_eq!(days.iter().sum::<i64>(), 31);
+    }
+
+    #[test]
+    fn date_bands_cap_at_one_band_per_day() {
+        let query = ShardQuery {
+            symbol: Some("AAPL".into()),
+            start_date: Some("20240101".into()),
+            end_date: Some("20240102".into()),
+            interval: Some("tick".into()),
+            ..ShardQuery::default()
+        };
+        let plan = plan_query("stock_history_trade", &query, 8).expect("two days shard");
+        assert_eq!(plan.bands.len(), 2);
     }
 
     // ── axis selection ──
@@ -2060,13 +1872,9 @@ mod tests {
 
     // ── band construction ──
 
-    #[test]
-    fn time_bands_partition_the_window_exactly() {
-        let start = parse_ms_of_day("09:30:00").unwrap();
-        let end = parse_ms_of_day("16:00:00").unwrap();
-        let bands = time_bands(start, end, &[60, 120, 240]);
-        assert_eq!(bands.len(), 4);
-        let parse = |b: &ShardBand| match b {
+    /// Parsed inclusive `[start_ms, end_ms]` window of a time band.
+    fn band_window_ms(b: &ShardBand) -> (i64, i64) {
+        match b {
             ShardBand::Time {
                 start_time,
                 end_time,
@@ -2075,31 +1883,49 @@ mod tests {
                 parse_ms_of_day(end_time).unwrap(),
             ),
             ShardBand::Date { .. } => panic!("expected time bands"),
-        };
+        }
+    }
+
+    #[test]
+    fn time_bands_partition_the_window_exactly() {
+        let start = parse_ms_of_day("09:30:00").unwrap();
+        let end = parse_ms_of_day("16:00:00").unwrap();
+        let bands = time_bands(start, end, 4);
+        assert_eq!(bands.len(), 4);
         // First band starts at the query start, last ends at the query
         // end, and adjacent inclusive bands abut at exactly +1 ms so every
         // tick lands in one band.
-        assert_eq!(parse(&bands[0]).0, start);
-        assert_eq!(parse(bands.last().unwrap()).1, end);
+        assert_eq!(band_window_ms(&bands[0]).0, start);
+        assert_eq!(band_window_ms(bands.last().unwrap()).1, end);
         for w in bands.windows(2) {
-            assert_eq!(parse(&w[1]).0, parse(&w[0]).1 + 1);
+            assert_eq!(band_window_ms(&w[1]).0, band_window_ms(&w[0]).1 + 1);
         }
+        // Equal wall-clock spans, within the 1 ms division remainder.
+        let spans: Vec<i64> = bands
+            .iter()
+            .map(|b| {
+                let (s, e) = band_window_ms(b);
+                e - s + 1
+            })
+            .collect();
+        let (min, max) = (spans.iter().min().unwrap(), spans.iter().max().unwrap());
+        assert!(max - min <= 1, "unequal band spans: {spans:?}");
     }
 
     #[test]
     fn time_bands_format_wire_canonical_times() {
         let start = parse_ms_of_day("09:30:00").unwrap();
         let end = parse_ms_of_day("16:00:00").unwrap();
-        let bands = time_bands(start, end, &[60]);
+        let bands = time_bands(start, end, 2);
         assert_eq!(
             bands,
             vec![
                 ShardBand::Time {
                     start_time: "09:30:00.000".into(),
-                    end_time: "10:29:59.999".into(),
+                    end_time: "12:44:59.999".into(),
                 },
                 ShardBand::Time {
-                    start_time: "10:30:00.000".into(),
+                    start_time: "12:45:00.000".into(),
                     end_time: "16:00:00.000".into(),
                 },
             ]
@@ -2107,20 +1933,10 @@ mod tests {
     }
 
     #[test]
-    fn time_bands_drop_out_of_window_cuts() {
-        let start = parse_ms_of_day("09:30:00").unwrap();
-        let end = parse_ms_of_day("09:35:00").unwrap();
-        // Boundary 400 minutes in — far past the window end — must not
-        // create an inverted or empty band.
-        let bands = time_bands(start, end, &[2, 400]);
-        assert_eq!(bands.len(), 2);
-    }
-
-    #[test]
     fn date_bands_partition_the_range_exactly() {
         let s = Ymd::from_yyyymmdd("20240101").unwrap().to_ord();
         let e = Ymd::from_yyyymmdd("20240131").unwrap().to_ord();
-        let bands = date_bands(s, e, &[10, 20]);
+        let bands = date_bands(s, e, 3);
         assert_eq!(
             bands,
             vec![
@@ -2155,32 +1971,6 @@ mod tests {
         // Negative components are rejected (keeps the range guard a total order).
         assert_eq!(parse_ms_of_day("-1:30:00"), None);
         assert_eq!(parse_ms_of_day("09:-5:00"), None);
-    }
-
-    #[test]
-    fn trade_quote_endpoints_are_trade_anchored_weight() {
-        // trade_quote pairs one NBBO with each trade — ~1 row per trade, so it
-        // estimates at weight 1, not the pure-quote-stream weight 15.
-        assert_eq!(
-            descriptor("option_history_trade_quote")
-                .unwrap()
-                .rows_per_event,
-            1
-        );
-        assert_eq!(
-            descriptor("stock_history_trade_quote")
-                .unwrap()
-                .rows_per_event,
-            1
-        );
-        assert_eq!(
-            descriptor("option_history_quote").unwrap().rows_per_event,
-            15
-        );
-        assert_eq!(
-            descriptor("stock_history_quote").unwrap().rows_per_event,
-            15
-        );
     }
 
     #[test]
@@ -2220,38 +2010,7 @@ mod tests {
         assert_eq!(interval_ms("9223372036854775h"), None);
     }
 
-    // ── size guard ──
-
-    #[test]
-    fn estimate_scales_events_by_endpoint_weight() {
-        let desc = descriptor("option_history_quote").unwrap();
-        let mut probe = ProbeSummary::new(4);
-        probe.events = 1_000_000;
-        probe.rows = 100_000;
-        // Tick interval: 15 rows per trade.
-        assert_eq!(
-            estimate_rows(desc, Some("tick"), &probe, PROBE_BIN_MS),
-            15_000_000
-        );
-        // A bounded 1s interval caps at the bar grid: one probe minute can
-        // expand into at most 60 one-second rows.
-        assert_eq!(
-            estimate_rows(desc, Some("1s"), &probe, PROBE_BIN_MS),
-            6_000_000
-        );
-    }
-
-    #[test]
-    fn trade_endpoints_estimate_one_row_per_event() {
-        let desc = descriptor("option_history_trade").unwrap();
-        let mut probe = ProbeSummary::new(4);
-        probe.events = 1_000_000;
-        probe.rows = 100_000;
-        assert_eq!(
-            estimate_rows(desc, Some("tick"), &probe, PROBE_BIN_MS),
-            1_000_000
-        );
-    }
+    // ── plan gates ──
 
     #[test]
     fn chain_detection_separates_wildcards_from_concrete_contracts() {
@@ -2289,22 +2048,64 @@ mod tests {
         assert_eq!(shard_width(None, 0), 1);
     }
 
+    /// Machine tie between [`SHARDABLE_HISTORY_ENDPOINTS`] and the
+    /// endpoint registry generated from `endpoint_surface.toml`: the
+    /// shardable set must equal, exactly, the registry's intraday
+    /// history endpoints — subcategory `history*` AND the
+    /// `start_time` / `end_time` intraday window filters. That pair of
+    /// properties is what separates bandable tick / bar / greeks
+    /// history from the bounded-per-day EOD / open-interest /
+    /// greeks-EOD families (which carry a date range but no intraday
+    /// window) and from snapshots / lists / at-time queries (not
+    /// `history*`). A new intraday history endpoint added to the
+    /// registry fails this test until it is added to the shardable
+    /// set, so it can never silently never-shard; a stale entry fails
+    /// it from the other direction.
+    ///
+    /// Gated on `__internal` because the registry table only exists
+    /// under that feature; the CI test job enables it (via
+    /// `__test-helpers`), so the tie is enforced on every CI run.
+    #[cfg(feature = "__internal")]
     #[test]
-    fn descriptor_covers_history_families_only() {
-        assert!(descriptor("option_history_quote").is_some());
-        assert!(descriptor("stock_history_trade").is_some());
-        assert!(descriptor("index_history_price").is_some());
-        // Daily-only history (EOD / open interest / greeks-EOD) never
-        // shards — its per-day probe IS the pull — so it carries no
-        // descriptor and stays on the single stream, like snapshots,
-        // lists, and at-time queries.
-        assert!(descriptor("option_history_eod").is_none());
-        assert!(descriptor("option_history_open_interest").is_none());
-        assert!(descriptor("stock_history_eod").is_none());
-        assert!(descriptor("index_history_eod").is_none());
-        assert!(descriptor("stock_snapshot_quote").is_none());
-        assert!(descriptor("option_list_contracts").is_none());
-        assert!(descriptor("stock_at_time_trade").is_none());
+    fn shardable_set_matches_registry_intraday_history() {
+        let mut derived: Vec<&str> = crate::mdds::registry::ENDPOINTS
+            .iter()
+            .filter(|e| {
+                e.subcategory.starts_with("history")
+                    && e.params.iter().any(|p| p.name == "start_time")
+                    && e.params.iter().any(|p| p.name == "end_time")
+            })
+            .map(|e| e.name)
+            .collect();
+        derived.sort_unstable();
+        let mut listed = SHARDABLE_HISTORY_ENDPOINTS.to_vec();
+        listed.sort_unstable();
+        assert_eq!(
+            listed, derived,
+            "SHARDABLE_HISTORY_ENDPOINTS must equal the registry's \
+             intraday history set (subcategory `history*` with \
+             start_time/end_time filters)"
+        );
+    }
+
+    #[test]
+    fn shardable_endpoints_cover_history_families_only() {
+        assert!(is_shardable_history_endpoint("option_history_quote"));
+        assert!(is_shardable_history_endpoint("stock_history_trade"));
+        assert!(is_shardable_history_endpoint("index_history_price"));
+        // Daily-only history (EOD / open interest / greeks-EOD) is
+        // bounded at one row per day, so it is not shardable and
+        // stays on the single stream, like snapshots, lists, and
+        // at-time queries.
+        assert!(!is_shardable_history_endpoint("option_history_eod"));
+        assert!(!is_shardable_history_endpoint(
+            "option_history_open_interest"
+        ));
+        assert!(!is_shardable_history_endpoint("stock_history_eod"));
+        assert!(!is_shardable_history_endpoint("index_history_eod"));
+        assert!(!is_shardable_history_endpoint("stock_snapshot_quote"));
+        assert!(!is_shardable_history_endpoint("option_list_contracts"));
+        assert!(!is_shardable_history_endpoint("stock_at_time_trade"));
     }
 
     // ── ordered merge ──
@@ -2845,7 +2646,32 @@ mod tests {
     fn pending_band(aborted: Arc<AtomicBool>) -> ShardStreamFuture<'static> {
         Box::pin(async move {
             let _guard = AbortFlag(aborted);
-            std::future::pending().await
+            std::future::pending::<(bool, Result<(), Error>)>().await
+        })
+    }
+
+    /// Positional stand-in bands for the driver tests: `bands[i]` is the
+    /// window of `shards[i]`, one synthetic day per band.
+    fn test_bands(n: usize) -> Vec<ShardBand> {
+        (0..n)
+            .map(|i| ShardBand::Date {
+                start_date: format!("2024010{}", i + 1),
+                end_date: format!("2024010{}", i + 1),
+            })
+            .collect()
+    }
+
+    /// A band future that resolves an error after yielding once.
+    fn failing_band(err: Error) -> ShardStreamFuture<'static> {
+        failing_band_delivered(err, false)
+    }
+
+    /// [`failing_band`] with an explicit delivered flag — a band that
+    /// handed chunks to the handler before failing.
+    fn failing_band_delivered(err: Error, delivered: bool) -> ShardStreamFuture<'static> {
+        Box::pin(async move {
+            tokio::task::yield_now().await;
+            (delivered, Err(err))
         })
     }
 
@@ -2858,10 +2684,15 @@ mod tests {
         chunks: Vec<Vec<u32>>,
     ) -> ShardStreamFuture<'static> {
         Box::pin(async move {
-            let _permit = semaphore
-                .acquire()
-                .await
-                .map_err(|_| Error::config_internal("request semaphore closed"))?;
+            let _permit = match semaphore.acquire().await {
+                Ok(permit) => permit,
+                Err(_) => {
+                    return (
+                        false,
+                        Err(Error::config_internal("request semaphore closed")),
+                    )
+                }
+            };
             let mut delivered = false;
             for chunk in chunks {
                 tokio::task::yield_now().await;
@@ -2869,7 +2700,7 @@ mod tests {
                 delivered |= !chunk.is_empty();
                 h.extend(chunk);
             }
-            Ok(delivered)
+            (delivered, Ok(()))
         })
     }
 
@@ -2893,7 +2724,9 @@ mod tests {
                 vec![vec![5], vec![6, 7]],
             ),
         ];
-        join_streaming_shards(shards).await.expect("all bands ok");
+        join_streaming_shards(&test_bands(3), shards)
+            .await
+            .expect("all bands ok");
         let mut rows = std::mem::take(&mut *handler.lock().unwrap());
         rows.sort_unstable();
         assert_eq!(rows, vec![1, 2, 3, 4, 5, 6, 7]);
@@ -2915,30 +2748,62 @@ mod tests {
                 )
             })
             .collect();
-        join_streaming_shards(shards)
+        join_streaming_shards(&test_bands(3), shards)
             .await
             .expect("bands serialize");
         assert_eq!(handler.lock().unwrap().len(), 3);
     }
 
     #[tokio::test]
-    async fn streaming_join_first_error_aborts_sibling_bands() {
-        // A real band error fails the whole logical stream as soon as it
-        // lands; the still-pending sibling must be dropped (its stream
-        // aborted) rather than awaited.
-        let aborted = Arc::new(AtomicBool::new(false));
+    async fn streaming_join_band_failure_drains_siblings_then_reports_partial() {
+        // A terminal band failure must NOT cancel the siblings: they
+        // drain to completion (every one of their chunks reaches the
+        // handler), and the error then names exactly the failed band's
+        // window so the caller can re-pull that slice.
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(4));
+        let handler = Arc::new(Mutex::new(Vec::new()));
+        let bands = test_bands(2);
         let shards = vec![
-            pending_band(Arc::clone(&aborted)),
-            Box::pin(async move {
-                tokio::task::yield_now().await;
-                Err(Error::Grpc {
-                    kind: GrpcStatusKind::PermissionDenied,
-                    message: String::new(),
-                    retry_after: None,
-                })
-            }) as ShardStreamFuture<'static>,
+            chunk_band(
+                Arc::clone(&semaphore),
+                Arc::clone(&handler),
+                vec![vec![1, 2], vec![3], vec![4, 5]],
+            ),
+            failing_band(Error::Grpc {
+                kind: GrpcStatusKind::PermissionDenied,
+                message: String::new(),
+                retry_after: None,
+            }),
         ];
-        let err = join_streaming_shards(shards).await.unwrap_err();
+        let err = join_streaming_shards(&bands, shards).await.unwrap_err();
+        let Error::PartialShardFetch { failed } = err else {
+            panic!("expected PartialShardFetch, got {err:?}");
+        };
+        assert_eq!(failed, vec![bands[1].clone()], "failed window named");
+        let mut rows = std::mem::take(&mut *handler.lock().unwrap());
+        rows.sort_unstable();
+        assert_eq!(
+            rows,
+            vec![1, 2, 3, 4, 5],
+            "the surviving band must drain every chunk despite the sibling failure"
+        );
+    }
+
+    #[tokio::test]
+    async fn streaming_join_wholesale_failure_surfaces_underlying_error() {
+        // When NO chunk reached the handler, the pull failed wholesale:
+        // surface the failed band's own error unchanged (like a single
+        // stream), not a "partial" fetch that delivered nothing.
+        let bands = test_bands(2);
+        let shards = vec![
+            Box::pin(async move { (false, Ok(())) }) as ShardStreamFuture<'static>,
+            failing_band(Error::Grpc {
+                kind: GrpcStatusKind::PermissionDenied,
+                message: String::new(),
+                retry_after: None,
+            }),
+        ];
+        let err = join_streaming_shards(&bands, shards).await.unwrap_err();
         assert!(
             matches!(
                 err,
@@ -2947,12 +2812,61 @@ mod tests {
                     ..
                 }
             ),
-            "expected PermissionDenied, got {err:?}"
+            "expected the underlying PermissionDenied, got {err:?}"
         );
-        assert!(
-            aborted.load(Ordering::Relaxed),
-            "sibling band must be dropped (aborted) on the first error"
-        );
+    }
+
+    #[tokio::test]
+    async fn streaming_join_partial_counts_the_failed_bands_own_delivery() {
+        // A band that delivered a chunk prefix and then failed is itself
+        // the proof the fetch was partial: even with every sibling
+        // empty, the caller holds rows and must learn the failed
+        // window rather than receive a bare error.
+        let bands = test_bands(2);
+        let shards = vec![
+            Box::pin(async move { (false, Ok(())) }) as ShardStreamFuture<'static>,
+            failing_band_delivered(
+                Error::Grpc {
+                    kind: GrpcStatusKind::Unavailable,
+                    message: String::new(),
+                    retry_after: None,
+                },
+                true,
+            ),
+        ];
+        let err = join_streaming_shards(&bands, shards).await.unwrap_err();
+        let Error::PartialShardFetch { failed } = err else {
+            panic!("expected PartialShardFetch, got {err:?}");
+        };
+        assert_eq!(failed, vec![bands[1].clone()]);
+    }
+
+    #[tokio::test]
+    async fn streaming_join_names_every_failed_band_in_band_order() {
+        // Multiple failed bands: all their windows are listed, in band
+        // order regardless of completion order.
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(4));
+        let handler = Arc::new(Mutex::new(Vec::new()));
+        let bands = test_bands(3);
+        let unavailable = || Error::Grpc {
+            kind: GrpcStatusKind::Unavailable,
+            message: String::new(),
+            retry_after: None,
+        };
+        let shards = vec![
+            failing_band(unavailable()),
+            chunk_band(
+                Arc::clone(&semaphore),
+                Arc::clone(&handler),
+                vec![vec![1], vec![2]],
+            ),
+            failing_band(unavailable()),
+        ];
+        let err = join_streaming_shards(&bands, shards).await.unwrap_err();
+        let Error::PartialShardFetch { failed } = err else {
+            panic!("expected PartialShardFetch, got {err:?}");
+        };
+        assert_eq!(failed, vec![bands[0].clone(), bands[2].clone()]);
     }
 
     #[tokio::test]
@@ -2968,9 +2882,9 @@ mod tests {
                 Arc::clone(&handler),
                 vec![vec![1, 2]],
             ),
-            Box::pin(async move { Err(not_found()) }) as ShardStreamFuture<'static>,
+            Box::pin(async move { (false, Err(not_found())) }) as ShardStreamFuture<'static>,
         ];
-        join_streaming_shards(shards)
+        join_streaming_shards(&test_bands(2), shards)
             .await
             .expect("sibling band has data");
         assert_eq!(*handler.lock().unwrap(), vec![1, 2]);
@@ -2982,10 +2896,12 @@ mod tests {
         // delivering a chunk — means the whole query is empty: surface
         // the same NotFound a single stream returns for it.
         let shards = vec![
-            Box::pin(async move { Err(not_found()) }) as ShardStreamFuture<'static>,
-            Box::pin(async move { Ok(false) }) as ShardStreamFuture<'static>,
+            Box::pin(async move { (false, Err(not_found())) }) as ShardStreamFuture<'static>,
+            Box::pin(async move { (false, Ok(())) }) as ShardStreamFuture<'static>,
         ];
-        let err = join_streaming_shards(shards).await.unwrap_err();
+        let err = join_streaming_shards(&test_bands(2), shards)
+            .await
+            .unwrap_err();
         assert!(
             matches!(
                 err,
@@ -3002,11 +2918,15 @@ mod tests {
     async fn dropping_the_streaming_join_aborts_in_flight_bands() {
         // The deadline contract: `run_with_optional_deadline` cancels by
         // dropping the in-flight future, so dropping the join future must
-        // drop (abort) every band stream.
+        // drop (abort) every band stream. This is also what bounds the
+        // sibling drain after a band failure — the deadline still cuts
+        // everything off at once.
         let aborted = Arc::new(AtomicBool::new(false));
-        let mut fut = Box::pin(join_streaming_shards(vec![pending_band(Arc::clone(
-            &aborted,
-        ))]));
+        let bands = test_bands(1);
+        let mut fut = Box::pin(join_streaming_shards(
+            &bands,
+            vec![pending_band(Arc::clone(&aborted))],
+        ));
         let waker = std::task::Waker::noop();
         let mut cx = std::task::Context::from_waker(waker);
         assert!(std::future::Future::poll(fut.as_mut(), &mut cx).is_pending());

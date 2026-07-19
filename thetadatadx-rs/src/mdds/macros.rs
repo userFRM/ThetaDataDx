@@ -807,8 +807,13 @@ macro_rules! shard_apply_field {
 /// deadlock-free contract as the buffered fan-out), runs the standard
 /// per-shard [`run_streaming_retry_loop`] with a per-shard `delivered`
 /// no-resume guard, and forwards its chunks to the shared handler
-/// through `$attempt`. `join_streaming_shards` drives the bands
-/// concurrently and applies the empty-band (`NotFound`) folding.
+/// through `$attempt`. Each band future resolves to
+/// `(delivered, outcome)` — the driver reads the delivered flag on
+/// failures too — and runs inside its band's `tracing` span, so retry
+/// warnings and the per-band completion line stay distinguishable
+/// across concurrent bands. `join_streaming_shards` drives the bands
+/// concurrently, folds empty (`NotFound`) bands, and reports terminal
+/// band failures after the siblings drain (see its docs).
 ///
 /// `$attempt` is the per-attempt stream body, written by the calling arm
 /// with the injected bindings `$snap` (the session snapshot), `$banded`
@@ -832,27 +837,38 @@ macro_rules! sharded_stream_fanout {
             #[allow(unused_mut)] // Reason: bands only override fields the endpoint has.
             let mut banded = $params.clone();
             $(shard_apply_field!(banded, band, $field);)*
-            shard_futures.push(Box::pin(async move {
-                let _permit = $client.request_semaphore.acquire().await
-                    .map_err(|_| Error::config_internal("request semaphore closed"))?;
-                // Per-shard no-resume guard: a shard that has handed a
-                // non-empty chunk to the handler must not replay from
-                // chunk zero, while a sibling's delivery leaves this
-                // shard's pre-first-chunk retry budget intact.
+            let band_span = $crate::mdds::shard::band_span(band);
+            shard_futures.push(Box::pin(tracing::Instrument::instrument(async move {
+                let band_started = std::time::Instant::now();
                 let shard_delivered = std::sync::atomic::AtomicBool::new(false);
-                let $delivered = &shard_delivered;
-                let $banded = &banded;
-                $crate::mdds::macros::run_streaming_retry_loop(
-                    $client.session(),
-                    policy,
-                    stringify!($name),
-                    $delivered,
-                    move |$snap| $attempt,
-                ).await?;
-                Ok(shard_delivered.load(std::sync::atomic::Ordering::Relaxed))
-            }));
+                let outcome = async {
+                    let _permit = $client.request_semaphore.acquire().await
+                        .map_err(|_| Error::config_internal("request semaphore closed"))?;
+                    // Per-shard no-resume guard: a shard that has handed a
+                    // non-empty chunk to the handler must not replay from
+                    // chunk zero, while a sibling's delivery leaves this
+                    // shard's pre-first-chunk retry budget intact.
+                    let $delivered = &shard_delivered;
+                    let $banded = &banded;
+                    $crate::mdds::macros::run_streaming_retry_loop(
+                        $client.session(),
+                        policy,
+                        stringify!($name),
+                        $delivered,
+                        move |$snap| $attempt,
+                    ).await
+                }.await;
+                let delivered = shard_delivered.load(std::sync::atomic::Ordering::Relaxed);
+                tracing::debug!(
+                    delivered,
+                    ok = outcome.is_ok(),
+                    elapsed_ms = band_started.elapsed().as_millis() as u64,
+                    "shard band finished"
+                );
+                (delivered, outcome)
+            }, band_span)));
         }
-        $crate::mdds::shard::join_streaming_shards(shard_futures).await
+        $crate::mdds::shard::join_streaming_shards(&$plan.bands, shard_futures).await
     }};
 }
 
@@ -966,7 +982,7 @@ macro_rules! parsed_endpoint {
             ///
             /// Under [`crate::config::BulkFetchPolicy::Auto`] (the
             /// default), a history pull large enough to clear the
-            /// fan-out break-even is split into balanced disjoint
+            /// fan-out break-even is split into equal disjoint
             /// bands — the same plan the buffered `.await` path uses
             /// (see `mdds/shard.rs`) — and every band streams
             /// concurrently as its own top-level request, forwarding
@@ -978,12 +994,20 @@ macro_rules! parsed_endpoint {
             /// / index pull is internally time-ascending; bands of an
             /// option-chain pull each carry the server's own per-band
             /// enumeration. The retry / no-replay guard above applies
-            /// per band. A band error fails the whole call and cancels
-            /// the sibling streams (chunks already delivered stay
-            /// delivered, like any mid-stream error), and dropping the
-            /// future — the deadline path — cancels every band. For
-            /// the single stream's exact chunk order, use the buffered
-            /// `.await` (which merges) or set
+            /// per band. A band that fails terminally does NOT cancel
+            /// its siblings: they drain to completion, and the call
+            /// then returns
+            /// [`Error::PartialShardFetch`](crate::Error::PartialShardFetch)
+            /// naming the failed band window(s) so you can re-pull
+            /// exactly those slices — unless no chunk reached `handler`
+            /// at all, in which case the underlying error surfaces
+            /// unchanged like a single-stream failure. Dropping the
+            /// future — the deadline path — still cancels every band;
+            /// on a very large pull, size `with_deadline` (or the
+            /// configured `request_timeout_secs`) to the whole pull,
+            /// since it also bounds the sibling drain after a band
+            /// failure. For the single stream's exact chunk order, use
+            /// the buffered `.await` (which merges) or set
             /// [`bulk_fetch = Off`](crate::config::BulkFetchPolicy::Off).
             /// Small pulls and non-history endpoints never shard.
             ///
@@ -1031,11 +1055,11 @@ macro_rules! parsed_endpoint {
                     let handler_mutex = &handler_mutex;
                     // ── Bulk-fetch auto-sharding (see `mdds/shard.rs`) ──
                     // Same gate as the buffered `IntoFuture` arm: policy
-                    // `Off`, non-history endpoints, small pulls, and probe
-                    // failures all resolve to `None` — the single-stream
-                    // arm below, exactly today's behaviour. Chunks are
-                    // forwarded as they arrive, so bands interleave in
-                    // arrival order (see the method docs).
+                    // `Off`, non-history endpoints, and small pulls all
+                    // resolve to `None` — the single-stream arm below,
+                    // exactly today's behaviour. Chunks are forwarded as
+                    // they arrive, so bands interleave in arrival order
+                    // (see the method docs).
                     #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                     let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                     $(shard_read_field!(shard_query, params, $field);)*
@@ -1043,7 +1067,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1143,7 +1167,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1259,7 +1283,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1352,7 +1376,7 @@ macro_rules! parsed_endpoint {
                         client,
                         stringify!($name),
                         &shard_query,
-                    ).await {
+                    ) {
                         Some(plan) => {
                             sharded_stream_fanout!(
                                 client, $name, plan, params,
@@ -1438,10 +1462,10 @@ macro_rules! parsed_endpoint {
                         let params = proto::$query { $($field : $val),* };
                         // ── Bulk-fetch auto-sharding (see `mdds/shard.rs`) ──
                         // Project the axis-relevant wire fields and ask the
-                        // planner. Policy `Off`, non-history endpoints,
-                        // small pulls, and probe failures all resolve to
-                        // `None` — the single-stream arm below, exactly
-                        // today's behaviour.
+                        // planner. Policy `Off`, non-history endpoints, and
+                        // small pulls all resolve to `None` — the
+                        // single-stream arm below, exactly today's
+                        // behaviour.
                         #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                         let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                         $(shard_read_field!(shard_query, params, $field);)*
@@ -1449,7 +1473,7 @@ macro_rules! parsed_endpoint {
                             client,
                             stringify!($name),
                             &shard_query,
-                        ).await {
+                        ) {
                             Some(plan) => {
                                 // N independent top-level requests, one per
                                 // band. Each spawned task acquires its OWN
@@ -1469,12 +1493,19 @@ macro_rules! parsed_endpoint {
                                     let mut banded = params.clone();
                                     $(shard_apply_field!(banded, band, $field);)*
                                     let dispatch = client.shard_dispatch();
-                                    tasks.push($crate::mdds::shard::spawn_shard(async move {
+                                    // The band span tags every event of
+                                    // this band's task — including the
+                                    // retry-sleep warnings — with the
+                                    // band window, so concurrent bands
+                                    // stay distinguishable in the logs.
+                                    let band_span = $crate::mdds::shard::band_span(band);
+                                    tasks.push($crate::mdds::shard::spawn_shard(tracing::Instrument::instrument(async move {
+                                        let band_started = std::time::Instant::now();
                                         let _permit = dispatch.semaphore.acquire().await
                                             .map_err(|_| Error::config_internal("request semaphore closed"))?;
                                         let dispatch = &dispatch;
                                         let banded = &banded;
-                                        $crate::mdds::macros::run_unary_retry_loop(
+                                        let typed_band = $crate::mdds::macros::run_unary_retry_loop(
                                             &dispatch.session,
                                             &dispatch.retry,
                                             stringify!($name),
@@ -1499,11 +1530,21 @@ macro_rules! parsed_endpoint {
                                                 // proto table. The accumulator
                                                 // lives inside this attempt
                                                 // closure, so a replayed attempt
-                                                // starts from an empty band.
+                                                // — a band re-fetched from
+                                                // scratch after a mid-collect
+                                                // transient — starts from an
+                                                // empty band, which is what
+                                                // makes the replay dedup-free.
                                                 $crate::mdds::stream::collect_stream_typed(stream, $parser).await
                                             },
-                                        ).await
-                                    }));
+                                        ).await?;
+                                        tracing::debug!(
+                                            rows = typed_band.rows.len(),
+                                            elapsed_ms = band_started.elapsed().as_millis() as u64,
+                                            "shard band finished"
+                                        );
+                                        Ok(typed_band)
+                                    }, band_span)));
                                 }
                                 // Join in band order — an empty band
                                 // (NotFound) folds to zero rows — then

@@ -184,7 +184,9 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
             }
             _ => THETADATADX_ERR_STREAM,
         },
-        Error::FlatFilesUnavailable(_) | Error::PartialReconnect { .. } => THETADATADX_ERR_STREAM,
+        Error::FlatFilesUnavailable(_)
+        | Error::PartialReconnect { .. }
+        | Error::PartialShardFetch { .. } => THETADATADX_ERR_STREAM,
         _ => THETADATADX_ERR_OTHER,
     }
 }
@@ -543,6 +545,14 @@ mod tests {
     fn partial_reconnect_routes_to_stream() {
         assert_eq!(
             error_code_for(&thetadatadx::Error::PartialReconnect { failed: Vec::new() }),
+            THETADATADX_ERR_STREAM
+        );
+    }
+
+    #[test]
+    fn partial_shard_fetch_routes_to_stream() {
+        assert_eq!(
+            error_code_for(&thetadatadx::Error::PartialShardFetch { failed: Vec::new() }),
             THETADATADX_ERR_STREAM
         );
     }

@@ -437,8 +437,9 @@
     }
 
     /// Set the automatic bulk-fetch sharding policy for history pulls (buffered
-    /// and chunk-streaming alike): 0=Auto (default; large pulls are split into
-    /// balanced concurrent sub-requests — buffered pulls merge back into
+    /// and chunk-streaming alike): 0=Auto (default; a large pull's requested
+    /// time or date range is split into equal concurrent bands — buffered
+    /// pulls merge back into
     /// exactly the single-stream rows, with option-chain pulls in a
     /// deterministic canonical contract order and every other pull in the
     /// exact single-stream row order; streaming pulls forward each band's
