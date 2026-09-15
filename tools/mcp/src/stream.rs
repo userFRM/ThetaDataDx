@@ -31,7 +31,6 @@ pub const DEFAULT_TTL: Duration = Duration::from_secs(900);
 /// aggregating one would invent volume that never happened.
 const BAR_KINDS: [Kind; 1] = [Kind::Trade];
 
-
 /// What a watch covers. The shapes are the vendor's, not ours: the bulk
 /// full-trade stream and the per-contract streams are different products with
 /// different tiers, and indices have neither a trade nor a quote stream.
@@ -43,13 +42,6 @@ pub enum Scope {
     Equity,
     /// One index symbol. Price and market value only.
     Index,
-    /// Every contract on a root and expiration, as one per-contract
-    /// subscription each.
-    Chain,
-    /// The bulk full-trade stream for a security type. Requires the Pro tier
-    /// on that asset class, and delivers quote and OHLC context around every
-    /// print as separate messages.
-    Feed,
 }
 
 impl Scope {
@@ -58,8 +50,6 @@ impl Scope {
             "contract" => Some(Self::Contract),
             "equity" => Some(Self::Equity),
             "index" => Some(Self::Index),
-            "chain" => Some(Self::Chain),
-            "feed" => Some(Self::Feed),
             _ => None,
         }
     }
@@ -69,23 +59,16 @@ impl Scope {
             Self::Contract => "contract",
             Self::Equity => "equity",
             Self::Index => "index",
-            Self::Chain => "chain",
-            Self::Feed => "feed",
         }
     }
 
     /// Kinds this scope can actually carry.
     pub fn kinds(self) -> &'static [Kind] {
         match self {
-            Self::Contract | Self::Equity | Self::Chain => {
-                &[Kind::Trade, Kind::Quote, Kind::MarketValue]
-            }
+            Self::Contract | Self::Equity => &[Kind::Trade, Kind::Quote, Kind::MarketValue],
             // No index trade or quote stream exists. Price is its own kind and
             // arrives in a trade-shaped message despite not being trade data.
             Self::Index => &[Kind::Price, Kind::MarketValue],
-            // The bulk stream is a trade stream; the quotes and OHLC around
-            // each print ride along with it rather than being subscribable.
-            Self::Feed => &[Kind::Trade],
         }
     }
 
@@ -105,12 +88,6 @@ impl Scope {
                 "indices have no {} stream; this scope offers {offered}",
                 kind.as_str()
             ),
-            (Self::Feed, Kind::Quote) => format!(
-                "the bulk stream is a trade stream. It carries the quote before each print \
-                 and the two after it, but not every quote update. For every quote on a \
-                 contract, watch it at contract or equity scope with kind=quote. \
-                 This scope offers {offered}"
-            ),
             _ => format!("{} scope offers {offered}", self.as_str()),
         })
     }
@@ -120,7 +97,6 @@ impl Scope {
 pub enum Kind {
     Quote,
     Trade,
-    OpenInterest,
     /// Derived midpoint, not a quote. Never present it as NBBO.
     MarketValue,
     /// Index price changes. Reported about once a second, and only the price
@@ -134,7 +110,6 @@ impl Kind {
         match raw {
             "quote" => Some(Self::Quote),
             "trade" => Some(Self::Trade),
-            "open_interest" => Some(Self::OpenInterest),
             "market_value" => Some(Self::MarketValue),
             "price" => Some(Self::Price),
             _ => None,
@@ -145,7 +120,6 @@ impl Kind {
         match self {
             Self::Quote => "quote",
             Self::Trade => "trade",
-            Self::OpenInterest => "open_interest",
             Self::MarketValue => "market_value",
             Self::Price => "price",
         }
@@ -173,11 +147,6 @@ pub enum Tick {
         condition: i32,
         sequence: i32,
     },
-    OpenInterest {
-        ms_of_day: i32,
-        date: i32,
-        open_interest: i32,
-    },
     MarketValue {
         ms_of_day: i32,
         date: i32,
@@ -186,13 +155,6 @@ pub enum Tick {
         ask: Option<f64>,
         price: f64,
     },
-    Price {
-        ms_of_day: i32,
-        date: i32,
-        price: f64,
-        sequence: i32,
-        condition: i32,
-    },
 }
 
 impl Tick {
@@ -200,9 +162,7 @@ impl Tick {
         match self {
             Self::Quote { .. } => Kind::Quote,
             Self::Trade { .. } => Kind::Trade,
-            Self::OpenInterest { .. } => Kind::OpenInterest,
             Self::MarketValue { .. } => Kind::MarketValue,
-            Self::Price { .. } => Kind::Price,
         }
     }
 
@@ -210,9 +170,7 @@ impl Tick {
         match *self {
             Self::Quote { ms_of_day, .. }
             | Self::Trade { ms_of_day, .. }
-            | Self::OpenInterest { ms_of_day, .. }
-            | Self::MarketValue { ms_of_day, .. }
-            | Self::Price { ms_of_day, .. } => ms_of_day,
+            | Self::MarketValue { ms_of_day, .. } => ms_of_day,
         }
     }
 }
@@ -224,7 +182,6 @@ pub struct Stamped {
     pub tick: Tick,
     pub seen_ms: u64,
 }
-
 
 /// A print with the market around it.
 ///
@@ -263,7 +220,8 @@ pub struct Spec {
     pub root: String,
     /// Option legs only.
     pub expiration: Option<u32>,
-    /// Option legs only, in tenths of a cent, as the wire carries it.
+    /// Option legs only, in thousandths of a dollar, as `Contract` carries it
+    /// (a $550 strike is 550_000).
     pub strike: Option<i64>,
     /// Option legs only: 'C' or 'P'.
     pub right: Option<char>,
@@ -276,23 +234,25 @@ pub enum SecType {
     Index,
 }
 
-impl SecType {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Option => "option",
-            Self::Stock => "stock",
-            Self::Index => "index",
-        }
-    }
-}
-
 impl Spec {
     pub fn equity(root: &str) -> Self {
-        Self { sec_type: SecType::Stock, root: root.to_owned(), expiration: None, strike: None, right: None }
+        Self {
+            sec_type: SecType::Stock,
+            root: root.to_owned(),
+            expiration: None,
+            strike: None,
+            right: None,
+        }
     }
 
     pub fn index(root: &str) -> Self {
-        Self { sec_type: SecType::Index, root: root.to_owned(), expiration: None, strike: None, right: None }
+        Self {
+            sec_type: SecType::Index,
+            root: root.to_owned(),
+            expiration: None,
+            strike: None,
+            right: None,
+        }
     }
 
     pub fn option(root: &str, expiration: u32, strike: i64, right: char) -> Self {
@@ -437,10 +397,18 @@ impl Registry {
     /// Keys already held by another handle are shared, not re-subscribed. The
     /// returned list is the subset that is new to this process, which is
     /// exactly what the caller must subscribe on the feed.
-    pub fn watch(&self, scope: &str, specs: Vec<(Spec, Kind)>, now: u64) -> (String, Vec<(Spec, Kind)>) {
+    pub fn watch(
+        &self,
+        scope: &str,
+        specs: Vec<(Spec, Kind)>,
+        now: u64,
+    ) -> (String, Vec<(Spec, Kind)>) {
         let keys: Vec<BookKey> = specs
             .iter()
-            .map(|(spec, kind)| BookKey { symbol: spec.symbol(), kind: *kind })
+            .map(|(spec, kind)| BookKey {
+                symbol: spec.symbol(),
+                kind: *kind,
+            })
             .collect();
         let mut inner = self.lock();
         self.collect_expired(&mut inner, now);
@@ -485,7 +453,9 @@ impl Registry {
             .specs
             .into_iter()
             .filter(|(spec, kind)| {
-                freed.iter().any(|k| k.symbol == spec.symbol() && k.kind == *kind)
+                freed
+                    .iter()
+                    .any(|k| k.symbol == spec.symbol() && k.kind == *kind)
             })
             .collect())
     }
@@ -566,10 +536,7 @@ impl Registry {
     /// becomes the standing pre-trade quote for the next one. A trade opens a
     /// new print carrying whatever quote stood before it.
     fn correlate(inner: &mut Inner, symbol: &str, tick: &Tick, capacity: usize) {
-        let state = inner
-            .correlation
-            .entry(symbol.to_owned())
-            .or_insert_with(Correlation::default);
+        let state = inner.correlation.entry(symbol.to_owned()).or_default();
         match tick {
             Tick::Quote { .. } => {
                 if let Some(open) = state.prints.back_mut() {
@@ -773,10 +740,7 @@ impl Registry {
     pub fn status(&self, handle: &str, now: u64) -> Result<WatchStatus, WatchError> {
         let mut inner = self.lock();
         let keys = Self::touch(&mut inner, handle, now)?;
-        let watch = inner
-            .watches
-            .get(handle)
-            .ok_or(WatchError::UnknownHandle)?;
+        let watch = inner.watches.get(handle).ok_or(WatchError::UnknownHandle)?;
         let scope = watch.scope.clone();
         let created_ms = watch.created_ms;
 
@@ -831,16 +795,541 @@ pub struct WatchStatus {
     pub books: Vec<BookStatus>,
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  Tool surface
+// ═══════════════════════════════════════════════════════════════════════════
+
+use std::sync::OnceLock;
+
+use sonic_rs::{json, JsonValueTrait, Value};
+use thetadatadx::streaming::{
+    Contract, OptionLeg, StreamData, StreamEvent, Subscription, SubscriptionKind,
+};
+use thetadatadx::Client;
+
+use crate::ToolError;
+
+/// One registry per process. The handles it mints are only meaningful against
+/// the subscriptions this process holds, so there is nothing to share wider.
+static REGISTRY: OnceLock<Registry> = OnceLock::new();
+/// Set once the event handler is installed, so a second watch does not install
+/// a second one.
+static HANDLER: OnceLock<()> = OnceLock::new();
+
+pub fn registry() -> &'static Registry {
+    REGISTRY.get_or_init(Registry::default)
+}
+
+pub const TOOL_NAMES: [&str; 7] = [
+    "stream_watch",
+    "stream_latest",
+    "stream_window",
+    "stream_bars",
+    "stream_prints",
+    "stream_status",
+    "stream_release",
+];
+
+fn handle_arg() -> Value {
+    json!({
+        "type": "string",
+        "description": "Handle returned by stream_watch."
+    })
+}
+
+fn symbol_arg() -> Value {
+    json!({
+        "type": "string",
+        "description": "Restrict to one book. Omit to read every book the handle covers."
+    })
+}
+
+pub fn tool_definitions() -> Vec<Value> {
+    vec![
+        json!({
+            "name": "stream_watch",
+            "description": "Open a live subscription and return a handle to read it with. \
+                A snapshot is a round trip and has already moved by the time you read it; \
+                a handle is read locally and every read tells you how old the value is. \
+                Scopes: 'contract' (one option), 'equity' (one stock), 'index' (one index). \
+                Indices have no trade or quote stream, only price and market value. \
+                A handle is collected after 15 minutes without a read; call stream_release when \
+                finished rather than waiting for that.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "scope": {"type": "string", "enum": ["contract", "equity", "index"]},
+                    "kind": {
+                        "type": "string",
+                        "enum": ["trade", "quote", "market_value", "price"],
+                        "description": "trade and quote are per-contract; market_value is a derived midpoint, not a quote; price is indices only."
+                    },
+                    "root": {"type": "string", "description": "Ticker or option root, e.g. AAPL or QQQ."},
+                    "expiration": {"type": "integer", "description": "YYYYMMDD. Option contract and chain scopes."},
+                    "strike": {"type": "number", "description": "Strike in dollars. Contract scope only."},
+                    "right": {"type": "string", "enum": ["C", "P"], "description": "Contract scope only."},
+                },
+                "required": ["scope", "kind"]
+            }
+        }),
+        json!({
+            "name": "stream_latest",
+            "description": "The most recent value on each book, with age_ms: how long ago the \
+                server saw it. An index reports about once a second, so seconds of age are \
+                normal there and stale on an option quote.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"handle": handle_arg(), "symbol": symbol_arg()},
+                "required": ["handle"]
+            }
+        }),
+        json!({
+            "name": "stream_window",
+            "description": "Ticks seen in the last N seconds, oldest first. Use stream_bars \
+                instead when you want shape rather than every print.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "handle": handle_arg(),
+                    "symbol": symbol_arg(),
+                    "seconds": {"type": "integer", "description": "Window length. Default 60."},
+                    "limit": {"type": "integer", "description": "Newest N rows. Default 200."}
+                },
+                "required": ["handle"]
+            }
+        }),
+        json!({
+            "name": "stream_bars",
+            "description": "OHLCV bars built from the trades seen since the watch opened. \
+                Quotes produce no bars: a quote has no traded size, so a bar from one would \
+                report volume that never happened.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "handle": handle_arg(),
+                    "symbol": symbol_arg(),
+                    "count": {"type": "integer", "description": "Most recent N bars. Default 30."}
+                },
+                "required": ["handle"]
+            }
+        }),
+        json!({
+            "name": "stream_prints",
+            "description": "Recent trades, each with the quote that stood immediately before it \
+                and the next two quote updates after it. This is the market around a print \
+                rather than the print alone. Richest on a feed watch, which is where the \
+                vendor sends that context.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "handle": handle_arg(),
+                    "symbol": symbol_arg(),
+                    "count": {"type": "integer", "description": "Most recent N prints. Default 20."}
+                },
+                "required": ["handle"]
+            }
+        }),
+        json!({
+            "name": "stream_status",
+            "description": "What the handle covers and how healthy it is: messages received, \
+                messages dropped because the buffer was full, and how old each book's newest \
+                value is. A non-zero drop count means a window is clipped, not complete.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"handle": handle_arg()},
+                "required": ["handle"]
+            }
+        }),
+        json!({
+            "name": "stream_release",
+            "description": "Close a watch. Subscriptions shared with another handle stay open; \
+                only the last holder unsubscribes.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"handle": handle_arg()},
+                "required": ["handle"]
+            }
+        }),
+    ]
+}
+
+fn str_arg<'a>(args: &'a Value, name: &str) -> Option<&'a str> {
+    args.get(name).and_then(|v: &Value| v.as_str())
+}
+
+fn usize_arg(args: &Value, name: &str, default: usize) -> usize {
+    args.get(name)
+        .and_then(|v: &Value| v.as_u64())
+        .map_or(default, |v| v as usize)
+}
+
+/// Book name for a contract off the wire. Must agree with [`Spec::symbol`] —
+/// the two are the only thing joining a subscription to the ticks it produces.
+fn contract_symbol(contract: &Contract) -> String {
+    match (
+        contract.expiration,
+        contract.is_call,
+        contract.strike_thousandths,
+    ) {
+        (Some(exp), Some(is_call), Some(strike)) => {
+            let right = if is_call { 'C' } else { 'P' };
+            format!("{} {exp} {right} {strike}", contract.symbol)
+        }
+        _ => contract.symbol.to_string(),
+    }
+}
+
+fn tick_from(data: &StreamData) -> Option<(String, Tick)> {
+    match data {
+        StreamData::Quote {
+            contract,
+            ms_of_day,
+            bid,
+            bid_size,
+            ask,
+            ask_size,
+            date,
+            ..
+        } => Some((
+            contract_symbol(contract),
+            Tick::Quote {
+                ms_of_day: *ms_of_day,
+                date: *date,
+                bid: *bid,
+                bid_size: *bid_size,
+                ask: *ask,
+                ask_size: *ask_size,
+            },
+        )),
+        StreamData::Trade {
+            contract,
+            ms_of_day,
+            price,
+            size,
+            condition,
+            sequence,
+            date,
+            ..
+        } => Some((
+            contract_symbol(contract),
+            Tick::Trade {
+                ms_of_day: *ms_of_day,
+                date: *date,
+                price: *price,
+                size: *size,
+                condition: *condition,
+                sequence: *sequence,
+            },
+        )),
+        StreamData::MarketValue {
+            contract,
+            ms_of_day,
+            market_bid,
+            market_ask,
+            market_price,
+            date,
+            ..
+        } => Some((
+            contract_symbol(contract),
+            Tick::MarketValue {
+                ms_of_day: *ms_of_day,
+                date: *date,
+                bid: Some(*market_bid),
+                ask: Some(*market_ask),
+                price: *market_price,
+            },
+        )),
+        _ => None,
+    }
+}
+
+fn install_handler(client: &Client) -> Result<(), ToolError> {
+    if HANDLER.get().is_some() {
+        return Ok(());
+    }
+    client
+        .stream()
+        .start_streaming(move |event: &StreamEvent| {
+            if let StreamEvent::Data(data) = event {
+                if let Some((symbol, tick)) = tick_from(data) {
+                    registry().ingest(&symbol, tick, now_ms(), 60_000);
+                }
+            }
+        })
+        .map_err(|e| ToolError::ServerError(format!("could not start streaming: {e}")))?;
+    let _ = HANDLER.set(());
+    Ok(())
+}
+
+fn wire_kind(kind: Kind) -> SubscriptionKind {
+    match kind {
+        Kind::Quote => SubscriptionKind::Quote,
+        Kind::MarketValue => SubscriptionKind::MarketValue,
+        // An index price arrives on the trade subscription, in a trade-shaped
+        // message. That is the vendor's shape, not a mapping we chose.
+        Kind::Trade | Kind::Price => SubscriptionKind::Trade,
+    }
+}
+
+fn build_contract(spec: &Spec) -> Result<Contract, ToolError> {
+    match spec.sec_type {
+        SecType::Stock => Ok(Contract::stock(&spec.root)),
+        SecType::Index => Ok(Contract::index(&spec.root)),
+        SecType::Option => {
+            let (Some(exp), Some(strike), Some(right)) = (spec.expiration, spec.strike, spec.right)
+            else {
+                return Err(ToolError::InvalidParams(
+                    "an option needs expiration, strike and right".into(),
+                ));
+            };
+            // `OptionLeg` takes dollars; the spec holds thousandths of one.
+            let dollars = format!("{:.3}", strike as f64 / 1000.0);
+            Contract::option(
+                &spec.root,
+                OptionLeg {
+                    expiration: &exp.to_string(),
+                    strike: &dollars,
+                    right: &right.to_string(),
+                },
+            )
+            .map_err(|e| ToolError::InvalidParams(format!("contract: {e}")))
+        }
+    }
+}
+
+fn specs_for(args: &Value, scope: Scope, kind: Kind) -> Result<Vec<(Spec, Kind)>, ToolError> {
+    let root = str_arg(args, "root");
+    let need_root = |s: Option<&str>| {
+        s.map(str::to_owned)
+            .ok_or_else(|| ToolError::InvalidParams("root is required for this scope".into()))
+    };
+
+    match scope {
+        Scope::Equity => Ok(vec![(Spec::equity(&need_root(root)?), kind)]),
+        Scope::Index => Ok(vec![(Spec::index(&need_root(root)?), kind)]),
+        Scope::Contract => {
+            let root = need_root(root)?;
+            let expiration = args
+                .get("expiration")
+                .and_then(|v: &Value| v.as_u64())
+                .ok_or_else(|| ToolError::InvalidParams("expiration is required".into()))?;
+            let strike = args
+                .get("strike")
+                .and_then(|v: &Value| v.as_f64())
+                .ok_or_else(|| ToolError::InvalidParams("strike is required".into()))?;
+            let right = str_arg(args, "right")
+                .and_then(|r| r.chars().next())
+                .ok_or_else(|| ToolError::InvalidParams("right must be C or P".into()))?;
+            Ok(vec![(
+                Spec::option(
+                    &root,
+                    expiration as u32,
+                    (strike * 1000.0).round() as i64,
+                    right.to_ascii_uppercase(),
+                ),
+                kind,
+            )])
+        }
+    }
+}
+
+fn tick_json(tick: &Tick) -> Value {
+    match tick {
+        Tick::Quote {
+            ms_of_day,
+            date,
+            bid,
+            bid_size,
+            ask,
+            ask_size,
+        } => json!({
+            "type": "quote", "ms_of_day": ms_of_day, "date": date,
+            "bid": bid, "bid_size": bid_size, "ask": ask, "ask_size": ask_size
+        }),
+        Tick::Trade {
+            ms_of_day,
+            date,
+            price,
+            size,
+            condition,
+            sequence,
+        } => json!({
+            "type": "trade", "ms_of_day": ms_of_day, "date": date,
+            "price": price, "size": size, "condition": condition, "sequence": sequence
+        }),
+        Tick::MarketValue {
+            ms_of_day,
+            date,
+            bid,
+            ask,
+            price,
+        } => json!({
+            "type": "market_value", "ms_of_day": ms_of_day, "date": date,
+            "market_bid": bid, "market_ask": ask, "market_price": price,
+            "note": "a derived midpoint, not a quote"
+        }),
+    }
+}
+
+fn err_json(e: &WatchError) -> ToolError {
+    ToolError::InvalidParams(e.message().to_owned())
+}
+
+/// Dispatch for the stream tools. Returns `None` when `name` is not one of
+/// them, so the caller can fall through to the endpoint registry.
+pub async fn try_execute(
+    client: Option<&Client>,
+    name: &str,
+    args: &Value,
+) -> Option<Result<Value, ToolError>> {
+    if !TOOL_NAMES.contains(&name) {
+        return None;
+    }
+    let Some(client) = client else {
+        return Some(Err(ToolError::ServerError(
+            "not connected to ThetaData yet; retry in a moment".into(),
+        )));
+    };
+    Some(execute(client, name, args).await)
+}
+
+async fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError> {
+    let reg = registry();
+    let now = now_ms();
+
+    if name == "stream_watch" {
+        let scope = str_arg(args, "scope")
+            .and_then(Scope::parse)
+            .ok_or_else(|| ToolError::InvalidParams("unknown scope".into()))?;
+        let kind = str_arg(args, "kind")
+            .and_then(Kind::parse)
+            .ok_or_else(|| ToolError::InvalidParams("unknown kind".into()))?;
+        if let Some(why) = scope.reject(kind) {
+            return Err(ToolError::InvalidParams(why));
+        }
+
+        let specs = specs_for(args, scope, kind)?;
+        install_handler(client)?;
+        let (handle, fresh) = reg.watch(scope.as_str(), specs, now);
+
+        for (spec, kind) in &fresh {
+            client
+                .stream()
+                .subscribe(Subscription::Contract {
+                    contract: build_contract(spec)?,
+                    kind: wire_kind(*kind),
+                })
+                .map_err(|e| ToolError::ServerError(format!("subscribe failed: {e}")))?;
+        }
+
+        return Ok(json!({
+            "handle": handle,
+            "scope": scope.as_str(),
+            "kind": kind.as_str(),
+            "subscriptions_opened": fresh.len(),
+            "expires_after_seconds": DEFAULT_TTL.as_secs(),
+            "note": "reads carry age_ms. Call stream_release when finished."
+        }));
+    }
+
+    let handle = str_arg(args, "handle")
+        .ok_or_else(|| ToolError::InvalidParams("handle is required".into()))?;
+    let symbol = str_arg(args, "symbol");
+
+    match name {
+        "stream_latest" => {
+            let rows = reg.latest(handle, symbol, now).map_err(|e| err_json(&e))?;
+            Ok(json!({
+                "books": rows.iter().map(|(key, stamped, age)| json!({
+                    "symbol": key.symbol,
+                    "kind": key.kind.as_str(),
+                    "age_ms": age,
+                    "tick": tick_json(&stamped.tick),
+                })).collect::<Vec<_>>()
+            }))
+        }
+        "stream_window" => {
+            let seconds = usize_arg(args, "seconds", 60) as u64;
+            let limit = usize_arg(args, "limit", 200);
+            let rows = reg
+                .window(handle, symbol, seconds * 1_000, limit, now)
+                .map_err(|e| err_json(&e))?;
+            Ok(json!({
+                "window_seconds": seconds,
+                "books": rows.iter().map(|(key, ticks)| json!({
+                    "symbol": key.symbol,
+                    "kind": key.kind.as_str(),
+                    "count": ticks.len(),
+                    "ticks": ticks.iter().map(|s| tick_json(&s.tick)).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>()
+            }))
+        }
+        "stream_bars" => {
+            let count = usize_arg(args, "count", 30);
+            let rows = reg
+                .bars(handle, symbol, count, now)
+                .map_err(|e| err_json(&e))?;
+            Ok(json!({
+                "interval_seconds": 60,
+                "books": rows.iter().map(|(key, bars)| json!({
+                    "symbol": key.symbol,
+                    "kind": key.kind.as_str(),
+                    "bars": bars.iter().map(|b| json!({
+                        "start_ms_of_day": b.start_ms, "open": b.open, "high": b.high,
+                        "low": b.low, "close": b.close, "volume": b.volume, "trades": b.trades
+                    })).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>()
+            }))
+        }
+        "stream_prints" => {
+            let count = usize_arg(args, "count", 20);
+            let rows = reg
+                .prints(handle, symbol, count, now)
+                .map_err(|e| err_json(&e))?;
+            Ok(json!({
+                "books": rows.iter().map(|(sym, prints)| json!({
+                    "symbol": sym,
+                    "prints": prints.iter().map(|p| json!({
+                        "trade": tick_json(&p.trade),
+                        "quote_before": p.quote_before.as_ref().map(tick_json),
+                        "quotes_after": p.quotes_after.iter().map(tick_json).collect::<Vec<_>>(),
+                    })).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>()
+            }))
+        }
+        "stream_status" => {
+            let st = reg.status(handle, now).map_err(|e| err_json(&e))?;
+            Ok(json!({
+                "scope": st.scope,
+                "open_for_ms": now.saturating_sub(st.created_ms),
+                "expires_after_ms_idle": st.expires_in_ms,
+                "books": st.books.iter().map(|b| json!({
+                    "symbol": b.key.symbol,
+                    "kind": b.key.kind.as_str(),
+                    "received": b.received,
+                    "dropped": b.dropped,
+                    "held": b.held,
+                    "age_ms": b.age_ms,
+                })).collect::<Vec<_>>()
+            }))
+        }
+        "stream_release" => {
+            let freed = reg.release(handle, now).map_err(|e| err_json(&e))?;
+            for (spec, kind) in &freed {
+                let _ = client.stream().unsubscribe(Subscription::Contract {
+                    contract: build_contract(spec)?,
+                    kind: wire_kind(*kind),
+                });
+            }
+            Ok(json!({ "released": true, "subscriptions_closed": freed.len() }))
+        }
+        other => Err(ToolError::InvalidParams(format!("unknown tool: {other}"))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn key(symbol: &str, kind: Kind) -> BookKey {
-        BookKey {
-            symbol: symbol.to_owned(),
-            kind,
-        }
-    }
 
     fn spec(symbol: &str, kind: Kind) -> (Spec, Kind) {
         (Spec::equity(symbol), kind)
@@ -878,16 +1367,9 @@ mod tests {
         assert!(Scope::Index.reject(Kind::MarketValue).is_none());
 
         let why = Scope::Index.reject(Kind::Quote).expect("a reason");
-        assert!(why.contains("price"), "the refusal must name what is on offer: {why}");
-    }
-
-    #[test]
-    fn the_bulk_scope_is_a_trade_stream_and_says_why() {
-        assert!(Scope::Feed.reject(Kind::Trade).is_none());
-        let why = Scope::Feed.reject(Kind::Quote).expect("a reason");
         assert!(
-            why.contains("every quote"),
-            "a model asking for quotes at feed scope must be told where to get them: {why}"
+            why.contains("price"),
+            "the refusal must name what is on offer: {why}"
         );
     }
 
@@ -975,7 +1457,12 @@ mod tests {
         let reg = Registry::new(3, DEFAULT_TTL);
         let (h, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 0);
         for i in 0..10 {
-            reg.ingest("AAPL", trade(i, 100.0 + f64::from(i), 1), u64::from(i as u32), 60_000);
+            reg.ingest(
+                "AAPL",
+                trade(i, 100.0 + f64::from(i), 1),
+                u64::from(i as u32),
+                60_000,
+            );
         }
         let status = reg.status(&h, 100).expect("status");
         let book = &status.books[0];
