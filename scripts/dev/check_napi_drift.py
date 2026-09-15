@@ -25,6 +25,22 @@ GENERATED = ("index.d.ts", "index.js")
 
 
 def main() -> int:
+    # Both files must be tracked before the contents are compared. `git diff`
+    # ignores untracked paths, so a generated file deleted from the commit is
+    # recreated by the build as untracked and the diff passes — reporting a
+    # tree as clean precisely when a published artefact has gone missing.
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", *GENERATED], cwd=TS_DIR, capture_output=True, text=True
+    )
+    listed = set(tracked.stdout.split())
+    missing = [name for name in GENERATED if name not in listed]
+    if missing:
+        print(
+            "napi drift: " + ", ".join(missing) + " is generated and must be committed",
+            file=sys.stderr,
+        )
+        return 1
+
     if shutil.which("npm") is None:
         # Not a pass: say why, so a clean exit is never mistaken for a check
         # that ran.
@@ -52,8 +68,10 @@ def main() -> int:
         print("napi drift: the build failed, so drift could not be checked", file=sys.stderr)
         return build.returncode
 
+    # Against HEAD, not the index: a staged-but-uncommitted regeneration would
+    # otherwise read as in sync, which is the state this exists to catch.
     diff = subprocess.run(
-        ["git", "diff", "--exit-code", "--", *GENERATED],
+        ["git", "diff", "--exit-code", "HEAD", "--", *GENERATED],
         cwd=TS_DIR,
         capture_output=True,
         text=True,
