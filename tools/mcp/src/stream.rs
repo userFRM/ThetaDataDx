@@ -7,7 +7,7 @@
 //!
 //! A book is named by its contract and kind, the same way the vendor names a
 //! subscription. The first read opens it; a read every so often keeps it;
-//! fifteen idle minutes or `stream_stop` close it. There is no handle to
+//! fifteen idle minutes or `tape_stop` close it. There is no handle to
 //! mint, pass back or lose.
 //!
 //! This layer stores what the feed sends and serves it back. The summary on
@@ -144,6 +144,10 @@ struct ContractState {
     last_quote: Option<StreamData>,
     prints: VecDeque<Print>,
     prints_dropped: u64,
+    /// The vendor's own bar for this contract, as last sent. The feed sends
+    /// one ahead of each trade; it is stored and served as is, never built,
+    /// extended or reconciled here.
+    ohlcvc: Option<StreamData>,
 }
 
 impl ContractState {
@@ -178,6 +182,7 @@ struct Reading {
     new_since_last_read: u64,
     summary: Summary,
     tail: Vec<StreamData>,
+    ohlcvc: Option<StreamData>,
 }
 
 /// Counts and extremes over the rows in a window. Every row is the vendor's
@@ -277,7 +282,8 @@ impl Registry {
     ) -> (Reading, Subs) {
         let mut held = self.lock();
         let expired = Self::sweep(&mut held, now);
-        let (book, first) = held.entry(contract.clone()).or_default().open(kind, now);
+        let state = held.entry(contract.clone()).or_default();
+        let (book, first) = state.open(kind, now);
         let previous = book.read_ms;
         book.read_ms = now;
         let floor = window.map_or(previous, |w| now.saturating_sub(w));
@@ -339,16 +345,19 @@ impl Registry {
             .and_then(seen_ms)
             .filter(|_| book.dropped > 0)
             .unwrap_or(book.opened_ms);
+        let dropped = book.dropped;
+        let newest_ms = book.ring.back().and_then(seen_ms);
         let reading = Reading {
             first,
             floor,
-            dropped: book.dropped,
+            dropped,
             covered_since_ms,
-            newest_ms: book.ring.back().and_then(seen_ms),
+            newest_ms,
             clipped: covered_since_ms > floor,
             new_since_last_read,
             summary,
             tail: rows,
+            ohlcvc: state.ohlcvc.clone(),
         };
         (reading, expired)
     }
@@ -460,11 +469,20 @@ impl Registry {
     /// can deliver a contract after its unsubscribe, and inventing a book for
     /// one would leak.
     pub fn ingest(&self, data: StreamData) {
-        let (Some(contract), Some(msg)) = (contract_of(&data), msg_type_of(&data)) else {
+        let Some(contract) = contract_of(&data) else {
             return;
         };
         let mut held = self.lock();
         let Some(state) = held.get_mut(contract) else {
+            return;
+        };
+        // The vendor's bar has no subscription of its own: it rides ahead of
+        // the trade, and a held contract keeps the newest one.
+        if let StreamData::Ohlcvc { .. } = data {
+            state.ohlcvc = Some(data);
+            return;
+        }
+        let Some(msg) = msg_type_of(&data) else {
             return;
         };
         let Some((_, book)) = state
@@ -519,7 +537,7 @@ pub fn registry() -> &'static Registry {
     REGISTRY.get_or_init(Registry::default)
 }
 
-pub const TOOL_NAMES: [&str; 4] = ["stream_read", "stream_prints", "stream_list", "stream_stop"];
+pub const TOOL_NAMES: [&str; 4] = ["tape_read", "tape_prints", "tape_list", "tape_stop"];
 
 /// Kinds the vendor offers for a security type, the default first.
 ///
@@ -577,7 +595,7 @@ fn contract_schema(extra: Value) -> Value {
 pub fn tool_definitions() -> Vec<Value> {
     vec![
         json!({
-            "name": "stream_read",
+            "name": "tape_read",
             "description": "Live data for one contract in one call. The first read opens the \
                 subscription and returns nothing yet; read again a second or two later. After \
                 that each read summarises a window and serves its newest rows verbatim. The \
@@ -589,8 +607,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 window you asked for reaches further, which a liquid quote book hits inside a \
                 minute: 4096 rows are held per book. The summary counts and sorts the rows it \
                 saw, each trade extreme with its condition code, and the tail is the vendor's \
-                messages as sent, condition and exchange codes intact; nothing is built into \
-                bars, because condition, cancel and size rules are yours to choose. kind \
+                messages as sent, condition and exchange codes intact. vendor_ohlcvc is the \
+                vendor's own bar for the contract as last sent, served as is; nothing here \
+                builds a bar from trades, because condition, cancel and size rules are yours \
+                to choose. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
                 are Eastern. A book unread for 15 minutes closes on its own.",
@@ -602,7 +622,7 @@ pub fn tool_definitions() -> Vec<Value> {
             }))
         }),
         json!({
-            "name": "stream_prints",
+            "name": "tape_prints",
             "description": "Recent trades on one contract, newest last, each with the quote that \
                 stood before it; the feed also sends the two quotes after a print, and \
                 quotes_after returns them. Opens the trade and quote subscriptions on the first \
@@ -616,16 +636,16 @@ pub fn tool_definitions() -> Vec<Value> {
             }))
         }),
         json!({
-            "name": "stream_list",
+            "name": "tape_list",
             "description": "Every book this server holds: rows received and held, the age of \
                 the newest, how long since it was read and when it expires, plus the feed's \
                 state. An age that keeps growing while the feed says Connected is a contract \
-                that has gone quiet, not a fault; anything else and the next stream_read \
+                that has gone quiet, not a fault; anything else and the next tape_read \
                 restarts the feed.",
             "inputSchema": {"type": "object", "properties": {}}
         }),
         json!({
-            "name": "stream_stop",
+            "name": "tape_stop",
             "description": "Close every book held for a contract and release its subscriptions. \
                 Books also close on their own after 15 minutes without a read.",
             "inputSchema": contract_schema(json!({}))
@@ -706,6 +726,24 @@ fn fields(data: &StreamData) -> Vec<(&'static str, Value)> {
             ("market_bid", json!(*market_bid)),
             ("market_ask", json!(*market_ask)),
             ("market_price", json!(*market_price)),
+        ],
+        StreamData::Ohlcvc {
+            ms_of_day,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            count,
+            ..
+        } => vec![
+            ("time", json!(clock(*ms_of_day))),
+            ("open", json!(*open)),
+            ("high", json!(*high)),
+            ("low", json!(*low)),
+            ("close", json!(*close)),
+            ("volume", json!(*volume)),
+            ("count", json!(*count)),
         ],
         other => vec![("debug", json!(format!("{other:?}")))],
     }
@@ -910,7 +948,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             .map_or(d, |v| v as usize)
     };
 
-    if name == "stream_list" {
+    if name == "tape_list" {
         let (rows, expired) = reg.list(now);
         close_expired(client, expired);
         return Ok(json!({
@@ -931,7 +969,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
 
     let (sec, contract) = parse_contract(args)?;
     match name {
-        "stream_read" => {
+        "tape_read" => {
             let kind = resolve_kind(sec, args.get("kind").and_then(|v: &Value| v.as_str()))?;
             let window = args
                 .get("seconds")
@@ -957,12 +995,19 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "new_since_last_read": r.new_since_last_read,
                 "age_ms": r.newest_ms.map(|s| now.saturating_sub(s)),
                 "summary": summary_json(&r.summary),
+                "vendor_ohlcvc": r.ohlcvc.as_ref().map(|bar| {
+                    let mut out = object(bar);
+                    if let (Some(obj), Some(seen)) = (out.as_object_mut(), seen_ms(bar)) {
+                        obj.insert("age_ms", Value::from(now.saturating_sub(seen)));
+                    }
+                    out
+                }),
                 "date": newest.and_then(date_of),
                 "columns": newest.map(|d| fields(d).into_iter().map(|(k, _)| k).collect::<Vec<_>>()),
                 "tail": r.tail.iter().map(row).collect::<Vec<_>>()
             }))
         }
-        "stream_prints" => {
+        "tape_prints" => {
             // A print needs both legs; an index offers neither quote nor
             // print, and the refusal names what it does offer.
             resolve_kind(sec, Some("quote"))?;
@@ -1000,12 +1045,12 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 }).collect::<Vec<_>>()
             }))
         }
-        "stream_stop" => {
+        "tape_stop" => {
             let (closed, expired) = reg.stop(&contract, now);
             close_expired(client, expired);
             if closed.is_empty() {
                 return Err(ToolError::InvalidParams(format!(
-                    "{contract} is not held; stream_list shows what is"
+                    "{contract} is not held; tape_list shows what is"
                 )));
             }
             let mut done = 0usize;
@@ -1073,6 +1118,21 @@ mod tests {
             ask_condition: 0,
             date: 20260915,
             received_at_ns: 0,
+        }
+    }
+
+    fn bar(c: &Contract, close: f64, received_at_ns: u64) -> StreamData {
+        StreamData::Ohlcvc {
+            contract: Arc::new(c.clone()),
+            ms_of_day: 34_200_000,
+            open: 1.0,
+            high: 2.0,
+            low: 0.5,
+            close,
+            volume: 10,
+            count: 3,
+            date: 20260915,
+            received_at_ns,
         }
     }
 
@@ -1468,6 +1528,37 @@ mod tests {
         assert!(
             why.contains("trade"),
             "the refusal names what is on offer: {why}"
+        );
+    }
+
+    #[test]
+    fn the_vendors_bar_is_kept_for_a_held_contract_and_served_as_sent() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.read(&c, SubscriptionKind::Quote, None, TAIL, 0);
+        reg.ingest(bar(&c, 1.5, 10 * MS));
+        reg.ingest(bar(&c, 1.7, 20 * MS));
+        reg.ingest(bar(&stock("MSFT"), 9.0, 20 * MS));
+
+        let (r, _) = reg.read(&c, SubscriptionKind::Quote, None, TAIL, 30);
+        let close = match &r.ohlcvc {
+            Some(StreamData::Ohlcvc { close, .. }) => *close,
+            other => panic!("expected the vendor's bar, got {other:?}"),
+        };
+        assert_eq!(
+            close, 1.7,
+            "the newest bar the vendor sent, whichever kind is read"
+        );
+        assert_eq!(r.summary.count, 0, "a bar is not a row on the quote book");
+        assert!(
+            !reg.lock().contains_key(&stock("MSFT")),
+            "a bar for an unheld contract creates nothing"
+        );
+        let cols: Vec<&str> = fields(&bar(&c, 1.0, 0)).iter().map(|(k, _)| *k).collect();
+        assert_eq!(
+            cols,
+            ["time", "open", "high", "low", "close", "volume", "count"],
+            "served with the vendor's own fields"
         );
     }
 
