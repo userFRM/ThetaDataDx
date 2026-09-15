@@ -36,7 +36,7 @@ use thetadatadx::streaming::{
     Subscription, SubscriptionKind,
 };
 use thetadatadx::{
-    Client, ConnectionStatus, SecType, StreamMsgType, StreamResponseType, SubscriptionTier,
+    Client, ConnectionStatus, Error, SecType, StreamMsgType, StreamResponseType, SubscriptionTier,
 };
 
 use crate::{sanitize_error, ToolError};
@@ -433,6 +433,11 @@ struct Book {
     dropped: u64,
     opened_ms: u64,
     read_ms: u64,
+    /// Rows received as of the last read. The cursor is a count advanced
+    /// under the lock that appends the rows, not a clock: a row stamped
+    /// the same millisecond as a read, or decoded before it and dispatched
+    /// after, is new exactly once.
+    read_seq: u64,
     /// The caller's predicate; empty when none. Evaluated as rows arrive,
     /// because the rows it exists for are the ones the ring loses between
     /// two reads.
@@ -452,6 +457,7 @@ impl Book {
             dropped: 0,
             opened_ms: now,
             read_ms: now,
+            read_seq: 0,
             watch: Vec::new(),
             retained: VecDeque::new(),
             retained_dropped: 0,
@@ -471,6 +477,15 @@ struct ContractState {
     last_quote: Option<StreamData>,
     prints: VecDeque<Print>,
     prints_dropped: u64,
+    /// Prints received as of the last `tape_prints`, the same cursor a
+    /// book keeps.
+    prints_read: u64,
+    /// Position, counted from the first print ever, before which no print
+    /// takes another quote. Quotes seen while the quote book was away, or
+    /// after it came back, belong to an interval the correlation did not
+    /// observe; sealing what was open when the book went keeps a print
+    /// from before the gap from claiming them.
+    unsealed_from: u64,
     /// The vendor's own bar for this contract, as last sent. The feed sends
     /// one ahead of each trade; it is stored and served as is, never built,
     /// extended or reconciled here.
@@ -482,11 +497,33 @@ impl ContractState {
     fn open(&mut self, kind: SubscriptionKind, now: u64) -> (&mut Book, bool) {
         let pos = self.books.iter().position(|(k, _)| *k == kind);
         let first = pos.is_none();
-        let i = pos.unwrap_or_else(|| {
+        if first {
             self.books.push((kind, Book::open(now)));
-            self.books.len() - 1
-        });
+        }
+        let i = pos.unwrap_or(self.books.len() - 1);
         (&mut self.books[i].1, first)
+    }
+
+    /// Drop the books `gone` names, and close the print correlation while
+    /// the quote book is not among those left. The sweep runs this on every
+    /// call, so the call that reopens the quote book has sealed everything
+    /// from before the reopening first.
+    fn close(&mut self, mut gone: impl FnMut(SubscriptionKind, &Book) -> bool) {
+        self.books.retain(|(k, b)| !gone(*k, b));
+        if !self
+            .books
+            .iter()
+            .any(|(k, _)| *k == SubscriptionKind::Quote)
+        {
+            self.seal();
+        }
+    }
+
+    /// Every print held so far is complete as it stands, and no quote is
+    /// waiting to go before the next trade.
+    fn seal(&mut self) {
+        self.unsealed_from = self.prints_dropped + self.prints.len() as u64;
+        self.last_quote = None;
     }
 }
 
@@ -499,6 +536,8 @@ struct Market {
     dropped: u64,
     opened_ms: u64,
     read_ms: u64,
+    /// Prints received as of the last read; see [`Book::read_seq`].
+    read_seq: u64,
     /// The quote most recently sent on the stream. The vendor sends a
     /// contract's last NBBO and bar just before its trade, so the trade
     /// claims this when it is for the same contract and leaves it when
@@ -514,6 +553,7 @@ impl Market {
             dropped: 0,
             opened_ms: now,
             read_ms: now,
+            read_seq: 0,
             last_quote: None,
         }
     }
@@ -625,6 +665,25 @@ struct Summary {
 
 fn span(acc: Option<(f64, f64)>, v: f64) -> Option<(f64, f64)> {
     Some(acc.map_or((v, v), |(lo, hi)| (lo.min(v), hi.max(v))))
+}
+
+/// Whether a window is missing rows. Without a window, rows arrived since
+/// the last read that the ring no longer holds. With one, coverage starting
+/// after the floor — or on it while rows were discarded: rows discarded
+/// ahead of the oldest held may share its stamp, so a floor the oldest held
+/// row sits on is not proven covered.
+fn clipped(
+    window: Option<u64>,
+    new: u64,
+    held: usize,
+    dropped: u64,
+    covered_since_ms: u64,
+    floor: u64,
+) -> bool {
+    match window {
+        None => new > held as u64,
+        Some(_) => covered_since_ms > floor || (dropped > 0 && covered_since_ms == floor),
+    }
 }
 
 struct Prints {
@@ -777,12 +836,12 @@ impl Registry {
         let ttl = TTL.as_millis() as u64;
         let mut freed = Vec::new();
         held.contracts.retain(|contract, state| {
-            state.books.retain(|(kind, book)| {
-                let live = now.saturating_sub(book.read_ms) <= ttl;
-                if !live {
-                    freed.push(subscription(*kind, contract));
+            state.close(|kind, book| {
+                let dead = now.saturating_sub(book.read_ms) > ttl;
+                if dead {
+                    freed.push(subscription(kind, contract));
                 }
-                live
+                dead
             });
             !state.books.is_empty()
         });
@@ -841,26 +900,26 @@ impl Registry {
         let (book, first) = state.open(kind, now);
         let previous = book.read_ms;
         book.read_ms = now;
+        let new = book.received - book.read_seq;
+        book.read_seq = book.received;
         let floor = window.map_or(previous, |w| now.saturating_sub(w));
 
         let mut summary = Summary::default();
         let mut rows = Vec::new();
-        let mut new_since_last_read = 0;
         let mut oldest = None;
         let mut low: Option<(f64, &StreamData)> = None;
         let mut high: Option<(f64, &StreamData)> = None;
-        // Newest first, so the walk stops at whichever of the window and the
-        // previous read reaches further back and never touches the rest.
-        for d in book.ring.iter().rev() {
-            let seen = seen_ms(d);
-            if seen.is_some_and(|s| s < floor.min(previous)) {
+        // Newest first. Without a window the rows are the `new` newest;
+        // with one they are those stamped at or after the floor. Either set
+        // is a run from the back, so the walk stops at the first row outside
+        // it and never touches the rest.
+        for (i, d) in book.ring.iter().rev().enumerate() {
+            let inside = match window {
+                None => (i as u64) < new,
+                Some(_) => seen_ms(d).is_none_or(|s| s >= floor),
+            };
+            if !inside {
                 break;
-            }
-            if seen.is_none_or(|s| s >= previous) {
-                new_since_last_read += 1;
-            }
-            if seen.is_some_and(|s| s < floor) {
-                continue;
             }
             summary.count += 1;
             if summary.last.is_none() {
@@ -918,8 +977,15 @@ impl Registry {
             dropped,
             covered_since_ms,
             newest_ms,
-            clipped: covered_since_ms > floor,
-            new_since_last_read,
+            clipped: clipped(
+                window,
+                new,
+                book.ring.len(),
+                dropped,
+                covered_since_ms,
+                floor,
+            ),
+            new_since_last_read: new,
             summary,
             tail: rows,
             ohlcvc: state.ohlcvc.clone(),
@@ -944,9 +1010,7 @@ impl Registry {
         Self::without_market(&held, contract, SubscriptionKind::Trade)?;
         let state = held.contracts.entry(contract.clone()).or_default();
         let mut opened = Vec::new();
-        // Prints are read against the trade leg: its last read is what "new"
-        // means, and its opening is where coverage starts.
-        let mut previous = now;
+        // Coverage starts where the trade leg opened: a print is a trade.
         let mut opened_ms = now;
         for kind in [SubscriptionKind::Trade, SubscriptionKind::Quote] {
             let (book, first) = state.open(kind, now);
@@ -954,11 +1018,13 @@ impl Registry {
                 opened.push(kind);
             }
             if kind == SubscriptionKind::Trade {
-                previous = book.read_ms;
                 opened_ms = book.opened_ms;
             }
             book.read_ms = now;
         }
+        let received = state.prints_dropped + state.prints.len() as u64;
+        let new = received - state.prints_read;
+        state.prints_read = received;
         let mut rows: Vec<Print> = state.prints.iter().rev().take(count).cloned().collect();
         rows.reverse();
         let prints = Prints {
@@ -972,12 +1038,7 @@ impl Registry {
                 .filter(|_| state.prints_dropped > 0)
                 .unwrap_or(opened_ms),
             newest_ms: state.prints.back().and_then(|p| seen_ms(&p.trade)),
-            new_since_last_read: state
-                .prints
-                .iter()
-                .rev()
-                .take_while(|p| seen_ms(&p.trade).is_none_or(|s| s >= previous))
-                .count() as u64,
+            new_since_last_read: new,
             rows,
         };
         Ok((prints, expired))
@@ -1013,21 +1074,19 @@ impl Registry {
         let market = &mut held.markets[i].1;
         let previous = market.read_ms;
         market.read_ms = now;
+        let new = market.received - market.read_seq;
+        market.read_seq = market.received;
         let floor = window.map_or(previous, |w| now.saturating_sub(w));
 
-        let mut new_since_last_read = 0;
         let mut in_window = 0;
         let mut picked: Vec<(Option<f64>, &Print)> = Vec::new();
-        for p in market.ring.iter().rev() {
-            let seen = seen_ms(&p.trade);
-            if seen.is_some_and(|s| s < floor.min(previous)) {
+        for (i, p) in market.ring.iter().rev().enumerate() {
+            let inside = match window {
+                None => (i as u64) < new,
+                Some(_) => seen_ms(&p.trade).is_none_or(|s| s >= floor),
+            };
+            if !inside {
                 break;
-            }
-            if seen.is_none_or(|s| s >= previous) {
-                new_since_last_read += 1;
-            }
-            if seen.is_some_and(|s| s < floor) {
-                continue;
             }
             in_window += 1;
             if q.selects(p) {
@@ -1067,8 +1126,15 @@ impl Registry {
             dropped: market.dropped,
             covered_since_ms,
             newest_ms: market.ring.back().and_then(|p| seen_ms(&p.trade)),
-            clipped: covered_since_ms > floor,
-            new_since_last_read,
+            clipped: clipped(
+                window,
+                new,
+                market.ring.len(),
+                market.dropped,
+                covered_since_ms,
+                floor,
+            ),
+            new_since_last_read: new,
             in_window,
             matched,
             rows,
@@ -1103,7 +1169,7 @@ impl Registry {
         match shape(sub) {
             Some(Shape::Contract(contract, kind)) => {
                 if let Some(state) = held.contracts.get_mut(contract) {
-                    state.books.retain(|(k, _)| *k != kind);
+                    state.close(|k, _| k == kind);
                     if state.books.is_empty() {
                         held.contracts.remove(contract);
                     }
@@ -1243,13 +1309,16 @@ impl Registry {
 
         match &data {
             StreamData::Quote { .. } => {
-                // Every print still short of its two quotes takes this one.
-                // Filling only the newest starves an earlier print whenever a
-                // second trade arrives before the first one's quotes do, which
-                // on a liquid contract is most of them.
+                // Every unsealed print still short of its two quotes takes
+                // this one. Filling only the newest starves an earlier print
+                // whenever a second trade arrives before the first one's
+                // quotes do, which on a liquid contract is most of them.
+                // `unsealed_from` never exceeds the prints received, so the
+                // range is within the deque.
+                let unsealed = state.unsealed_from.saturating_sub(state.prints_dropped) as usize;
                 for open in state
                     .prints
-                    .iter_mut()
+                    .range_mut(unsealed..)
                     .rev()
                     .take_while(|p| p.quotes_after.len() < 2)
                 {
@@ -1715,9 +1784,38 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<(), ToolE
         })
         .map_err(|e| stream_error("could not start streaming", e))?;
     let (per_contract, full) = reg.subscriptions();
-    stream
-        .restore_subscriptions(&per_contract, &full)
-        .map_err(|e| stream_error("could not reopen every subscription", e))
+    match stream.restore_subscriptions(&per_contract, &full) {
+        Ok(()) => Ok(()),
+        // The session is up and reads as Connected from here on, so nothing
+        // later would notice a book the restore left behind. Release those
+        // now and say which: the next read of each opens it afresh.
+        Err(Error::PartialReconnect { failed }) => Err(ToolError::ServerError(format!(
+            "the feed session restarted and could not reopen {}; released, and reading each \
+             again re-subscribes",
+            release_unrestored(reg, &failed).join(", ")
+        ))),
+        Err(e) => Err(stream_error("could not restart the feed session", e)),
+    }
+}
+
+/// Drop the books whose subscriptions a restore could not reopen, and name
+/// them. A full-stream failure comes back under the SDK's marker contract,
+/// an empty symbol carrying only the security type.
+fn release_unrestored(reg: &Registry, failed: &[(SubscriptionKind, Contract)]) -> Vec<String> {
+    failed
+        .iter()
+        .filter_map(|(kind, contract)| {
+            if contract.symbol.is_empty() {
+                full_subscription(*kind, contract.sec_type)
+            } else {
+                Some(subscription(*kind, contract))
+            }
+        })
+        .map(|sub| {
+            reg.forget(&sub);
+            label(&sub)
+        })
+        .collect()
 }
 
 /// Everything the feed carries, in the SDK's own accounting: the one record
@@ -1866,12 +1964,12 @@ fn close_expired(client: &Client, reg: &Registry, expired: Subs, now: u64) {
     }
 }
 
-/// Open on the feed what a read just opened in the registry, rolling the
-/// book back if the feed refuses.
+/// Open on the feed what a read just opened in the registry, rolling back
+/// what did not get there if the feed refuses.
 fn open_on_feed(client: &Client, reg: &Registry, subs: &[Subscription]) -> Result<(), ToolError> {
-    for sub in subs {
+    for (i, sub) in subs.iter().enumerate() {
         if let Err(e) = client.stream().subscribe(sub.clone()) {
-            reg.forget(sub);
+            roll_back(reg, subs, i);
             return Err(stream_error(
                 &format!("could not subscribe {}", label(sub)),
                 e,
@@ -1879,6 +1977,15 @@ fn open_on_feed(client: &Client, reg: &Registry, subs: &[Subscription]) -> Resul
         }
     }
     Ok(())
+}
+
+/// Drop the book whose subscribe failed and every one after it that was
+/// never attempted. A book left recorded but never subscribed would look
+/// held to the next call, which would skip subscribing it and read nothing.
+fn roll_back(reg: &Registry, subs: &[Subscription], failed_at: usize) {
+    for sub in &subs[failed_at..] {
+        reg.forget(sub);
+    }
 }
 
 /// Close subscriptions on the feed, dropping each book only once the feed
@@ -2348,6 +2455,211 @@ mod tests {
     }
 
     #[test]
+    fn a_row_is_new_exactly_once_whatever_its_stamp_says() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
+
+        // Stamped the same millisecond as the read that takes it: a clock
+        // cursor with `>=` would serve it again on the next read.
+        reg.ingest(trade(&c, 1.0, 100 * MS));
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 100);
+        assert_eq!((r.new_since_last_read, r.tail.len()), (1, 1));
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 101);
+        assert_eq!(
+            (r.new_since_last_read, r.tail.len()),
+            (0, 0),
+            "not counted twice"
+        );
+
+        // Decoded before a read, dispatched after it: the stamp is older
+        // than the cursor, and a clock cursor would never serve it.
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 200);
+        assert_eq!(r.new_since_last_read, 0);
+        reg.ingest(trade(&c, 2.0, 199 * MS));
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 201);
+        assert_eq!(
+            (
+                r.new_since_last_read,
+                r.tail.iter().map(price).collect::<Vec<_>>()
+            ),
+            (1, vec![2.0]),
+            "not lost"
+        );
+
+        // The same cursor on prints and on the market.
+        prints(&reg, &c, 10, 300);
+        reg.ingest(trade(&c, 3.0, 300 * MS));
+        assert_eq!(prints(&reg, &c, 10, 300).0.new_since_last_read, 1);
+        assert_eq!(prints(&reg, &c, 10, 301).0.new_since_last_read, 0);
+        let call = option("550", "C");
+        reg.market(SecType::Option, &query(10), None, 400)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&call, 1.0, 400 * MS));
+        let (m, _) = reg
+            .market(SecType::Option, &query(10), None, 400)
+            .expect("nothing to refuse");
+        assert_eq!((m.new_since_last_read, m.in_window), (1, 1));
+        let (m, _) = reg
+            .market(SecType::Option, &query(10), None, 401)
+            .expect("nothing to refuse");
+        assert_eq!((m.new_since_last_read, m.in_window), (0, 0));
+    }
+
+    #[test]
+    fn a_window_whose_oldest_held_row_sits_on_the_floor_is_not_proven_complete() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
+        // One more row than the ring holds, all stamped the same second.
+        for i in 0..=RING {
+            reg.ingest(trade(&c, i as f64, 1_000 * MS));
+        }
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, Some(1_000), TAIL, 2_000);
+        assert_eq!((r.dropped, r.covered_since_ms), (1, 1_000));
+        assert!(
+            r.clipped,
+            "the discarded row may share the oldest held row's stamp, so the window is not whole"
+        );
+        // Without a window, rows that arrived since the last read and fell
+        // off before being served are the loss.
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 2_001);
+        assert!(!r.clipped, "nothing new, nothing lost");
+        for i in 0..=RING {
+            reg.ingest(trade(&c, i as f64, 3_000 * MS));
+        }
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 3_001);
+        assert_eq!(r.new_since_last_read, RING as u64 + 1);
+        assert_eq!(r.summary.count, RING as u64, "the ring holds one fewer");
+        assert!(r.clipped, "one new row was gone before this read");
+
+        // The market book answers the same way.
+        let call = option("550", "C");
+        reg.market(SecType::Option, &query(1), None, 0)
+            .expect("nothing to refuse");
+        for _ in 0..=MARKET_RING {
+            reg.ingest(trade(&call, 1.0, 1_000 * MS));
+        }
+        let (m, _) = reg
+            .market(SecType::Option, &query(1), Some(1_000), 2_000)
+            .expect("nothing to refuse");
+        assert!(m.clipped && m.dropped == 1);
+    }
+
+    #[test]
+    fn a_quote_leg_that_went_away_closes_the_prints_it_left_open() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        prints(&reg, &c, 10, 0);
+        reg.ingest(quote(&c, 1.00, 1.10));
+        reg.ingest(trade(&c, 1.05, 0));
+
+        // The quote leg expires while trades keep arriving and the trade
+        // leg keeps being read.
+        read(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            TTL.as_millis() as u64,
+        );
+        let (_, expired) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, PAST_TTL);
+        assert_eq!(expired, vec![c.quote()]);
+        reg.ingest(trade(&c, 1.06, PAST_TTL * MS));
+
+        // It comes back, and quotes flow again.
+        let (p, _) = prints(&reg, &c, 10, PAST_TTL + 1);
+        assert_eq!(p.opened, vec![SubscriptionKind::Quote]);
+        reg.ingest(quote(&c, 2.00, 2.10));
+        reg.ingest(quote(&c, 2.01, 2.11));
+        reg.ingest(quote(&c, 2.02, 2.12));
+        reg.ingest(trade(&c, 2.05, (PAST_TTL + 2) * MS));
+        reg.ingest(quote(&c, 2.03, 2.13));
+        reg.ingest(quote(&c, 2.04, 2.14));
+
+        let (p, _) = prints(&reg, &c, 10, PAST_TTL + 3);
+        let bid = |q: &StreamData| field_of(q, "bid");
+        assert_eq!(p.rows.len(), 3);
+        assert_eq!(
+            p.rows[0].quote_before.as_ref().and_then(bid),
+            Some(1.00),
+            "the print before the gap keeps the quote it had"
+        );
+        assert!(
+            p.rows[0].quotes_after.is_empty(),
+            "but takes none from after the gap"
+        );
+        assert!(
+            p.rows[1].quote_before.is_none(),
+            "a print during the gap has no quote before it: the last one seen was stale"
+        );
+        assert!(p.rows[1].quotes_after.is_empty());
+        assert_eq!(
+            p.rows[2].quote_before.as_ref().and_then(bid),
+            Some(2.02),
+            "a print after the leg came back correlates as usual"
+        );
+        assert_eq!(
+            p.rows[2].quotes_after.iter().map(bid).collect::<Vec<_>>(),
+            vec![Some(2.03), Some(2.04)]
+        );
+    }
+
+    #[test]
+    fn a_leg_never_attempted_is_rolled_back_with_the_one_that_failed() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let legs = [c.trade(), c.quote()];
+        prints(&reg, &c, 10, 0);
+
+        // The first leg fails synchronously: the second was never sent.
+        roll_back(&reg, &legs, 0);
+        let (p, _) = prints(&reg, &c, 10, 1);
+        assert_eq!(
+            p.opened,
+            vec![SubscriptionKind::Trade, SubscriptionKind::Quote],
+            "both legs are opened again, so both are subscribed"
+        );
+
+        // The second leg fails: the first is on the feed and stays.
+        roll_back(&reg, &legs, 1);
+        let (p, _) = prints(&reg, &c, 10, 2);
+        assert_eq!(p.opened, vec![SubscriptionKind::Quote]);
+    }
+
+    #[test]
+    fn subscriptions_the_restore_could_not_reopen_are_released() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
+        read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
+        reg.market(SecType::Option, &query(1), None, 0)
+            .expect("nothing to refuse");
+
+        let released = release_unrestored(
+            &reg,
+            &[
+                (SubscriptionKind::Trade, c.clone()),
+                (
+                    SubscriptionKind::Trade,
+                    Contract::full_type_marker(SecType::Option),
+                ),
+            ],
+        );
+        assert_eq!(released, vec!["trade AAPL STOCK", "full_trades OPTION"]);
+        assert_eq!(
+            reg.held_for(&c, 1).0,
+            vec![c.quote()],
+            "the leg that restored is kept; the one that did not is gone"
+        );
+        assert!(
+            !reg.market_held(SecType::Option),
+            "a full-stream failure arrives as the marker contract and releases the market book"
+        );
+    }
+
+    #[test]
     fn the_summary_tags_each_trade_extreme_with_its_condition_and_counts_by_code() {
         let reg = Registry::default();
         let c = stock("AAPL");
@@ -2531,8 +2843,9 @@ mod tests {
             "so coverage starts at the oldest print held"
         );
         assert_eq!(
-            p.new_since_last_read, PRINTS as u64,
-            "every held print arrived after the read at 1000"
+            p.new_since_last_read,
+            PRINTS as u64 + 3,
+            "every print arrived after the read at 1000, the three discarded included"
         );
         assert_eq!(
             p.rows.last().map(|p| price(&p.trade)),
