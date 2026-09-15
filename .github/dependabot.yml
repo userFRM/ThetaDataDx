@@ -8,6 +8,13 @@ updates:
     groups:
       patch-minor:
         update-types: ["patch", "minor"]
+    # sonic-rs 0.5.9 and 0.5.10 do not compile: both import `parse_float32`
+    # and `parse_number_unchecked` from `sonic_number`, and no published
+    # version of that crate exports either. Held at 0.5.8 until a release
+    # builds again; a later version is not blocked by this.
+    ignore:
+      - dependency-name: "sonic-rs"
+        versions: ["0.5.9", "0.5.10"]
 
   - package-ecosystem: "npm"
     directory: "/thetadatadx-ts"
