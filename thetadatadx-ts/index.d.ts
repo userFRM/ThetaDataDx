@@ -1,5 +1,6 @@
 /* auto-generated — do not edit by hand */
 /* eslint-disable */
+
 export declare class Client {
   /**
    * Market-data sub-namespace: `client.marketData.stockHistoryEOD(...)`.
@@ -4567,7 +4568,7 @@ export declare const enum Interval {
   M10 = '10m',
   M15 = '15m',
   M30 = '30m',
-  H1 = '1h'
+  H1 = '1h',
 }
 
 /** Implied volatility tick. */
@@ -6365,7 +6366,7 @@ export declare const enum RateType {
   TreasuryY7 = 'treasury_y7',
   TreasuryY10 = 'treasury_y10',
   TreasuryY20 = 'treasury_y20',
-  TreasuryY30 = 'treasury_y30'
+  TreasuryY30 = 'treasury_y30',
 }
 
 /**
@@ -6425,7 +6426,7 @@ export declare const enum RequestType {
   Trade = 'trade',
   Quote = 'quote',
   Eod = 'eod',
-  Ohlc = 'ohlc'
+  Ohlc = 'ohlc',
 }
 
 /** Streaming server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt. */
@@ -6437,7 +6438,7 @@ export interface Restart {
 export declare const enum Right {
   Call = 'call',
   Put = 'put',
-  Both = 'both'
+  Both = 'both',
 }
 
 /** Streaming server-error message (wire code 11). */
@@ -7535,13 +7536,13 @@ export interface UnknownFrame {
 /** Wire string enum `Venue`. */
 export declare const enum Venue {
   Nqb = 'nqb',
-  UtpCta = 'utp_cta'
+  UtpCta = 'utp_cta',
 }
 
 /** Wire string enum `Version`. */
 export declare const enum Version {
   Latest = 'latest',
-  V1 = '1'
+  V1 = '1',
 }
 
 // `Contract` is the public name for the fluent contract builder; it
