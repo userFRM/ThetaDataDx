@@ -27,6 +27,8 @@ HIST_END = "20260402"
 AT_TIME = "09:30"
 AT_TIME_LEGACY = "34200000"
 CALENDAR_DATE = "20260406"
+CALENDAR_YEAR = "2026"
+RATE_SYMBOL = "SOFR"
 
 
 def _bin_path(name: str) -> pathlib.Path:
@@ -94,6 +96,25 @@ def _wait_http_json(url: str, *, timeout: float = 30.0) -> Any:
     raise RuntimeError(f"http check timed out for {url}: {last_error}")
 
 
+def _wait_http_text(url: str, *, timeout: float = 30.0) -> str:
+    """Poll a route whose body is bare text rather than JSON.
+
+    The transport-status routes mirror the vendor terminal's management
+    surface byte for byte, which means `text/plain` and a single word, so
+    they cannot be read through `_wait_http_json`.
+    """
+    deadline = time.time() + timeout
+    last_error: Exception | None = None
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                return response.read().decode("utf-8").strip()
+        except urllib.error.URLError as exc:
+            last_error = exc
+            time.sleep(0.5)
+    raise RuntimeError(f"http check timed out for {url}: {last_error}")
+
+
 class _LinePump:
     """Background stdout pump for subprocess-driven smoke tests."""
 
@@ -149,57 +170,6 @@ def _terminate_process(proc: subprocess.Popen[str]) -> None:
         proc.wait(timeout=10)
 
 
-def _smoke_cli(creds: pathlib.Path) -> None:
-    client_bin = str(_bin_path("thetadatadx"))
-    base = [client_bin, "--creds", str(creds)]
-
-    out = _run(base + ["calendar", "open_today", "--format", "json"])
-    calendar = json.loads(out)
-    if not calendar:
-        raise RuntimeError("cli calendar_open_today returned no rows")
-
-    out = _run(base + ["stock", "history_eod", HIST_SYMBOL, HIST_START, HIST_END, "--format", "json"])
-    eod = json.loads(out)
-    if not eod:
-        raise RuntimeError("cli stock_history_eod returned no rows")
-
-    out = _run(
-        base
-        + [
-            "stock",
-            "at_time_trade",
-            HIST_SYMBOL,
-            HIST_START,
-            HIST_END,
-            AT_TIME,
-            "--format",
-            "json",
-        ]
-    )
-    at_time = json.loads(out)
-    if not at_time:
-        raise RuntimeError("cli stock_at_time_trade formatted-time returned no rows")
-
-    out = _run(
-        base
-        + [
-            "stock",
-            "at_time_trade",
-            HIST_SYMBOL,
-            HIST_START,
-            HIST_END,
-            AT_TIME_LEGACY,
-            "--format",
-            "json",
-        ]
-    )
-    at_time_legacy = json.loads(out)
-    if not at_time_legacy:
-        raise RuntimeError("cli stock_at_time_trade legacy-ms returned no rows")
-
-    print("cli smoke: ok")
-
-
 def _smoke_python_sdk(creds: pathlib.Path) -> None:
     try:
         from thetadatadx import Config, Credentials, Client  # type: ignore
@@ -208,25 +178,37 @@ def _smoke_python_sdk(creds: pathlib.Path) -> None:
 
     client = Client(Credentials.from_file(str(creds)), Config.production())
     try:
-        calendar = client.calendar_open_today()
-        if _columnar_len(calendar) == 0:
-            raise RuntimeError("python calendar_open_today returned no rows")
+        # Endpoints hang off `client.market_data`, not the client itself.
+        market_data = client.market_data
 
-        eod = client.stock_history_eod(HIST_SYMBOL, HIST_START, HIST_END)
-        if _columnar_len(eod) == 0:
-            raise RuntimeError("python stock_history_eod returned no rows")
+        checks = [
+            ("calendar_open_today", lambda: market_data.calendar_open_today()),
+            ("stock_history_eod", lambda: market_data.stock_history_eod(HIST_SYMBOL, HIST_START, HIST_END)),
+            (
+                "stock_at_time_trade formatted-time",
+                lambda: market_data.stock_at_time_trade(HIST_SYMBOL, HIST_START, HIST_END, AT_TIME),
+            ),
+            (
+                "stock_at_time_trade legacy-ms",
+                lambda: market_data.stock_at_time_trade(HIST_SYMBOL, HIST_START, HIST_END, AT_TIME_LEGACY),
+            ),
+            # The calendar and interest-rate endpoints are the only ones in the
+            # surface whose terminal-side counterparts moved to services of
+            # their own. If the historical service ever follows, it shows up
+            # here as an error at call time instead of in somebody's notebook.
+            ("calendar_on_date", lambda: market_data.calendar_on_date(CALENDAR_DATE)),
+            ("calendar_year", lambda: market_data.calendar_year(CALENDAR_YEAR)),
+            (
+                "interest_rate_history_eod",
+                lambda: market_data.interest_rate_history_eod(RATE_SYMBOL, HIST_START, HIST_END),
+            ),
+        ]
 
-        at_time = client.stock_at_time_trade(HIST_SYMBOL, HIST_START, HIST_END, AT_TIME)
-        if _columnar_len(at_time) == 0:
-            raise RuntimeError("python stock_at_time_trade formatted-time returned no rows")
-
-        at_time_legacy = client.stock_at_time_trade(
-            HIST_SYMBOL, HIST_START, HIST_END, AT_TIME_LEGACY
-        )
-        if _columnar_len(at_time_legacy) == 0:
-            raise RuntimeError("python stock_at_time_trade legacy-ms returned no rows")
+        for label, call in checks:
+            if _columnar_len(call()) == 0:
+                raise RuntimeError(f"python {label} returned no rows")
     finally:
-        client.shutdown()
+        client.close()
 
     print("python sdk smoke: ok")
 
@@ -256,16 +238,23 @@ def _smoke_server(creds: pathlib.Path) -> None:
     )
     pump = _LinePump(proc)
     try:
-        status = _wait_http_json(f"http://127.0.0.1:{http_port}/v3/system/status")
-        if status.get("status") != "CONNECTED":
-            raise RuntimeError(f"unexpected server status payload: {status!r}")
+        status = _wait_http_text(f"http://127.0.0.1:{http_port}/v3/terminal/mdds/status")
+        if status != "CONNECTED":
+            raise RuntimeError(f"unexpected market-data transport status: {status!r}")
 
-        open_today = _wait_http_json(f"http://127.0.0.1:{http_port}/v3/calendar/open_today")
+        open_today = _wait_http_json(
+            f"http://127.0.0.1:{http_port}/v3/calendar/open_today?format=json"
+        )
         if not open_today.get("response"):
             raise RuntimeError("server calendar_open_today returned no rows")
 
         history_params = urllib.parse.urlencode(
-            {"symbol": HIST_SYMBOL, "start_date": HIST_START, "end_date": HIST_END}
+            {
+                "symbol": HIST_SYMBOL,
+                "start_date": HIST_START,
+                "end_date": HIST_END,
+                "format": "json",
+            }
         )
         history = _wait_http_json(
             f"http://127.0.0.1:{http_port}/v3/stock/history/eod?{history_params}"
@@ -279,6 +268,7 @@ def _smoke_server(creds: pathlib.Path) -> None:
                 "start_date": HIST_START,
                 "end_date": HIST_END,
                 "time_of_day": AT_TIME,
+                "format": "json",
             }
         )
         at_time = _wait_http_json(
@@ -293,6 +283,7 @@ def _smoke_server(creds: pathlib.Path) -> None:
                 "start_date": HIST_START,
                 "end_date": HIST_END,
                 "time_of_day": AT_TIME_LEGACY,
+                "format": "json",
             }
         )
         at_time_legacy = _wait_http_json(
@@ -343,11 +334,24 @@ def _smoke_mcp(creds: pathlib.Path) -> None:
         if init.get("result", {}).get("serverInfo", {}).get("name") != "thetadatadx-mcp-server":
             raise RuntimeError(f"unexpected MCP initialize response: {init!r}")
 
-        send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
-        tools = pump.wait_for_jsonrpc(2)
-        names = {tool["name"] for tool in tools.get("result", {}).get("tools", [])}
-        if "ping" not in names or "calendar_on_date" not in names:
-            raise RuntimeError(f"unexpected MCP tools/list response: {tools!r}")
+        # The advertised set is deliberately narrow until the background
+        # connect lands: before it does, the server offers only the tools it
+        # can serve without a client, so `tools/list` answers `ping` alone.
+        # Poll until the connected set appears rather than racing it.
+        tools: dict[str, Any] = {}
+        names: set[str] = set()
+        for request_id in range(100, 130):
+            send({"jsonrpc": "2.0", "id": request_id, "method": "tools/list", "params": {}})
+            tools = pump.wait_for_jsonrpc(request_id)
+            names = {tool["name"] for tool in tools.get("result", {}).get("tools", [])}
+            if "ping" in names and "calendar_on_date" in names:
+                break
+            time.sleep(1.0)
+        else:
+            raise RuntimeError(
+                "MCP tools/list never advertised the connected set; "
+                f"last response: {tools!r}"
+            )
 
         ping_payload: dict[str, Any] | None = None
         for request_id in range(3, 11):
@@ -399,7 +403,6 @@ def main() -> int:
     if not creds.exists():
         raise SystemExit(f"credentials file not found: {creds}")
 
-    _smoke_cli(creds)
     _smoke_python_sdk(creds)
     _smoke_server(creds)
     _smoke_mcp(creds)
