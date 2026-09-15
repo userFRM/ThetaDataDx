@@ -33,7 +33,7 @@ use std::time::Duration;
 /// 2^attempt))`. Full jitter provably minimises retry-storm contention
 /// relative to no jitter; see
 /// <https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/>
-/// and [`crate::backoff`] for the shared sampler.
+/// for the rationale.
 ///
 /// With `jitter = false` the delay is the deterministic backoff
 /// `min(max_delay, initial * 2^attempt)`. Useful for tests that

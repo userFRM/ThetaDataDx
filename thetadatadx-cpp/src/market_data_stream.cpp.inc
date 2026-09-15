@@ -4,11 +4,19 @@ void MarketData::stock_history_eod_stream(const std::string& symbol, const std::
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: stock_history_eod_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const EodTick>(static_cast<const EodTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_history_eod_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_stock_history_eod_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -18,11 +26,19 @@ void MarketData::stock_history_ohlc_stream(const std::string& symbol, std::funct
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: stock_history_ohlc_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const OhlcTick>(static_cast<const OhlcTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_history_ohlc_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_stock_history_ohlc_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -32,11 +48,19 @@ void MarketData::stock_history_trade_stream(const std::string& symbol, std::func
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: stock_history_trade_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeTick>(static_cast<const TradeTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_history_trade_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_stock_history_trade_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -46,11 +70,19 @@ void MarketData::stock_history_quote_stream(const std::string& symbol, std::func
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: stock_history_quote_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const QuoteTick>(static_cast<const QuoteTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_history_quote_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_stock_history_quote_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -60,11 +92,19 @@ void MarketData::stock_history_trade_quote_stream(const std::string& symbol, std
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: stock_history_trade_quote_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeQuoteTick>(static_cast<const TradeQuoteTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_history_trade_quote_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_stock_history_trade_quote_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -74,11 +114,19 @@ void MarketData::stock_at_time_trade_stream(const std::string& symbol, const std
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: stock_at_time_trade_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeTick>(static_cast<const TradeTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_at_time_trade_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_stock_at_time_trade_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -88,11 +136,19 @@ void MarketData::stock_at_time_quote_stream(const std::string& symbol, const std
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: stock_at_time_quote_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const QuoteTick>(static_cast<const QuoteTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_stock_at_time_quote_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_stock_at_time_quote_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -102,11 +158,19 @@ void MarketData::option_history_eod_stream(const std::string& symbol, const std:
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_eod_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const EodTick>(static_cast<const EodTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_eod_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_eod_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -116,11 +180,19 @@ void MarketData::option_history_ohlc_stream(const std::string& symbol, const std
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_ohlc_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const OhlcTick>(static_cast<const OhlcTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_ohlc_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_ohlc_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -130,11 +202,19 @@ void MarketData::option_history_trade_stream(const std::string& symbol, const st
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_trade_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeTick>(static_cast<const TradeTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_trade_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_trade_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -144,11 +224,19 @@ void MarketData::option_history_quote_stream(const std::string& symbol, const st
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_quote_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const QuoteTick>(static_cast<const QuoteTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_quote_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_quote_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -158,11 +246,19 @@ void MarketData::option_history_trade_quote_stream(const std::string& symbol, co
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_trade_quote_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeQuoteTick>(static_cast<const TradeQuoteTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_trade_quote_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_trade_quote_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -172,11 +268,19 @@ void MarketData::option_history_open_interest_stream(const std::string& symbol, 
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_open_interest_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const OpenInterestTick>(static_cast<const OpenInterestTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_open_interest_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_open_interest_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -186,11 +290,19 @@ void MarketData::option_history_greeks_eod_stream(const std::string& symbol, con
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_greeks_eod_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksEodTick>(static_cast<const GreeksEodTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_greeks_eod_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_greeks_eod_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -200,11 +312,19 @@ void MarketData::option_history_greeks_all_stream(const std::string& symbol, con
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_greeks_all_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksAllTick>(static_cast<const GreeksAllTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -214,11 +334,19 @@ void MarketData::option_history_trade_greeks_all_stream(const std::string& symbo
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_trade_greeks_all_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksAllTick>(static_cast<const TradeGreeksAllTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_trade_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_trade_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -228,11 +356,19 @@ void MarketData::option_history_greeks_first_order_stream(const std::string& sym
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_greeks_first_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksFirstOrderTick>(static_cast<const GreeksFirstOrderTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -242,11 +378,19 @@ void MarketData::option_history_trade_greeks_first_order_stream(const std::strin
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_trade_greeks_first_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksFirstOrderTick>(static_cast<const TradeGreeksFirstOrderTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_trade_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_trade_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -256,11 +400,19 @@ void MarketData::option_history_greeks_second_order_stream(const std::string& sy
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_greeks_second_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksSecondOrderTick>(static_cast<const GreeksSecondOrderTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -270,11 +422,19 @@ void MarketData::option_history_trade_greeks_second_order_stream(const std::stri
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_trade_greeks_second_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksSecondOrderTick>(static_cast<const TradeGreeksSecondOrderTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_trade_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_trade_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -284,11 +444,19 @@ void MarketData::option_history_greeks_third_order_stream(const std::string& sym
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_greeks_third_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const GreeksThirdOrderTick>(static_cast<const GreeksThirdOrderTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -298,11 +466,19 @@ void MarketData::option_history_trade_greeks_third_order_stream(const std::strin
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_trade_greeks_third_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksThirdOrderTick>(static_cast<const TradeGreeksThirdOrderTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_trade_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_trade_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -312,11 +488,19 @@ void MarketData::option_history_greeks_implied_volatility_stream(const std::stri
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_greeks_implied_volatility_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const IvTick>(static_cast<const IvTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -326,11 +510,19 @@ void MarketData::option_history_trade_greeks_implied_volatility_stream(const std
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_trade_greeks_implied_volatility_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeGreeksImpliedVolatilityTick>(static_cast<const TradeGreeksImpliedVolatilityTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_history_trade_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_trade_greeks_implied_volatility_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -340,11 +532,19 @@ void MarketData::option_at_time_trade_stream(const std::string& symbol, const st
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_at_time_trade_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const TradeTick>(static_cast<const TradeTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_at_time_trade_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_at_time_trade_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -354,11 +554,19 @@ void MarketData::option_at_time_quote_stream(const std::string& symbol, const st
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_at_time_quote_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const QuoteTick>(static_cast<const QuoteTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_option_at_time_quote_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_at_time_quote_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -368,11 +576,19 @@ void MarketData::index_history_eod_stream(const std::string& symbol, const std::
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: index_history_eod_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const EodTick>(static_cast<const EodTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_index_history_eod_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_index_history_eod_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -382,11 +598,19 @@ void MarketData::index_history_ohlc_stream(const std::string& symbol, const std:
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: index_history_ohlc_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const OhlcTick>(static_cast<const OhlcTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_index_history_ohlc_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_index_history_ohlc_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -396,11 +620,19 @@ void MarketData::index_history_price_stream(const std::string& symbol, std::func
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: index_history_price_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const PriceTick>(static_cast<const PriceTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_index_history_price_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_index_history_price_stream(hist, symbol.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -410,11 +642,19 @@ void MarketData::index_at_time_price_stream(const std::string& symbol, const std
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: index_at_time_price_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const IndexPriceAtTimeTick>(static_cast<const IndexPriceAtTimeTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_index_at_time_price_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_index_at_time_price_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), time_of_day.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }
@@ -424,11 +664,19 @@ void MarketData::interest_rate_history_eod_stream(const std::string& symbol, con
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    std::function<void(const void*, std::size_t)> erased =
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: interest_rate_history_eod_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
         [&handler](const void* rows, std::size_t len) {
             handler(Span<const InterestRateTick>(static_cast<const InterestRateTick*>(rows), len));
-        };
-    int32_t rc = thetadatadx_interest_rate_history_eod_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_interest_rate_history_eod_stream(hist, symbol.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
     if (rc != 0) {
         detail::throw_last_ffi_error();
     }

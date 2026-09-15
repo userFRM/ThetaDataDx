@@ -391,6 +391,11 @@ impl MarketDataClient {
         HFut: Future<Output = ()> + Send,
     {
         let mut decode_error: Option<Error> = None;
+        // Marks the user handler await below as this client's delivery
+        // scope, so a same-client request awaited inside the handler
+        // fails fast instead of waiting on permits this pull holds (see
+        // `acquire_request_permit`).
+        let sem_addr = std::sync::Arc::as_ptr(&self.request_semaphore) as usize;
         let drain_result = self
             .for_each_chunk_async_control(stream, |headers, rows| {
                 // Synchronous section: parse the chunk. The handler runs
@@ -431,7 +436,7 @@ impl MarketDataClient {
                         // before running the handler, keeping peak memory
                         // at one chunk per stream.
                         drop(ticks);
-                        user_fut.await;
+                        super::client::in_delivery_scope(sem_addr, user_fut).await;
                     }
                     if stop_stream {
                         ControlFlow::Break(())
@@ -469,6 +474,8 @@ impl MarketDataClient {
         HFut: Future<Output = ()> + Send,
     {
         let mut decode_error: Option<Error> = None;
+        // Same delivery-scope marker as `deliver_chunk_slices_async`.
+        let sem_addr = std::sync::Arc::as_ptr(&self.request_semaphore) as usize;
         let drain_result = self
             .for_each_chunk_async_control(stream, |headers, rows| {
                 let mut stop_stream = decode_error.is_some();
@@ -499,7 +506,7 @@ impl MarketDataClient {
                         if delivered_nonempty {
                             delivered.store(true, std::sync::atomic::Ordering::Relaxed);
                         }
-                        user_fut.await;
+                        super::client::in_delivery_scope(sem_addr, user_fut).await;
                     }
                     if stop_stream {
                         ControlFlow::Break(())
@@ -602,7 +609,11 @@ pub(crate) async fn collect_stream_table(
 ///
 /// Runs inside a shard's `run_unary_retry_loop` attempt closure; all
 /// accumulation state is local to one call, so a replayed attempt
-/// starts from an empty band.
+/// starts from an empty band. `produced` is the band's cross-attempt
+/// row flag (the buffered twin of the streaming `delivered` guard),
+/// set as soon as any chunk parses to rows: on an error the
+/// attempt-local rows are discarded, and the flag is what lets
+/// `join_shards` refuse to fold a rows-then-`NotFound` band to empty.
 ///
 /// # Errors
 ///
@@ -611,6 +622,7 @@ pub(crate) async fn collect_stream_table(
 pub(crate) async fn collect_stream_typed<T, E, P>(
     mut stream: ServerStreaming<proto::ResponseData>,
     parser: P,
+    produced: &std::sync::atomic::AtomicBool,
 ) -> Result<super::shard::TypedBand<T>, Error>
 where
     P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
@@ -629,6 +641,9 @@ where
         }
         let table = decode_chunk(response, max_message_size)?;
         collect.fold_chunk(table, &parser)?;
+        if !collect.rows.is_empty() {
+            produced.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
     }
     Ok(collect.into_band())
 }
@@ -722,39 +737,6 @@ impl<T> TypedCollect<T> {
             root: self.root,
         }
     }
-}
-
-/// Drain a response stream chunk-at-a-time, handing each decoded chunk —
-/// with the first chunk's headers backfilled onto headers-only chunks —
-/// to `f`. Peak memory stays bounded by one chunk. Used by the bulk-fetch
-/// density probe, whose fold only ever needs one chunk of bars at a time.
-///
-/// # Errors
-///
-/// Propagates decode / decompress / header-drift errors and whatever `f`
-/// returns.
-pub(crate) async fn fold_stream_chunks<F>(
-    mut stream: ServerStreaming<proto::ResponseData>,
-    mut f: F,
-) -> Result<(), Error>
-where
-    F: FnMut(&proto::DataTable) -> Result<(), Error>,
-{
-    let mut saved_headers: Option<Vec<String>> = None;
-    let mut chunk_index: usize = 0;
-    let max_message_size = stream.max_message_size();
-    while let Some(response) = stream.next().await {
-        let mut table =
-            decode_chunk_checked(response?, max_message_size, &mut saved_headers, chunk_index)?;
-        if table.headers.is_empty() {
-            if let Some(h) = saved_headers.as_ref() {
-                table.headers.clone_from(h);
-            }
-        }
-        f(&table)?;
-        chunk_index += 1;
-    }
-    Ok(())
 }
 
 /// Decode one streamed `ResponseData` and apply the first-chunk header

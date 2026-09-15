@@ -27,6 +27,41 @@ use crate::FlatFiles;
 /// Version string sent in `QueryInfo.terminal_version`.
 const TERMINAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+tokio::task_local! {
+    /// Request-semaphore addresses of EVERY streaming delivery handler
+    /// the current task is executing, innermost last — scoped by
+    /// [`in_delivery_scope`] around every user handler await
+    /// (`deliver_chunk_slices_async` / `deliver_chunk_ticks_async` in
+    /// [`super::stream`]).
+    ///
+    /// Same-client requests issued inside a handler's scope must not
+    /// block on that client's request pool — the pull whose handler is
+    /// running holds its permits until the handler returns, so the wait
+    /// can never end. [`MarketDataClient::acquire_request_permit`]
+    /// tests membership here to fail such an acquire fast, and
+    /// `auto_plan` reads it to keep a handler-issued pull off the
+    /// fan-out path. A set rather than a single slot because handler
+    /// scopes NEST across clients (client A's handler awaits a stream
+    /// on client B, whose handler calls back into A): the inner scope
+    /// must not eclipse the outer client's guard.
+    pub(crate) static DELIVERY_HANDLER_SEMAPHORES: Vec<usize>;
+}
+
+/// Run `fut` inside `sem_addr`'s delivery-handler scope while
+/// RETAINING every enclosing handler scope, so a nested cross-client
+/// handler keeps the outer client's reentrancy guard armed. The inner
+/// scope unwinds when `fut` resolves, restoring the enclosing set.
+pub(crate) async fn in_delivery_scope<F: std::future::Future>(
+    sem_addr: usize,
+    fut: F,
+) -> F::Output {
+    let mut addrs = DELIVERY_HANDLER_SEMAPHORES
+        .try_with(Vec::clone)
+        .unwrap_or_default();
+    addrs.push(sem_addr);
+    DELIVERY_HANDLER_SEMAPHORES.scope(addrs, fut).await
+}
+
 /// MDDS client for `ThetaData` server access.
 ///
 /// Connects to MDDS (gRPC, historical data) without requiring the JVM
@@ -71,9 +106,12 @@ pub struct MarketDataClient {
     client_type: String,
     /// Semaphore limiting concurrent in-flight gRPC requests.
     ///
-    /// The JVM terminal limits concurrent requests to `2^subscription_tier`
-    /// (Free=1, Value=2, Standard=4, Pro=8). This semaphore enforces the same
-    /// bound to prevent server-side rate limiting / 429 disconnects.
+    /// Sized like the channel pool: `market_data.max_concurrent_requests`
+    /// when set, else the account's tier allowance from the auth
+    /// response (see `effective_pool_size`). The server enforces the
+    /// account's real concurrent-request allowance; a client that fires
+    /// past it sees `ResourceExhausted`, which the retry shell backs off
+    /// and replays.
     pub(crate) request_semaphore: Arc<tokio::sync::Semaphore>,
     /// Per-asset subscription tiers captured from the Nexus auth response.
     /// `None` for asset classes the auth response omits or for unknown
@@ -145,7 +183,7 @@ impl MarketDataClient {
         let port = config.market_data.port;
         tracing::debug!(host = %host, port, tls = config.market_data.tls, "connecting to MDDS");
 
-        let pool_size = effective_pool_size(&auth_resp);
+        let pool_size = effective_pool_size(&config, &auth_resp);
         let channels =
             open_channel_pool(&host, port, config.market_data.tls, pool_size, &config).await?;
         tracing::info!(
@@ -161,9 +199,9 @@ impl MarketDataClient {
         // The request semaphore must match the resolved channel pool
         // size so the (N+1)-th in-flight RPC can never claim a permit
         // before there's a channel free to carry it. `pool_size`
-        // already reflects the tier-derived resolution from
-        // `effective_pool_size`; reusing it keeps the semaphore and
-        // the channel count strictly coupled.
+        // already reflects the override-or-tier-default resolution from
+        // `effective_pool_size`; reusing it keeps the semaphore and the
+        // channel count strictly coupled.
         let request_semaphore = Arc::new(tokio::sync::Semaphore::new(pool_size));
 
         tracing::debug!(pool_size, "request semaphore initialized");
@@ -273,8 +311,59 @@ impl MarketDataClient {
             // Template with an empty UUID; each attempt stamps the UUID
             // from its own session snapshot.
             self.build_query_info(String::new()),
-            self.channels.size(),
         )
+    }
+
+    /// Size of the gRPC channel pool — the configured
+    /// `max_concurrent_requests` budget, which caps how wide a
+    /// bulk-fetch shard plan may fan out.
+    pub(crate) fn pool_size(&self) -> usize {
+        self.channels.size()
+    }
+
+    /// Whether the current task is inside one of THIS client's streaming
+    /// delivery handlers (the async chunk deliverers scope
+    /// [`DELIVERY_HANDLER_SEMAPHORES`] around every user handler await).
+    /// Keyed on the request semaphore's address so a handler driving a
+    /// different client is not confused with re-entry into this one;
+    /// membership across ALL active scopes, so this client's guard stays
+    /// armed while a nested handler on another client is executing.
+    pub(crate) fn in_delivery_handler(&self) -> bool {
+        let addr = Arc::as_ptr(&self.request_semaphore) as usize;
+        DELIVERY_HANDLER_SEMAPHORES
+            .try_with(|addrs| addrs.contains(&addr))
+            .unwrap_or(false)
+    }
+
+    /// One tier permit for a top-level request.
+    ///
+    /// A request awaited inline from inside this client's own streaming
+    /// delivery handler must never WAIT here: the active pull holds its
+    /// permit(s) until the handler returns, and its sibling bands queue
+    /// on the handler lock while holding theirs, so a full pool can
+    /// only refill after the handler completes — waiting is a cycle
+    /// that never resolves. Inside a handler the acquire is therefore
+    /// non-blocking: a free permit (the pool has headroom, e.g.
+    /// `shard_concurrency` below the pool size) is taken and the call
+    /// proceeds as normal; an exhausted pool fails fast with
+    /// [`Error::HandlerReentrancy`] instead of deadlocking the stream.
+    /// Outside a handler this is the plain semaphore wait.
+    pub(crate) async fn acquire_request_permit(
+        &self,
+    ) -> Result<tokio::sync::SemaphorePermit<'_>, Error> {
+        if self.in_delivery_handler() {
+            return match self.request_semaphore.try_acquire() {
+                Ok(permit) => Ok(permit),
+                Err(tokio::sync::TryAcquireError::NoPermits) => Err(Error::HandlerReentrancy),
+                Err(tokio::sync::TryAcquireError::Closed) => {
+                    Err(Error::config_internal("request semaphore closed"))
+                }
+            };
+        }
+        self.request_semaphore
+            .acquire()
+            .await
+            .map_err(|_| Error::config_internal("request semaphore closed"))
     }
 
     /// Deterministically tear the market-data client down.
@@ -534,30 +623,34 @@ impl MarketDataClient {
     }
 }
 
-/// Channel-pool sizing — resolved purely from the subscription tier.
+/// Channel-pool sizing — configured override, else the tier default.
 ///
-/// The server enforces a hard per-tier cap on concurrent in-flight
-/// gRPC requests (Free=1 / Value=2 / Standard=4 / Pro=8). The SDK
-/// sizes the channel pool to exactly that cap so the live pool always
-/// stays inside the server-side ceiling — there is no caller-supplied
-/// concurrency knob to over-provision and trip per-RPC
-/// `ResourceExhausted` rejections.
+/// - `max_concurrent_requests = Some(n)` uses `n` verbatim. There is no
+///   client-side cap: the server enforces the account's real allowance,
+///   so an account boosted above its base tier (e.g. 32 concurrent)
+///   sets 32 and actually runs 32 wide. A pool sized past the allowance
+///   is safe — the excess requests surface as `ResourceExhausted`,
+///   which the retry shell backs off and replays.
+/// - `None` (the default) sizes the pool to the account's subscription
+///   tier from the auth response — the tier's base allowance (Free 1 /
+///   Value 2 / Standard 4 / Pro 8).
+/// - No tier on the auth response either (anonymous channel, dev
+///   harness) → `DEFAULT_POOL_SIZE`.
 ///
-/// # Resolution
-///
-/// 1. tier resolved from the auth response → that tier's cap.
-/// 2. no tier on the auth response (anonymous channel, dev harness)
-///    → `DEFAULT_POOL_SIZE`.
-fn effective_pool_size(auth_resp: &crate::auth::nexus::AuthResponse) -> usize {
+/// The `.max(1)` floor re-applies `DirectConfig::validate`'s guarantee
+/// so a hand-built config that skipped `validate` can never produce an
+/// empty pool (`ChannelPool::from_channels` panics on zero channels).
+fn effective_pool_size(
+    config: &DirectConfig,
+    auth_resp: &crate::auth::nexus::AuthResponse,
+) -> usize {
     const DEFAULT_POOL_SIZE: usize = 4;
-    let from_tier = auth_resp
-        .user
-        .as_ref()
-        .map_or(0, crate::auth::nexus::AuthUser::max_concurrent_requests);
-    if from_tier > 0 {
-        from_tier
-    } else {
-        DEFAULT_POOL_SIZE
+    match config.market_data.max_concurrent_requests {
+        Some(n) => usize::try_from(n.max(1)).unwrap_or(usize::MAX),
+        None => auth_resp.user.as_ref().map_or(
+            DEFAULT_POOL_SIZE,
+            crate::auth::nexus::AuthUser::max_concurrent_requests,
+        ),
     }
 }
 
@@ -710,15 +803,63 @@ fn build_rustls_config() -> Result<Arc<rustls::ClientConfig>, Error> {
 }
 
 #[cfg(test)]
+mod delivery_scope_tests {
+    use super::{in_delivery_scope, DELIVERY_HANDLER_SEMAPHORES};
+
+    fn member(addr: usize) -> bool {
+        DELIVERY_HANDLER_SEMAPHORES
+            .try_with(|addrs| addrs.contains(&addr))
+            .unwrap_or(false)
+    }
+
+    #[tokio::test]
+    async fn nested_delivery_scopes_retain_the_outer_scope() {
+        // Handler scopes nest across clients (client A's handler drives
+        // a stream on client B, whose handler calls back into A). The
+        // inner scope must ADD to the membership set, not eclipse the
+        // outer client's guard — and must unwind cleanly.
+        let a = 0x1000usize;
+        let b = 0x2000usize;
+        assert!(!member(a) && !member(b), "no scope armed outside");
+        in_delivery_scope(a, async {
+            assert!(member(a));
+            assert!(!member(b));
+            in_delivery_scope(b, async {
+                assert!(
+                    member(a),
+                    "the outer client's scope must stay armed inside the inner"
+                );
+                assert!(member(b));
+            })
+            .await;
+            assert!(member(a), "outer scope survives the inner unwind");
+            assert!(!member(b), "inner scope must unwind");
+        })
+        .await;
+        assert!(!member(a), "outermost scope must unwind");
+    }
+}
+
+#[cfg(test)]
 mod pool_size_tests {
     use super::effective_pool_size;
     use crate::auth::nexus::AuthResponse;
     #[cfg(feature = "__internal")]
     use crate::auth::nexus::AuthUser;
+    use crate::config::DirectConfig;
+
+    /// An auth response with no user (anonymous channel, dev harness).
+    fn auth_without_user() -> AuthResponse {
+        AuthResponse {
+            session_id: "session".to_string(),
+            user: None,
+            session_created: None,
+        }
+    }
 
     /// Build an AuthResponse whose user reports the given subscription
     /// wire byte. `AuthUser::max_concurrent_requests` maps that into
-    /// the per-tier cap (`2^tier`).
+    /// the tier's base allowance (`2^tier`).
     #[cfg(feature = "__internal")]
     fn auth_with_tier(stock_sub: Option<i32>) -> AuthResponse {
         AuthResponse {
@@ -736,25 +877,54 @@ mod pool_size_tests {
 
     #[cfg(feature = "__internal")]
     #[test]
-    fn pool_size_tracks_tier_cap() {
-        // The pool is sized to exactly the tier cap: Free=1, Value=2,
-        // Standard=4, Pro=8 (subscription wire bytes 0..=3).
+    fn pool_size_defaults_to_tier_allowance() {
+        // `max_concurrent_requests = None` (the default) sizes the pool
+        // to the tier's base allowance: Free=1, Value=2, Standard=4,
+        // Pro=8 (subscription wire bytes 0..=3).
+        let config = DirectConfig::production_defaults();
         for (sub_byte, expected) in [(0, 1), (1, 2), (2, 4), (3, 8)] {
             let auth = auth_with_tier(Some(sub_byte));
-            assert_eq!(effective_pool_size(&auth), expected);
+            assert_eq!(effective_pool_size(&config, &auth), expected);
         }
+    }
+
+    #[cfg(feature = "__internal")]
+    #[test]
+    fn pool_size_override_beats_tier_default() {
+        // An explicit value wins over the tier in both directions: a
+        // Value account (tier default 2) configured to 32 runs 32 wide.
+        let mut config = DirectConfig::production_defaults();
+        config.market_data.max_concurrent_requests = Some(32);
+        let auth = auth_with_tier(Some(1));
+        assert_eq!(effective_pool_size(&config, &auth), 32);
+    }
+
+    #[test]
+    fn pool_size_tracks_configured_value_past_old_tier_ceiling() {
+        // The pool follows an explicit `max_concurrent_requests` with no
+        // client-side ceiling: a server-boosted account (e.g. 32
+        // concurrent, above the `2^tier` Pro allowance of 8) gets the
+        // full configured width.
+        let mut config = DirectConfig::production_defaults();
+        config.market_data.max_concurrent_requests = Some(32);
+        assert_eq!(effective_pool_size(&config, &auth_without_user()), 32);
     }
 
     #[test]
     fn pool_size_falls_back_to_default_when_no_tier() {
-        // No auth user (anonymous channel, dev harness) — the
-        // hardcoded `4` is the last resort.
-        let auth = AuthResponse {
-            session_id: "session".to_string(),
-            user: None,
-            session_created: None,
-        };
-        assert_eq!(effective_pool_size(&auth), 4);
+        // No override and no auth user (anonymous channel, dev harness)
+        // — the hardcoded `4` is the last resort.
+        let config = DirectConfig::production_defaults();
+        assert_eq!(effective_pool_size(&config, &auth_without_user()), 4);
+    }
+
+    #[test]
+    fn pool_size_floors_zero_to_one() {
+        // A hand-built config that skipped `validate` must still never
+        // produce an empty channel pool.
+        let mut config = DirectConfig::production_defaults();
+        config.market_data.max_concurrent_requests = Some(0);
+        assert_eq!(effective_pool_size(&config, &auth_without_user()), 1);
     }
 }
 

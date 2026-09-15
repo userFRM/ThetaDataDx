@@ -943,15 +943,15 @@ ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc_projected(const
  *  entry points for the same handle. */
 typedef struct ThetaDataDxRecordBatchStream ThetaDataDxRecordBatchStream;
 
-/** Backpressure: lossless block (applies backpressure to the wire). */
+/** Backpressure: block — the reader backpressures with no queue-side drops, though a sustained reader stall can still overflow the upstream event ring. */
 #define THETADATADX_BACKPRESSURE_BLOCK 0
 /** Backpressure: bounded buffer, drop the oldest batch on overflow (counted
  *  by thetadatadx_record_batch_stream_dropped). */
 #define THETADATADX_BACKPRESSURE_DROP_OLDEST 1
 
 /** Open a pull-based Arrow RecordBatch reader over the unified client's
- *  stream — a sibling to thetadatadx_client_set_callback. Subscribe first on
- *  the same surface, then open. Starts the streaming session.
+ *  stream — a sibling to thetadatadx_client_set_callback. Open first — this
+ *  starts the streaming session — then subscribe on the same surface.
  *  @param handle Client from thetadatadx_client_connect.
  *  @param batch_size Rows per batch (0 clamped to 1).
  *  @param linger_ms Partial-batch flush deadline in ms (quiet-stream flush).
@@ -2083,20 +2083,24 @@ void thetadatadx_config_set_market_data_connection_window_size_kb(ThetaDataDxCon
 int32_t thetadatadx_config_get_market_data_connection_window_size_kb(const ThetaDataDxConfig* config, size_t* out_kb);
 
 /**
- * Set the automatic bulk-fetch sharding policy for buffered history pulls.
+ * Set the automatic bulk-fetch sharding policy for history pulls, covering
+ * both the buffered and the chunk-streaming call paths.
  *
- * Under Auto (the default) a large history pull is sized with a cheap
- * density probe and, when worthwhile, split into balanced disjoint
- * sub-requests across the account's concurrent-request budget, then merged
- * back into exactly the rows of the single-stream response: single-contract,
- * stock, and index pulls keep the exact single-stream row order, while
+ * Under Auto (the default) a large history pull's requested time or date
+ * range is split into equal concurrent bands across the account's
+ * concurrent-request budget, decided from the request shape alone (no
+ * sizing request is issued). Buffered pulls merge the shards back into
+ * exactly the rows of the single-stream response: single-contract, stock,
+ * and index pulls keep the exact single-stream row order, while
  * option-chain pulls come back in a deterministic canonical order
  * (expiration, strike, right ascending; calls before puts; time-ascending
- * within each contract). Small pulls and non-history endpoints are never
- * sharded.
+ * within each contract). Streaming pulls forward each band's chunks to the
+ * handler as they arrive: every chunk exactly once, but chunks from
+ * different bands interleave in arrival order rather than the single
+ * stream's order. Small pulls and non-history endpoints are never sharded.
  * @param config Config handle to mutate.
  * @param policy 0 = Auto (default), 1 = Off (single stream per query, in
- *               the server's own row order).
+ *               the server's own row and chunk order).
  * @return 0 on success, -1 when policy is outside {0, 1} or config is null
  *         (check thetadatadx_last_error()).
  */
@@ -2116,7 +2120,7 @@ int32_t thetadatadx_config_get_bulk_fetch(const ThetaDataDxConfig* config, int32
  * using the widened (has_value, n) shape.
  * @param config Config handle to mutate.
  * @param has_value false uses the account's full concurrent-request budget
- *                  (the tier-derived channel-pool size) and ignores n; true
+ *                  (the resolved channel-pool size) and ignores n; true
  *                  caps the fan-out at n. The applied value is clamped into
  *                  [1, pool_size] when a plan is built.
  * @param n The fan-out cap, honoured only when has_value is true.
@@ -2128,12 +2132,42 @@ int32_t thetadatadx_config_set_shard_concurrency(ThetaDataDxConfig* config, bool
  * Read the configured shard-concurrency cap, using the same widened
  * (has_value, n) shape.
  * @param config Config handle to read.
- * @param out_has_value Receives false when the full tier budget applies,
+ * @param out_has_value Receives false when the full pool budget applies,
  *                      true when an explicit cap is set.
  * @param out_n Receives the cap (0 when unset, the cap otherwise).
  * @return 0 on success, -1 if any pointer is null.
  */
 int32_t thetadatadx_config_get_shard_concurrency(const ThetaDataDxConfig* config, bool* out_has_value, uint32_t* out_n);
+
+/**
+ * Set the number of concurrent in-flight market-data requests (gRPC
+ * channel-pool + request-semaphore size, resolved at connect time), using
+ * the widened (has_value, n) shape.
+ * @param config Config handle to mutate.
+ * @param has_value false (the default) sizes the pool to the account's
+ *                  subscription tier from the auth response (Free 1 /
+ *                  Value 2 / Standard 4 / Pro 8) and ignores n; true uses
+ *                  n verbatim — no client-side cap, so a server-boosted
+ *                  account sets its boosted allowance. Requests past the
+ *                  server-enforced allowance are rejected upstream and
+ *                  retried with backoff.
+ * @param n The pool size, honoured only when has_value is true. An
+ *          explicit 0 is floored to 1 by validation.
+ * @return 0 on success, -1 if config is null.
+ */
+int32_t thetadatadx_config_set_max_concurrent_requests(ThetaDataDxConfig* config, bool has_value, uint32_t n);
+
+/**
+ * Read the current max_concurrent_requests setting, using the same widened
+ * (has_value, n) shape.
+ * @param config Config handle to read.
+ * @param out_has_value Receives false when the pool is sized to the
+ *                      account's subscription tier at connect time, true
+ *                      when an explicit pool size is set.
+ * @param out_n Receives the pool size (0 when unset, the size otherwise).
+ * @return 0 on success, -1 if any pointer is null.
+ */
+int32_t thetadatadx_config_get_max_concurrent_requests(const ThetaDataDxConfig* config, bool* out_has_value, uint32_t* out_n);
 
 /* ── MarketDataClient ── */
 
@@ -2183,6 +2217,12 @@ void thetadatadx_string_free(char* s);
  *
  *  `ctx` is the opaque pointer registered alongside the callback; it is passed
  *  back unchanged on every invocation.
+ *
+ *  The callback runs SERIALLY, but not necessarily on the thread that called
+ *  the `_stream` entry point: the library may invoke it from an internal
+ *  runtime worker while the calling thread blocks in the drain. Do not assume
+ *  the calling thread's thread-local / UI / COM affinity is available inside
+ *  the callback; marshal to the owning thread if you need it.
  *
  *  This callback must not unwind across the C ABI. A C++ throw or a C longjmp
  *  that escapes the callback into the calling frame is undefined behavior, the
@@ -2423,9 +2463,9 @@ typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, v
  *  ## Lifecycle contract (one-shot rule)
  *
  *  Must be called exactly ONCE per handle. After thetadatadx_streaming_shutdown() this
- *  handle is terminal: a second register, a register-after-shutdown, a
- *  reconnect-after-shutdown, or a double-shutdown all return -1 with a
- *  clear thetadatadx_last_error() string ("streaming callback already installed -- ..."
+ *  handle is terminal: a second register, a register-after-shutdown, or a
+ *  reconnect-after-shutdown all return -1 with a clear thetadatadx_last_error()
+ *  string ("streaming callback already installed -- ..."
  *  or "streaming handle has already been shut down -- this is terminal").
  *
  *  This is intentionally stricter than thetadatadx_client_set_callback(), where
@@ -2505,8 +2545,10 @@ char* thetadatadx_streaming_last_connected_addr(const ThetaDataDxStreamHandle* h
 uint64_t thetadatadx_streaming_panic_count(const ThetaDataDxStreamHandle* h);
 
 /** Shut down the streaming client. Terminal: every subsequent
- *  set_callback / reconnect / shutdown call on this handle returns -1
- *  with a clear thetadatadx_last_error() string. The handle remains valid for
+ *  set_callback / reconnect call on this handle returns -1 with a clear
+ *  thetadatadx_last_error() string. This function itself returns void, so a
+ *  repeated shutdown is a safe no-op that sets thetadatadx_last_error() but has
+ *  no return value to check. The handle remains valid for
  *  thetadatadx_streaming_free() only. Returns asynchronously: in-flight events
  *  continue draining through the registered callback until the shutdown
  *  signal is observed.
@@ -2535,6 +2577,12 @@ int thetadatadx_streaming_await_drain(const ThetaDataDxStreamHandle* h, uint64_t
  *  be firing, so user code must keep ctx valid past return. Under normal
  *  operation drain completes in low single-digit milliseconds, so ctx is
  *  safe to free immediately on return.
+ *  @warning Do NOT call this from inside the registered callback. The drain
+ *           barrier waits for the callback to return, so a self-call blocks for
+ *           the full 5-second timeout, then destroys the handle and resumes the
+ *           callback against freed state (use-after-free). Tear the handle down
+ *           from another thread: signal the callback to stop and free after it
+ *           returns, or free from the owning thread once streaming is done.
  *  @param h The streaming handle; no-op when NULL. Call exactly once. */
 void thetadatadx_streaming_free(ThetaDataDxStreamHandle* h);
 
@@ -2618,7 +2666,7 @@ typedef struct {
     const char* expiration;   /* per-contract option only */
     const char* strike;       /* per-contract option only */
     const char* right;        /* per-contract option only */
-    const char* sec_type;     /* full-stream only */
+    const char* sec_type;     /* full-stream; or STOCK/INDEX for a per-contract underlier (NULL or empty defaults to stock) */
 } ThetaDataDxSubscriptionRequest;
 
 /** Polymorphic subscribe on the unified client.
@@ -2772,6 +2820,12 @@ uint64_t thetadatadx_client_panic_count(const ThetaDataDxClient* handle);
  *  may still be firing, so user code must keep ctx valid past return. Under
  *  normal operation drain completes in low single-digit milliseconds, so ctx
  *  is safe to free immediately on return.
+ *  @warning Do NOT call this from inside the registered callback. The drain
+ *           barrier waits for the callback to return, so a self-call blocks for
+ *           the full 5-second timeout, then destroys the handle and resumes the
+ *           callback against freed state (use-after-free). Tear the handle down
+ *           from another thread: signal the callback to stop and free after it
+ *           returns, or free from the owning thread once streaming is done.
  *  @param handle The unified handle; no-op when NULL. Call exactly once. */
 void thetadatadx_client_free(ThetaDataDxClient* handle);
 

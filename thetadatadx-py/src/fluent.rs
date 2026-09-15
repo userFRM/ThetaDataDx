@@ -28,6 +28,8 @@ use pyo3::types::{PyDict, PyList};
 
 use thetadatadx::fpss::protocol::{self, FullSubscriptionKind, SecTypeExt as _, SubscriptionKind};
 
+use crate::coerce::PyStringArg;
+
 /// Mirror of the Rust `thetadatadx::SecType` value, exposed as
 /// a Python class with class-level constants so users can write
 /// `SecType.OPTION.full_trades()` without touching the Rust enum
@@ -139,13 +141,18 @@ impl PyContract {
     /// are equivalent).
     #[staticmethod]
     #[pyo3(signature = (symbol, *, expiration, strike, right))]
-    fn option(symbol: &str, expiration: &str, strike: StrikeArg, right: &str) -> PyResult<Self> {
+    fn option(
+        symbol: &str,
+        expiration: &str,
+        strike: StrikeArg,
+        right: PyStringArg,
+    ) -> PyResult<Self> {
         protocol::Contract::option(
             symbol,
             protocol::OptionLeg {
                 expiration,
                 strike: &strike.into_string(),
-                right,
+                right: right.as_str(),
             },
         )
         .map(Self::from_inner)

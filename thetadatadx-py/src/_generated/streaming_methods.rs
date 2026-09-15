@@ -44,6 +44,13 @@ impl StreamView {
     /// `PyErr::write_unraisable` (visible in `sys.stderr` and
     /// the unraisable hook); each one bumps `panic_count()`.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
+        // Reject a non-callable up front: otherwise the dispatcher fails on
+        // the first event, off the calling thread, as an unraisable TypeError.
+        if !callback.bind(py).is_callable() {
+            return Err(crate::errors::invalid_parameter_err(
+                "start_streaming callback must be callable",
+            ));
+        }
         // Bind the callable behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `Py<PyAny>` itself is
@@ -202,12 +209,13 @@ impl StreamView {
     /// values under a fixed schema. The reader is both a
     /// synchronous `Iterable` (the blocking pull releases the GIL)
     /// and an `AsyncIterable` (`async for`), and a sync / async
-    /// context manager that closes the stream on exit. Subscribe on
-    /// this same surface first, then open the reader.
+    /// context manager that closes the stream on exit. Open the
+    /// reader first (that starts the session), then subscribe on
+    /// this same surface.
     ///
     /// `batch_size` rows per batch (default 65536); `linger_ms`
     /// flushes a partial batch on a quiet stream (default 50);
-    /// `backpressure` is `"block"` (default, lossless) or
+    /// `backpressure` is `"block"` (default; no queue-side drops) or
     /// `"drop_oldest"`; `capacity` bounds the drop-oldest buffer.
     #[pyo3(signature = (*, batch_size=None, linger_ms=None, backpressure=None, capacity=None))]
     fn batches(

@@ -188,12 +188,12 @@ impl StreamView {
     /// but market-data events arrive as apache-arrow `RecordBatch`
     /// values under a fixed schema, consumed with `for await`. The
     /// reader closes (unsubscribes + tears down) on `close()` or
-    /// `Symbol.asyncDispose`. Subscribe on this same surface first,
-    /// then open the reader.
+    /// `Symbol.asyncDispose`. Open the reader first (that starts the
+    /// session), then subscribe on this same surface.
     ///
     /// `batchSize` rows per batch (default 65536); `lingerMs`
     /// flushes a partial batch on a quiet stream (default 50);
-    /// `backpressure` is `"block"` (default, lossless) or
+    /// `backpressure` is `"block"` (default; no queue-side drops) or
     /// `"dropOldest"`; `capacity` bounds the drop-oldest buffer.
     #[napi(js_name = "batches", skip_typescript)]
     pub async fn batches(&self, options: Option<crate::streaming_batches::BatchesOptions>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {

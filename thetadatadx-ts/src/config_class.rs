@@ -19,11 +19,19 @@ pub struct ReconnectDecisionArgs {
 /// `false` for a negative (sign bit set) or an over-`u64` magnitude, so this
 /// rejects both rather than passing a wrapped/truncated value.
 pub(crate) fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<u64> {
-    let (_signed, value, lossless) = v.get_u64();
+    let (signed, value, lossless) = v.get_u64();
     if !lossless {
-        return Err(napi::Error::from_reason(format!(
-            "{name}: BigInt magnitude must fit in u64",
-        )));
+        // A value with no u64 representation is a domain overflow, not a
+        // rejected parameter: Python raises the built-in OverflowError here, so
+        // this stays a plain Error rather than inventing a typed class the
+        // parity binding does not raise. The message still names the cause,
+        // since `-1n` fits in magnitude but not in sign.
+        let detail = if signed {
+            "a negative value has no unsigned 64-bit representation"
+        } else {
+            "the value exceeds the unsigned 64-bit maximum"
+        };
+        return Err(napi::Error::from_reason(format!("{name}: {detail}")));
     }
     Ok(value)
 }
@@ -156,9 +164,11 @@ impl Config {
 
     /// Install a custom reconnect policy driven by a JS callback.
     ///
-    /// `callback(reason: number, attempt: number)` is invoked (on the
-    /// Node main thread, queued from the streaming I/O thread) after
-    /// each retriable involuntary disconnect. Return the reconnect
+    /// The callback is invoked with a single `{ reason, attempt }` object (a
+    /// [`ReconnectDecisionArgs`]) on the Node main thread, queued from the
+    /// streaming I/O thread, after each retriable involuntary disconnect.
+    /// Read `args.reason` / `args.attempt` — the arguments are NOT positional.
+    /// Return the reconnect
     /// delay in milliseconds, or `null` to stop reconnecting (the
     /// stream then emits the terminal `ReconnectsExhausted` event).
     /// Permanent disconnect reasons (bad credentials, account

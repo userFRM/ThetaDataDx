@@ -622,7 +622,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     let mut out = String::new();
 
     // Only shardable history endpoints can fan out (see `endpoint_can_fan_out`).
-    let fan_out = if super::endpoint_can_fan_out(&endpoint.name) {
+    let fan_out = if super::endpoint_can_fan_out(endpoint) {
         " Under `bulkFetch = \"auto\"` a large history pull may fan out \
          across concurrent sub-requests: every chunk is still delivered exactly \
          once, but chunks from different sub-requests interleave in arrival order \
@@ -842,7 +842,10 @@ fn ts_napi_arg_type(param: &super::super::model::GeneratedParam) -> &'static str
     if param.param_type == "Symbols" {
         "Either<String, Vec<String>>"
     } else if matches!(param.param_type.as_str(), "Date" | "Expiration") || is_time_arg(param) {
-        "Either<String, chrono::DateTime<chrono::Utc>>"
+        // Wire-format strings only. A JS `Date` is an instant, not a calendar
+        // day; converting it forced a UTC rendering that shifted the requested
+        // day in non-UTC zones.
+        "String"
     } else {
         "String"
     }
@@ -867,6 +870,21 @@ fn napi_field_camel(snake: &str) -> String {
         }
     }
     out
+}
+
+fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'static str {
+    match param.param_type.as_str() {
+        // `Int` filters ride in as a JS `number` (f64) and are validated +
+        // narrowed to `i32` in the method body via `validate_optional_nonneg_i32`,
+        // rather than typed `i32` here where V8's `ToInt32` would silently
+        // wrap a hostile or oversized input instead of rejecting it.
+        "Int" => "Option<f64>",
+        "Float" => "Option<f64>",
+        "Bool" => "Option<bool>",
+        "Date" | "Expiration" => "Option<String>",
+        _ if is_time_arg(param) => "Option<String>",
+        _ => "Option<String>",
+    }
 }
 
 #[cfg(test)]
@@ -934,27 +952,30 @@ mod tests {
 
     #[test]
     fn stream_doc_keeps_fan_out_note_for_shardable_history_endpoint() {
+        // The predicate is model-derived (same as the runtime shardable
+        // set): a `history*` endpoint carrying the intraday window.
         let mut ep = stock_history_eod_endpoint();
         ep.name = "stock_history_trade".to_string();
+        ep.params.push(method_param("start_time", "Time"));
+        ep.params.push(method_param("end_time", "Time"));
         let rendered = render_typescript_endpoint_stream_method(&ep);
         assert!(
             rendered.contains("may fan out"),
             "shardable history stream must keep the fan-out note"
         );
     }
-}
 
-fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
-        // `Int` filters ride in as a JS `number` (f64) and are validated +
-        // narrowed to `i32` in the method body via `validate_optional_nonneg_i32`,
-        // rather than typed `i32` here where V8's `ToInt32` would silently
-        // wrap a hostile or oversized input instead of rejecting it.
-        "Int" => "Option<f64>",
-        "Float" => "Option<f64>",
-        "Bool" => "Option<bool>",
-        "Date" | "Expiration" => "Option<Either<String, chrono::DateTime<chrono::Utc>>>",
-        _ if is_time_arg(param) => "Option<Either<String, chrono::DateTime<chrono::Utc>>>",
-        _ => "Option<String>",
+    #[test]
+    fn stream_doc_keeps_fan_out_note_for_at_time_endpoint() {
+        // The at_time families band their date range, so their stream
+        // docs must carry the same interleaving caveat.
+        let mut ep = stock_history_eod_endpoint();
+        ep.name = "stock_at_time_trade".to_string();
+        ep.subcategory = "at_time".to_string();
+        let rendered = render_typescript_endpoint_stream_method(&ep);
+        assert!(
+            rendered.contains("may fan out"),
+            "at_time stream must carry the fan-out note"
+        );
     }
 }

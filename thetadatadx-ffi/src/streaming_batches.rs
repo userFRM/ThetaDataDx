@@ -51,8 +51,9 @@ use crate::types::ThetaDataDxArrowBytes;
 
 /// Backpressure policy selector for [`thetadatadx_client_batches_open`].
 ///
-/// Mirrors `thetadatadx::streaming::Backpressure`. `BLOCK` is lossless and
-/// applies backpressure to the wire; `DROP_OLDEST` keeps a bounded buffer
+/// Mirrors `thetadatadx::streaming::Backpressure`. `BLOCK` backpressures the
+/// reader with no queue-side drops (a sustained stall can still overflow the
+/// upstream event ring); `DROP_OLDEST` keeps a bounded buffer
 /// and drops the oldest batch on overflow, counted by
 /// [`thetadatadx_record_batch_stream_dropped`].
 pub const THETADATADX_BACKPRESSURE_BLOCK: i32 = 0;
@@ -78,8 +79,8 @@ pub struct ThetaDataDxRecordBatchStream {
 /// stream.
 ///
 /// Subscriptions are managed on the same surface as the callback path
-/// (`thetadatadx_client_*` subscribe entry points); subscribe first, then
-/// open the reader. Starts the FPSS session, so this is an alternative to
+/// (`thetadatadx_client_*` subscribe entry points). Open the reader first —
+/// that starts the FPSS session — then subscribe. This is an alternative to
 /// `thetadatadx_client_set_callback`, not a concurrent consumer.
 ///
 /// `batch_size` rows per batch (`0` is clamped to 1). `linger_ms` is the

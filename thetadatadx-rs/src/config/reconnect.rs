@@ -262,7 +262,7 @@ pub struct ReconnectConfig {
     pub wait_server_restart_ms: u64,
 
     /// Jitter strategy applied to every computed reconnect delay.
-    /// Default [`JitterMode::Full`]. See [`crate::backoff`] for the
+    /// Default [`JitterMode::Full`]. See [`JitterMode`] for the
     /// mode semantics; [`JitterMode::None`] restores deterministic
     /// delays for tests.
     pub jitter: JitterMode,

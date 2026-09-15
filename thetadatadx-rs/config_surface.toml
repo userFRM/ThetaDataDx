@@ -523,7 +523,7 @@ ts_doc = """
 Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect.
 """
 py_param = "secs"
-ts_param = "ms"
+ts_param = "secs"
 
 [[accessor]]
 symbol = "thetadatadx_config_get_streaming_keepalive_idle_secs"
@@ -568,7 +568,7 @@ ts_doc = """
 Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect.
 """
 py_param = "secs"
-ts_param = "ms"
+ts_param = "secs"
 
 [[accessor]]
 symbol = "thetadatadx_config_get_streaming_keepalive_interval_secs"
@@ -1771,9 +1771,10 @@ doc = """
 Set the automatic bulk-fetch sharding policy for history pulls, covering
 both the buffered and the chunk-streaming call paths.
 
-- `policy = 0`: Auto (default) — large history pulls are sized with a
-  cheap density probe and, when worthwhile, split into balanced disjoint
-  sub-requests across the account's concurrent-request budget. Buffered
+- `policy = 0`: Auto (default) — a large history pull's requested time
+  or date range is split into equal concurrent bands across the
+  account's concurrent-request budget, decided from the request shape
+  alone (no sizing request is issued). Buffered
   pulls merge the shards back into exactly the rows of the single-stream
   response: single-contract, stock, and index pulls keep the exact
   single-stream row order, while option-chain pulls come back in a
@@ -1794,8 +1795,9 @@ out-of-domain enum int surfaces the same typed class across every binding.
 """
 cpp_doc = """
 Set the automatic bulk-fetch sharding policy for history pulls (buffered
-and chunk-streaming alike): 0=Auto (default; large pulls are split into
-balanced concurrent sub-requests — buffered pulls merge back into
+and chunk-streaming alike): 0=Auto (default; a large pull's requested
+time or date range is split into equal concurrent bands — buffered
+pulls merge back into
 exactly the single-stream rows, with option-chain pulls in a
 deterministic canonical contract order and every other pull in the
 exact single-stream row order; streaming pulls forward each band's
@@ -1808,9 +1810,10 @@ leaf the FFI error code selects.
 """
 py_doc = """
 Automatic bulk-fetch sharding policy for history pulls (buffered and
-chunk-streaming alike). Accepts ``"auto"`` (default: large history
-pulls are split into balanced concurrent sub-requests across the
-account's concurrent-request budget — buffered pulls are merged back
+chunk-streaming alike). Accepts ``"auto"`` (default: a large history
+pull's requested time or date range is split into equal concurrent
+bands across the account's concurrent-request budget — buffered
+pulls are merged back
 into exactly the rows of the single-stream response, single-contract,
 stock, and index pulls in the exact single-stream order and
 option-chain pulls in a deterministic canonical order grouped by
@@ -1822,9 +1825,10 @@ row and chunk order), case-insensitive.
 """
 ts_doc = """
 Automatic bulk-fetch sharding policy for history pulls (buffered and
-chunk-streaming alike). Accepts `"auto"` (default: large history pulls
-are split into balanced concurrent sub-requests across the account's
-concurrent-request budget — buffered pulls are merged back into exactly
+chunk-streaming alike). Accepts `"auto"` (default: a large history
+pull's requested time or date range is split into equal concurrent
+bands across the account's concurrent-request budget — buffered pulls
+are merged back into exactly
 the rows of the single-stream response, single-contract, stock, and
 index pulls in the exact single-stream order and option-chain pulls in
 a deterministic canonical order grouped by expiration, strike, and
@@ -1885,41 +1889,41 @@ doc = """
 Set the upper bound on concurrent sub-requests per sharded bulk fetch.
 
 * `has_value = false` encodes `None` (the default): a sharded pull uses
-  the account's full concurrent-request budget (the tier-derived
-  channel-pool size resolved at connect time). `n` is ignored.
+  the full concurrent-request budget (the channel-pool size resolved
+  from `max_concurrent_requests`). `n` is ignored.
 * `has_value = true` encodes `Some(n)`: a sharded pull spreads across at
   most `n` sub-requests. The applied value is clamped into
-  `[1, pool_size]` when a plan is built — the pool size is the
-  server-enforced tier ceiling — and validation floors an explicit `0`
-  to `1`.
+  `[1, pool_size]` when a plan is built — the pool size is resolved
+  from `max_concurrent_requests` — and validation floors an explicit
+  `0` to `1`.
 
 Returns `0` on success, `-1` if `config` is null.
 """
 cpp_doc = """
 Set the upper bound on concurrent sub-requests per sharded bulk fetch.
-Pass @c std::nullopt (the @c None default) to use the account's full
+Pass @c std::nullopt (the @c None default) to use the full
 concurrent-request budget; pass an explicit @c std::uint32_t to cap the
 fan-out. The applied value is clamped into `[1, pool_size]` when a plan
-is built (the pool size is the server-enforced tier ceiling).
+is built (the pool size is resolved from `max_concurrent_requests`).
 
 Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
 routing through the typed class the FFI error code selects.
 """
 py_doc = """
 Upper bound on concurrent sub-requests per sharded bulk fetch.
-``None`` (the default) uses the account's full concurrent-request
-budget (the tier-derived channel-pool size resolved at connect time);
-an ``int`` caps the fan-out. The applied value is clamped into
+``None`` (the default) uses the full concurrent-request budget (the
+channel-pool size resolved from ``max_concurrent_requests``); an
+``int`` caps the fan-out. The applied value is clamped into
 ``[1, pool_size]`` when a plan is built, and validation floors an
 explicit ``0`` to ``1``.
 """
 ts_doc = """
 Set the upper bound on concurrent sub-requests per sharded bulk fetch.
-Pass `null` or `undefined` (the default) to use the account's full
-concurrent-request budget (the tier-derived channel-pool size resolved
-at connect time); pass a `number` to cap the fan-out. The applied value
-is clamped into `[1, pool_size]` when a plan is built (the pool size is
-the server-enforced tier ceiling).
+Pass `null` or `undefined` (the default) to use the full
+concurrent-request budget (the channel-pool size resolved from
+`maxConcurrentRequests`); pass a `number` to cap the fan-out. The
+applied value is clamped into `[1, pool_size]` when a plan is built
+(the pool size is resolved from `maxConcurrentRequests`).
 """
 py_param = "n"
 ts_param = "n"
@@ -1933,7 +1937,7 @@ path = "market_data.shard_concurrency"
 doc = """
 Read the current `market_data.shard_concurrency` setting.
 
-* `*out_has_value = false` → the config holds `None` (full tier
+* `*out_has_value = false` → the config holds `None` (full pool
   budget). `*out_n` is left as `0`.
 * `*out_has_value = true` → the config holds `Some(*out_n)`.
 
@@ -1941,7 +1945,7 @@ Returns `0` on success, `-1` if any pointer is null.
 """
 cpp_doc = """
 Read the current @c market_data.shard_concurrency setting. Returns
-@c std::nullopt for the full-tier-budget sentinel; returns the wrapped
+@c std::nullopt for the full-pool-budget sentinel; returns the wrapped
 @c std::uint32_t when an explicit cap is set.
 
 Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
@@ -1949,13 +1953,112 @@ routing through the typed class the FFI error code selects.
 """
 py_doc = """
 Current ``shard_concurrency`` setting. ``None`` means a sharded pull
-uses the account's full concurrent-request budget; an ``int`` is the
+uses the full concurrent-request budget; an ``int`` is the
 configured cap.
 """
 ts_doc = """
 Current `shardConcurrency` setting. `null` means a sharded pull uses
-the account's full concurrent-request budget; a `number` is the
-configured cap.
+the full concurrent-request budget; a `number` is the configured cap.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_max_concurrent_requests"
+kind = "option"
+param = "n"
+abi_type = "u32"
+path = "market_data.max_concurrent_requests"
+doc = """
+Set the number of concurrent in-flight market-data requests: the size
+of the gRPC channel pool and of the request semaphore that admits
+requests onto it, resolved at connect time.
+
+* `has_value = false` encodes `None` (the default): the pool is sized
+  to the account's subscription tier from the auth response (Free 1 /
+  Value 2 / Standard 4 / Pro 8). `n` is ignored.
+* `has_value = true` encodes `Some(n)`: the pool is `n` verbatim, with
+  no client-side cap — the allowance is enforced server-side, so an
+  account boosted above its base tier sets the boosted value and runs
+  that wide. Requests past the server's allowance surface as
+  `ResourceExhausted` and are retried with backoff. Validation floors
+  an explicit `0` to `1`.
+
+Returns `0` on success, `-1` if `config` is null.
+"""
+cpp_doc = """
+Set the number of concurrent in-flight market-data requests (gRPC
+channel-pool + request-semaphore size, resolved at connect time). Pass
+@c std::nullopt (the @c None default) to size the pool to the account's
+subscription tier from the auth response (Free 1 / Value 2 / Standard 4
+/ Pro 8); pass an explicit @c std::uint32_t to use it verbatim — no
+client-side cap, so a server-boosted account sets its boosted
+allowance. Requests past the server-enforced allowance are rejected
+upstream and retried with backoff. Validation floors an explicit `0`
+to `1`.
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Number of concurrent in-flight market-data requests (gRPC channel-pool
++ request-semaphore size, resolved at connect time). ``None`` (the
+default) sizes the pool to the account's subscription tier from the
+auth response (Free 1 / Value 2 / Standard 4 / Pro 8); an ``int`` is
+used verbatim with no client-side cap — the allowance is enforced
+server-side, so a boosted account sets its boosted value. Requests
+past the allowance are retried with backoff. Validation floors an
+explicit ``0`` to ``1``.
+
+Examples
+--------
+    cfg = Config.production()
+    cfg.max_concurrent_requests = 32
+"""
+ts_doc = """
+Set the number of concurrent in-flight market-data requests (gRPC
+channel-pool + request-semaphore size, resolved at connect time). Pass
+`null` or `undefined` (the default) to size the pool to the account's
+subscription tier from the auth response (Free 1 / Value 2 / Standard 4
+/ Pro 8); pass a `number` to use it verbatim — no client-side cap, so
+a server-boosted account sets its boosted allowance. Requests past the
+server-enforced allowance are retried with backoff. Validation floors
+an explicit `0` to `1`.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_max_concurrent_requests"
+kind = "option"
+param = "out_n"
+abi_type = "u32"
+path = "market_data.max_concurrent_requests"
+doc = """
+Read the current `market_data.max_concurrent_requests` setting.
+
+* `*out_has_value = false` → the config holds `None` (size the pool to
+  the account's subscription tier at connect time). `*out_n` is left
+  as `0`.
+* `*out_has_value = true` → the config holds `Some(*out_n)`.
+
+Returns `0` on success, `-1` if any pointer is null.
+"""
+cpp_doc = """
+Read the current @c market_data.max_concurrent_requests setting.
+Returns @c std::nullopt for the size-to-tier default; returns the
+wrapped @c std::uint32_t when an explicit pool size is set.
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Current ``max_concurrent_requests`` setting. ``None`` means the pool
+is sized to the account's subscription tier at connect time; an
+``int`` is the configured pool size.
+"""
+ts_doc = """
+Current `maxConcurrentRequests` setting. `null` means the pool is
+sized to the account's subscription tier at connect time; a `number`
+is the configured pool size.
 """
 
 # ── retry Duration getters (ms) ────────────────────────────────────

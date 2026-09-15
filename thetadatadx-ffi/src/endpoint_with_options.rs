@@ -15,7 +15,7 @@ pub unsafe extern "C" fn thetadatadx_stock_list_symbols_with_options(
         let mut args = thetadatadx::EndpointArgs::new();
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -247,7 +247,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -309,7 +309,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -385,7 +385,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -447,7 +447,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -509,7 +509,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -571,7 +571,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -633,7 +633,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -716,7 +716,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -799,7 +799,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -849,7 +849,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_symbols_with_options(
         let mut args = thetadatadx::EndpointArgs::new();
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -911,7 +911,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -959,7 +959,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_expirations_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1014,7 +1014,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1074,7 +1074,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1143,7 +1143,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1212,7 +1212,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1281,7 +1281,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1350,7 +1350,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1419,7 +1419,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1488,7 +1488,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1557,7 +1557,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1626,7 +1626,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1695,7 +1695,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1764,7 +1764,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1847,7 +1847,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1916,7 +1916,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -1985,7 +1985,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2054,7 +2054,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2123,7 +2123,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2192,7 +2192,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2275,7 +2275,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2344,7 +2344,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2413,7 +2413,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2482,7 +2482,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2551,7 +2551,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2620,7 +2620,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2689,7 +2689,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2758,7 +2758,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2827,7 +2827,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2896,7 +2896,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -2965,7 +2965,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3055,7 +3055,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3145,7 +3145,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3195,7 +3195,7 @@ pub unsafe extern "C" fn thetadatadx_index_list_symbols_with_options(
         let mut args = thetadatadx::EndpointArgs::new();
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3243,7 +3243,7 @@ pub unsafe extern "C" fn thetadatadx_index_list_dates_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3296,7 +3296,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3358,7 +3358,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3420,7 +3420,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3496,7 +3496,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3572,7 +3572,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3634,7 +3634,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3717,7 +3717,7 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3772,7 +3772,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
         let mut args = thetadatadx::EndpointArgs::new();
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3834,7 +3834,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3896,7 +3896,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 
@@ -3972,7 +3972,7 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
         );
 
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            set_error(&message);
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
         }
 

@@ -99,8 +99,9 @@ extern crate self as thetadatadx;
 
 // ─── Internal module tree ────────────────────────────────────────────────────
 
+#[doc(hidden)]
 pub mod auth;
-pub mod backoff;
+pub(crate) mod backoff;
 pub(crate) mod client;
 pub(crate) mod client_builder;
 pub mod columns;
@@ -163,7 +164,7 @@ pub(crate) mod observability;
 #[cfg_attr(not(feature = "__internal"), allow(dead_code))]
 pub(crate) mod tdbe;
 
-pub mod util;
+pub(crate) mod util;
 
 // `mdds/` holds the macros, registry, validate, wire_semantics, and the
 // shared endpoint runtime (`endpoint_args`).
@@ -367,12 +368,10 @@ pub mod streaming {
 /// `thetadatadx::market_data::MarketDataClient` resolve.
 pub use mdds::{MarketDataClient, SubscriptionTier};
 
-/// Bulk-fetch shard planning (manual mode): describe a history query as a
-/// [`ShardQuery`], obtain the balanced [`ShardPlan`] via
-/// [`MarketDataClient::bulk_fetch_plan`], and run the [`ShardBand`]
-/// sub-requests under your own concurrency. The automatic path
-/// ([`BulkFetchPolicy::Auto`]) uses exactly these plans.
-pub use mdds::shard::{ShardBand, ShardPlan, ShardQuery};
+/// A [`ShardBand`] names the date or time window (and, for a chain, the
+/// `right`) of one shard, surfaced in [`Error::PartialShardFetch`] so a
+/// partially-failed streaming pull can be re-fetched window by window.
+pub use mdds::shard::ShardBand;
 
 /// Date-range split math for history requests beyond the server's 365-day
 /// cap: [`split_date_range`] divides an inclusive `(start, end)` span into

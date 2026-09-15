@@ -1125,9 +1125,7 @@ impl StreamingClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use thetadatadx::config::{
-        JitterMode, ReconnectPolicy,
-    };
+    use thetadatadx::config::{JitterMode, ReconnectPolicy};
 
     /// Anti-drift guard for the standalone connect path.
     ///

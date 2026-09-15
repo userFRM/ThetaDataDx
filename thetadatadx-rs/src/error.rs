@@ -527,6 +527,118 @@ pub enum Error {
             crate::fpss::protocol::Contract,
         )>,
     },
+
+    /// A sharded chunk-streaming history pull (`.stream*` under
+    /// `bulk_fetch = "auto"`) completed with one or more bands lost:
+    /// every surviving band delivered its chunks to the handler in
+    /// full, and each listed [`crate::ShardBand`] names a window whose
+    /// data is missing (in band order). Re-issue the same call narrowed
+    /// to each listed window to fetch the gap.
+    ///
+    /// A failed band may have delivered a chunk prefix before failing —
+    /// MDDS has no resume token, so the SDK never replays a
+    /// mid-delivered band (that would hand the handler duplicate rows).
+    /// A re-pull of a listed window therefore re-delivers any prefix
+    /// the failed band already handed over; rows carry their timestamps
+    /// and the window is named exactly, so the caller can drop what it
+    /// already holds for that window before (or while) re-pulling.
+    /// A band of a right-split chain fan-out shares its time window
+    /// with its call/put sibling, so the recovery key is the window
+    /// AND the band's `right` (both are carried in the listed
+    /// [`crate::ShardBand`] and the rendered message) — dropping rows
+    /// by window alone would discard the healthy sibling's rows too.
+    /// Each band's underlying error is logged at `warn` with the band
+    /// window before this error is returned.
+    ///
+    /// Only the streaming path reports partial fetches: the buffered
+    /// `.await` path re-fetches a failed band transparently (nothing
+    /// has reached the caller) and fails wholesale if the band's retry
+    /// budget spends out. A streaming pull where NO chunk reached the
+    /// handler also fails wholesale with the underlying error, exactly
+    /// like a single stream.
+    #[error(
+        "partial shard fetch: {} band window(s) failed; re-pull: {}",
+        .failed.len(),
+        format_shard_windows(.failed)
+    )]
+    PartialShardFetch {
+        /// Band windows whose data did not (fully) arrive, in band
+        /// order.
+        failed: Vec<crate::ShardBand>,
+    },
+
+    /// A request was awaited inline inside one of this client's own
+    /// streaming delivery handlers (a `.stream*` chunk callback) while
+    /// the client's request pool was fully committed.
+    ///
+    /// The active pull holds its request permit(s) until the handler
+    /// returns — under a bulk-fetch fan-out, every concurrent band —
+    /// so waiting for a permit inside the handler is a cycle that can
+    /// never resolve; this error surfaces immediately instead of
+    /// hanging the stream. The handler-issued request was not sent.
+    ///
+    /// To make blocking same-client calls from streamed data, spawn
+    /// the request onto its own task and await it outside the handler,
+    /// run it on a second client, or leave pool headroom by configuring
+    /// `shard_concurrency` below the tier's pool size (a free permit
+    /// admits the inline call).
+    #[error(
+        "request issued inside a streaming delivery handler while the client's request pool is \
+         fully committed by the active pull; waiting would deadlock the stream. Spawn the request \
+         onto its own task, use a second client, or set shard_concurrency below the pool size"
+    )]
+    HandlerReentrancy,
+}
+
+/// Render the failed band windows for the [`Error::PartialShardFetch`]
+/// `Display`: `20240102..20240105` for a date band (with a trailing
+/// ` (call)` / ` (put)` when a chain is split by right),
+/// `09:30:00.000..12:44:59.999 (call)` for a time band with a right
+/// override. The bindings surface this error as its string alone, so
+/// the windows must ride in the text for the documented targeted
+/// re-pull to be possible there. Bounded at [`MAX_LISTED_WINDOWS`]
+/// windows; the remainder folds to a count so a wide fan-out cannot
+/// balloon the message.
+fn format_shard_windows(bands: &[crate::ShardBand]) -> String {
+    use std::fmt::Write;
+    /// Windows listed verbatim before the remainder folds to a count.
+    /// Plans fan out to the resolved pool size (the account tier by
+    /// default, or a configured `max_concurrent_requests`); 16 lists
+    /// every default-tier plan whole and folds the remainder on a
+    /// wider boosted pool.
+    const MAX_LISTED_WINDOWS: usize = 16;
+    let mut out = String::new();
+    for (index, band) in bands.iter().take(MAX_LISTED_WINDOWS).enumerate() {
+        if index > 0 {
+            out.push_str(", ");
+        }
+        match band {
+            crate::ShardBand::Date {
+                start_date,
+                end_date,
+                right,
+            } => {
+                let _ = write!(out, "{start_date}..{end_date}");
+                if let Some(right) = right {
+                    let _ = write!(out, " ({right})");
+                }
+            }
+            crate::ShardBand::Time {
+                start_time,
+                end_time,
+                right,
+            } => {
+                let _ = write!(out, "{start_time}..{end_time}");
+                if let Some(right) = right {
+                    let _ = write!(out, " ({right})");
+                }
+            }
+        }
+    }
+    if bands.len() > MAX_LISTED_WINDOWS {
+        let _ = write!(out, ", and {} more", bands.len() - MAX_LISTED_WINDOWS);
+    }
+    out
 }
 
 impl Error {
@@ -817,6 +929,59 @@ mod tests {
     fn error_is_send_sync_static() {
         fn assert_bounds<T: Send + Sync + 'static + std::error::Error>() {}
         assert_bounds::<Error>();
+    }
+
+    #[test]
+    fn partial_shard_fetch_display_names_the_failed_windows() {
+        // The message instructs the caller to re-pull the listed
+        // windows, and the non-Rust bindings only ever see this string —
+        // so the windows themselves must be in it: the date span of a
+        // date band, the time span (and right override) of a time band.
+        let err = Error::PartialShardFetch {
+            failed: vec![
+                crate::ShardBand::Date {
+                    start_date: "20240102".into(),
+                    end_date: "20240103".into(),
+                    right: None,
+                },
+                crate::ShardBand::Time {
+                    start_time: "09:30:00.000".into(),
+                    end_time: "12:44:59.999".into(),
+                    right: Some("call".into()),
+                },
+                crate::ShardBand::Time {
+                    start_time: "12:45:00.000".into(),
+                    end_time: "16:00:00.000".into(),
+                    right: None,
+                },
+            ],
+        };
+        assert_eq!(
+            err.to_string(),
+            "partial shard fetch: 3 band window(s) failed; re-pull: \
+             20240102..20240103, 09:30:00.000..12:44:59.999 (call), \
+             12:45:00.000..16:00:00.000"
+        );
+    }
+
+    #[test]
+    fn partial_shard_fetch_display_bounds_a_long_window_list() {
+        let failed: Vec<crate::ShardBand> = (1..=20)
+            .map(|day| crate::ShardBand::Date {
+                start_date: format!("202401{day:02}"),
+                end_date: format!("202401{day:02}"),
+                right: None,
+            })
+            .collect();
+        let text = Error::PartialShardFetch { failed }.to_string();
+        assert!(
+            text.contains("20240116..20240116") && text.ends_with(", and 4 more"),
+            "expected 16 listed windows and a folded remainder, got: {text}"
+        );
+        assert!(
+            !text.contains("20240117"),
+            "remainder must not be listed: {text}"
+        );
     }
 
     #[test]

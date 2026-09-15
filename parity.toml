@@ -87,6 +87,12 @@ typescript = true   # exported from the package entry (streaming-session.{js,d.t
 cpp = false         # C++ uses the RAII guard pattern instead
 
 [[class]]
+name = "StandaloneStreamingSession"
+python = false      # Python's dynamic proxy needs no distinct static session type
+typescript = true   # returned by the standalone `StreamingClient.streaming()`; extends `StreamingClient` only (not `Client`), unlike `StreamingSession`
+cpp = false         # C++ uses the RAII guard pattern instead
+
+[[class]]
 name = "Contract"
 python = true
 typescript = true   # exposed as `ContractRef` (Contract aliased post-build)
@@ -291,8 +297,9 @@ cpp = true
 # `warn_on_buffered_threshold_bytes` / `request_timeout_secs` are bound
 # via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
 # `thetadatadx::Config::set_<name>` (C++ forwarder over the C ABI).
-# Channel-pool concurrency is intentionally absent: it is resolved
-# internally from the subscription tier, not exposed as a caller knob.
+# `max_concurrent_requests` sizes the channel pool: it defaults to the
+# subscription tier's allowance and can be overridden with no client-side
+# cap (the server enforces the account's real limit).
 
 [[class]]
 name = "MarketDataConfig.warn_on_buffered_threshold_bytes"
@@ -319,6 +326,13 @@ python = true       # `Config.shard_concurrency` property (Optional[int])
 typescript = true   # `Config.setShardConcurrency` / `shardConcurrency` napi setter+getter
 cpp = true          # `Config::set_shard_concurrency` over `thetadatadx_config_set_shard_concurrency`
 setter = "shard_concurrency"
+
+[[class]]
+name = "MarketDataConfig.max_concurrent_requests"
+python = true       # `Config.max_concurrent_requests` property (Optional[int])
+typescript = true   # `Config.setMaxConcurrentRequests` / `maxConcurrentRequests` napi setter+getter
+cpp = true          # `Config::set_max_concurrent_requests` over `thetadatadx_config_set_max_concurrent_requests`
+setter = "max_concurrent_requests"
 
 # ─── ReconnectConfig cross-binding setters ─────────────────────────────
 #

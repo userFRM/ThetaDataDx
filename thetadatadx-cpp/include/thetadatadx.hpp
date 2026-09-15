@@ -29,6 +29,7 @@
 #include <vector>
 #include <utility>
 #include <stdexcept>
+#include <exception>
 #include <type_traits>
 
 #if defined(__cpp_lib_span) && __cpp_lib_span >= 202002L
@@ -806,7 +807,15 @@ public:
      *  Permanent disconnect reasons never reach the callback; it runs
      *  on the SDK's streaming I/O thread and must be thread-safe.
      *  Return the delay in milliseconds or a negative value to stop.
-     *  Pass nullptr to restore the default Auto policy. */
+     *  Pass nullptr to restore the default Auto policy.
+     *
+     *  @warning `user_data` must outlive EVERY client built from this config,
+     *           not just the config object: the config is cloned into each
+     *           client, so tying `user_data` to a stack object or the Config's
+     *           own lifetime can leave the I/O thread dereferencing freed
+     *           memory. The callback must not throw — it crosses the C ABI, so
+     *           catch everything inside it. Prefer heap-owned state freed only
+     *           after the last client built from this config is destroyed. */
     int32_t set_reconnect_callback(ThetaDataDxReconnectCallback cb, void* user_data) {
         return thetadatadx_config_set_reconnect_callback(handle_.get(), cb, user_data);
     }
@@ -1155,6 +1164,10 @@ public:
      *  failure the existing `callback_` is left untouched so the
      *  still-live registration keeps pointing at valid storage. */
     void set_callback(std::function<void(const StreamEvent&)> fn) {
+        if (!fn) {
+            throw InvalidParameterError(
+                "set_callback requires a callable target; an empty std::function was passed");
+        }
         auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
         int rc = thetadatadx_streaming_set_callback(handle_.get(), &StreamingClient::callback_shim, staged.get());
         if (rc < 0) {
@@ -1192,11 +1205,13 @@ public:
         return handle_ ? thetadatadx_streaming_ring_capacity(handle_.get()) : 0;
     }
 
-    /** Cumulative count of user-callback failures contained by the
-     *  per-invocation isolation boundary since the current stream
-     *  started. If the callback aborts on a given event, the failure is
-     *  contained, recorded here, and does not stop event delivery — the
-     *  next event continues normally. Returns 0 when no callback has been
+    /** Cumulative count of user-callback failures contained by the core's
+     *  per-invocation isolation boundary since the current stream started,
+     *  so one aborting event never stops delivery — the next continues.
+     *  Note the C++ boundary: an exception thrown from your callback is
+     *  caught at the C ABI shim (unwinding across C is undefined behavior)
+     *  and swallowed there, so it does NOT increment this count — handle
+     *  errors inside the callback. Returns 0 when no callback has been
      *  installed yet. Safe to call from any thread without blocking. */
     uint64_t panic_count() const {
         return handle_ ? thetadatadx_streaming_panic_count(handle_.get()) : 0;
@@ -1601,11 +1616,12 @@ struct CallbackState {
 /// Backpressure policy for the pull-based Arrow `RecordBatch` reader
 /// (`Stream::batches(..)`).
 ///
-/// `Block` (default) is lossless and applies backpressure to the wire;
+/// `Block` (default) backpressures the reader with no queue-side drops, though
+/// a sustained reader stall can still overflow the upstream event ring;
 /// `DropOldest` keeps a bounded buffer and drops the oldest batch on
 /// overflow, counted by `RecordBatchStream::dropped()`.
 enum class Backpressure {
-    /// Lossless: block until the reader catches up. The default.
+    /// Block until the reader catches up; no queue-side drops. The default.
     Block,
     /// Bounded buffer: drop the oldest batch on overflow, count it.
     DropOldest,
@@ -2089,11 +2105,12 @@ public:
     /// the fixed schema, and `dropped()` (on the concrete
     /// `thetadatadx::RecordBatchStream`) reports the drop-oldest count. The
     /// reader closes (unsubscribe + tear down) when the last reference drops
-    /// (RAII). The same subscriptions feed it; subscribe first, then open.
+    /// (RAII). The same subscriptions feed it; open first (that starts the
+    /// session), then subscribe.
     ///
     /// `batch_size` rows per batch (default 65536). `linger` flushes a
     /// partial batch on a quiet stream (default 50 ms). `backpressure`
-    /// selects lossless block (default) or bounded drop-oldest with
+    /// selects block (default; no queue-side drops) or bounded drop-oldest with
     /// `capacity` buffered batches.
     ///
     /// Only available when the SDK is built with `THETADATADX_CPP_ARROW`
@@ -2106,9 +2123,11 @@ public:
         const int32_t bp = backpressure == Backpressure::DropOldest
                                ? THETADATADX_BACKPRESSURE_DROP_OLDEST
                                : THETADATADX_BACKPRESSURE_BLOCK;
-        const uint64_t linger_ms = linger.count() < 0
-                                       ? 0
-                                       : static_cast<uint64_t>(linger.count());
+        if (linger.count() < 0) {
+            throw InvalidParameterError(
+                "thetadatadx: batches linger must not be negative");
+        }
+        const uint64_t linger_ms = static_cast<uint64_t>(linger.count());
         ThetaDataDxRecordBatchStream* raw = thetadatadx_client_batches_open(
             handle_.get(), batch_size, linger_ms, bp, capacity);
         if (raw == nullptr) {
@@ -3152,11 +3171,10 @@ public:
     static FluentContract stock(std::string symbol) {
         return FluentContract{std::move(symbol), "STOCK", false, "", "", ""};
     }
-    /// Construct an index contract. Routes through the stock-shape
-    /// wire encoder; the C ABI layer treats them identically (no
-    /// per-index subscribe call exists today). The security type is
-    /// retained for rendering so an index contract reads `"INDEX"`
-    /// rather than `"STOCK"`.
+    /// Construct an index contract. A subscription over this contract carries
+    /// `sec_type = "INDEX"`, so the C ABI subscribes to the index rather than
+    /// the stock (a null `sec_type` defaults to stock); the security type also
+    /// reads `"INDEX"` rather than `"STOCK"` when rendered.
     static FluentContract index(std::string symbol) {
         return FluentContract{std::move(symbol), "INDEX", false, "", "", ""};
     }
@@ -3352,6 +3370,11 @@ inline ThetaDataDxSubscriptionRequest build_subscription_request(const FluentSub
             req.expiration = sub.expiration().c_str();
             req.strike = sub.strike().c_str();
             req.right = sub.right().c_str();
+        } else {
+            // Underlier (stock / index): carry the security type so the FFI
+            // subscribes to the right instrument. Without this an INDEX request
+            // (e.g. VIX) would silently default to a stock subscription.
+            req.sec_type = sub.sec_type().c_str();
         }
     }
     return req;

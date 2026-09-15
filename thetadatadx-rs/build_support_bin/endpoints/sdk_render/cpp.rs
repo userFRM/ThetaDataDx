@@ -403,12 +403,23 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
         out.push_str("    detail::FfiEndpointRequestOptions ffi_options(options);\n");
         // Clear any stale FFI error so a -1 return is attributed to this call.
         out.push_str("    thetadatadx_clear_error();\n");
-        // Erase the typed handler: reinterpret each chunk pointer as the
-        // endpoint's tick type and build the span. The borrow of `handler` is
-        // sound because both live to the end of this synchronous call.
+        // Reject an empty handler up front: calling it throws
+        // bad_function_call, which the noexcept shim must swallow -> a silent
+        // no-op stream. Fail loudly instead.
         writeln!(
             out,
-            "    std::function<void(const void*, std::size_t)> erased =\n        [&handler](const void* rows, std::size_t len) {{\n            handler(Span<const {tick}>(static_cast<const {tick}*>(rows), len));\n        }};"
+            "    if (!handler) {{\n        throw InvalidParameterError(\"thetadatadx: {}_stream handler must not be empty\");\n    }}",
+            endpoint.name
+        )
+        .unwrap();
+        // Erase the typed handler into the shim context, which also carries a
+        // slot for the first exception the handler throws so it can be
+        // rethrown after the drain rather than silently lost. The borrow of
+        // `handler` is sound because both live to the end of this synchronous
+        // call.
+        writeln!(
+            out,
+            "    StreamHandlerCtx ctx{{\n        [&handler](const void* rows, std::size_t len) {{\n            handler(Span<const {tick}>(static_cast<const {tick}*>(rows), len));\n        }},\n        {{}},\n    }};"
         )
         .unwrap();
         write!(
@@ -420,7 +431,12 @@ pub(super) fn render_cpp_stream_defs(endpoints: &[GeneratedEndpoint]) -> String 
         for param in &method_params {
             write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
         }
-        out.push_str(", &MarketData::stream_chunk_shim, &erased, &ffi_options.raw);\n");
+        out.push_str(", &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);\n");
+        // A handler exception is the proximate cause; rethrow it before any
+        // FFI drain error observed after delivery stopped.
+        out.push_str("    if (ctx.error) {\n");
+        out.push_str("        std::rethrow_exception(ctx.error);\n");
+        out.push_str("    }\n");
         out.push_str("    if (rc != 0) {\n");
         out.push_str("        detail::throw_last_ffi_error();\n");
         out.push_str("    }\n");

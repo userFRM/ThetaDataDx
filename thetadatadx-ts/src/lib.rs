@@ -511,13 +511,35 @@ pub(crate) fn validate_optional_u32_arg(name: &str, v: Option<f64>) -> napi::Res
     v.map(|v| validate_u32_arg(name, v)).transpose()
 }
 
+#[cfg(test)]
+mod numeric_arg_validation_tests {
+    use super::validate_u32_arg;
+
+    #[test]
+    fn rejects_v8_touint32_footguns_and_accepts_valid() {
+        // The bug this guards: a bare napi `u32`/`Option<u32>` runs V8
+        // `ToUint32`, so `-1` reaches Rust as 4_294_967_295 (a catastrophic
+        // pool size for `setMaxConcurrentRequests`). Taking `f64` + this
+        // validator rejects it instead of silently wrapping.
+        assert!(validate_u32_arg("maxConcurrentRequests", -1.0).is_err());
+        assert!(validate_u32_arg("maxConcurrentRequests", 1.5).is_err());
+        assert!(validate_u32_arg("maxConcurrentRequests", 4_294_967_296.0).is_err());
+        assert!(validate_u32_arg("maxConcurrentRequests", f64::NAN).is_err());
+        assert!(validate_u32_arg("maxConcurrentRequests", f64::INFINITY).is_err());
+        assert_eq!(validate_u32_arg("maxConcurrentRequests", 8.0).unwrap(), 8);
+        assert_eq!(validate_u32_arg("maxConcurrentRequests", 0.0).unwrap(), 0);
+    }
+}
+
 /// Validate a JavaScript `timeoutMs` deadline and convert it to the
 /// integer millisecond domain the Python, C++, and C ABI bindings take.
 pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
     Ok(validate_nonneg_whole(
         "timeoutMs",
         timeout_ms,
-        u64::MAX as f64,
+        // MAX_SAFE_INTEGER: largest f64 with an exact u64. A u64::MAX bound
+        // rounds to 2^64 as f64, so 2**64 would pass it and saturate on the cast.
+        9_007_199_254_740_991.0,
         Some("millisecond"),
     )? as u64)
 }
@@ -630,13 +652,14 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => "NetworkError",
             _ => "StreamError",
         },
-        // FlatFiles availability + partial-reconnect failures are
-        // streaming-surface faults; pin them to `StreamError` so a
-        // `catch (e instanceof StreamError)` clause behaves identically
-        // to the C++ and C ABI mapping (both route these to the stream
-        // discriminant).
+        // FlatFiles availability, partial-reconnect, and partial
+        // shard-fetch failures are streaming-surface faults; pin them to
+        // `StreamError` so a `catch (e instanceof StreamError)` clause
+        // behaves identically to the C++ and C ABI mapping (both route
+        // these to the stream discriminant).
         thetadatadx::Error::FlatFilesUnavailable(_)
-        | thetadatadx::Error::PartialReconnect { .. } => "StreamError",
+        | thetadatadx::Error::PartialReconnect { .. }
+        | thetadatadx::Error::PartialShardFetch { .. } => "StreamError",
         _ => "ThetaDataError",
     }
 }
@@ -663,34 +686,25 @@ fn normalize_symbols(symbols: Either<String, Vec<String>>) -> Vec<String> {
     }
 }
 
-/// A `String` passes through verbatim (the caller supplied a wire-format
-/// literal); a `DateTime` is rendered with `fmt` (`"%Y%m%d"` for dates,
-/// `"%H:%M:%S"` for times).
-fn normalize_dt(value: Either<String, chrono::DateTime<chrono::Utc>>, fmt: &str) -> String {
-    match value {
-        Either::A(value) => value,
-        Either::B(value) => value.format(fmt).to_string(),
-    }
+// Calendar dates and times are wire-format strings only (`"YYYYMMDD"` /
+// `"HH:MM:SS"`). A JS `Date` is deliberately NOT accepted: it is an instant,
+// not a calendar day, so converting it forced a UTC rendering that shifted the
+// requested day in non-UTC time zones. These pass the string through as the
+// single normalization seam every date/time argument routes through.
+fn normalize_date(value: String) -> String {
+    value
 }
 
-fn normalize_date(value: Either<String, chrono::DateTime<chrono::Utc>>) -> String {
-    normalize_dt(value, "%Y%m%d")
+fn normalize_time(value: String) -> String {
+    value
 }
 
-fn normalize_time(value: Either<String, chrono::DateTime<chrono::Utc>>) -> String {
-    normalize_dt(value, "%H:%M:%S")
+fn normalize_optional_date(value: Option<String>) -> Option<String> {
+    value
 }
 
-fn normalize_optional_date(
-    value: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-) -> Option<String> {
-    value.map(normalize_date)
-}
-
-fn normalize_optional_time(
-    value: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
-) -> Option<String> {
-    value.map(normalize_time)
+fn normalize_optional_time(value: Option<String>) -> Option<String> {
+    value
 }
 
 // Generated string enum exports.

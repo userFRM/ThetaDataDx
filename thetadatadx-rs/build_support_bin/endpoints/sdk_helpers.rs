@@ -200,10 +200,18 @@ pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
 /// timeout race reads identically across surfaces.
 pub(super) fn write_timeout_call(out: &mut String, indent: &str) {
     use std::fmt::Write as _;
-    writeln!(out, "{indent}if let Some(ms) = timeout_ms {{").unwrap();
+    // `timeout_ms == 0` disables the per-call deadline rather than firing an
+    // immediate timeout. `tokio::time::timeout(Duration::ZERO, ..)` fails
+    // instantly, but the builder endpoints read `0` as
+    // `with_deadline(Duration::ZERO)` — "no explicit deadline" — so the same
+    // `timeout_ms` value must not mean opposite things across endpoint
+    // families. `None` and `Some(0)` therefore both run under the configured
+    // request timeout; only a positive value arms the race.
+    writeln!(out, "{indent}match timeout_ms {{").unwrap();
+    writeln!(out, "{indent}    None | Some(0) => call.await,").unwrap();
     writeln!(
         out,
-        "{indent}    match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
+        "{indent}    Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
     )
     .unwrap();
     writeln!(out, "{indent}        Ok(inner) => inner,").unwrap();
@@ -212,9 +220,7 @@ pub(super) fn write_timeout_call(out: &mut String, indent: &str) {
         "{indent}        Err(_) => Err(thetadatadx::Error::Timeout {{ duration_ms: ms }}),"
     )
     .unwrap();
-    writeln!(out, "{indent}    }}").unwrap();
-    writeln!(out, "{indent}}} else {{").unwrap();
-    writeln!(out, "{indent}    call.await").unwrap();
+    writeln!(out, "{indent}    }},").unwrap();
     writeln!(out, "{indent}}}").unwrap();
 }
 

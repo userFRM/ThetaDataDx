@@ -276,7 +276,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str(
         "\n        if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
     );
-    out.push_str("            set_error(&message);\n");
+    out.push_str("            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);\n");
     out.push_str("            return empty;\n");
     out.push_str("        }\n\n");
     out.push_str("        match runtime().block_on(async {\n");
@@ -449,7 +449,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str(
         "\n        if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
     );
-    out.push_str("            set_error(&message);\n");
+    out.push_str("            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);\n");
     out.push_str("            return empty;\n");
     out.push_str("        }\n\n");
     // A C caller can pass a null function pointer; modelling the parameter

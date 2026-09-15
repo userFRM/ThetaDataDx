@@ -385,7 +385,7 @@ pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error
                 // `(false, 0)`.
                 write!(
                     out,
-                    "pub unsafe extern \"C\" fn {sym}(\n    config: *const ThetaDataDxConfig,\n    out_has_value: *mut bool,\n    {p}: *mut {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() || out_has_value.is_null() || {p}.is_null() {{\n            set_error(\"config or out-parameter pointer is null\");\n            return -1;\n        }}\n{cfg}\n        let config = unsafe {{ &*config }};\n        let (has_value, value) = match config.inner.{path} {{\n            Some(v) => (true, v),\n            None => (false, 0),\n        }};\n        // SAFETY: out_has_value / {p} null-checked above; caller pins the storage they point at for the call duration.\n        unsafe {{\n            *out_has_value = has_value;\n            *{p} = value;\n        }}\n        0\n    }})\n}}\n\n",
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *const ThetaDataDxConfig,\n    out_has_value: *mut bool,\n    {p}: *mut {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() || out_has_value.is_null() || {p}.is_null() {{\n            set_error(\"config or out-parameter pointer is null\");\n            return -1;\n        }}\n{cfg}\n        let config = unsafe {{ &*config }};\n        let (has_value, value) = match config.inner.{path} {{\n            Some(v) => (true, v),\n            None => (false, 0),\n        }};\n        // SAFETY: out_has_value / {p} null-checked above; the caller keeps both out-slots for `{path}` alive for the call duration.\n        unsafe {{\n            *out_has_value = has_value;\n            *{p} = value;\n        }}\n        0\n    }})\n}}\n\n",
                     sym = a.symbol, p = a.param, ty = a.abi_type, path = a.path,
                     cfg = CFG_SAFETY,
                 )?;
@@ -889,23 +889,31 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                 let param = a.ts_param.as_deref().expect("setter row needs ts_param");
                 let set_js = format!("set{}", to_pascal_case(field));
                 match a.abi_type.as_str() {
-                    // u16 ports arrive as `number`; range-checked to u16.
+                    // u16 ports arrive as `number`. Take `Option<f64>` and run
+                    // the finite/whole/non-negative check before the u16 range
+                    // narrow: a bare `Option<u32>` lets V8 `ToUint32` truncate
+                    // `1.5` to `1` and wrap `-1`/`2**32` before the range check
+                    // ever runs.
                     "u16" => {
                         let err =
                             rust_lit(a.ts_err.as_deref().expect("option u16 setter needs ts_err"));
                         write!(
                             out,
-                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<u32>) -> napi::Result<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(u16::try_from(v).map_err(|_| {{\n                crate::invalid_parameter_err(format!(\n                    \"{err}\"\n                ))\n            }})?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
+                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<f64>) -> napi::Result<()> {{\n        let resolved = match {param} {{\n            Some(v) => {{\n                let v = crate::validate_u32_arg(\"{set_js}\", v)?;\n                Some(u16::try_from(v).map_err(|_| {{\n                    crate::invalid_parameter_err(format!(\n                        \"{err}\"\n                    ))\n                }})?)\n            }}\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
                             set_js = set_js, field = field, param = param, err = err, path = a.path,
                         )?;
                     }
-                    // u32 fields fit a JS `number` natively; napi decodes
-                    // `Option<u32>` verbatim.
+                    // u32 knobs arrive as `number`. Take `Option<f64>` and run
+                    // the finite/whole/range validator: a bare `Option<u32>`
+                    // param lets V8 `ToUint32` silently wrap `-1` to
+                    // `4_294_967_295` (catastrophic as a pool size) and truncate
+                    // `1.5`.
                     "u32" => {
+                        let validator = ts_u32_validator(field);
                         write!(
                             out,
-                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<u32>) -> napi::Result<()> {{\n{LOCK}\n        guard.{path} = {param};\n        Ok(())\n    }}\n\n",
-                            set_js = set_js, field = field, param = param, path = a.path,
+                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<f64>) -> napi::Result<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(crate::{validator}(\"{set_js}\", v)?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
+                            set_js = set_js, field = field, param = param, path = a.path, validator = validator,
                         )?;
                     }
                     // Wider seeds arrive as `BigInt`; decoded losslessly.
@@ -1038,11 +1046,15 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                     ),
                     "value".to_string(),
                 ),
-                // Ports are u16; the JS surface takes `number` and range-checks.
+                // Ports are u16; the JS surface takes `number`. Decode as `f64`
+                // and run the finite/whole/non-negative check before the u16
+                // range narrow, so V8 `ToUint32` cannot truncate `1.5` to `1`
+                // or wrap `-1`/`2**32` before the range check runs.
                 "u16" => (
-                    "u32".to_string(),
+                    "f64".to_string(),
                     format!(
-                        "        let value = u16::try_from({param}).map_err(|_| {{\n            crate::invalid_parameter_err(format!(\n                \"{set_js}: port must be in the u16 range 0..=65535; got {{{param}}}\"\n            ))\n        }})?;\n"
+                        "        let value = crate::validate_u32_arg(\"{camel}\", {param})?;\n        let value = u16::try_from(value).map_err(|_| {{\n            crate::invalid_parameter_err(format!(\n                \"{set_js}: port must be in the u16 range 0..=65535; got {{value}}\"\n            ))\n        }})?;\n",
+                        camel = to_camel_case(field),
                     ),
                     "value".to_string(),
                 ),

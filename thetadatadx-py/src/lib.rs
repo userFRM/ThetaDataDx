@@ -110,6 +110,22 @@ where
     F: std::future::Future<Output = Result<T, thetadatadx::Error>> + Send,
     T: Send,
 {
+    // A synchronous market-data call made from inside a Python streaming
+    // delivery handler re-enters here on the same thread: a nested `block_on`
+    // aborts the runtime (sync `.stream()`), and the async `.stream_async()`
+    // handler — driven on a `spawn_blocking` thread — holds the request permit
+    // this call would wait on. Neither can make progress, so reject it fast
+    // with the same guidance the core reentrancy guard gives.
+    if in_delivery_handler_thread() {
+        // Same type as `to_py_err(HandlerReentrancy)` (base `ThetaDataError`), but
+        // the core's "use a second client" advice is wrong for this thread-scoped guard.
+        return Err(crate::errors::ThetaDataError::new_err(
+            "a synchronous market-data call was made from inside a Python streaming \
+             delivery handler, which would deadlock; issue the request from a \
+             background thread instead (a second client on the delivery thread is \
+             rejected the same way)",
+        ));
+    }
     py.detach(|| {
         // VOCAB-OK: tokio Runtime::block_on in PyO3 bridge, not PyO3 allow_threads GIL-hold pattern
         runtime().block_on(async move {
@@ -124,6 +140,57 @@ where
             }
         })
     })
+}
+
+thread_local! {
+    /// Non-zero while this thread is executing a Python streaming delivery
+    /// handler. Guards against a synchronous same-thread re-entry into
+    /// [`run_blocking`], which would deadlock (async stream) or abort the
+    /// runtime (sync stream). Set by [`DeliveryHandlerGuard`] around every
+    /// user-handler invocation in the generated stream deliverers.
+    static DELIVERY_HANDLER_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// RAII marker: the current thread is running a Python delivery handler for
+/// as long as this guard is alive.
+pub(crate) struct DeliveryHandlerGuard;
+
+impl DeliveryHandlerGuard {
+    pub(crate) fn enter() -> Self {
+        DELIVERY_HANDLER_DEPTH.with(|d| d.set(d.get() + 1));
+        Self
+    }
+}
+
+impl Drop for DeliveryHandlerGuard {
+    fn drop(&mut self) {
+        DELIVERY_HANDLER_DEPTH.with(|d| d.set(d.get().saturating_sub(1)));
+    }
+}
+
+/// Whether this thread is currently inside a Python delivery handler.
+fn in_delivery_handler_thread() -> bool {
+    DELIVERY_HANDLER_DEPTH.with(std::cell::Cell::get) != 0
+}
+
+#[cfg(test)]
+mod delivery_guard_tests {
+    use super::{in_delivery_handler_thread, DeliveryHandlerGuard};
+
+    #[test]
+    fn guard_marks_thread_and_nests() {
+        assert!(!in_delivery_handler_thread());
+        let outer = DeliveryHandlerGuard::enter();
+        assert!(in_delivery_handler_thread());
+        {
+            let _inner = DeliveryHandlerGuard::enter();
+            assert!(in_delivery_handler_thread());
+        }
+        // Dropping the inner (cross-client) scope must not clear the outer.
+        assert!(in_delivery_handler_thread());
+        drop(outer);
+        assert!(!in_delivery_handler_thread());
+    }
 }
 
 // ── Credentials ──
@@ -183,8 +250,9 @@ impl Credentials {
     /// Source credentials strictly from the ``THETADATA_API_KEY``
     /// environment variable.
     ///
-    /// Strict: an unset or whitespace-only value raises ``ConfigError``
-    /// rather than falling back, and there is no ``creds.txt`` file
+    /// Strict: an unset or whitespace-only value raises
+    /// ``InvalidParameterError`` (a ``ThetaDataError`` / ``ValueError``
+    /// subclass) rather than falling back, and there is no ``creds.txt`` file
     /// fallback. Use :meth:`from_env_or_file` when a file fallback is
     /// wanted instead.
     #[staticmethod]
@@ -351,6 +419,13 @@ impl Config {
                 config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default());
             return Ok(());
         };
+        // Reject a non-callable up front: otherwise the stored policy fails at
+        // reconnect time on the I/O thread, where the error is unraisable.
+        if !Python::attach(|py| callback.bind(py).is_callable()) {
+            return Err(errors::invalid_parameter_err(
+                "reconnect_callback must be callable",
+            ));
+        }
         guard.reconnect.policy =
             config::ReconnectPolicy::Custom(std::sync::Arc::new(move |reason, attempt| {
                 Python::attach(|py| {
@@ -618,7 +693,21 @@ fn resolve_direct_config(
         let guard = cfg.inner.lock().unwrap_or_else(|e| e.into_inner());
         return Ok(guard.clone());
     }
-    let mut direct = config::DirectConfig::production();
+    apply_env_overrides(
+        config::DirectConfig::production(),
+        market_data_type,
+        streaming_type,
+    )
+}
+
+/// Apply the optional `market_data_type` / `streaming_type` channel selectors
+/// on top of a base config, leaving each channel the base already carries when
+/// its selector is absent. An unrecognized value raises `ValueError`.
+fn apply_env_overrides(
+    mut direct: config::DirectConfig,
+    market_data_type: Option<&str>,
+    streaming_type: Option<&str>,
+) -> PyResult<config::DirectConfig> {
     if let Some(raw) = market_data_type {
         let environment = config::MarketDataEnvironment::parse(raw).ok_or_else(|| {
             config_err(format!(
@@ -868,8 +957,8 @@ impl Client {
     /// (``THETADATA_API_KEY``).
     ///
     /// Strict, with no file fallback: an unset or whitespace-only
-    /// ``THETADATA_API_KEY`` raises ``ConfigError`` before any network
-    /// round-trip, mirroring the Rust ``ClientBuilder::api_key_from_env``
+    /// ``THETADATA_API_KEY`` raises ``InvalidParameterError`` before any
+    /// network round-trip, mirroring the Rust ``ClientBuilder::api_key_from_env``
     /// and the C++ ``ClientBuilder::api_key_from_env`` so the same-named
     /// capability behaves identically across bindings. For the
     /// env-or-file convenience read a ``.env`` file with
@@ -916,9 +1005,18 @@ impl Client {
         // With no explicit config / market_data_type / streaming_type, read both
         // environment selectors from the same file; otherwise honour the
         // explicit override.
-        let direct_config = match (config, market_data_type, streaming_type) {
-            (None, None, None) => config::DirectConfig::from_dotenv(path).map_err(to_py_err)?,
-            _ => resolve_direct_config(config, market_data_type, streaming_type)?,
+        // An explicit `config` handle wins verbatim; otherwise the file is the
+        // base and `market_data_type` / `streaming_type` override only the
+        // selectors they name, keeping the file's other environment and host
+        // settings instead of resetting to the production defaults.
+        let direct_config = if config.is_some() {
+            resolve_direct_config(config, market_data_type, streaming_type)?
+        } else {
+            apply_env_overrides(
+                config::DirectConfig::from_dotenv(path).map_err(to_py_err)?,
+                market_data_type,
+                streaming_type,
+            )?
         };
         Self::connect_blocking(py, creds, direct_config)
     }
@@ -1425,6 +1523,14 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     "panic_count",
     "ring_occupancy",
     "ring_capacity",
+    // Session health / liveness — StreamView getters, siblings of the
+    // diagnostics above.
+    "is_authenticated",
+    "millis_since_last_event",
+    "last_event_received_at_unix_nanos",
+    "last_connected_addr",
+    // Arrow RecordBatch reader — StreamView.
+    "batches",
     // FLATFILES namespace getter.
     "flat_files",
     // NOTE: `session_uuid` / `subscription_info` are NOT on
@@ -1472,6 +1578,11 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "panic_count",
     "ring_occupancy",
     "ring_capacity",
+    // Session health / liveness getters on the `client.stream` StreamView.
+    "is_authenticated",
+    "millis_since_last_event",
+    "last_event_received_at_unix_nanos",
+    "last_connected_addr",
 ];
 
 /// `const fn` byte-equal helper for the compile-time guards in this
@@ -1669,7 +1780,13 @@ impl AsyncClient {
         // `async_client.subscribe(...)`) over the restructured client.
         if name.ends_with("_async") {
             let market_data = bound.getattr("market_data")?;
-            return Ok(market_data.getattr(name)?.unbind());
+            if let Ok(method) = market_data.getattr(name) {
+                return Ok(method.unbind());
+            }
+            // Flat-file async terminals (e.g. `flatfile_to_path_async`) live on
+            // the `flat_files` namespace, not `market_data`.
+            let flat_files = bound.getattr("flat_files")?;
+            return Ok(flat_files.getattr(name)?.unbind());
         }
         if ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) && !DIRECT_ON_CLIENT.contains(&name) {
             let stream = bound.getattr("stream")?;

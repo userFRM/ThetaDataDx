@@ -379,7 +379,7 @@ fn terminal_param_default(param_name: &str) -> Option<&'static str> {
 
 /// `Retry-After` seconds advertised when the upstream reports
 /// `ResourceExhausted` after the SDK's retry budget is spent. Upstream
-/// tier slots free on a millisecond-to-second cadence, so one second is
+/// slots free on a millisecond-to-second cadence, so one second is
 /// the honest "immediately retryable" hint without inviting a tight
 /// hammer loop.
 const UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS: u64 = 1;

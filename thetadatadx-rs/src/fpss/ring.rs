@@ -504,23 +504,25 @@ mod tests {
     fn backoff_escalates_to_park_after_idle_window_then_resets_on_progress() {
         // Backoff spins while the idle run is short, parks once it crosses
         // the threshold, and returns to spinning after a delivered event.
-        let strat = AdaptiveWaitStrategy::from_mode(WaitMode::Backoff, Duration::from_millis(5));
+        // ponytail: 200 ms park (not 5) so a spin descheduled under load can't
+        // cross the spin/park boundary — the tight 5 ms window flaked ~1/1178.
+        let strat = AdaptiveWaitStrategy::from_mode(WaitMode::Backoff, Duration::from_millis(200));
         let mut w = DrainWaiter::new(strat);
 
         // Pre-threshold: the first empty spins, it does not park.
         let t0 = Instant::now();
         w.on_empty();
         assert!(
-            t0.elapsed() < Duration::from_millis(5),
+            t0.elapsed() < Duration::from_millis(100),
             "a fresh idle run must spin, not park"
         );
 
-        // Let the idle run cross the threshold; the next empty parks.
+        // Let the idle run cross the threshold; the next empty parks (~200 ms).
         thread::sleep(BACKOFF_IDLE_THRESHOLD);
         let t1 = Instant::now();
         w.on_empty();
         assert!(
-            t1.elapsed() >= Duration::from_millis(4),
+            t1.elapsed() >= Duration::from_millis(100),
             "past the idle window, an empty must park"
         );
 
@@ -529,7 +531,7 @@ mod tests {
         let t2 = Instant::now();
         w.on_empty();
         assert!(
-            t2.elapsed() < Duration::from_millis(5),
+            t2.elapsed() < Duration::from_millis(100),
             "after progress, the idle run restarts and spins"
         );
     }

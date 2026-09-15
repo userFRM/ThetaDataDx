@@ -156,7 +156,7 @@ Three knobs tune it:
 
 - **`batch_size`**: rows per batch. A batch is emitted when it fills or when `linger` elapses, whichever comes first.
 - **`linger`**: the maximum time a partial batch waits before being emitted, so a quiet stream still delivers.
-- **`backpressure`**: what happens when the reader falls behind. `Block` (the default, lossless: the wire is paced) or `DropOldest` (a bounded buffer of `capacity` batches that drops, and counts, the oldest on overflow).
+- **`backpressure`**: what happens when the reader falls behind. `Block` (the default: no queue-side drops; a sustained reader stall can still overflow the upstream event ring, counted separately) or `DropOldest` (a bounded buffer of `capacity` batches that drops, and counts, the oldest on overflow).
 
 The field set is the fixed streaming schema, shared across bindings.
 

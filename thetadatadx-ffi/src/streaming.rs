@@ -33,7 +33,7 @@ use std::ptr;
 use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use crate::error::{set_error, set_error_from};
+use crate::error::{set_error, set_error_from, set_error_with_code};
 use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxMarketDataClient};
 use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
@@ -708,8 +708,10 @@ pub struct ThetaDataDxSubscriptionRequest {
     /// Option right (`"C"` / `"P"`). NULL for non-option per-contract or
     /// for full-stream subscriptions.
     pub right: *const c_char,
-    /// `"STOCK"` / `"OPTION"` / `"INDEX"` for full-stream
-    /// subscriptions. NULL for per-contract subscriptions.
+    /// `"STOCK"` / `"OPTION"` / `"INDEX"`. For a full-stream subscription it
+    /// names the universe; for a per-contract underlier (no option legs) it
+    /// selects `"STOCK"` (the default when NULL) vs `"INDEX"`. NULL / ignored
+    /// for an option per-contract subscription.
     pub sec_type: *const c_char,
 }
 
@@ -751,33 +753,58 @@ unsafe fn coerce_subscription(
                 THETADATADX_SUB_KIND_OPEN_INTEREST => SubscriptionKind::OpenInterest,
                 THETADATADX_SUB_KIND_MARKET_VALUE => SubscriptionKind::MarketValue,
                 other => {
-                    set_error(&format!("invalid kind {other}"));
+                    set_error_with_code(
+                        &format!("invalid kind {other}"),
+                        crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                    );
                     return None;
                 }
             };
             let symbol = require_cstr!(symbol_ptr, None);
-            let contract =
-                if expiration_ptr.is_null() && strike_ptr.is_null() && right_ptr.is_null() {
+            let contract = if expiration_ptr.is_null()
+                && strike_ptr.is_null()
+                && right_ptr.is_null()
+            {
+                // No option legs: a stock or index underlier. `sec_type`
+                // selects which; a null or empty sec_type defaults to stock
+                // for ABI backward-compatibility (callers predating the field).
+                if sec_type_ptr.is_null() {
                     Contract::stock(symbol)
                 } else {
-                    let exp = require_cstr!(expiration_ptr, None);
-                    let stk = require_cstr!(strike_ptr, None);
-                    let rt = require_cstr!(right_ptr, None);
-                    match Contract::option(
-                        symbol,
-                        OptionLeg {
-                            expiration: exp,
-                            strike: stk,
-                            right: rt,
-                        },
-                    ) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            set_error_from(&e);
-                            return None;
-                        }
+                    let sec_type = require_cstr!(sec_type_ptr, None);
+                    if sec_type.eq_ignore_ascii_case("index") {
+                        Contract::index(symbol)
+                    } else if sec_type.is_empty() || sec_type.eq_ignore_ascii_case("stock") {
+                        Contract::stock(symbol)
+                    } else {
+                        set_error_with_code(
+                            &format!(
+                                "invalid sec_type '{sec_type}' for a contract subscription; expected STOCK or INDEX"
+                            ),
+                            crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                        );
+                        return None;
                     }
-                };
+                }
+            } else {
+                let exp = require_cstr!(expiration_ptr, None);
+                let stk = require_cstr!(strike_ptr, None);
+                let rt = require_cstr!(right_ptr, None);
+                match Contract::option(
+                    symbol,
+                    OptionLeg {
+                        expiration: exp,
+                        strike: stk,
+                        right: rt,
+                    },
+                ) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        set_error_from(&e);
+                        return None;
+                    }
+                }
+            };
             Some(Subscription::Contract { contract, kind })
         }
         THETADATADX_SUB_SCOPE_FULL => {
@@ -785,15 +812,24 @@ unsafe fn coerce_subscription(
                 THETADATADX_SUB_KIND_TRADE => FullSubscriptionKind::Trades,
                 THETADATADX_SUB_KIND_OPEN_INTEREST => FullSubscriptionKind::OpenInterest,
                 THETADATADX_SUB_KIND_QUOTE => {
-                    set_error("full-stream Quote is not a valid subscription");
+                    set_error_with_code(
+                        "full-stream Quote is not a valid subscription",
+                        crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                    );
                     return None;
                 }
                 THETADATADX_SUB_KIND_MARKET_VALUE => {
-                    set_error("full-stream MarketValue is not a valid subscription");
+                    set_error_with_code(
+                        "full-stream MarketValue is not a valid subscription",
+                        crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                    );
                     return None;
                 }
                 other => {
-                    set_error(&format!("invalid kind {other}"));
+                    set_error_with_code(
+                        &format!("invalid kind {other}"),
+                        crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                    );
                     return None;
                 }
             };
@@ -803,16 +839,20 @@ unsafe fn coerce_subscription(
                 "OPTION" => thetadatadx::SecType::Option,
                 "INDEX" => thetadatadx::SecType::Index,
                 other => {
-                    set_error(&format!(
-                        "invalid sec_type {other:?} (expected STOCK, OPTION, INDEX)"
-                    ));
+                    set_error_with_code(
+                        &format!("invalid sec_type {other:?} (expected STOCK, OPTION, INDEX)"),
+                        crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+                    );
                     return None;
                 }
             };
             Some(Subscription::Full { sec_type, kind })
         }
         other => {
-            set_error(&format!("invalid scope {other}"));
+            set_error_with_code(
+                &format!("invalid scope {other}"),
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+            );
             None
         }
     }
@@ -3131,6 +3171,80 @@ mod null_callback_guard_tests {
         crate::error::thetadatadx_clear_error();
         crate::error::set_error("streaming already started");
         assert_eq!(last_error().as_deref(), Some("streaming already started"));
+    }
+
+    #[test]
+    fn coerce_subscription_honours_index_sec_type() {
+        // A per-contract underlier with sec_type "INDEX" must subscribe as an
+        // index, not silently as a stock (regression: VIX -> wrong instrument).
+        let symbol = std::ffi::CString::new("VIX").unwrap();
+        let sec_type = std::ffi::CString::new("INDEX").unwrap();
+        let req = super::ThetaDataDxSubscriptionRequest {
+            scope: super::THETADATADX_SUB_SCOPE_CONTRACT,
+            kind: super::THETADATADX_SUB_KIND_QUOTE,
+            symbol: symbol.as_ptr(),
+            expiration: std::ptr::null(),
+            strike: std::ptr::null(),
+            right: std::ptr::null(),
+            sec_type: sec_type.as_ptr(),
+        };
+        // SAFETY: every pointer is a live CString (or null) held for the call.
+        let sub = unsafe { super::coerce_subscription(&req) }.expect("valid index contract");
+        match sub {
+            thetadatadx::fpss::protocol::Subscription::Contract { contract, .. } => {
+                assert_eq!(contract.sec_type, thetadatadx::SecType::Index);
+            }
+            _ => panic!("expected a per-contract subscription"),
+        }
+    }
+
+    #[test]
+    fn coerce_subscription_null_sec_type_defaults_to_stock() {
+        // Backward-compat: a null sec_type (callers predating the field) still
+        // resolves to a stock subscription.
+        let symbol = std::ffi::CString::new("AAPL").unwrap();
+        let req = super::ThetaDataDxSubscriptionRequest {
+            scope: super::THETADATADX_SUB_SCOPE_CONTRACT,
+            kind: super::THETADATADX_SUB_KIND_QUOTE,
+            symbol: symbol.as_ptr(),
+            expiration: std::ptr::null(),
+            strike: std::ptr::null(),
+            right: std::ptr::null(),
+            sec_type: std::ptr::null(),
+        };
+        // SAFETY: `symbol` is a live CString held for the call; other ptrs null.
+        let sub = unsafe { super::coerce_subscription(&req) }.expect("valid stock contract");
+        match sub {
+            thetadatadx::fpss::protocol::Subscription::Contract { contract, .. } => {
+                assert_eq!(contract.sec_type, thetadatadx::SecType::Stock);
+            }
+            _ => panic!("expected a per-contract subscription"),
+        }
+    }
+
+    #[test]
+    fn coerce_subscription_rejects_unknown_sec_type_as_invalid_parameter() {
+        // An unrecognized sec_type is a caller error, not a silent stock:
+        // coercion fails and sets the typed INVALID_PARAMETER code (not the
+        // untyped OTHER), so the C++ wrapper throws InvalidParameterError.
+        let symbol = std::ffi::CString::new("AAPL").unwrap();
+        let sec_type = std::ffi::CString::new("FUTURE").unwrap();
+        let req = super::ThetaDataDxSubscriptionRequest {
+            scope: super::THETADATADX_SUB_SCOPE_CONTRACT,
+            kind: super::THETADATADX_SUB_KIND_QUOTE,
+            symbol: symbol.as_ptr(),
+            expiration: std::ptr::null(),
+            strike: std::ptr::null(),
+            right: std::ptr::null(),
+            sec_type: sec_type.as_ptr(),
+        };
+        // SAFETY: `symbol` and `sec_type` are live CStrings held for the call.
+        let sub = unsafe { super::coerce_subscription(&req) };
+        assert!(sub.is_none(), "an unknown sec_type must be rejected");
+        assert_eq!(
+            crate::error::thetadatadx_last_error_code(),
+            crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+        );
     }
 }
 

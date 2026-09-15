@@ -1214,9 +1214,10 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_connection_window_si
 /// Set the automatic bulk-fetch sharding policy for history pulls, covering
 /// both the buffered and the chunk-streaming call paths.
 ///
-/// - `policy = 0`: Auto (default) — large history pulls are sized with a
-///   cheap density probe and, when worthwhile, split into balanced disjoint
-///   sub-requests across the account's concurrent-request budget. Buffered
+/// - `policy = 0`: Auto (default) — a large history pull's requested time
+///   or date range is split into equal concurrent bands across the
+///   account's concurrent-request budget, decided from the request shape
+///   alone (no sizing request is issued). Buffered
 ///   pulls merge the shards back into exactly the rows of the single-stream
 ///   response: single-contract, stock, and index pulls keep the exact
 ///   single-stream row order, while option-chain pulls come back in a
@@ -1298,13 +1299,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_bulk_fetch(
 /// Set the upper bound on concurrent sub-requests per sharded bulk fetch.
 ///
 /// * `has_value = false` encodes `None` (the default): a sharded pull uses
-///   the account's full concurrent-request budget (the tier-derived
-///   channel-pool size resolved at connect time). `n` is ignored.
+///   the full concurrent-request budget (the channel-pool size resolved
+///   from `max_concurrent_requests`). `n` is ignored.
 /// * `has_value = true` encodes `Some(n)`: a sharded pull spreads across at
 ///   most `n` sub-requests. The applied value is clamped into
-///   `[1, pool_size]` when a plan is built — the pool size is the
-///   server-enforced tier ceiling — and validation floors an explicit `0`
-///   to `1`.
+///   `[1, pool_size]` when a plan is built — the pool size is resolved
+///   from `max_concurrent_requests` — and validation floors an explicit
+///   `0` to `1`.
 ///
 /// Returns `0` on success, `-1` if `config` is null.
 #[no_mangle]
@@ -1327,7 +1328,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_shard_concurrency(
 
 /// Read the current `market_data.shard_concurrency` setting.
 ///
-/// * `*out_has_value = false` → the config holds `None` (full tier
+/// * `*out_has_value = false` → the config holds `None` (full pool
 ///   budget). `*out_n` is left as `0`.
 /// * `*out_has_value = true` → the config holds `Some(*out_n)`.
 ///
@@ -1349,7 +1350,74 @@ pub unsafe extern "C" fn thetadatadx_config_get_shard_concurrency(
             Some(v) => (true, v),
             None => (false, 0),
         };
-        // SAFETY: out_has_value / out_n null-checked above; caller pins the storage they point at for the call duration.
+        // SAFETY: out_has_value / out_n null-checked above; the caller keeps both out-slots for `market_data.shard_concurrency` alive for the call duration.
+        unsafe {
+            *out_has_value = has_value;
+            *out_n = value;
+        }
+        0
+    })
+}
+
+/// Set the number of concurrent in-flight market-data requests: the size
+/// of the gRPC channel pool and of the request semaphore that admits
+/// requests onto it, resolved at connect time.
+///
+/// * `has_value = false` encodes `None` (the default): the pool is sized
+///   to the account's subscription tier from the auth response (Free 1 /
+///   Value 2 / Standard 4 / Pro 8). `n` is ignored.
+/// * `has_value = true` encodes `Some(n)`: the pool is `n` verbatim, with
+///   no client-side cap — the allowance is enforced server-side, so an
+///   account boosted above its base tier sets the boosted value and runs
+///   that wide. Requests past the server's allowance surface as
+///   `ResourceExhausted` and are retried with backoff. Validation floors
+///   an explicit `0` to `1`.
+///
+/// Returns `0` on success, `-1` if `config` is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_max_concurrent_requests(
+    config: *mut ThetaDataDxConfig,
+    has_value: bool,
+    n: u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
+        let config = unsafe { &mut *config };
+        config.inner.market_data.max_concurrent_requests = if has_value { Some(n) } else { None };
+        0
+    })
+}
+
+/// Read the current `market_data.max_concurrent_requests` setting.
+///
+/// * `*out_has_value = false` → the config holds `None` (size the pool to
+///   the account's subscription tier at connect time). `*out_n` is left
+///   as `0`.
+/// * `*out_has_value = true` → the config holds `Some(*out_n)`.
+///
+/// Returns `0` on success, `-1` if any pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_max_concurrent_requests(
+    config: *const ThetaDataDxConfig,
+    out_has_value: *mut bool,
+    out_n: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_has_value.is_null() || out_n.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let (has_value, value) = match config.inner.market_data.max_concurrent_requests {
+            Some(v) => (true, v),
+            None => (false, 0),
+        };
+        // SAFETY: out_has_value / out_n null-checked above; the caller keeps both out-slots for `market_data.max_concurrent_requests` alive for the call duration.
         unsafe {
             *out_has_value = has_value;
             *out_n = value;
@@ -1938,7 +2006,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_metrics_port(
             Some(v) => (true, v),
             None => (false, 0),
         };
-        // SAFETY: out_has_value / out_port null-checked above; caller pins the storage they point at for the call duration.
+        // SAFETY: out_has_value / out_port null-checked above; the caller keeps both out-slots for `metrics.port` alive for the call duration.
         unsafe {
             *out_has_value = has_value;
             *out_port = value;

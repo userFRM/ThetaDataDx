@@ -545,9 +545,10 @@ impl Config {
     }
 
     /// Automatic bulk-fetch sharding policy for history pulls (buffered and
-    /// chunk-streaming alike). Accepts ``"auto"`` (default: large history
-    /// pulls are split into balanced concurrent sub-requests across the
-    /// account's concurrent-request budget — buffered pulls are merged back
+    /// chunk-streaming alike). Accepts ``"auto"`` (default: a large history
+    /// pull's requested time or date range is split into equal concurrent
+    /// bands across the account's concurrent-request budget — buffered
+    /// pulls are merged back
     /// into exactly the rows of the single-stream response, single-contract,
     /// stock, and index pulls in the exact single-stream order and
     /// option-chain pulls in a deterministic canonical order grouped by
@@ -576,9 +577,9 @@ impl Config {
     }
 
     /// Upper bound on concurrent sub-requests per sharded bulk fetch.
-    /// ``None`` (the default) uses the account's full concurrent-request
-    /// budget (the tier-derived channel-pool size resolved at connect time);
-    /// an ``int`` caps the fan-out. The applied value is clamped into
+    /// ``None`` (the default) uses the full concurrent-request budget (the
+    /// channel-pool size resolved from ``max_concurrent_requests``); an
+    /// ``int`` caps the fan-out. The applied value is clamped into
     /// ``[1, pool_size]`` when a plan is built, and validation floors an
     /// explicit ``0`` to ``1``.
     #[setter]
@@ -588,12 +589,40 @@ impl Config {
     }
 
     /// Current ``shard_concurrency`` setting. ``None`` means a sharded pull
-    /// uses the account's full concurrent-request budget; an ``int`` is the
+    /// uses the full concurrent-request budget; an ``int`` is the
     /// configured cap.
     #[getter]
     fn get_shard_concurrency(&self) -> Option<u32> {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.market_data.shard_concurrency
+    }
+
+    /// Number of concurrent in-flight market-data requests (gRPC channel-pool
+    /// + request-semaphore size, resolved at connect time). ``None`` (the
+    /// default) sizes the pool to the account's subscription tier from the
+    /// auth response (Free 1 / Value 2 / Standard 4 / Pro 8); an ``int`` is
+    /// used verbatim with no client-side cap — the allowance is enforced
+    /// server-side, so a boosted account sets its boosted value. Requests
+    /// past the allowance are retried with backoff. Validation floors an
+    /// explicit ``0`` to ``1``.
+    ///
+    /// Examples
+    /// --------
+    ///     cfg = Config.production()
+    ///     cfg.max_concurrent_requests = 32
+    #[setter]
+    fn set_max_concurrent_requests(&self, n: Option<u32>) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.max_concurrent_requests = n;
+    }
+
+    /// Current ``max_concurrent_requests`` setting. ``None`` means the pool
+    /// is sized to the account's subscription tier at connect time; an
+    /// ``int`` is the configured pool size.
+    #[getter]
+    fn get_max_concurrent_requests(&self) -> Option<u32> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.market_data.max_concurrent_requests
     }
 
     /// Current ``retry.initial_delay`` value in ms.

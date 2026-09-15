@@ -15,21 +15,27 @@ tls = true
 keepalive_time_secs = 30
 keepalive_timeout_secs = 10
 
-# Max inbound gRPC message size (bytes). Default 4MB. This is the canonical
-# size knob. The MB-denominated [grpc] max_message_size_mb below, when set,
-# overrides this value; leave it unset to keep this byte value in force.
+# Max inbound gRPC message size (bytes). Default 4MB.
 max_message_size = 4194304
 
 # Bulk-fetch sharding policy for large history pulls. "auto" (default) splits
-# a big pull into balanced concurrent sub-requests across your tier's request
-# budget; "off" runs every query as a single stream in the server's own row
-# and chunk order. Case-insensitive.
+# a big pull's time or date range into equal concurrent bands across the
+# concurrent-request pool; "off" runs every query as a single stream in the
+# server's own row and chunk order. Case-insensitive.
 # bulk_fetch = "auto"
 
-# Fan-out cap for bulk_fetch = "auto". Absent (default) uses the account's
-# full concurrent-request budget; set a smaller number to reserve capacity.
+# Fan-out cap for bulk_fetch = "auto". Absent (default) uses the full
+# max_concurrent_requests budget; set a smaller number to reserve capacity.
 # An explicit 0 is floored to 1.
 # shard_concurrency = 4
+
+# Concurrent in-flight market-data requests (gRPC channel-pool + request-
+# semaphore size). Absent (default) sizes the pool to your account's
+# subscription tier from the auth response (Free 1 / Value 2 / Standard 4 /
+# Pro 8). An explicit value is used verbatim with no client-side cap — the
+# allowance is enforced server-side, so set your boosted allowance here if
+# your account carries one. An explicit 0 is floored to 1.
+# max_concurrent_requests = 32
 
 # gRPC connect timeout (seconds). Default 10. Validated to [1, 300].
 # connect_timeout_secs = 10

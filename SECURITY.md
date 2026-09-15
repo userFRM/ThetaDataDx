@@ -75,11 +75,12 @@ official terminal), so passwords longer than 127 bytes authenticate correctly
 
 ### Concurrent Request Limiting
 
-The SDK caps the number of in-flight market-data requests. The cap
-is derived automatically from the account's subscription tier at connect time and is not
-user-configurable. This respects the server-side per-tier concurrency limit and prevents
-runaway request storms from overwhelming the upstream server or triggering server-side rate
-limiting.
+The SDK bounds the number of in-flight market-data requests with a semaphore sized to the
+request pool — the account's subscription-tier allowance by default, or the configured
+`max_concurrent_requests` — so a burst of calls can never turn into an unbounded request
+storm against the upstream server. The account's real concurrent-request allowance is
+enforced server-side; requests past it are rejected upstream and retried with backoff
+rather than amplified.
 
 ### Unknown Compression Rejection
 

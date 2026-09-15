@@ -237,9 +237,11 @@ impl std::fmt::Debug for AuthResponse {
 /// The Nexus API returns per-asset subscription tiers encoded as integers:
 /// FREE=0, VALUE=1, STANDARD=2, PROFESSIONAL=3. Concurrency is account-wide,
 /// not per asset class: [`AuthUser::max_concurrent_requests`] takes the
-/// highest tier across asset classes and permits `2^tier` concurrent
-/// market-data requests, matching the vendor's account-wide-by-highest-tier
-/// rule.
+/// highest tier across asset classes and reports that tier's base allowance
+/// of `2^tier` concurrent market-data requests, matching the vendor's
+/// account-wide-by-highest-tier rule. It seeds the default channel-pool
+/// size; `market_data.max_concurrent_requests` overrides it, and the server
+/// enforces the account's real allowance.
 ///
 /// `Debug` is implemented manually so `email` never lands in panic
 /// output / tracing diagnostics / FFI `repr()`. The subscription
@@ -284,7 +286,11 @@ impl std::fmt::Debug for AuthUser {
 }
 
 impl AuthUser {
-    /// Compute the maximum concurrent market-data requests based on subscription tier.
+    /// The account's base concurrent-request allowance from its subscription
+    /// tier — the default channel-pool size when
+    /// `market_data.max_concurrent_requests` is unset. Not a client-side
+    /// cap: the server enforces the account's real allowance, which a boost
+    /// can raise past this value.
     ///
     /// Returns `2^tier` where the tier is the highest across all asset classes:
     /// - FREE = 0 -> 1 concurrent request

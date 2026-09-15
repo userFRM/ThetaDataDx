@@ -2,13 +2,11 @@
 //!
 //! Holds the per-channel gRPC tuning for the market-data transport:
 //! message-size ceiling, keepalive cadence, HTTP/2 flow-control
-//! windows, connect/request deadlines, and the buffered-response warn
-//! threshold.
-//!
-//! Channel-pool concurrency is **not** a tuning knob here: it is
-//! resolved internally from the subscription tier returned by Nexus
-//! auth at connect time, so the live pool always stays inside the
-//! server-side per-tier ceiling without any caller input.
+//! windows, connect/request deadlines, the buffered-response warn
+//! threshold, and the concurrent-request pool size
+//! ([`MarketDataConfig::max_concurrent_requests`]). The server enforces
+//! the account's real concurrent-request allowance; the pool size only
+//! decides how many requests this client keeps in flight.
 //!
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
@@ -28,12 +26,10 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 /// `.await` on a history builder and the chunk-streaming `.stream*`
 /// calls alike.
 ///
-/// Under `Auto` (the default) a large history pull is first sized with
-/// a cheap density probe; when the estimated response is large enough
-/// that one stream cannot saturate the account's concurrent-request
-/// budget, the SDK splits the query into balanced disjoint
-/// sub-requests along a filter axis (a date band or a time band) and
-/// runs them across the tier's channel pool.
+/// Under `Auto` (the default) the SDK splits a large history pull into
+/// equal disjoint sub-requests along a filter axis (a date band or a
+/// time band) — cut from the request's own shape, with no sizing query
+/// — and runs them across the channel pool.
 ///
 /// The buffered path merges the results into exactly the rows the
 /// single stream would have returned. Row order: single-contract,
@@ -55,12 +51,12 @@ pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
 /// Small pulls and non-history endpoints are never sharded, so `Auto`
 /// leaves them byte-identical to `Off`.
 ///
-/// `Off` disables the probe and the fan-out entirely: every query runs
-/// as today's single stream, in the server's own row and chunk order.
+/// `Off` disables the fan-out entirely: every query runs as today's
+/// single stream, in the server's own row and chunk order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum BulkFetchPolicy {
-    /// Shard large history pulls across the tier's request budget
+    /// Shard large history pulls across the concurrent-request budget
     /// (default).
     #[default]
     Auto,
@@ -118,8 +114,7 @@ pub struct MarketDataConfig {
     /// Max inbound gRPC message size, in bytes.
     ///
     /// Caps the size of a single inbound gRPC message. Default
-    /// `4 * 1024 * 1024` (4 MiB); validation bounds it to `[1 B, 64 MiB]`,
-    /// the same ceiling the `[grpc] max_message_size_mb` TOML spelling enforces.
+    /// `4 * 1024 * 1024` (4 MiB); validation bounds it to `[1 B, 64 MiB]`.
     pub max_message_size: usize,
 
     /// gRPC keepalive interval in seconds (`keepAliveTime(30, SECONDS)`).
@@ -209,8 +204,8 @@ pub struct MarketDataConfig {
     /// `.await` and chunk-streaming `.stream*` alike.
     ///
     /// See [`BulkFetchPolicy`]. Default [`BulkFetchPolicy::Auto`]: large
-    /// history pulls are probed and, when worthwhile, split into balanced
-    /// concurrent sub-requests across the tier's channel pool. Buffered
+    /// history pulls are split into equal concurrent sub-requests across
+    /// the channel pool. Buffered
     /// pulls merge the shards back into exactly the rows of the
     /// single-stream response — single-contract, stock, and index pulls
     /// in the exact single-stream order, option-chain pulls in a
@@ -225,13 +220,28 @@ pub struct MarketDataConfig {
 
     /// Upper bound on concurrent sub-requests per sharded bulk fetch.
     ///
-    /// `None` (default) uses the account's full concurrent-request budget
-    /// (the tier-derived channel-pool size resolved at connect time). An
-    /// explicit value is clamped to `[1, pool_size]` when a plan is built —
-    /// the pool size is the server-enforced ceiling, so a sharded query can
-    /// never hold more in-flight requests than the tier allows. Validation
-    /// floors an explicit `0` to `1`.
+    /// `None` (default) uses the full concurrent-request budget (the
+    /// channel-pool size resolved from
+    /// [`Self::max_concurrent_requests`]). An explicit value is clamped
+    /// to `[1, pool_size]` when a plan is built, so a sharded query can
+    /// never hold more in-flight requests than the pool carries.
+    /// Validation floors an explicit `0` to `1`.
     pub shard_concurrency: Option<u32>,
+
+    /// Concurrent in-flight market-data requests: the size of the gRPC
+    /// channel pool and of the request semaphore that admits requests
+    /// onto it, resolved at connect time.
+    ///
+    /// `None` (default) sizes the pool to the account's subscription
+    /// tier from the auth response — the tier's base allowance (Free 1 /
+    /// Value 2 / Standard 4 / Pro 8). `Some(n)` uses `n` verbatim with
+    /// no client-side cap: the allowance is enforced server-side, so an
+    /// account boosted above its base tier (e.g. 32 concurrent) sets
+    /// `Some(32)` and actually runs 32 wide. Requests past the server's
+    /// allowance are rejected as `ResourceExhausted` and retried with
+    /// backoff before surfacing an error. Validation floors an explicit
+    /// `0` to `1`.
+    pub max_concurrent_requests: Option<u32>,
 }
 
 impl MarketDataConfig {
@@ -243,10 +253,8 @@ impl MarketDataConfig {
     /// the MB→byte conversion (`mb * 1024 * 1024`) overflows `usize` for the
     /// largest inputs. The production default is 4 MB; 64 MB leaves generous
     /// headroom for the largest bulk market-data chunk while keeping the budget
-    /// bounded. This is the single source of truth both the byte-denominated
-    /// [`crate::config::DirectConfig::validate`] check and the
-    /// `[grpc] max_message_size_mb` TOML ceiling read, so the two spellings
-    /// cannot drift.
+    /// bounded. This is the ceiling the byte-denominated
+    /// [`crate::config::DirectConfig::validate`] check enforces.
     pub(crate) const MAX_MESSAGE_SIZE_MB: usize = 64;
 
     /// Market-data hostname.
@@ -289,9 +297,11 @@ impl MarketDataConfig {
             // workload" signal at this boundary.
             warn_on_buffered_threshold_bytes: 100 * 1024 * 1024,
             bulk_fetch: BulkFetchPolicy::Auto,
-            // None = the tier's full concurrent-request budget, resolved
-            // at connect time from the auth response.
+            // None = the full `max_concurrent_requests` budget.
             shard_concurrency: None,
+            // None = size the pool to the account's subscription tier at
+            // connect time; boosted accounts set an explicit value.
+            max_concurrent_requests: None,
         }
     }
 }

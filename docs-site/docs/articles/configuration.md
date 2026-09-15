@@ -93,7 +93,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 |---|---|---|
 | Request deadlines | `timeout_ms` per request (builder / kwarg) | Hard per-call deadline; expiry raises a timeout error and frees the slot. |
 | Retries | `retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter`, `retry_max_elapsed_secs` | Backoff schedule for transient market-data-request faults. |
-| Bulk downloads | `bulk_fetch`, `shard_concurrency`, `stream_window_size_kb`, `connection_window_size_kb` | Automatic sharding of large history pulls across your tier, plus the HTTP/2 flow-control windows that set per-stream throughput. See [Bulk Downloads](/articles/bulk-downloads). |
+| Bulk downloads | `bulk_fetch`, `max_concurrent_requests`, `shard_concurrency`, `stream_window_size_kb`, `connection_window_size_kb` | Concurrent-request pool size, automatic sharding of large history pulls across it, plus the HTTP/2 flow-control windows that set per-stream throughput. See [Bulk Downloads](/articles/bulk-downloads). |
 | Streaming reconnect | `reconnect_policy`, `reconnect_max_attempts`, `reconnect_wait_ms`, `reconnect_wait_max_ms`, `reconnect_jitter`, `reconnect_stable_window_secs`, … | Automatic streaming reconnection. See [Reconnection & Monitoring](/streaming/reliability). |
 | Streaming latency | `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Event-buffer capacity and I/O timeouts. |
 | Streaming consumer | `wait_mode`, `park_interval_us`, `consumer_cpu` | How the event-ring consumer waits when idle. `spin` (default) and `busyspin` both hold ~100% of one core and differ only in jitter; `park` and `backoff` lower idle CPU (`backoff` stays low-latency while events flow, so it is the hands-free choice for a 24/7 consumer), sleeping `park_interval_us` microseconds when idle (default `1000` = 1 ms, validated `[50, 1000000]`; the OS timer floor is ~50 us and a 100 us park costs a few percent of a core). |
@@ -103,7 +103,7 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 
 Every field above is available on all four language surfaces under the naming convention shown earlier; unknown values fail at configuration time, not at first request.
 
-Your tier's concurrency cap itself is not configurable; it is set by your subscription. `shard_concurrency` only limits how much of that cap a single sharded pull consumes. See [Concurrent Requests](/articles/concurrent-requests).
+Your account's concurrent-request allowance is enforced server-side; the SDK does not cap it. The request pool defaults to your subscription tier's allowance at connect time, `max_concurrent_requests` overrides that (set it to a boosted allowance to go wider), and `shard_concurrency` only limits how much of the pool a single sharded pull consumes. See [Concurrent Requests](/articles/concurrent-requests).
 
 ## Config file (Rust)
 

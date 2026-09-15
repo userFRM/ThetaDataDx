@@ -15,7 +15,7 @@
 
 /* eslint-disable */
 
-import type { Client, MarketDataClient, StreamView, StreamEvent, ContractRef } from './index';
+import type { Client, MarketDataClient, StreamView, StreamEvent, StreamingClient, ContractRef } from './index';
 
 export * from './index';
 
@@ -115,6 +115,18 @@ export declare const StreamingSession: {
   prototype: StreamingSession;
 };
 
+/**
+ * Context-managed streaming session over a standalone {@link StreamingClient}.
+ * Unlike {@link StreamingSession} (returned by the unified `Client.streaming`),
+ * this wraps a `StreamingClient`, so it exposes the standalone streaming
+ * surface only: it is NOT a `Client` and has no `marketData` / `flatFiles` /
+ * `close` members. Returned by {@link StreamingClient.streaming}.
+ */
+export interface StandaloneStreamingSession extends StreamingClient {
+  /** See {@link StreamingSession}'s async dispose. */
+  [Symbol.asyncDispose](): Promise<void>;
+}
+
 declare module './index' {
   interface Client {
     /**
@@ -173,7 +185,7 @@ declare module './index' {
      * `awaitDrain(5000)` on scope exit, the same RAII semantics as the unified
      * {@link Client.streaming} helper.
      */
-    streaming(callback: StreamEventCallback): Promise<StreamingSession>;
+    streaming(callback: StreamEventCallback): Promise<StandaloneStreamingSession>;
 
     /**
      * TC39 explicit resource management: `using sc = StreamingClient.connect(...)`
@@ -204,8 +216,8 @@ declare module './index' {
      * apache-arrow `RecordBatch` values under a fixed schema, consumed
      * with `for await (const batch of reader)`. The reader closes
      * (unsubscribe + tear down) on `close()` or `Symbol.asyncDispose`
-     * (`await using reader = await client.stream.batches()`). Subscribe on
-     * this same surface first, then open the reader.
+     * (`await using reader = await client.stream.batches()`). Open the reader
+     * first (that starts the session), then subscribe on this same surface.
      *
      * The runtime returns the JS {@link RecordBatchStream} wrapper around
      * the native handle; this override replaces the napi-generated
@@ -225,10 +237,10 @@ export interface BatchesOptions {
    */
   lingerMs?: number;
   /**
-   * Backpressure when the reader falls behind: `"block"` (default,
-   * lossless — applies backpressure to the wire) or `"dropOldest"`
-   * (bounded buffer; drops the oldest batch and counts it in
-   * {@link RecordBatchStream.dropped}).
+   * Backpressure when the reader falls behind: `"block"` (default; no
+   * queue-side drops, though a sustained reader stall can still overflow the
+   * upstream event ring) or `"dropOldest"` (bounded buffer; drops the oldest
+   * batch and counts it in {@link RecordBatchStream.dropped}).
    */
   backpressure?: 'block' | 'dropOldest';
   /** Bounded-buffer depth in batches for `"dropOldest"`. Default 4. */

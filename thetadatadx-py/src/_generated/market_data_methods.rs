@@ -26,13 +26,12 @@ impl StockListSymbolsBuilder {
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().stock_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -44,13 +43,12 @@ impl StockListSymbolsBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().stock_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -98,13 +96,12 @@ impl StockListDatesBuilder {
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().stock_list_dates(&request_type, &symbol);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -118,13 +115,12 @@ impl StockListDatesBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().stock_list_dates(&request_type, &symbol);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -618,6 +614,7 @@ impl StockHistoryEodBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -683,6 +680,7 @@ impl StockHistoryEodBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -936,6 +934,7 @@ impl StockHistoryOhlcBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -1027,6 +1026,7 @@ impl StockHistoryOhlcBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -1259,6 +1259,7 @@ impl StockHistoryTradeBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -1346,6 +1347,7 @@ impl StockHistoryTradeBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -1600,6 +1602,7 @@ impl StockHistoryQuoteBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -1691,6 +1694,7 @@ impl StockHistoryQuoteBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -1943,6 +1947,7 @@ impl StockHistoryTradeQuoteBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -2034,6 +2039,7 @@ impl StockHistoryTradeQuoteBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -2166,7 +2172,7 @@ impl StockAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2204,6 +2210,7 @@ impl StockAtTimeTradeBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -2220,7 +2227,7 @@ impl StockAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2274,6 +2281,7 @@ impl StockAtTimeTradeBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -2406,7 +2414,7 @@ impl StockAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2444,6 +2452,7 @@ impl StockAtTimeQuoteBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -2460,7 +2469,7 @@ impl StockAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2514,6 +2523,7 @@ impl StockAtTimeQuoteBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -2565,13 +2575,12 @@ impl OptionListSymbolsBuilder {
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().option_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -2583,13 +2592,12 @@ impl OptionListSymbolsBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -2650,13 +2658,12 @@ impl OptionListDatesBuilder {
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().option_list_dates(&request_type, &symbol, &expiration);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -2671,13 +2678,12 @@ impl OptionListDatesBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_dates(&request_type, &symbol, &expiration);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -2718,13 +2724,12 @@ impl OptionListExpirationsBuilder {
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().option_list_expirations(&symbol);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "expiration")
@@ -2737,13 +2742,12 @@ impl OptionListExpirationsBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_expirations(&symbol);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
@@ -2792,13 +2796,12 @@ impl OptionListStrikesBuilder {
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().option_list_strikes(&symbol, &expiration);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "strike")
@@ -2812,13 +2815,12 @@ impl OptionListStrikesBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_strikes(&symbol, &expiration);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
@@ -2963,6 +2965,7 @@ impl OptionListContractsBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -3035,6 +3038,7 @@ impl OptionListContractsBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -5180,6 +5184,7 @@ impl OptionHistoryEodBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -5262,6 +5267,7 @@ impl OptionHistoryEodBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -5564,6 +5570,7 @@ impl OptionHistoryOhlcBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -5664,6 +5671,7 @@ impl OptionHistoryOhlcBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -5966,6 +5974,7 @@ impl OptionHistoryTradeBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -6066,6 +6075,7 @@ impl OptionHistoryTradeBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -6387,6 +6397,7 @@ impl OptionHistoryQuoteBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -6491,6 +6502,7 @@ impl OptionHistoryQuoteBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -6813,6 +6825,7 @@ impl OptionHistoryTradeQuoteBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -6917,6 +6930,7 @@ impl OptionHistoryTradeQuoteBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -7178,6 +7192,7 @@ impl OptionHistoryOpenInterestBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -7270,6 +7285,7 @@ impl OptionHistoryOpenInterestBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -7592,6 +7608,7 @@ impl OptionHistoryGreeksEodBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -7694,6 +7711,7 @@ impl OptionHistoryGreeksEodBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -8075,6 +8093,7 @@ impl OptionHistoryGreeksAllBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -8191,6 +8210,7 @@ impl OptionHistoryGreeksAllBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -8571,6 +8591,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -8687,6 +8708,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -9068,6 +9090,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -9184,6 +9207,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -9564,6 +9588,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -9680,6 +9705,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -10061,6 +10087,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -10177,6 +10204,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -10557,6 +10585,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -10673,6 +10702,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -11054,6 +11084,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -11170,6 +11201,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -11550,6 +11582,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -11666,6 +11699,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -12046,6 +12080,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -12162,6 +12197,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -12541,6 +12577,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -12657,6 +12694,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -12841,7 +12879,7 @@ impl OptionAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12892,6 +12930,7 @@ impl OptionAtTimeTradeBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -12908,7 +12947,7 @@ impl OptionAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12975,6 +13014,7 @@ impl OptionAtTimeTradeBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -13157,7 +13197,7 @@ impl OptionAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13208,6 +13248,7 @@ impl OptionAtTimeQuoteBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -13224,7 +13265,7 @@ impl OptionAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13291,6 +13332,7 @@ impl OptionAtTimeQuoteBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -13342,13 +13384,12 @@ impl IndexListSymbolsBuilder {
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().index_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -13360,13 +13401,12 @@ impl IndexListSymbolsBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().index_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -13406,13 +13446,12 @@ impl IndexListDatesBuilder {
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
             let call = client.market_data().index_list_dates(&symbol);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -13425,13 +13464,12 @@ impl IndexListDatesBuilder {
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let call = client.market_data().index_list_dates(&symbol);
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -13772,6 +13810,7 @@ impl IndexHistoryEodBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -13837,6 +13876,7 @@ impl IndexHistoryEodBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -14033,6 +14073,7 @@ impl IndexHistoryOhlcBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -14110,6 +14151,7 @@ impl IndexHistoryOhlcBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -14344,6 +14386,7 @@ impl IndexHistoryPriceBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -14431,6 +14474,7 @@ impl IndexHistoryPriceBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -14540,7 +14584,7 @@ impl IndexAtTimePriceBuilder {
         }, |py, ticks| index_price_at_time_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14574,6 +14618,7 @@ impl IndexAtTimePriceBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -14590,7 +14635,7 @@ impl IndexAtTimePriceBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14640,6 +14685,7 @@ impl IndexAtTimePriceBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -14949,6 +14995,7 @@ impl InterestRateHistoryEodBuilder {
                             return;
                         }
                     };
+                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                     if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                         *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
@@ -15014,6 +15061,7 @@ impl InterestRateHistoryEodBuilder {
                                     return;
                                 }
                             };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
                             if let Err(e) = handler_for_task.call1(py, (py_list,)) {
                                 *cb_err_for_task.lock().unwrap() = Some(e);
                             }
@@ -15116,13 +15164,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().stock_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -15145,13 +15192,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().stock_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -15185,13 +15231,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -15216,13 +15261,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -16440,13 +16484,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().option_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -16469,13 +16512,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -16515,13 +16557,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -16552,13 +16593,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -16598,13 +16638,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().option_list_expirations(symbol.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "expiration")
@@ -16629,13 +16668,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_expirations(symbol.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
@@ -16672,13 +16710,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "strike")
@@ -16704,13 +16741,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
@@ -21735,13 +21771,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().index_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -21764,13 +21799,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().index_list_symbols();
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -21803,13 +21837,12 @@ impl MarketDataView {
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
             let call = self.client.market_data().index_list_dates(symbol.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -21833,13 +21866,12 @@ impl MarketDataView {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
             let call = client.market_data().index_list_dates(symbol.as_str());
-            if let Some(ms) = timeout_ms {
-                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
+            match timeout_ms {
+                None | Some(0) => call.await,
+                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
                     Ok(inner) => inner,
                     Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                }
-            } else {
-                call.await
+                },
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }

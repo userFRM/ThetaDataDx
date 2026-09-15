@@ -116,7 +116,7 @@ class Credentials:
             The sourced :class:`Credentials`.
 
         Raises:
-            ThetaDataError: If ``THETADATA_API_KEY`` is unset or empty.
+            InvalidParameterError: If ``THETADATA_API_KEY`` is unset or empty.
         """
         ...
 
@@ -210,9 +210,11 @@ class Config:
     market_data_connection_window_size_kb: int
     """Initial connection-level HTTP/2 flow-control window (KB) for the market-data gRPC channel. A larger window raises the throughput ceiling on bulk streaming pulls before HTTP/2 backpressure kicks in. The value is clamped into ``[64, 2_097_151]`` KB at validate/connect time. The default is ``16384`` (16 MiB)."""
     bulk_fetch: Literal["auto", "off"]
-    """Automatic bulk-fetch sharding policy for buffered history pulls. ``"auto"`` (the default) sizes large history pulls with a cheap density probe and, when worthwhile, splits them into balanced concurrent sub-requests across the account's concurrent-request budget, merged back into exactly the rows of the single-stream response — single-contract, stock, and index pulls in the exact single-stream order, option-chain pulls in a deterministic canonical order grouped by expiration, strike, and right; small pulls are never sharded. ``"off"`` runs every buffered query as a single stream, in the server's own row order. The setter accepts either value case-insensitively and raises ``ValueError`` otherwise."""
+    """Automatic bulk-fetch sharding policy for history pulls (buffered and chunk-streaming alike). ``"auto"`` (the default) splits a large history pull's requested time or date range into equal concurrent bands across the account's concurrent-request budget — buffered pulls are merged back into exactly the rows of the single-stream response, single-contract, stock, and index pulls in the exact single-stream order and option-chain pulls in a deterministic canonical order grouped by expiration, strike, and right; streaming pulls forward each band's chunks as they arrive, every chunk exactly once but interleaved across bands in arrival order; small pulls are never sharded. ``"off"`` runs every query as a single stream, in the server's own row and chunk order. The setter accepts either value case-insensitively and raises ``ValueError`` otherwise."""
     shard_concurrency: Optional[int]
-    """Upper bound on concurrent sub-requests per sharded bulk fetch. ``None`` (the default) uses the account's full concurrent-request budget (the tier-derived channel-pool size resolved at connect time); an ``int`` caps the fan-out. The applied value is clamped into ``[1, pool_size]`` when a plan is built, and validation floors an explicit ``0`` to ``1``."""
+    """Upper bound on concurrent sub-requests per sharded bulk fetch. ``None`` (the default) uses the full concurrent-request budget (the channel-pool size resolved from :attr:`max_concurrent_requests`); an ``int`` caps the fan-out. The applied value is clamped into ``[1, pool_size]`` when a plan is built, and validation floors an explicit ``0`` to ``1``."""
+    max_concurrent_requests: Optional[int]
+    """Concurrent in-flight market-data requests: the gRPC channel-pool and request-semaphore size, resolved at connect time. ``None`` (the default) sizes the pool to your account's subscription tier from the auth response (Free 1 / Value 2 / Standard 4 / Pro 8); an ``int`` is used verbatim with no client-side cap — the allowance is enforced server-side, so an account boosted above its base tier sets the boosted value and runs that wide. Requests past the allowance are retried with backoff. Validation floors an explicit ``0`` to ``1``."""
     reconnect_policy: str
     """Active reconnect policy name: ``"auto"``, ``"manual"``, or ``"custom"`` (the last reported when a :attr:`reconnect_callback` is installed)."""
     reconnect_max_attempts: int
@@ -336,7 +338,7 @@ class Contract:
         *,
         expiration: str,
         strike: float | int | str,
-        right: str,
+        right: str | Right,
     ) -> Contract:
         """Construct an option contract.
 
@@ -345,7 +347,8 @@ class Contract:
             expiration: Expiration date as a ``YYYYMMDD`` string.
             strike: Strike price in dollars; a number or string is
                 accepted (``550``, ``550.0``, and ``"550"`` are equivalent).
-            right: Option right, ``"C"`` (call) or ``"P"`` (put).
+            right: Option right — ``"C"`` (call) or ``"P"`` (put), or a
+                :class:`Right`.
 
         Returns:
             The constructed option :class:`Contract`.
@@ -5012,8 +5015,10 @@ class StreamView:
         """Open a pull-based columnar reader over the live stream.
 
         Returns a :class:`RecordBatchStream` yielding ``pyarrow.RecordBatch``
-        objects. ``backpressure`` selects ``"block"`` (lossless, the default)
-        or ``"drop_oldest"`` (bounded by ``capacity`` buffered batches).
+        objects. ``backpressure`` selects ``"block"`` (the default; no
+        queue-side drops, though a sustained stall can overflow the upstream
+        event ring) or ``"drop_oldest"`` (bounded by ``capacity`` buffered
+        batches).
         """
         ...
 
@@ -5259,8 +5264,9 @@ class Client:
 
         Reads ``THETADATA_API_KEY`` and connects. Strict, with no file
         fallback: an unset or whitespace-only ``THETADATA_API_KEY`` raises
-        ``ConfigError`` before any network round-trip. For the env-or-file
-        convenience read a ``.env`` file with :meth:`from_dotenv` instead.
+        ``InvalidParameterError`` before any network round-trip. For the
+        env-or-file convenience read a ``.env`` file with :meth:`from_dotenv`
+        instead.
 
         Args:
             config: Connection configuration; defaults to
@@ -5272,8 +5278,8 @@ class Client:
             A connected :class:`Client`.
 
         Raises:
-            ConfigError: If ``THETADATA_API_KEY`` is unset or empty, or
-                ``market_data_type`` / ``streaming_type`` is invalid.
+            InvalidParameterError: If ``THETADATA_API_KEY`` is unset or empty.
+            ConfigError: If ``market_data_type`` / ``streaming_type`` is invalid.
             ThetaDataError: If the connection fails.
         """
         ...

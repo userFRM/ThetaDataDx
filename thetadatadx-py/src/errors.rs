@@ -309,12 +309,14 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
             StreamErrorKind::ProtocolError => StreamError::new_err(e.to_string()),
             _ => StreamError::new_err(e.to_string()),
         },
-        // FlatFiles availability + partial-reconnect failures are
-        // streaming-surface faults; route them to `StreamError` so a
-        // `except StreamError` clause behaves identically to the C++
-        // and C ABI mapping (both pin these to the stream discriminant).
+        // FlatFiles availability, partial-reconnect, and partial
+        // shard-fetch failures are streaming-surface faults; route them
+        // to `StreamError` so a `except StreamError` clause behaves
+        // identically to the C++ and C ABI mapping (both pin these to
+        // the stream discriminant).
         thetadatadx::Error::FlatFilesUnavailable(_)
-        | thetadatadx::Error::PartialReconnect { .. } => StreamError::new_err(e.to_string()),
+        | thetadatadx::Error::PartialReconnect { .. }
+        | thetadatadx::Error::PartialShardFetch { .. } => StreamError::new_err(e.to_string()),
         // Catch-all for future `#[non_exhaustive]` variants added on the
         // Rust side. We keep the build green and route to the root class
         // so the caller still sees a branded exception rather than an
@@ -583,6 +585,15 @@ mod tests {
         Python::initialize();
         Python::attach(|py| {
             let err = to_py_err(thetadatadx::Error::PartialReconnect { failed: Vec::new() });
+            assert_exception_class(py, &err, "StreamError");
+        });
+    }
+
+    #[test]
+    fn partial_shard_fetch_maps_to_stream_error() {
+        Python::initialize();
+        Python::attach(|py| {
+            let err = to_py_err(thetadatadx::Error::PartialShardFetch { failed: Vec::new() });
             assert_exception_class(py, &err, "StreamError");
         });
     }

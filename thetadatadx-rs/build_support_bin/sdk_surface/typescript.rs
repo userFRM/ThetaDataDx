@@ -126,12 +126,12 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  but market-data events arrive as apache-arrow `RecordBatch`\n\
                  values under a fixed schema, consumed with `for await`. The\n\
                  reader closes (unsubscribes + tears down) on `close()` or\n\
-                 `Symbol.asyncDispose`. Subscribe on this same surface first,\n\
-                 then open the reader.\n\
+                 `Symbol.asyncDispose`. Open the reader first (that starts the\n\
+                 session), then subscribe on this same surface.\n\
                  \n\
                  `batchSize` rows per batch (default 65536); `lingerMs`\n\
                  flushes a partial batch on a quiet stream (default 50);\n\
-                 `backpressure` is `\"block\"` (default, lossless) or\n\
+                 `backpressure` is `\"block\"` (default; no queue-side drops) or\n\
                  `\"dropOldest\"`; `capacity` bounds the drop-oldest buffer.",
             );
             writeln!(out, "    #[napi(js_name = \"batches\", skip_typescript)]").unwrap();

@@ -1010,9 +1010,15 @@ impl DirectConfig {
         // An explicit shard concurrency of 0 has no meaning ("shard across
         // zero requests"); floor it to 1 so the plan builder's invariant
         // `1 <= n <= pool_size` holds by construction. The pool-size upper
-        // bound is tier-derived and known only at connect time, so the plan
-        // builder applies it.
+        // bound is `max_concurrent_requests`, applied by the plan builder.
         self.market_data.shard_concurrency = self.market_data.shard_concurrency.map(|n| n.max(1));
+        // A concurrent-request pool of 0 cannot carry any request; floor an
+        // explicit 0 to 1 so connect can never build an empty channel pool.
+        // `None` keeps the tier-derived default resolved at connect time.
+        // There is no client-side upper bound: the server enforces the
+        // account's real concurrent-request allowance.
+        self.market_data.max_concurrent_requests =
+            self.market_data.max_concurrent_requests.map(|n| n.max(1));
         // The market-data channel needs a routable port. A `0` port is never a
         // valid dial target, so reject it up front rather than at the connect
         // attempt.
@@ -1050,10 +1056,9 @@ impl DirectConfig {
         }
         // Inbound gRPC message size is a pre-allocated decode budget: a `0`
         // rejects every response and an absurd value commits the channel to a
-        // buffer far beyond any legitimate chunk. Range-checked against the
-        // same ceiling the `[grpc] max_message_size_mb` spelling enforces (the
-        // shared `MarketDataConfig::MAX_MESSAGE_SIZE_MB`, in megabytes, scaled to
-        // bytes here), so the two spellings cannot drift.
+        // buffer far beyond any legitimate chunk. Range-checked against
+        // `MarketDataConfig::MAX_MESSAGE_SIZE_MB` (in megabytes, scaled to
+        // bytes here).
         let max_message_size_bytes = MarketDataConfig::MAX_MESSAGE_SIZE_MB * 1024 * 1024;
         if !(1..=max_message_size_bytes).contains(&self.market_data.max_message_size) {
             return Err(Error::config_out_of_range(
@@ -1156,8 +1161,8 @@ impl DirectConfig {
 #[cfg(feature = "config-file")]
 mod config_file {
     use super::{
-        BulkFetchPolicy, DirectConfig, MarketDataConfig, ReconnectAttemptLimits, ReconnectPolicy,
-        RetryPolicy, WaitMode,
+        BulkFetchPolicy, DirectConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
+        WaitMode,
     };
     use crate::error::Error;
     use serde::Deserialize;
@@ -1193,9 +1198,16 @@ mod config_file {
         /// (case-insensitive). An unrecognised value is a load error.
         bulk_fetch: String,
         /// Fan-out cap for `bulk_fetch = "auto"`. `None` (key absent) uses
-        /// the account's full concurrent-request budget; `validate` floors
+        /// the full `max_concurrent_requests` budget; `validate` floors
         /// any explicit value to `1`.
         shard_concurrency: Option<u32>,
+        /// Concurrent in-flight market-data requests (gRPC channel-pool +
+        /// request-semaphore size). `None` (key absent) sizes the pool to
+        /// the account's subscription tier at connect time; an explicit
+        /// value is used verbatim (no client-side cap — the server
+        /// enforces the allowance). `validate` floors an explicit `0` to
+        /// `1`.
+        max_concurrent_requests: Option<u32>,
         /// gRPC connect timeout (seconds). `validate` enforces the same
         /// range as the programmatic path.
         connect_timeout_secs: u64,
@@ -1221,6 +1233,7 @@ mod config_file {
                 max_message_size: prod.market_data.max_message_size,
                 bulk_fetch: prod.market_data.bulk_fetch.as_str().to_string(),
                 shard_concurrency: prod.market_data.shard_concurrency,
+                max_concurrent_requests: prod.market_data.max_concurrent_requests,
                 connect_timeout_secs: prod.market_data.connect_timeout_secs,
                 request_timeout_secs: prod.market_data.request_timeout_secs,
                 warn_on_buffered_threshold_bytes: prod.market_data.warn_on_buffered_threshold_bytes,
@@ -1294,13 +1307,6 @@ mod config_file {
     struct GrpcSection {
         stream_window_size_kb: usize,
         connection_window_size_kb: usize,
-        /// Max inbound message size, in MB. `None` (key absent) leaves the
-        /// `[market_data].max_message_size` byte value in force; an explicit
-        /// value here — including the default of `4` — overrides it. Kept
-        /// distinguishable from "absent" via `Option` so setting the
-        /// override to the same number as the default is still honoured as
-        /// an explicit choice rather than read as unset.
-        max_message_size_mb: Option<usize>,
     }
 
     impl Default for GrpcSection {
@@ -1309,10 +1315,6 @@ mod config_file {
             Self {
                 stream_window_size_kb: prod.market_data.stream_window_size_kb,
                 connection_window_size_kb: prod.market_data.connection_window_size_kb,
-                // Absent by default so `[market_data].max_message_size`
-                // remains the single source of truth unless the operator
-                // sets this MB-denominated override explicitly.
-                max_message_size_mb: None,
             }
         }
     }
@@ -1418,38 +1420,9 @@ mod config_file {
             let cf: ConfigFile =
                 toml::from_str(toml_str).map_err(|e| Error::config_toml(e.to_string()))?;
 
-            // `[market_data].max_message_size` (bytes) is the canonical knob.
-            // `[grpc].max_message_size_mb` (MB) is an explicit override that
-            // wins when present — including when set to the same number as
-            // the default — and is inert when absent.
-            let max_message_size = match cf.grpc.max_message_size_mb {
-                // The override is a pre-allocated decode budget. Reject a
-                // `0` (which would disable the limit) or an out-of-ceiling
-                // value up front, and compute the byte count with
-                // `checked_mul` so an absurd input is reported as a range
-                // error rather than wrapping `usize` into a tiny cap.
-                Some(mb) => {
-                    if mb == 0 || mb > MarketDataConfig::MAX_MESSAGE_SIZE_MB {
-                        return Err(Error::config_out_of_range(
-                            "grpc.max_message_size_mb",
-                            i64::try_from(mb).unwrap_or(i64::MAX),
-                            1,
-                            i64::try_from(MarketDataConfig::MAX_MESSAGE_SIZE_MB)
-                                .unwrap_or(i64::MAX),
-                        ));
-                    }
-                    mb.checked_mul(1024 * 1024).ok_or_else(|| {
-                        Error::config_out_of_range(
-                            "grpc.max_message_size_mb",
-                            i64::try_from(mb).unwrap_or(i64::MAX),
-                            1,
-                            i64::try_from(MarketDataConfig::MAX_MESSAGE_SIZE_MB)
-                                .unwrap_or(i64::MAX),
-                        )
-                    })?
-                }
-                None => cf.market_data.max_message_size,
-            };
+            // `[market_data].max_message_size` (bytes) is the gRPC decode
+            // budget, bounded to `[1 B, 64 MiB]` by `validate`.
+            let max_message_size = cf.market_data.max_message_size;
 
             let mut out = DirectConfig::production_defaults();
             // An explicit `[market_data] host` is the operator's choice, so
@@ -1481,6 +1454,9 @@ mod config_file {
             // `validate` floors an explicit `0` to `1`; `None` keeps the
             // full-budget default.
             out.market_data.shard_concurrency = cf.market_data.shard_concurrency;
+            // `validate` floors an explicit `0` to `1`; `None` keeps the
+            // tier-derived default resolved at connect time.
+            out.market_data.max_concurrent_requests = cf.market_data.max_concurrent_requests;
             out.market_data.stream_window_size_kb = cf.grpc.stream_window_size_kb;
             out.market_data.connection_window_size_kb = cf.grpc.connection_window_size_kb;
             out.market_data.connect_timeout_secs = cf.market_data.connect_timeout_secs;
@@ -1894,6 +1870,27 @@ mod tests {
         }
 
         #[test]
+        fn market_data_section_sets_max_concurrent_requests() {
+            // No client-side ceiling: a value past the tier defaults
+            // (Pro is 8) loads verbatim; absent keeps `None`, the
+            // size-to-tier-at-connect default.
+            let config =
+                DirectConfig::from_toml_str("[market_data]\nmax_concurrent_requests = 32").unwrap();
+            assert_eq!(config.market_data.max_concurrent_requests, Some(32));
+            let config = DirectConfig::from_toml_str("").unwrap();
+            assert_eq!(config.market_data.max_concurrent_requests, None);
+        }
+
+        #[test]
+        fn market_data_max_concurrent_requests_zero_floors_to_one() {
+            // `validate` floors an explicit 0 so connect can never build
+            // an empty channel pool.
+            let config =
+                DirectConfig::from_toml_str("[market_data]\nmax_concurrent_requests = 0").unwrap();
+            assert_eq!(config.market_data.max_concurrent_requests, Some(1));
+        }
+
+        #[test]
         fn market_data_section_sets_timeouts_and_warn_threshold() {
             let toml = r#"
                 [market_data]
@@ -1928,16 +1925,6 @@ mod tests {
             let err =
                 DirectConfig::from_toml_str("[market_data]\nconnect_timeout_secs = 0").unwrap_err();
             assert!(err.to_string().contains("connect_timeout_secs"), "{err}");
-        }
-
-        #[test]
-        fn grpc_max_message_size_mb_overrides_market_data_bytes() {
-            let toml = r#"
-                [grpc]
-                max_message_size_mb = 8
-            "#;
-            let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.market_data.max_message_size, 8 * 1024 * 1024);
         }
 
         #[test]
@@ -1978,67 +1965,6 @@ mod tests {
             let err = DirectConfig::from_toml_str(toml)
                 .expect_err("the removed [auth] section must be rejected");
             assert!(err.to_string().contains("auth"), "{err}");
-        }
-
-        #[test]
-        fn grpc_max_message_size_mb_default_value_is_honored_when_explicit() {
-            // Explicitly setting the override to the same number as the
-            // production default (4 MB) must still take effect as an
-            // explicit choice — "set to 4" is distinguishable from "absent".
-            let toml = r#"
-                [market_data]
-                max_message_size = 8388608
-
-                [grpc]
-                max_message_size_mb = 4
-            "#;
-            let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.market_data.max_message_size, 4 * 1024 * 1024);
-        }
-
-        #[test]
-        fn grpc_max_message_size_mb_at_ceiling_is_accepted() {
-            let toml = r#"
-                [grpc]
-                max_message_size_mb = 64
-            "#;
-            let config = DirectConfig::from_toml_str(toml).unwrap();
-            assert_eq!(config.market_data.max_message_size, 64 * 1024 * 1024);
-        }
-
-        #[test]
-        fn grpc_max_message_size_mb_above_ceiling_is_rejected() {
-            let toml = r#"
-                [grpc]
-                max_message_size_mb = 65
-            "#;
-            let err = DirectConfig::from_toml_str(toml)
-                .expect_err("a value above the ceiling must be rejected");
-            assert!(err.to_string().contains("max_message_size_mb"), "{err}");
-        }
-
-        #[test]
-        fn grpc_max_message_size_mb_zero_is_rejected() {
-            // `0` would disable the inbound-size limit entirely; it must be
-            // reported by name rather than silently uncapping the channel.
-            let toml = r#"
-                [grpc]
-                max_message_size_mb = 0
-            "#;
-            let err =
-                DirectConfig::from_toml_str(toml).expect_err("a zero override must be rejected");
-            assert!(err.to_string().contains("max_message_size_mb"), "{err}");
-        }
-
-        #[test]
-        fn grpc_max_message_size_mb_absurd_value_does_not_panic_or_wrap() {
-            // A value that would overflow the MB→byte conversion must
-            // surface as a range error, never a debug panic or a release
-            // wrap into a tiny garbage cap.
-            let toml = format!("[grpc]\nmax_message_size_mb = {}\n", usize::MAX);
-            let err = DirectConfig::from_toml_str(&toml)
-                .expect_err("an absurd value must be rejected, not wrapped");
-            assert!(err.to_string().contains("max_message_size_mb"), "{err}");
         }
 
         #[test]

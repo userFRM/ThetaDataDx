@@ -30,7 +30,7 @@ describe('endpoint options objects', () => {
   it('stockHistoryEod takes required params plus one trailing options object', () => {
     assert.match(
       dts,
-      /stockHistoryEOD\(symbol: string, startDate: string \| Date, endDate: string \| Date, options\?: StockHistoryEodOptions/,
+      /stockHistoryEOD\(symbol: string, startDate: string, endDate: string, options\?: StockHistoryEodOptions/,
       'stockHistoryEOD must end in a single optional options object'
     );
   });

@@ -647,10 +647,14 @@ fn apply_req_response(
     }
 
     dec_active_for_pending_sub(&entry.sub, active_subs, active_full_subs);
-    tracing::debug!(
+    // warn, not debug: an otherwise silent drop leaves a capped or unentitled
+    // stream looking live under a default subscriber. The reason
+    // (MaxStreamsReached / InvalidPerms / Error) rides the `result` field; the
+    // reference is already dropped above, so it is not replayed on reconnect.
+    tracing::warn!(
         req_id,
         result = ?result,
-        "dropped a reference from the rejected subscription; it will not be replayed on reconnect once unreferenced"
+        "stream subscription rejected and dropped; it will not be replayed on reconnect"
     );
 }
 
@@ -889,20 +893,37 @@ where
                 {
                     Ok(FrameRead::SkippedUnknown) => {
                         // An unknown-code frame was consumed to stay aligned.
-                        // Publish nothing and, deliberately, do NOT advance
-                        // `last_frame_at`: an unknown frame is not a data frame,
-                        // so it is not treated as proof of data-plane liveness.
-                        // A fast endless unknown-frame stream can keep each
-                        // short read returning before its per-read timeout; the
-                        // practical value here is that sparse unknowns do not
-                        // refresh the last-real-frame clock. Fall through to
-                        // Phase 2 rather than
-                        // `continue`-ing, so queued commands (subscribes, pings)
-                        // are still drained during an unknown-frame burst instead
-                        // of being starved until the next real frame; the 'inner
-                        // top then re-checks shutdown. Unlimited skips match the
-                        // terminal's behaviour without wedging a shutting-down
-                        // thread or the command channel.
+                        // Don't advance `last_frame_at` (an unknown frame is not
+                        // liveness) and fall through, not `continue`, so queued
+                        // commands still drain. But a flood of unknown frames
+                        // returns each read before its timeout, so the read-timeout
+                        // arm never fires: guard here too, no recognised frame
+                        // within `read_timeout` means the session is dead, reconnect.
+                        let quiet = last_frame_at.elapsed();
+                        if quiet >= read_timeout {
+                            tracing::warn!(
+                                timeout_ms = read_timeout_ms_total,
+                                quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                "FPSS delivering only unknown frames past the read deadline; reconnecting",
+                            );
+                            if producer
+                                .try_publish(|slot| {
+                                    slot.event =
+                                        FpssEventInternal::Control(StreamControl::Disconnected {
+                                            reason: RemoveReason::TimedOut,
+                                        });
+                                })
+                                .is_err()
+                            {
+                                dropped.fetch_add(1, Ordering::Relaxed);
+                                tracing::warn!(
+                                    target: "thetadatadx::fpss::io_loop",
+                                    "ring full while publishing Disconnected (unknown-frame flood); dropped",
+                                );
+                            }
+                            authenticated.store(false, Ordering::Release);
+                            break 'inner RemoveReason::TimedOut;
+                        }
                     }
                     Ok(FrameRead::Frame(code, payload_len)) => {
                         last_frame_at = Instant::now();
@@ -1232,6 +1253,23 @@ where
                             }
                         }
                     }
+                };
+                // Clip the cooldown to the remaining wall-clock envelope so a
+                // long backoff cannot overshoot `max_elapsed`; the admission
+                // check above only bounds when an attempt STARTS, not the sleep
+                // that follows. Classes the envelope does not govern (rate-
+                // limited, whose upstream cooldown must be honoured in full) are
+                // left untouched, matching `envelope_spent` above.
+                let delay = if ReconnectAttemptLimits::elapsed_budget_applies(class)
+                    && !limits.max_elapsed.is_zero()
+                {
+                    delay.min(
+                        limits
+                            .max_elapsed
+                            .saturating_sub(reconnect_state.burst_elapsed()),
+                    )
+                } else {
+                    delay
                 };
                 (delay, attempt)
             }

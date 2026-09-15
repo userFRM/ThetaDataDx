@@ -6,6 +6,11 @@
 //! same wire shape (the integer comes straight off the JSON response) but
 //! lift it into a typed enum the moment it crosses into Rust state, so
 //! the rest of the SDK never compares against magic numbers.
+//!
+//! The `2^tier` value is the tier's base concurrent-request allowance. It
+//! seeds the *default* channel-pool size at connect time; it is not a
+//! client-side cap — `market_data.max_concurrent_requests` overrides it in
+//! either direction, and the server enforces the account's real allowance.
 
 /// Customer subscription tier, decoded from the Nexus auth `subscription`
 /// integer.
@@ -16,8 +21,9 @@
 /// - `Standard` = 2
 /// - `Pro` = 3
 ///
-/// The `2^tier` concurrent-request bound used by the terminal's gRPC
-/// connection manager is exposed via [`Self::max_concurrent_requests`].
+/// The tier's `2^tier` base concurrent-request allowance is exposed via
+/// [`Self::max_concurrent_requests`]; it seeds the default channel-pool
+/// size when `market_data.max_concurrent_requests` is unset.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(i32)]
 pub enum SubscriptionTier {
@@ -32,9 +38,12 @@ pub enum SubscriptionTier {
 }
 
 impl SubscriptionTier {
-    /// Concurrent in-flight gRPC requests permitted at this tier.
+    /// The tier's base concurrent-request allowance, `2^tier`.
     ///
-    /// Computed as `2^tier`.
+    /// Used as the default channel-pool size when
+    /// `market_data.max_concurrent_requests` is unset. The server enforces
+    /// the account's real allowance (which a boost can raise past this
+    /// value), so this is a sizing default, not a client-side cap.
     #[must_use]
     pub const fn max_concurrent_requests(self) -> usize {
         1usize << self as u32

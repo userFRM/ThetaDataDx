@@ -168,7 +168,7 @@ impl ColumnPresence {
 ///     `YYYYMMDD` sibling and rides it without a second claim. Either way it
 ///     is present whenever it resolves.
 #[must_use]
-pub fn present_columns_from(
+pub(crate) fn present_columns_from(
     headers: &[&str],
     schema_columns: &[(&'static str, &'static str)],
     contract_id: bool,
@@ -246,7 +246,7 @@ pub fn present_columns_from(
 /// wire headers to the public column set, so the generated `WireColumns` impl
 /// for `CalendarDay` routes through it.
 #[must_use]
-pub fn present_calendar_day_columns(headers: &[&str]) -> ColumnPresence {
+pub(crate) fn present_calendar_day_columns(headers: &[&str]) -> ColumnPresence {
     let has = |name| headers.contains(&name);
     let mut present = Vec::with_capacity(5);
 

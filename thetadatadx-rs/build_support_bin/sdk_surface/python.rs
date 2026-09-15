@@ -183,12 +183,13 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  values under a fixed schema. The reader is both a\n\
                  synchronous `Iterable` (the blocking pull releases the GIL)\n\
                  and an `AsyncIterable` (`async for`), and a sync / async\n\
-                 context manager that closes the stream on exit. Subscribe on\n\
-                 this same surface first, then open the reader.\n\
+                 context manager that closes the stream on exit. Open the\n\
+                 reader first (that starts the session), then subscribe on\n\
+                 this same surface.\n\
                  \n\
                  `batch_size` rows per batch (default 65536); `linger_ms`\n\
                  flushes a partial batch on a quiet stream (default 50);\n\
-                 `backpressure` is `\"block\"` (default, lossless) or\n\
+                 `backpressure` is `\"block\"` (default; no queue-side drops) or\n\
                  `\"drop_oldest\"`; `capacity` bounds the drop-oldest buffer.",
             );
             out.push_str(

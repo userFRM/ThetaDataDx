@@ -206,7 +206,7 @@ impl<'a> BatchReaderBuilder<'a> {
     }
 
     /// Backpressure policy for a reader that falls behind. Defaults to
-    /// [`Backpressure::Block`] (lossless).
+    /// [`Backpressure::Block`].
     pub fn backpressure(mut self, backpressure: Backpressure) -> Self {
         self.backpressure = backpressure;
         self

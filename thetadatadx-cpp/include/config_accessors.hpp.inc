@@ -437,8 +437,9 @@
     }
 
     /// Set the automatic bulk-fetch sharding policy for history pulls (buffered
-    /// and chunk-streaming alike): 0=Auto (default; large pulls are split into
-    /// balanced concurrent sub-requests — buffered pulls merge back into
+    /// and chunk-streaming alike): 0=Auto (default; a large pull's requested
+    /// time or date range is split into equal concurrent bands — buffered
+    /// pulls merge back into
     /// exactly the single-stream rows, with option-chain pulls in a
     /// deterministic canonical contract order and every other pull in the
     /// exact single-stream row order; streaming pulls forward each band's
@@ -462,10 +463,10 @@
     }
 
     /// Set the upper bound on concurrent sub-requests per sharded bulk fetch.
-    /// Pass @c std::nullopt (the @c None default) to use the account's full
+    /// Pass @c std::nullopt (the @c None default) to use the full
     /// concurrent-request budget; pass an explicit @c std::uint32_t to cap the
     /// fan-out. The applied value is clamped into `[1, pool_size]` when a plan
-    /// is built (the pool size is the server-enforced tier ceiling).
+    /// is built (the pool size is resolved from `max_concurrent_requests`).
     ///
     /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
     /// routing through the typed class the FFI error code selects.
@@ -478,7 +479,7 @@
     }
 
     /// Read the current @c market_data.shard_concurrency setting. Returns
-    /// @c std::nullopt for the full-tier-budget sentinel; returns the wrapped
+    /// @c std::nullopt for the full-pool-budget sentinel; returns the wrapped
     /// @c std::uint32_t when an explicit cap is set.
     ///
     /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
@@ -487,6 +488,41 @@
         bool has_value = false;
         std::uint32_t n = 0;
         if (thetadatadx_config_get_shard_concurrency(handle_.get(), &has_value, &n) != 0) {
+            detail::throw_last_ffi_error();
+        }
+        return has_value ? std::optional<std::uint32_t>{n} : std::nullopt;
+    }
+
+    /// Set the number of concurrent in-flight market-data requests (gRPC
+    /// channel-pool + request-semaphore size, resolved at connect time). Pass
+    /// @c std::nullopt (the @c None default) to size the pool to the account's
+    /// subscription tier from the auth response (Free 1 / Value 2 / Standard 4
+    /// / Pro 8); pass an explicit @c std::uint32_t to use it verbatim — no
+    /// client-side cap, so a server-boosted account sets its boosted
+    /// allowance. Requests past the server-enforced allowance are rejected
+    /// upstream and retried with backoff. Validation floors an explicit `0`
+    /// to `1`.
+    ///
+    /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+    /// routing through the typed class the FFI error code selects.
+    void set_max_concurrent_requests(std::optional<std::uint32_t> n) {
+        const bool has_value = n.has_value();
+        const std::uint32_t arg = n.value_or(0);
+        if (thetadatadx_config_set_max_concurrent_requests(handle_.get(), has_value, arg) != 0) {
+            detail::throw_last_ffi_error();
+        }
+    }
+
+    /// Read the current @c market_data.max_concurrent_requests setting.
+    /// Returns @c std::nullopt for the size-to-tier default; returns the
+    /// wrapped @c std::uint32_t when an explicit pool size is set.
+    ///
+    /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+    /// routing through the typed class the FFI error code selects.
+    std::optional<std::uint32_t> get_max_concurrent_requests() const {
+        bool has_value = false;
+        std::uint32_t n = 0;
+        if (thetadatadx_config_get_max_concurrent_requests(handle_.get(), &has_value, &n) != 0) {
             detail::throw_last_ffi_error();
         }
         return has_value ? std::optional<std::uint32_t>{n} : std::nullopt;

@@ -931,7 +931,7 @@ fn write_sync_stream_terminal(
     let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
     // Only shardable history endpoints can fan out; the rest are always
     // single-stream, so omit the fan-out note for them (see `endpoint_can_fan_out`).
-    let fan_out = if super::endpoint_can_fan_out(&endpoint.name) {
+    let fan_out = if super::endpoint_can_fan_out(endpoint) {
         " Under `bulk_fetch = \"auto\"` a large history pull may fan out across \
          concurrent sub-requests: every chunk is still delivered exactly once, but \
          chunks from different sub-requests interleave in arrival order rather than \
@@ -979,6 +979,9 @@ fn write_sync_stream_terminal(
     out.push_str("                        }\n");
     out.push_str("                    };\n");
     out.push_str(
+        "                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();\n",
+    );
+    out.push_str(
         "                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {\n",
     );
     out.push_str("                        *cb_err_for_closure.lock().unwrap() = Some(e);\n");
@@ -1022,7 +1025,7 @@ fn write_async_stream_terminal(
 ) {
     let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
     // Only shardable history endpoints can fan out (see `endpoint_can_fan_out`).
-    let fan_out = if super::endpoint_can_fan_out(&endpoint.name) {
+    let fan_out = if super::endpoint_can_fan_out(endpoint) {
         " Under `bulk_fetch = \"auto\"` a large history pull may fan \
          out across concurrent sub-requests: every chunk is still delivered \
          exactly once, but chunks from different sub-requests interleave in \
@@ -1102,6 +1105,9 @@ fn write_async_stream_terminal(
     out.push_str("                                    return;\n");
     out.push_str("                                }\n");
     out.push_str("                            };\n");
+    out.push_str(
+        "                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();\n",
+    );
     out.push_str(
         "                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {\n",
     );
