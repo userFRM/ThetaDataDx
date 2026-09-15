@@ -38,6 +38,8 @@ const TTL: Duration = Duration::from_secs(900);
 /// A book is one contract and one message shape. `StreamMsgType` is the
 /// SDK's own discriminant for that shape, so nothing here re-derives it.
 type BookKey = (Contract, StreamMsgType);
+/// A set of subscriptions to open or close on the feed.
+type Subs = Vec<(Contract, SubscriptionKind)>;
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -123,7 +125,7 @@ struct Correlation {
 
 #[derive(Debug)]
 struct Watch {
-    subs: Vec<(Contract, SubscriptionKind)>,
+    subs: Subs,
     opened_ms: u64,
     read_ms: u64,
 }
@@ -169,17 +171,16 @@ impl Registry {
 
     /// Open a watch. Returns its handle and the subscriptions that are new to
     /// this process — the ones the caller must open on the feed.
-    fn watch(
-        &self,
-        subs: Vec<(Contract, SubscriptionKind)>,
-        now: u64,
-    ) -> (String, Vec<(Contract, SubscriptionKind)>) {
+    fn watch(&self, subs: Subs, now: u64) -> (String, Subs, Subs) {
         let mut inner = self.lock();
-        Self::collect_expired(&mut inner, now);
+        // Two lists, because they need opposite actions: what the idle sweep
+        // freed must be closed on the feed, what this watch is first to want
+        // must be opened.
+        let expired = Self::collect_expired(&mut inner, now);
+        let mut fresh = Vec::new();
         inner.minted += 1;
         let handle = format!("sw_{now:012x}{:04x}", inner.minted & 0xffff);
 
-        let mut fresh = Vec::new();
         for (contract, kind) in &subs {
             let book = inner
                 .books
@@ -199,29 +200,24 @@ impl Registry {
                 read_ms: now,
             },
         );
-        (handle, fresh)
+        (handle, fresh, expired)
     }
 
     /// Close a watch. Returns the subscriptions whose last holder just left.
-    fn release(
-        &self,
-        handle: &str,
-        now: u64,
-    ) -> Result<Vec<(Contract, SubscriptionKind)>, WatchError> {
+    fn release(&self, handle: &str, now: u64) -> Result<Subs, WatchError> {
         let mut inner = self.lock();
         let watch = inner
             .watches
             .remove(handle)
             .ok_or(WatchError::UnknownHandle)?;
-        let freed = Self::deref(&mut inner, &watch.subs);
-        Self::collect_expired(&mut inner, now);
+        let mut freed = Self::deref(&mut inner, &watch.subs);
+        // A handle that timed out while this one was open still holds a live
+        // subscription until someone closes it.
+        freed.extend(Self::collect_expired(&mut inner, now));
         Ok(freed)
     }
 
-    fn deref(
-        inner: &mut Inner,
-        subs: &[(Contract, SubscriptionKind)],
-    ) -> Vec<(Contract, SubscriptionKind)> {
+    fn deref(inner: &mut Inner, subs: &[(Contract, SubscriptionKind)]) -> Subs {
         let mut freed = Vec::new();
         for (contract, kind) in subs {
             let key = (contract.clone(), kind.subscribe_code());
@@ -243,7 +239,7 @@ impl Registry {
     /// Swept on mutation rather than from a timer: an untouched handle costs
     /// nothing until someone else opens one, and a sweep tied to the map
     /// cannot drift from it.
-    fn collect_expired(inner: &mut Inner, now: u64) {
+    fn collect_expired(inner: &mut Inner, now: u64) -> Subs {
         let ttl = TTL.as_millis() as u64;
         let stale: Vec<String> = inner
             .watches
@@ -251,11 +247,13 @@ impl Registry {
             .filter(|(_, w)| now.saturating_sub(w.read_ms) > ttl)
             .map(|(h, _)| h.clone())
             .collect();
+        let mut freed = Vec::new();
         for handle in stale {
             if let Some(watch) = inner.watches.remove(&handle) {
-                Self::deref(inner, &watch.subs);
+                freed.extend(Self::deref(inner, &watch.subs));
             }
         }
+        freed
     }
 
     /// Store a tick. Unknown books are ignored rather than created: the feed
@@ -610,15 +608,28 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         let contract = build_contract(args, sec)?;
 
         install_handler(client)?;
-        let (handle, fresh) = reg.watch(vec![(contract.clone(), kind)], now);
+        let (handle, fresh, expired) = reg.watch(vec![(contract.clone(), kind)], now);
+
+        // Close what the idle sweep released before opening anything new, so a
+        // forgotten handle cannot hold an allowance the next caller needs.
+        for (contract, kind) in &expired {
+            let _ = client.stream().unsubscribe(Subscription::Contract {
+                contract: contract.clone(),
+                kind: *kind,
+            });
+        }
+
         for (contract, kind) in &fresh {
-            client
-                .stream()
-                .subscribe(Subscription::Contract {
-                    contract: contract.clone(),
-                    kind: *kind,
-                })
-                .map_err(|e| ToolError::ServerError(format!("subscribe failed: {e}")))?;
+            if let Err(e) = client.stream().subscribe(Subscription::Contract {
+                contract: contract.clone(),
+                kind: *kind,
+            }) {
+                // Roll the handle back. Leaving it would hand back a handle
+                // that receives nothing, and the reference it holds would make
+                // the next watch on this contract skip subscribing too.
+                let _ = reg.release(&handle, now);
+                return Err(ToolError::ServerError(format!("subscribe failed: {e}")));
+            }
         }
         return Ok(json!({
             "handle": handle,
@@ -701,13 +712,25 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             let freed = reg
                 .release(handle, now)
                 .map_err(|e| ToolError::InvalidParams(e.message().into()))?;
+            let mut closed = 0usize;
+            let mut failures = Vec::new();
             for (contract, kind) in &freed {
-                let _ = client.stream().unsubscribe(Subscription::Contract {
+                match client.stream().unsubscribe(Subscription::Contract {
                     contract: contract.clone(),
                     kind: *kind,
-                });
+                }) {
+                    Ok(()) => closed += 1,
+                    // Report it. Claiming a close that did not happen leaves
+                    // the caller believing an allowance was returned when the
+                    // feed still holds it.
+                    Err(e) => failures.push(format!("{}: {e}", label(contract))),
+                }
             }
-            Ok(json!({"released": true, "subscriptions_closed": freed.len()}))
+            Ok(json!({
+                "released": true,
+                "subscriptions_closed": closed,
+                "failed_to_close": failures
+            }))
         }
         other => Err(ToolError::InvalidParams(format!("unknown tool: {other}"))),
     }
@@ -757,8 +780,8 @@ mod tests {
     fn one_subscription_serves_every_handle_and_the_last_release_closes_it() {
         let reg = Registry::default();
         let c = stock("AAPL");
-        let (a, fresh_a) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 1_000);
-        let (b, fresh_b) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 1_001);
+        let (a, fresh_a, _) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 1_000);
+        let (b, fresh_b, _) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 1_001);
 
         assert_eq!(fresh_a.len(), 1);
         assert!(
@@ -777,7 +800,7 @@ mod tests {
     fn the_ring_is_bounded_and_counts_what_it_drops() {
         let reg = Registry::default();
         let c = stock("AAPL");
-        let (h, _) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 0);
+        let (h, _, _) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 0);
         for i in 0..(RING + 10) {
             reg.ingest(trade(&c, i as f64));
         }
@@ -796,7 +819,7 @@ mod tests {
     fn a_print_takes_the_quote_before_it_and_exactly_the_two_after() {
         let reg = Registry::default();
         let c = stock("AAPL");
-        let (h, _) = reg.watch(
+        let (h, _, _) = reg.watch(
             vec![
                 (c.clone(), SubscriptionKind::Trade),
                 (c.clone(), SubscriptionKind::Quote),
@@ -843,11 +866,11 @@ mod tests {
     fn an_idle_handle_is_collected_and_says_so() {
         let reg = Registry::default();
         let c = stock("AAPL");
-        let (stale, _) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 0);
+        let (stale, _, _) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 0);
         let past_ttl = TTL.as_millis() as u64 + 1;
 
         // A later watch runs the sweep; nothing is on a timer.
-        let (_fresh, fresh_keys) =
+        let (_fresh, fresh_keys, _) =
             reg.watch(vec![(stock("MSFT"), SubscriptionKind::Trade)], past_ttl);
         assert_eq!(fresh_keys.len(), 1);
 
@@ -859,9 +882,30 @@ mod tests {
     }
 
     #[test]
+    fn the_idle_sweep_hands_back_what_must_be_unsubscribed() {
+        // The whole point of the reference count is that a forgotten handle
+        // does not hold an allowance forever. If the sweep frees a book but
+        // nobody is told, the subscription leaks and the next watch on that
+        // contract opens a second one.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let (_stale, _, _) = reg.watch(vec![(c.clone(), SubscriptionKind::Trade)], 0);
+        let past_ttl = TTL.as_millis() as u64 + 1;
+
+        let (_next, fresh, expired) =
+            reg.watch(vec![(stock("MSFT"), SubscriptionKind::Trade)], past_ttl);
+        assert_eq!(fresh.len(), 1, "MSFT is new");
+        assert_eq!(
+            expired,
+            vec![(c, SubscriptionKind::Trade)],
+            "the swept handle's subscription must come back to be closed"
+        );
+    }
+
+    #[test]
     fn a_contract_the_handle_does_not_cover_is_refused() {
         let reg = Registry::default();
-        let (h, _) = reg.watch(vec![(stock("AAPL"), SubscriptionKind::Trade)], 0);
+        let (h, _, _) = reg.watch(vec![(stock("AAPL"), SubscriptionKind::Trade)], 0);
         let mut inner = reg.lock();
         assert_eq!(
             Registry::books_of(&mut inner, &h, Some("MSFT"), 1),
@@ -872,7 +916,7 @@ mod tests {
     #[test]
     fn a_tick_for_an_unwatched_book_creates_nothing() {
         let reg = Registry::default();
-        let (_h, _) = reg.watch(vec![(stock("AAPL"), SubscriptionKind::Trade)], 0);
+        let (_h, _, _) = reg.watch(vec![(stock("AAPL"), SubscriptionKind::Trade)], 0);
         reg.ingest(trade(&stock("MSFT"), 5.0));
         assert_eq!(reg.lock().books.len(), 1, "no book invented for MSFT");
     }
