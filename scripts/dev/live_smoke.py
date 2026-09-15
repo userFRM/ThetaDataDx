@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform live smoke checks for CLI, Python SDK, server, and MCP."""
+"""Cross-platform live smoke checks for the Python SDK, the server, and the MCP server."""
 
 from __future__ import annotations
 
@@ -62,24 +62,6 @@ def _get_free_port() -> int:
         sock.bind(("127.0.0.1", 0))
         sock.listen(1)
         return int(sock.getsockname()[1])
-
-
-def _run(cmd: list[str], *, env: dict[str, str] | None = None, timeout: int = 60) -> str:
-    proc = subprocess.run(
-        cmd,
-        cwd=REPO,
-        env={**os.environ, **(env or {})},
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=timeout,
-        check=False,
-    )
-    output = (proc.stdout or b"").decode("utf-8", errors="replace")
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"command failed ({proc.returncode}): {' '.join(cmd)}\n{output.strip()}"
-        )
-    return output
 
 
 def _wait_http_json(url: str, *, timeout: float = 30.0) -> Any:
