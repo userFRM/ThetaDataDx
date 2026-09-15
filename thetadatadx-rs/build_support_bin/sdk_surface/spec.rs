@@ -97,6 +97,10 @@ pub(super) struct UtilitySpec {
 #[serde(rename_all = "snake_case")]
 pub(super) enum UtilityKind {
     Ping,
+    /// `entitlements` — reports the authenticated account's per-asset-class
+    /// tier. The MCP withholds a tool the account cannot call, so without
+    /// this a caller sees an absence with no way to learn why.
+    Entitlements,
     /// Thin one-line forward into a `thetadatadx::utils::*` lookup table.
     /// Body, params, and return type come from `forward_call` /
     /// `forward_return` plus the declared `params`, so the 10 lookup
@@ -480,6 +484,7 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
     // name); `expected_name = None` skips the fixed-name check below.
     let (expected_name, allowed_targets, exact_targets, params): UtilityShape = match utility.kind {
         UtilityKind::Ping => (Some("ping"), &[Mcp], true, &[]),
+        UtilityKind::Entitlements => (Some("entitlements"), &[Mcp], true, &[]),
         UtilityKind::Forwarder => (None, &[Python, Typescript], true, FORWARDER_CODE_PARAMS),
         UtilityKind::CalendarStatusName => (
             Some("calendar_status_name"),

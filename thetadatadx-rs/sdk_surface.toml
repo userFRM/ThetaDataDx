@@ -209,6 +209,13 @@ doc = "Check MCP server status."
 mcp_description = "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers."
 targets = ["mcp"]
 
+[[utilities]]
+name = "entitlements"
+kind = "entitlements"
+doc = "Report the account's per-asset-class subscription tier."
+mcp_description = "The authenticated account's subscription tier for each asset class: stock, options, indices and interest rate. Tools this account cannot call are withheld from tools/list rather than failing when called, so a tool you expected and cannot find is almost always a tier you do not hold. Check here before concluding an endpoint is missing. Streaming one contract at a time needs Standard on that class; the whole-market trade stream needs Pro."
+targets = ["mcp"]
+
 # ── Cross-language lookup-table helpers ──────────────────────────────────
 #
 # The `thetadatadx.util` Python submodule and the TypeScript `Util` class.

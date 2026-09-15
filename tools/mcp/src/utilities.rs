@@ -11,6 +11,16 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
             "required": []
         }
     }));
+    tools.push(json!({
+        "name": "entitlements",
+        "description": "The authenticated account's subscription tier for each asset class: stock, options, indices and interest rate. Tools this account cannot call are withheld from tools/list rather than failing when called, so a tool you expected and cannot find is almost always a tier you do not hold. Check here before concluding an endpoint is missing. Streaming one contract at a time needs Standard on that class; the whole-market trade stream needs Pro.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+            },
+            "required": []
+        }
+    }));
 }
 
 async fn try_execute_generated_utility(
@@ -28,6 +38,20 @@ async fn try_execute_generated_utility(
                 "version": VERSION,
                 "uptime_secs": uptime.as_secs(),
                 "connected": client.is_some(),
+            })))
+        }
+        "entitlements" => {
+            let Some(client) = client else {
+                return Some(Err(ToolError::ServerError(
+                 "not connected to ThetaData yet; retry shortly".into(),
+)));
+            };
+            let info = client.subscription_info();
+            Some(Ok(json!({
+                "stock": info.stock,
+                "options": info.options,
+                "indices": info.indices,
+                "interest_rate": info.interest_rate,
             })))
         }
         _ => None,
