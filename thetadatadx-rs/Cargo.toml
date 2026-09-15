@@ -162,7 +162,7 @@ rand = "0.10"
 socket2 = { version = "0.6", features = ["all"] }
 
 # Compression (responses use zstd)
-zstd = "0.13.3"
+zstd = "0.14.0"
 
 # Error handling
 thiserror = "2.0.18"
