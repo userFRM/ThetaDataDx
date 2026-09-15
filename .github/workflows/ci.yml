@@ -123,7 +123,10 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # `--all-features` so feature-gated code is linted too. Without it the
+      # generator sources behind `__internal` are never reached by this job,
+      # and a lint can sit in the tree while the job stays green.
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   core-test:
     name: Core library tests (ubuntu)

@@ -872,6 +872,21 @@ fn napi_field_camel(snake: &str) -> String {
     out
 }
 
+fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'static str {
+    match param.param_type.as_str() {
+        // `Int` filters ride in as a JS `number` (f64) and are validated +
+        // narrowed to `i32` in the method body via `validate_optional_nonneg_i32`,
+        // rather than typed `i32` here where V8's `ToInt32` would silently
+        // wrap a hostile or oversized input instead of rejecting it.
+        "Int" => "Option<f64>",
+        "Float" => "Option<f64>",
+        "Bool" => "Option<bool>",
+        "Date" | "Expiration" => "Option<String>",
+        _ if is_time_arg(param) => "Option<String>",
+        _ => "Option<String>",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::super::model::{GeneratedParam, ProtoField};
@@ -962,20 +977,5 @@ mod tests {
             rendered.contains("may fan out"),
             "at_time stream must carry the fan-out note"
         );
-    }
-}
-
-fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
-        // `Int` filters ride in as a JS `number` (f64) and are validated +
-        // narrowed to `i32` in the method body via `validate_optional_nonneg_i32`,
-        // rather than typed `i32` here where V8's `ToInt32` would silently
-        // wrap a hostile or oversized input instead of rejecting it.
-        "Int" => "Option<f64>",
-        "Float" => "Option<f64>",
-        "Bool" => "Option<bool>",
-        "Date" | "Expiration" => "Option<String>",
-        _ if is_time_arg(param) => "Option<String>",
-        _ => "Option<String>",
     }
 }
