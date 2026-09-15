@@ -276,10 +276,17 @@ impl Registry {
 
         match &data {
             StreamData::Quote { .. } => {
-                if let Some(open) = state.prints.back_mut() {
-                    if open.quotes_after.len() < 2 {
-                        open.quotes_after.push(data.clone());
-                    }
+                // Every print still short of its two quotes takes this one.
+                // Filling only the newest starves an earlier print whenever a
+                // second trade arrives before the first one's quotes do, which
+                // on a liquid contract is most of them.
+                for open in state
+                    .prints
+                    .iter_mut()
+                    .rev()
+                    .take_while(|p| p.quotes_after.len() < 2)
+                {
+                    open.quotes_after.push(data.clone());
                 }
                 state.last_quote = Some(data);
             }
@@ -305,6 +312,14 @@ impl Registry {
     /// would stall the feed — the one thing this layer must never do.
     fn touch(inner: &mut Inner, handle: &str, now: u64) -> Result<Watch, UnknownHandle> {
         let watch = inner.watches.get_mut(handle).ok_or(UnknownHandle)?;
+        // Expiry is decided before the read, not after. Marking it read first
+        // would let a handle that had already outlived its idle window revive
+        // itself on the very call that noticed, and keep doing so forever,
+        // because the sweep only runs when the map is mutated.
+        if now.saturating_sub(watch.read_ms) > TTL.as_millis() as u64 {
+            inner.watches.remove(handle);
+            return Err(UnknownHandle);
+        }
         watch.read_ms = now;
         Ok(watch.clone())
     }
@@ -1042,6 +1057,58 @@ mod tests {
             expired,
             vec![(SubscriptionKind::Trade, c)],
             "the swept handle's subscription must come back to be closed"
+        );
+    }
+
+    #[test]
+    fn a_second_trade_does_not_starve_the_first_of_its_quotes() {
+        // Q0 T1 Q1 T2 Q2 Q3. Each trade takes the next two quotes, so Q2
+        // belongs to both tails. Filling only the newest print leaves T1 with
+        // one quote forever, which on a liquid contract is most prints.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let (h, _, _) = reg.watch(c.clone(), SubscriptionKind::Trade, 0);
+        let (_q, _, _) = reg.watch(c.clone(), SubscriptionKind::Quote, 0);
+
+        reg.ingest(quote(&c, 1.00, 1.10));
+        reg.ingest(trade(&c, 1.08, 1));
+        reg.ingest(quote(&c, 1.01, 1.11));
+        reg.ingest(trade(&c, 1.09, 2));
+        reg.ingest(quote(&c, 1.02, 1.12));
+        reg.ingest(quote(&c, 1.03, 1.13));
+
+        let (_, prints) = reg.prints(&h, 10, 1).expect("prints");
+        assert_eq!(prints.len(), 2);
+
+        let bids = |p: &Print| {
+            p.quotes_after
+                .iter()
+                .map(|q| match q {
+                    StreamData::Quote { bid, .. } => *bid,
+                    _ => f64::NAN,
+                })
+                .collect::<Vec<_>>()
+        };
+        // Identity, not count: duplicating one quote twice would satisfy a
+        // length check and be wrong.
+        assert_eq!(bids(&prints[0]), vec![1.01, 1.02], "first print");
+        assert_eq!(bids(&prints[1]), vec![1.02, 1.03], "second print");
+    }
+
+    #[test]
+    fn a_read_does_not_revive_a_handle_that_already_expired() {
+        // The sweep only runs on a mutation, so if the read marks the handle
+        // used before testing its age, an abandoned handle keeps itself alive
+        // on the very call that should have buried it.
+        let reg = Registry::default();
+        let (h, _, _) = reg.watch(stock("AAPL"), SubscriptionKind::Trade, 0);
+        let past_ttl = TTL.as_millis() as u64 + 1;
+
+        assert_eq!(reg.status(&h, past_ttl).err(), Some(UnknownHandle));
+        assert_eq!(
+            reg.latest(&h, past_ttl + 1).err(),
+            Some(UnknownHandle),
+            "and it stays gone"
         );
     }
 
