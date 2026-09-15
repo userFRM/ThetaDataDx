@@ -13,7 +13,7 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
     }));
     tools.push(json!({
         "name": "entitlements",
-        "description": "The authenticated account's subscription tier for each asset class: stock, options, indices and interest rate. Tools this account cannot call are withheld from tools/list rather than failing when called, so a tool you expected and cannot find is almost always a tier you do not hold. Check here before concluding an endpoint is missing. Streaming one contract at a time needs Standard on that class; the whole-market trade stream needs Pro.",
+        "description": "The authenticated account's subscription tier for each asset class: stock, options, indices and interest rate. Tools are advertised per asset class: a class this account holds no tier for is withheld from tools/list entirely, so a whole family of missing tools usually means a class you are not subscribed to. Within a class every tool is advertised, so an individual endpoint can still refuse a call when it needs a higher tier than the one held. Check here before concluding an endpoint is missing, and read the tier back from the error when a call is refused.",
         "inputSchema": {
             "type": "object",
             "properties": {
