@@ -297,12 +297,18 @@ impl Registry {
         }
     }
 
-    fn books_of(
+    /// The book this handle covers.
+    ///
+    /// Every reader below copies what it needs under the lock and releases it
+    /// before serialising. The streaming dispatcher calls [`Self::ingest`] on
+    /// the same lock, so a critical section held across JSON construction
+    /// would stall the feed — the one thing this layer must never do.
+    fn book_of(
         inner: &mut Inner,
         handle: &str,
         want: Option<&str>,
         now: u64,
-    ) -> Result<Vec<BookKey>, WatchError> {
+    ) -> Result<BookKey, WatchError> {
         let watch = inner
             .watches
             .get_mut(handle)
@@ -311,8 +317,106 @@ impl Registry {
         if want.is_some_and(|w| label(&watch.contract) != w) {
             return Err(WatchError::NotWatched);
         }
-        Ok(vec![(watch.contract.clone(), watch.kind.subscribe_code())])
+        Ok((watch.contract.clone(), watch.kind.subscribe_code()))
     }
+
+    fn latest(&self, handle: &str, want: Option<&str>, now: u64) -> Result<Snapshot, WatchError> {
+        let mut inner = self.lock();
+        let key = Self::book_of(&mut inner, handle, want, now)?;
+        let rows = inner
+            .books
+            .get(&key)
+            .and_then(|b| b.ring.back().cloned())
+            .into_iter()
+            .collect();
+        Ok(Snapshot {
+            contract: label(&key.0),
+            rows,
+        })
+    }
+
+    fn window(
+        &self,
+        handle: &str,
+        want: Option<&str>,
+        floor: u64,
+        limit: usize,
+        now: u64,
+    ) -> Result<Snapshot, WatchError> {
+        let mut inner = self.lock();
+        let key = Self::book_of(&mut inner, handle, want, now)?;
+        let mut rows: Vec<StreamData> = inner
+            .books
+            .get(&key)
+            .map(|b| {
+                b.ring
+                    .iter()
+                    .filter(|d| seen_ms(d).is_none_or(|s| s >= floor))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        if rows.len() > limit {
+            rows.drain(..rows.len() - limit);
+        }
+        Ok(Snapshot {
+            contract: label(&key.0),
+            rows,
+        })
+    }
+
+    fn prints(
+        &self,
+        handle: &str,
+        want: Option<&str>,
+        count: usize,
+        now: u64,
+    ) -> Result<(String, Vec<Print>), WatchError> {
+        let mut inner = self.lock();
+        let key = Self::book_of(&mut inner, handle, want, now)?;
+        let mut rows: Vec<Print> = inner
+            .correlation
+            .get(&key.0)
+            .map(|c| c.prints.iter().cloned().collect())
+            .unwrap_or_default();
+        if rows.len() > count {
+            rows.drain(..rows.len() - count);
+        }
+        Ok((label(&key.0), rows))
+    }
+
+    fn status(&self, handle: &str, now: u64) -> Result<Health, WatchError> {
+        let mut inner = self.lock();
+        let key = Self::book_of(&mut inner, handle, None, now)?;
+        let opened_ms = inner.watches.get(handle).map_or(now, |w| w.opened_ms);
+        let book = inner.books.get(&key);
+        Ok(Health {
+            contract: label(&key.0),
+            opened_ms,
+            received: book.map_or(0, |b| b.received),
+            dropped: book.map_or(0, |b| b.dropped),
+            held: book.map_or(0, |b| b.ring.len()),
+            age_ms: book
+                .and_then(|b| b.ring.back())
+                .and_then(seen_ms)
+                .map(|s| now.saturating_sub(s)),
+        })
+    }
+}
+
+/// Rows copied out from under the lock, ready to serialise.
+struct Snapshot {
+    contract: String,
+    rows: Vec<StreamData>,
+}
+
+struct Health {
+    contract: String,
+    opened_ms: u64,
+    received: u64,
+    dropped: u64,
+    held: usize,
+    age_ms: Option<u64>,
 }
 
 static REGISTRY: OnceLock<Registry> = OnceLock::new();
@@ -631,76 +735,61 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     let handle =
         str_of("handle").ok_or_else(|| ToolError::InvalidParams("handle is required".into()))?;
     let want = str_of("contract");
-    let mut inner = reg.lock();
-    let keys = Registry::books_of(&mut inner, handle, want, now)
-        .map_err(|e| ToolError::InvalidParams(e.message().into()))?;
+    let bad = |e: WatchError| ToolError::InvalidParams(e.message().into());
 
     match name {
-        "stream_latest" => Ok(json!({
-            "books": keys.iter().filter_map(|key| {
-                let last = inner.books.get(key)?.ring.back()?;
-                Some(json!({"contract": label(&key.0), "message": tick_json(last, now)}))
-            }).collect::<Vec<_>>()
-        })),
+        "stream_latest" => {
+            let snap = reg.latest(handle, want, now).map_err(bad)?;
+            Ok(json!({
+                "contract": snap.contract,
+                "message": snap.rows.first().map(|d| tick_json(d, now))
+            }))
+        }
         "stream_window" => {
             let seconds = num_of("seconds", 60) as u64;
-            let limit = num_of("limit", 200);
-            let floor = now.saturating_sub(seconds * 1_000);
+            let snap = reg
+                .window(
+                    handle,
+                    want,
+                    now.saturating_sub(seconds * 1_000),
+                    num_of("limit", 200),
+                    now,
+                )
+                .map_err(bad)?;
             Ok(json!({
+                "contract": snap.contract,
                 "window_seconds": seconds,
-                "books": keys.iter().filter_map(|key| {
-                    let book = inner.books.get(key)?;
-                    let mut rows: Vec<&StreamData> = book.ring.iter()
-                        .filter(|d| seen_ms(d).is_none_or(|s| s >= floor)).collect();
-                    if rows.len() > limit { rows.drain(..rows.len() - limit); }
-                    Some(json!({
-                        "contract": label(&key.0),
-                        "count": rows.len(),
-                        "messages": rows.iter().map(|d| tick_json(d, now)).collect::<Vec<_>>()
-                    }))
-                }).collect::<Vec<_>>()
+                "count": snap.rows.len(),
+                "messages": snap.rows.iter().map(|d| tick_json(d, now)).collect::<Vec<_>>()
             }))
         }
         "stream_prints" => {
-            let count = num_of("count", 20);
+            let (contract, rows) = reg
+                .prints(handle, want, num_of("count", 20), now)
+                .map_err(bad)?;
             Ok(json!({
-                "books": keys.iter().filter_map(|key| {
-                    let state = inner.correlation.get(&key.0)?;
-                    let mut rows: Vec<&Print> = state.prints.iter().collect();
-                    if rows.len() > count { rows.drain(..rows.len() - count); }
-                    Some(json!({
-                        "contract": label(&key.0),
-                        "prints": rows.iter().map(|p| json!({
-                            "trade": tick_json(&p.trade, now),
-                            "quote_before": p.quote_before.as_ref().map(|q| tick_json(q, now)),
-                            "quotes_after": p.quotes_after.iter().map(|q| tick_json(q, now)).collect::<Vec<_>>()
-                        })).collect::<Vec<_>>()
-                    }))
-                }).collect::<Vec<_>>()
+                "contract": contract,
+                "prints": rows.iter().map(|p| json!({
+                    "trade": tick_json(&p.trade, now),
+                    "quote_before": p.quote_before.as_ref().map(|q| tick_json(q, now)),
+                    "quotes_after": p.quotes_after.iter().map(|q| tick_json(q, now)).collect::<Vec<_>>()
+                })).collect::<Vec<_>>()
             }))
         }
         "stream_status" => {
-            let opened = inner.watches.get(handle).map_or(0, |w| w.opened_ms);
+            let h = reg.status(handle, now).map_err(bad)?;
             Ok(json!({
-                "open_for_ms": now.saturating_sub(opened),
+                "contract": h.contract,
+                "open_for_ms": now.saturating_sub(h.opened_ms),
                 "expires_after_ms_idle": TTL.as_millis() as u64,
-                "books": keys.iter().filter_map(|key| {
-                    let book = inner.books.get(key)?;
-                    Some(json!({
-                        "contract": label(&key.0),
-                        "received": book.received,
-                        "dropped": book.dropped,
-                        "held": book.ring.len(),
-                        "age_ms": book.ring.back().and_then(seen_ms).map(|s| now.saturating_sub(s))
-                    }))
-                }).collect::<Vec<_>>()
+                "received": h.received,
+                "dropped": h.dropped,
+                "held": h.held,
+                "age_ms": h.age_ms
             }))
         }
         "stream_release" => {
-            drop(inner);
-            let freed = reg
-                .release(handle, now)
-                .map_err(|e| ToolError::InvalidParams(e.message().into()))?;
+            let freed = reg.release(handle, now).map_err(bad)?;
             let mut closed = 0usize;
             let mut failures = Vec::new();
             for (contract, kind) in &freed {
@@ -709,9 +798,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                     kind: *kind,
                 }) {
                     Ok(()) => closed += 1,
-                    // Report it. Claiming a close that did not happen leaves
-                    // the caller believing an allowance was returned when the
-                    // feed still holds it.
+                    // Report it. Claiming a close that did not happen tells the
+                    // caller an allowance came back while the feed still holds it.
                     Err(e) => failures.push(format!("{}: {e}", label(contract))),
                 }
             }
@@ -790,13 +878,11 @@ mod tests {
         for i in 0..(RING + 10) {
             reg.ingest(trade(&c, i as f64));
         }
-        let mut inner = reg.lock();
-        let keys = Registry::books_of(&mut inner, &h, None, 1).expect("books");
-        let book = inner.books.get(&keys[0]).expect("book");
-        assert_eq!(book.received as usize, RING + 10);
-        assert_eq!(book.ring.len(), RING, "holds its capacity, not the tape");
+        let h = reg.status(&h, 1).expect("status");
+        assert_eq!(h.received as usize, RING + 10);
+        assert_eq!(h.held, RING, "holds its capacity, not the tape");
         assert_eq!(
-            book.dropped, 10,
+            h.dropped, 10,
             "a reader must be able to tell a clipped window from a whole one"
         );
     }
@@ -815,18 +901,14 @@ mod tests {
         reg.ingest(quote(&c, 1.03, 1.13));
         reg.ingest(quote(&c, 1.04, 1.14));
 
-        let inner = reg.lock();
-        let state = inner.correlation.get(&c).expect("correlation");
-        assert_eq!(state.prints.len(), 1);
-        let p = &state.prints[0];
-        assert!(p.quote_before.is_some());
+        let (_, prints) = reg.prints(&h, None, 10, 1).expect("prints");
+        assert_eq!(prints.len(), 1);
+        assert!(prints[0].quote_before.is_some());
         assert_eq!(
-            p.quotes_after.len(),
+            prints[0].quotes_after.len(),
             2,
             "the feed sends two after a print; a third belongs to the next one"
         );
-        drop(inner);
-        let _ = h;
     }
 
     #[test]
@@ -856,10 +938,9 @@ mod tests {
         let (_fresh, fresh_keys, _) = reg.watch(stock("MSFT"), SubscriptionKind::Trade, past_ttl);
         assert!(fresh_keys);
 
-        let mut inner = reg.lock();
         assert_eq!(
-            Registry::books_of(&mut inner, &stale, None, past_ttl),
-            Err(WatchError::UnknownHandle)
+            reg.status(&stale, past_ttl).err(),
+            Some(WatchError::UnknownHandle)
         );
     }
 
@@ -887,10 +968,9 @@ mod tests {
     fn a_contract_the_handle_does_not_cover_is_refused() {
         let reg = Registry::default();
         let (h, _, _) = reg.watch(stock("AAPL"), SubscriptionKind::Trade, 0);
-        let mut inner = reg.lock();
         assert_eq!(
-            Registry::books_of(&mut inner, &h, Some("MSFT"), 1),
-            Err(WatchError::NotWatched)
+            reg.latest(&h, Some("MSFT"), 1).err(),
+            Some(WatchError::NotWatched)
         );
     }
 
