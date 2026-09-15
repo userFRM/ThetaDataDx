@@ -14,16 +14,17 @@
 //! reconcile with one built anywhere else.
 
 use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sonic_rs::{json, JsonValueMutTrait, JsonValueTrait, Value};
 use thetadatadx::streaming::{
-    Contract, OptionLeg, StreamData, StreamEvent, Subscription, SubscriptionKind,
+    Contract, OptionLeg, StreamControl, StreamData, StreamEvent, Subscription, SubscriptionKind,
 };
-use thetadatadx::{Client, SecType, StreamMsgType};
+use thetadatadx::{Client, ConnectionStatus, SecType, StreamMsgType};
 
-use crate::ToolError;
+use crate::{sanitize_error, ToolError};
 
 /// Ticks retained per book. A busy contract prints far more than this in a
 /// session; the tail is what a model can act on and the rest is weight.
@@ -35,12 +36,10 @@ const PRINTS: usize = 256;
 /// description, since that is where a model reads it.
 const TTL: Duration = Duration::from_secs(900);
 
-/// A book is one contract and one message shape. `StreamMsgType` is the
-/// SDK's own discriminant for that shape, so nothing here re-derives it.
-type BookKey = (Contract, StreamMsgType);
-/// Subscriptions to open or close on the feed. A handle owns exactly one;
-/// a set appears only when the idle sweep frees several at once.
-type Subs = Vec<(Contract, SubscriptionKind)>;
+/// Subscriptions to open or close on the feed, in the SDK's own tuple order.
+/// A handle owns exactly one; a set appears when the idle sweep frees several
+/// at once, or when a fresh session must reopen everything still held.
+type Subs = Vec<(SubscriptionKind, Contract)>;
 
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -76,6 +75,8 @@ fn contract_of(data: &StreamData) -> Option<&Contract> {
     }
 }
 
+/// The subscription code a stored message answers to. `StreamMsgType` is the
+/// SDK's own discriminant for the shape, so nothing here re-derives it.
 fn msg_type_of(data: &StreamData) -> Option<StreamMsgType> {
     Some(match data {
         StreamData::Quote { .. } => StreamMsgType::Quote,
@@ -84,17 +85,6 @@ fn msg_type_of(data: &StreamData) -> Option<StreamMsgType> {
         StreamData::MarketValue { .. } => StreamMsgType::MarketValue,
         _ => return None,
     })
-}
-
-/// Display name for a contract, used only in tool output.
-fn label(c: &Contract) -> String {
-    match (c.expiration, c.is_call, c.strike_thousandths) {
-        (Some(exp), Some(is_call), Some(strike)) => {
-            let right = if is_call { 'C' } else { 'P' };
-            format!("{} {exp} {right} {strike}", c.symbol)
-        }
-        _ => c.symbol.to_string(),
-    }
 }
 
 /// A trade with the market around it.
@@ -110,21 +100,30 @@ pub struct Print {
 
 #[derive(Debug, Default)]
 struct Book {
-    /// Live handles wanting this subscription. One subscription serves all of
-    /// them; only the last release closes it.
-    refs: usize,
     ring: VecDeque<StreamData>,
     received: u64,
     dropped: u64,
 }
 
+/// Everything held for one contract: a book per subscription kind, and the
+/// print correlation that spans two of them. Living together, the correlation
+/// cannot outlive the last book or be dropped while one remains.
 #[derive(Debug, Default)]
-struct Correlation {
+struct ContractState {
+    /// At most one book per kind. Four kinds exist, so a scan beats a hash
+    /// and the kind is kept alongside for reopening on a fresh session.
+    books: Vec<(SubscriptionKind, Book)>,
     last_quote: Option<StreamData>,
     prints: VecDeque<Print>,
 }
 
-#[derive(Debug)]
+impl ContractState {
+    fn book(&self, kind: SubscriptionKind) -> Option<&Book> {
+        self.books.iter().find(|(k, _)| *k == kind).map(|(_, b)| b)
+    }
+}
+
+#[derive(Debug, Clone)]
 struct Watch {
     contract: Contract,
     kind: SubscriptionKind,
@@ -135,33 +134,22 @@ struct Watch {
 #[derive(Debug, Default)]
 struct Inner {
     watches: HashMap<String, Watch>,
-    books: HashMap<BookKey, Book>,
-    correlation: HashMap<Contract, Correlation>,
+    contracts: HashMap<Contract, ContractState>,
     minted: u64,
 }
 
+/// Unknown, or expired and collected. The caller's recovery is the same
+/// either way: open a new one.
 #[derive(Debug, PartialEq)]
-pub enum WatchError {
-    /// Unknown, or expired and collected. The caller's recovery is the same
-    /// either way: open a new one.
-    UnknownHandle,
-    NotWatched,
-}
-
-impl WatchError {
-    fn message(&self) -> &'static str {
-        match self {
-            Self::UnknownHandle => {
-                "unknown or expired stream handle; call stream_watch for a new one"
-            }
-            Self::NotWatched => "this handle does not cover that contract",
-        }
-    }
-}
+pub struct UnknownHandle;
 
 #[derive(Debug, Default)]
 pub struct Registry {
     inner: Mutex<Inner>,
+    /// Set when the feed reports its reconnect budget spent. The SDK then
+    /// reads as `Reconnecting` for good, so this is the only signal that the
+    /// next watch must restart the session rather than wait for it.
+    reconnects_exhausted: AtomicBool,
 }
 
 impl Registry {
@@ -171,8 +159,8 @@ impl Registry {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Open a watch. Returns its handle and the subscriptions that are new to
-    /// this process — the ones the caller must open on the feed.
+    /// Open a watch. Returns its handle, whether this process must open the
+    /// subscription on the feed, and what the idle sweep freed.
     fn watch(&self, contract: Contract, kind: SubscriptionKind, now: u64) -> (String, bool, Subs) {
         let mut inner = self.lock();
         // Two lists, because they need opposite actions: what the idle sweep
@@ -182,12 +170,13 @@ impl Registry {
         inner.minted += 1;
         let handle = format!("sw_{now:012x}{:04x}", inner.minted & 0xffff);
 
-        let book = inner
-            .books
-            .entry((contract.clone(), kind.subscribe_code()))
-            .or_default();
-        let first = book.refs == 0;
-        book.refs += 1;
+        // A book exists exactly while some watch wants it, so its absence is
+        // the whole reference count.
+        let books = &mut inner.contracts.entry(contract.clone()).or_default().books;
+        let first = !books.iter().any(|(k, _)| *k == kind);
+        if first {
+            books.push((kind, Book::default()));
+        }
 
         inner.watches.insert(
             handle.clone(),
@@ -202,34 +191,34 @@ impl Registry {
     }
 
     /// Close a watch. Returns the subscriptions whose last holder just left.
-    fn release(&self, handle: &str, now: u64) -> Result<Subs, WatchError> {
+    fn release(&self, handle: &str, now: u64) -> Result<Subs, UnknownHandle> {
         let mut inner = self.lock();
-        let watch = inner
-            .watches
-            .remove(handle)
-            .ok_or(WatchError::UnknownHandle)?;
-        let mut freed = Self::deref(&mut inner, &[(watch.contract, watch.kind)]);
+        let watch = inner.watches.remove(handle).ok_or(UnknownHandle)?;
+        let mut freed: Subs = Self::close(&mut inner, watch).into_iter().collect();
         // A handle that timed out while this one was open still holds a live
         // subscription until someone closes it.
         freed.extend(Self::collect_expired(&mut inner, now));
         Ok(freed)
     }
 
-    fn deref(inner: &mut Inner, subs: &[(Contract, SubscriptionKind)]) -> Subs {
-        let mut freed = Vec::new();
-        for (contract, kind) in subs {
-            let key = (contract.clone(), kind.subscribe_code());
-            let Some(book) = inner.books.get_mut(&key) else {
-                continue;
-            };
-            book.refs -= 1;
-            if book.refs == 0 {
-                inner.books.remove(&key);
-                inner.correlation.remove(contract);
-                freed.push((contract.clone(), *kind));
+    /// Drop the book behind a removed watch once no other watch wants it.
+    /// Returns the subscription to close on the feed when that was the last.
+    fn close(inner: &mut Inner, watch: Watch) -> Option<(SubscriptionKind, Contract)> {
+        let Watch { contract, kind, .. } = watch;
+        if inner
+            .watches
+            .values()
+            .any(|w| w.kind == kind && w.contract == contract)
+        {
+            return None;
+        }
+        if let Some(state) = inner.contracts.get_mut(&contract) {
+            state.books.retain(|(k, _)| *k != kind);
+            if state.books.is_empty() {
+                inner.contracts.remove(&contract);
             }
         }
-        freed
+        Some((kind, contract))
     }
 
     /// Drop handles nobody has read inside the TTL.
@@ -239,19 +228,25 @@ impl Registry {
     /// cannot drift from it.
     fn collect_expired(inner: &mut Inner, now: u64) -> Subs {
         let ttl = TTL.as_millis() as u64;
-        let stale: Vec<String> = inner
+        let stale: Vec<Watch> = inner
             .watches
-            .iter()
-            .filter(|(_, w)| now.saturating_sub(w.read_ms) > ttl)
-            .map(|(h, _)| h.clone())
+            .extract_if(|_, w| now.saturating_sub(w.read_ms) > ttl)
+            .map(|(_, w)| w)
             .collect();
-        let mut freed = Vec::new();
-        for handle in stale {
-            if let Some(watch) = inner.watches.remove(&handle) {
-                freed.extend(Self::deref(inner, &[(watch.contract, watch.kind)]));
-            }
-        }
-        freed
+        stale
+            .into_iter()
+            .filter_map(|w| Self::close(inner, w))
+            .collect()
+    }
+
+    /// Every subscription the books hold, once each: what a fresh session
+    /// must reopen.
+    fn subscriptions(&self) -> Subs {
+        self.lock()
+            .contracts
+            .iter()
+            .flat_map(|(c, s)| s.books.iter().map(move |(k, _)| (*k, c.clone())))
+            .collect()
     }
 
     /// Store a tick. Unknown books are ignored rather than created: the feed
@@ -261,9 +256,15 @@ impl Registry {
         let (Some(contract), Some(msg)) = (contract_of(&data), msg_type_of(&data)) else {
             return;
         };
-        let key = (contract.clone(), msg);
         let mut inner = self.lock();
-        let Some(book) = inner.books.get_mut(&key) else {
+        let Some(state) = inner.contracts.get_mut(contract) else {
+            return;
+        };
+        let Some((_, book)) = state
+            .books
+            .iter_mut()
+            .find(|(k, _)| k.subscribe_code() == msg)
+        else {
             return;
         };
         book.received += 1;
@@ -273,7 +274,6 @@ impl Registry {
         }
         book.ring.push_back(data.clone());
 
-        let state = inner.correlation.entry(key.0).or_default();
         match &data {
             StreamData::Quote { .. } => {
                 if let Some(open) = state.prints.back_mut() {
@@ -297,102 +297,82 @@ impl Registry {
         }
     }
 
-    /// The book this handle covers.
+    /// Mark a handle read and return what it covers.
     ///
     /// Every reader below copies what it needs under the lock and releases it
     /// before serialising. The streaming dispatcher calls [`Self::ingest`] on
     /// the same lock, so a critical section held across JSON construction
     /// would stall the feed — the one thing this layer must never do.
-    fn book_of(
-        inner: &mut Inner,
-        handle: &str,
-        want: Option<&str>,
-        now: u64,
-    ) -> Result<BookKey, WatchError> {
-        let watch = inner
-            .watches
-            .get_mut(handle)
-            .ok_or(WatchError::UnknownHandle)?;
+    fn touch(inner: &mut Inner, handle: &str, now: u64) -> Result<Watch, UnknownHandle> {
+        let watch = inner.watches.get_mut(handle).ok_or(UnknownHandle)?;
         watch.read_ms = now;
-        if want.is_some_and(|w| label(&watch.contract) != w) {
-            return Err(WatchError::NotWatched);
-        }
-        Ok((watch.contract.clone(), watch.kind.subscribe_code()))
+        Ok(watch.clone())
     }
 
-    fn latest(&self, handle: &str, want: Option<&str>, now: u64) -> Result<Snapshot, WatchError> {
+    fn book<'a>(inner: &'a Inner, watch: &Watch) -> Option<&'a Book> {
+        inner.contracts.get(&watch.contract)?.book(watch.kind)
+    }
+
+    fn latest(
+        &self,
+        handle: &str,
+        now: u64,
+    ) -> Result<(Contract, Option<StreamData>), UnknownHandle> {
         let mut inner = self.lock();
-        let key = Self::book_of(&mut inner, handle, want, now)?;
-        let rows = inner
-            .books
-            .get(&key)
-            .and_then(|b| b.ring.back().cloned())
-            .into_iter()
-            .collect();
-        Ok(Snapshot {
-            contract: label(&key.0),
-            rows,
-        })
+        let watch = Self::touch(&mut inner, handle, now)?;
+        let last = Self::book(&inner, &watch).and_then(|b| b.ring.back().cloned());
+        Ok((watch.contract, last))
     }
 
+    /// Messages at or after `floor`, newest `limit` of them, oldest first.
     fn window(
         &self,
         handle: &str,
-        want: Option<&str>,
         floor: u64,
         limit: usize,
         now: u64,
-    ) -> Result<Snapshot, WatchError> {
+    ) -> Result<(Contract, Vec<StreamData>), UnknownHandle> {
         let mut inner = self.lock();
-        let key = Self::book_of(&mut inner, handle, want, now)?;
-        let mut rows: Vec<StreamData> = inner
-            .books
-            .get(&key)
+        let watch = Self::touch(&mut inner, handle, now)?;
+        // Walk back from the newest and stop at the floor or the limit, so the
+        // critical section copies what will be served and not the whole ring.
+        let mut rows: Vec<StreamData> = Self::book(&inner, &watch)
             .map(|b| {
                 b.ring
                     .iter()
-                    .filter(|d| seen_ms(d).is_none_or(|s| s >= floor))
+                    .rev()
+                    .take_while(|d| seen_ms(d).is_none_or(|s| s >= floor))
+                    .take(limit)
                     .cloned()
                     .collect()
             })
             .unwrap_or_default();
-        if rows.len() > limit {
-            rows.drain(..rows.len() - limit);
-        }
-        Ok(Snapshot {
-            contract: label(&key.0),
-            rows,
-        })
+        rows.reverse();
+        Ok((watch.contract, rows))
     }
 
     fn prints(
         &self,
         handle: &str,
-        want: Option<&str>,
         count: usize,
         now: u64,
-    ) -> Result<(String, Vec<Print>), WatchError> {
+    ) -> Result<(Contract, Vec<Print>), UnknownHandle> {
         let mut inner = self.lock();
-        let key = Self::book_of(&mut inner, handle, want, now)?;
+        let watch = Self::touch(&mut inner, handle, now)?;
         let mut rows: Vec<Print> = inner
-            .correlation
-            .get(&key.0)
-            .map(|c| c.prints.iter().cloned().collect())
+            .contracts
+            .get(&watch.contract)
+            .map(|c| c.prints.iter().rev().take(count).cloned().collect())
             .unwrap_or_default();
-        if rows.len() > count {
-            rows.drain(..rows.len() - count);
-        }
-        Ok((label(&key.0), rows))
+        rows.reverse();
+        Ok((watch.contract, rows))
     }
 
-    fn status(&self, handle: &str, now: u64) -> Result<Health, WatchError> {
+    fn status(&self, handle: &str, now: u64) -> Result<Health, UnknownHandle> {
         let mut inner = self.lock();
-        let key = Self::book_of(&mut inner, handle, None, now)?;
-        let opened_ms = inner.watches.get(handle).map_or(now, |w| w.opened_ms);
-        let book = inner.books.get(&key);
+        let watch = Self::touch(&mut inner, handle, now)?;
+        let book = Self::book(&inner, &watch);
         Ok(Health {
-            contract: label(&key.0),
-            opened_ms,
             received: book.map_or(0, |b| b.received),
             dropped: book.map_or(0, |b| b.dropped),
             held: book.map_or(0, |b| b.ring.len()),
@@ -400,18 +380,15 @@ impl Registry {
                 .and_then(|b| b.ring.back())
                 .and_then(seen_ms)
                 .map(|s| now.saturating_sub(s)),
+            opened_ms: watch.opened_ms,
+            contract: watch.contract,
         })
     }
 }
 
-/// Rows copied out from under the lock, ready to serialise.
-struct Snapshot {
-    contract: String,
-    rows: Vec<StreamData>,
-}
-
+/// Counters copied out from under the lock, ready to serialise.
 struct Health {
-    contract: String,
+    contract: Contract,
     opened_ms: u64,
     received: u64,
     dropped: u64,
@@ -420,7 +397,6 @@ struct Health {
 }
 
 static REGISTRY: OnceLock<Registry> = OnceLock::new();
-static HANDLER: OnceLock<()> = OnceLock::new();
 
 pub fn registry() -> &'static Registry {
     REGISTRY.get_or_init(Registry::default)
@@ -469,10 +445,6 @@ fn handle_arg() -> Value {
     json!({"type": "string", "description": "Handle from stream_watch."})
 }
 
-fn contract_arg() -> Value {
-    json!({"type": "string", "description": "Restrict to one contract, as named in a previous response. Omit for all."})
-}
-
 pub fn tool_definitions() -> Vec<Value> {
     vec![
         json!({
@@ -482,7 +454,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 read here reports how old its value is. Indices have no quote stream: they \
                 offer trade (which carries the index price) and market_value. Market value is \
                 a derived midpoint, not a quote. The handle is collected after 15 minutes \
-                without a read, so call stream_release when you are finished.",
+                without a read, so call stream_release when you are finished. If the feed has \
+                dropped and given up reconnecting, this call restarts it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -498,10 +471,10 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "stream_latest",
-            "description": "The newest message on each book, with age_ms. An index reports \
+            "description": "The newest message on the handle, with age_ms. An index reports \
                 about once a second, so seconds of age are normal there and stale on an \
                 option quote.",
-            "inputSchema": {"type": "object", "properties": {"handle": handle_arg(), "contract": contract_arg()}, "required": ["handle"]}
+            "inputSchema": {"type": "object", "properties": {"handle": handle_arg()}, "required": ["handle"]}
         }),
         json!({
             "name": "stream_window",
@@ -512,7 +485,6 @@ pub fn tool_definitions() -> Vec<Value> {
                 "type": "object",
                 "properties": {
                     "handle": handle_arg(),
-                    "contract": contract_arg(),
                     "seconds": {"type": "integer", "description": "Default 60."},
                     "limit": {"type": "integer", "description": "Newest N. Default 200."}
                 },
@@ -525,7 +497,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 next two after it. Watch trade and quote on the same contract to populate it.",
             "inputSchema": {
                 "type": "object",
-                "properties": {"handle": handle_arg(), "contract": contract_arg(),
+                "properties": {"handle": handle_arg(),
                                "count": {"type": "integer", "description": "Default 20."}},
                 "required": ["handle"]
             }
@@ -533,8 +505,10 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({
             "name": "stream_status",
             "description": "What the handle covers: messages received, messages dropped \
-                because the buffer filled, and the age of each book's newest message. A \
-                non-zero drop count means a window is clipped, not complete.",
+                because the buffer filled, the age of the newest message, and the feed's \
+                connection state. A non-zero drop count means a window is clipped, not \
+                complete. A feed that is not Connected delivers nothing until stream_watch \
+                restarts it.",
             "inputSchema": {"type": "object", "properties": {"handle": handle_arg()}, "required": ["handle"]}
         }),
         json!({
@@ -607,20 +581,40 @@ fn tick_json(data: &StreamData, now: u64) -> Value {
     body
 }
 
-fn install_handler(client: &Client) -> Result<(), ToolError> {
-    if HANDLER.get().is_some() {
-        return Ok(());
+fn stream_error(what: &str, e: impl std::fmt::Display) -> ToolError {
+    ToolError::ServerError(format!("{what}: {}", sanitize_error(&e.to_string())))
+}
+
+/// Make sure the feed delivers into the registry.
+///
+/// The SDK reconnects on its own after a drop. When it gives up it says so
+/// once and then reads as `Reconnecting` indefinitely; a dispatcher fault
+/// reads as `Disconnected`. Both need the dead session retired and a new one
+/// started, and a new session knows nothing of the books this process still
+/// holds, so they are reopened from the registry rather than from what the
+/// old session tracked.
+fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<(), ToolError> {
+    let stream = client.stream();
+    let exhausted = reg.reconnects_exhausted.swap(false, Ordering::Relaxed);
+    match stream.connection_status() {
+        ConnectionStatus::NotStarted => {}
+        // A dead session still occupies the slot until it is stopped.
+        ConnectionStatus::Disconnected => stream.stop_streaming(),
+        _ if exhausted => stream.stop_streaming(),
+        _ => return Ok(()),
     }
-    client
-        .stream()
-        .start_streaming(|event: &StreamEvent| {
-            if let StreamEvent::Data(data) = event {
-                registry().ingest(data.clone());
+    stream
+        .start_streaming(move |event: &StreamEvent| match event {
+            StreamEvent::Data(data) => reg.ingest(data.clone()),
+            StreamEvent::Control(StreamControl::ReconnectsExhausted { .. }) => {
+                reg.reconnects_exhausted.store(true, Ordering::Relaxed);
             }
+            _ => {}
         })
-        .map_err(|e| ToolError::ServerError(format!("could not start streaming: {e}")))?;
-    let _ = HANDLER.set(());
-    Ok(())
+        .map_err(|e| stream_error("could not start streaming", e))?;
+    stream
+        .restore_subscriptions(&reg.subscriptions(), &[])
+        .map_err(|e| stream_error("could not reopen every subscription", e))
 }
 
 fn build_contract(args: &Value, sec: SecType) -> Result<Contract, ToolError> {
@@ -673,6 +667,11 @@ pub async fn try_execute(
     Some(execute(client, name, args))
 }
 
+/// Tool calls arrive one at a time (the JSON-RPC loop awaits each before
+/// reading the next), so a registry mutation and the feed call that follows
+/// it are never interleaved with another tool call. That ordering is what
+/// lets `watch` and `release` hand back subscriptions to open or close
+/// outside the lock.
 fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError> {
     let reg = registry();
     let now = now_ms();
@@ -700,16 +699,18 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         )?;
         let contract = build_contract(args, sec)?;
 
-        install_handler(client)?;
+        ensure_streaming(client, reg)?;
         let (handle, first, expired) = reg.watch(contract.clone(), kind, now);
 
         // Close what the idle sweep released before opening anything new, so a
         // forgotten handle cannot hold an allowance the next caller needs.
-        for (contract, kind) in &expired {
-            let _ = client.stream().unsubscribe(Subscription::Contract {
+        for (kind, contract) in expired {
+            if let Err(e) = client.stream().unsubscribe(Subscription::Contract {
                 contract: contract.clone(),
-                kind: *kind,
-            });
+                kind,
+            }) {
+                tracing::warn!(%contract, ?kind, error = %e, "expired watch left its subscription open");
+            }
         }
 
         if first {
@@ -718,15 +719,15 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 kind,
             }) {
                 // Roll the handle back. Leaving it would hand back a handle
-                // that receives nothing, and the reference it holds would make
-                // the next watch on this contract skip subscribing too.
+                // that receives nothing, and the book it holds would make the
+                // next watch on this contract skip subscribing too.
                 let _ = reg.release(&handle, now);
-                return Err(ToolError::ServerError(format!("subscribe failed: {e}")));
+                return Err(stream_error("subscribe failed", e));
             }
         }
         return Ok(json!({
             "handle": handle,
-            "contract": label(&contract),
+            "contract": contract.to_string(),
             "subscriptions_opened": usize::from(first),
             "expires_after_seconds": TTL.as_secs()
         }));
@@ -734,41 +735,41 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
 
     let handle =
         str_of("handle").ok_or_else(|| ToolError::InvalidParams("handle is required".into()))?;
-    let want = str_of("contract");
-    let bad = |e: WatchError| ToolError::InvalidParams(e.message().into());
+    let bad = |_: UnknownHandle| {
+        ToolError::InvalidParams(
+            "unknown or expired stream handle; call stream_watch for a new one".into(),
+        )
+    };
 
     match name {
         "stream_latest" => {
-            let snap = reg.latest(handle, want, now).map_err(bad)?;
+            let (contract, last) = reg.latest(handle, now).map_err(bad)?;
             Ok(json!({
-                "contract": snap.contract,
-                "message": snap.rows.first().map(|d| tick_json(d, now))
+                "contract": contract.to_string(),
+                "message": last.map(|d| tick_json(&d, now))
             }))
         }
         "stream_window" => {
             let seconds = num_of("seconds", 60) as u64;
-            let snap = reg
+            let (contract, rows) = reg
                 .window(
                     handle,
-                    want,
                     now.saturating_sub(seconds * 1_000),
                     num_of("limit", 200),
                     now,
                 )
                 .map_err(bad)?;
             Ok(json!({
-                "contract": snap.contract,
+                "contract": contract.to_string(),
                 "window_seconds": seconds,
-                "count": snap.rows.len(),
-                "messages": snap.rows.iter().map(|d| tick_json(d, now)).collect::<Vec<_>>()
+                "count": rows.len(),
+                "messages": rows.iter().map(|d| tick_json(d, now)).collect::<Vec<_>>()
             }))
         }
         "stream_prints" => {
-            let (contract, rows) = reg
-                .prints(handle, want, num_of("count", 20), now)
-                .map_err(bad)?;
+            let (contract, rows) = reg.prints(handle, num_of("count", 20), now).map_err(bad)?;
             Ok(json!({
-                "contract": contract,
+                "contract": contract.to_string(),
                 "prints": rows.iter().map(|p| json!({
                     "trade": tick_json(&p.trade, now),
                     "quote_before": p.quote_before.as_ref().map(|q| tick_json(q, now)),
@@ -778,8 +779,14 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         }
         "stream_status" => {
             let h = reg.status(handle, now).map_err(bad)?;
+            let feed = if reg.reconnects_exhausted.load(Ordering::Relaxed) {
+                "ReconnectsExhausted".to_string()
+            } else {
+                format!("{:?}", client.stream().connection_status())
+            };
             Ok(json!({
-                "contract": h.contract,
+                "contract": h.contract.to_string(),
+                "feed": feed,
                 "open_for_ms": now.saturating_sub(h.opened_ms),
                 "expires_after_ms_idle": TTL.as_millis() as u64,
                 "received": h.received,
@@ -792,15 +799,17 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             let freed = reg.release(handle, now).map_err(bad)?;
             let mut closed = 0usize;
             let mut failures = Vec::new();
-            for (contract, kind) in &freed {
+            for (kind, contract) in freed {
                 match client.stream().unsubscribe(Subscription::Contract {
                     contract: contract.clone(),
-                    kind: *kind,
+                    kind,
                 }) {
                     Ok(()) => closed += 1,
                     // Report it. Claiming a close that did not happen tells the
                     // caller an allowance came back while the feed still holds it.
-                    Err(e) => failures.push(format!("{}: {e}", label(contract))),
+                    Err(e) => {
+                        failures.push(format!("{contract}: {}", sanitize_error(&e.to_string())))
+                    }
                 }
             }
             Ok(json!({
@@ -822,7 +831,7 @@ mod tests {
         Contract::stock(sym)
     }
 
-    fn trade(c: &Contract, price: f64) -> StreamData {
+    fn trade(c: &Contract, price: f64, received_at_ns: u64) -> StreamData {
         StreamData::Trade {
             contract: Arc::new(c.clone()),
             ms_of_day: 1,
@@ -832,7 +841,7 @@ mod tests {
             exchange: 0,
             price,
             date: 20260915,
-            received_at_ns: 0,
+            received_at_ns,
         }
     }
 
@@ -853,6 +862,13 @@ mod tests {
         }
     }
 
+    fn price(d: &StreamData) -> f64 {
+        match d {
+            StreamData::Trade { price, .. } => *price,
+            other => panic!("not a trade: {other:?}"),
+        }
+    }
+
     #[test]
     fn one_subscription_serves_every_handle_and_the_last_release_closes_it() {
         let reg = Registry::default();
@@ -867,7 +883,7 @@ mod tests {
             "still held, so nothing closes"
         );
         assert_eq!(reg.release(&b, 1_003).expect("release b").len(), 1);
-        assert_eq!(reg.release(&b, 1_004), Err(WatchError::UnknownHandle));
+        assert_eq!(reg.release(&b, 1_004), Err(UnknownHandle));
     }
 
     #[test]
@@ -876,7 +892,7 @@ mod tests {
         let c = stock("AAPL");
         let (h, _, _) = reg.watch(c.clone(), SubscriptionKind::Trade, 0);
         for i in 0..(RING + 10) {
-            reg.ingest(trade(&c, i as f64));
+            reg.ingest(trade(&c, i as f64, 0));
         }
         let h = reg.status(&h, 1).expect("status");
         assert_eq!(h.received as usize, RING + 10);
@@ -888,6 +904,31 @@ mod tests {
     }
 
     #[test]
+    fn a_window_is_the_newest_rows_inside_the_floor_oldest_first() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let (h, _, _) = reg.watch(c.clone(), SubscriptionKind::Trade, 0);
+        for ms in [100u64, 200, 300, 400] {
+            reg.ingest(trade(&c, ms as f64, ms * 1_000_000));
+        }
+
+        let (_, rows) = reg.window(&h, 250, 10, 500).expect("window");
+        assert_eq!(
+            rows.iter().map(price).collect::<Vec<_>>(),
+            vec![300.0, 400.0],
+            "the floor cuts, and what remains is served oldest first"
+        );
+        let (_, rows) = reg.window(&h, 0, 3, 500).expect("window");
+        assert_eq!(
+            rows.iter().map(price).collect::<Vec<_>>(),
+            vec![200.0, 300.0, 400.0],
+            "the limit keeps the newest, not the oldest"
+        );
+        let (_, last) = reg.latest(&h, 500).expect("latest");
+        assert_eq!(last.as_ref().map(price), Some(400.0));
+    }
+
+    #[test]
     fn a_print_takes_the_quote_before_it_and_exactly_the_two_after() {
         let reg = Registry::default();
         let c = stock("AAPL");
@@ -896,18 +937,61 @@ mod tests {
         let (h, _, _) = reg.watch(c.clone(), SubscriptionKind::Trade, 0);
         let (_q, _, _) = reg.watch(c.clone(), SubscriptionKind::Quote, 0);
         reg.ingest(quote(&c, 1.00, 1.10));
-        reg.ingest(trade(&c, 1.08));
+        reg.ingest(trade(&c, 1.08, 0));
         reg.ingest(quote(&c, 1.02, 1.12));
         reg.ingest(quote(&c, 1.03, 1.13));
         reg.ingest(quote(&c, 1.04, 1.14));
 
-        let (_, prints) = reg.prints(&h, None, 10, 1).expect("prints");
+        let (_, prints) = reg.prints(&h, 10, 1).expect("prints");
         assert_eq!(prints.len(), 1);
         assert!(prints[0].quote_before.is_some());
         assert_eq!(
             prints[0].quotes_after.len(),
             2,
             "the feed sends two after a print; a third belongs to the next one"
+        );
+    }
+
+    #[test]
+    fn releasing_one_kind_keeps_the_prints_the_other_still_serves() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let (t, _, _) = reg.watch(c.clone(), SubscriptionKind::Trade, 0);
+        let (q, _, _) = reg.watch(c.clone(), SubscriptionKind::Quote, 0);
+        reg.ingest(quote(&c, 1.00, 1.10));
+        reg.ingest(trade(&c, 1.08, 0));
+
+        assert_eq!(reg.release(&q, 1).expect("release quote").len(), 1);
+        let (_, prints) = reg.prints(&t, 10, 2).expect("prints");
+        assert_eq!(
+            prints.len(),
+            1,
+            "the trade handle is open; closing the quote one must not erase its history"
+        );
+        assert_eq!(reg.release(&t, 3).expect("release trade").len(), 1);
+        assert!(
+            reg.lock().contracts.is_empty(),
+            "nothing held once the last book is gone"
+        );
+    }
+
+    #[test]
+    fn a_fresh_session_reopens_each_held_subscription_once() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let (_a, _, _) = reg.watch(c.clone(), SubscriptionKind::Trade, 0);
+        let (_b, _, _) = reg.watch(c.clone(), SubscriptionKind::Trade, 0);
+        let (_q, _, _) = reg.watch(c.clone(), SubscriptionKind::Quote, 0);
+
+        let mut subs = reg.subscriptions();
+        subs.sort_by_key(|(k, _)| k.kind_str());
+        assert_eq!(
+            subs,
+            vec![
+                (SubscriptionKind::Quote, c.clone()),
+                (SubscriptionKind::Trade, c)
+            ],
+            "two handles share one subscription; replaying it twice would double-subscribe"
         );
     }
 
@@ -938,10 +1022,7 @@ mod tests {
         let (_fresh, fresh_keys, _) = reg.watch(stock("MSFT"), SubscriptionKind::Trade, past_ttl);
         assert!(fresh_keys);
 
-        assert_eq!(
-            reg.status(&stale, past_ttl).err(),
-            Some(WatchError::UnknownHandle)
-        );
+        assert_eq!(reg.status(&stale, past_ttl).err(), Some(UnknownHandle));
     }
 
     #[test]
@@ -959,18 +1040,8 @@ mod tests {
         assert!(fresh, "MSFT is new");
         assert_eq!(
             expired,
-            vec![(c, SubscriptionKind::Trade)],
+            vec![(SubscriptionKind::Trade, c)],
             "the swept handle's subscription must come back to be closed"
-        );
-    }
-
-    #[test]
-    fn a_contract_the_handle_does_not_cover_is_refused() {
-        let reg = Registry::default();
-        let (h, _, _) = reg.watch(stock("AAPL"), SubscriptionKind::Trade, 0);
-        assert_eq!(
-            reg.latest(&h, Some("MSFT"), 1).err(),
-            Some(WatchError::NotWatched)
         );
     }
 
@@ -978,7 +1049,7 @@ mod tests {
     fn a_tick_for_an_unwatched_book_creates_nothing() {
         let reg = Registry::default();
         let (_h, _, _) = reg.watch(stock("AAPL"), SubscriptionKind::Trade, 0);
-        reg.ingest(trade(&stock("MSFT"), 5.0));
-        assert_eq!(reg.lock().books.len(), 1, "no book invented for MSFT");
+        reg.ingest(trade(&stock("MSFT"), 5.0, 0));
+        assert_eq!(reg.lock().contracts.len(), 1, "no book invented for MSFT");
     }
 }
