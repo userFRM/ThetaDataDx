@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "vitepress": "^1.6.3",
-    "vue": "^3.5.40"
+    "vue": "^3.5.42"
   },
   "overrides": {
     "vite": "6.4.3",
@@ -22,6 +22,6 @@
     "uuid": "^14.0.0"
   },
   "dependencies": {
-    "highlight.js": "11.11.1"
+    "highlight.js": "11.12.0"
   }
 }
