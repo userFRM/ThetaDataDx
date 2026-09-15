@@ -1273,6 +1273,8 @@ macro_rules! param {
 include!("utilities.rs");
 
 mod flatfile_tools;
+#[allow(dead_code)]
+mod stream;
 
 async fn execute_tool(
     client: Option<&Client>,
