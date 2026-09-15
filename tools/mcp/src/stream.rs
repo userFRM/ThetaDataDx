@@ -31,12 +31,102 @@ pub const DEFAULT_TTL: Duration = Duration::from_secs(900);
 /// aggregating one would invent volume that never happened.
 const BAR_KINDS: [Kind; 1] = [Kind::Trade];
 
+
+/// What a watch covers. The shapes are the vendor's, not ours: the bulk
+/// full-trade stream and the per-contract streams are different products with
+/// different tiers, and indices have neither a trade nor a quote stream.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Scope {
+    /// One option contract.
+    Contract,
+    /// One stock symbol.
+    Equity,
+    /// One index symbol. Price and market value only.
+    Index,
+    /// Every contract on a root and expiration, as one per-contract
+    /// subscription each.
+    Chain,
+    /// The bulk full-trade stream for a security type. Requires the Pro tier
+    /// on that asset class, and delivers quote and OHLC context around every
+    /// print as separate messages.
+    Feed,
+}
+
+impl Scope {
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "contract" => Some(Self::Contract),
+            "equity" => Some(Self::Equity),
+            "index" => Some(Self::Index),
+            "chain" => Some(Self::Chain),
+            "feed" => Some(Self::Feed),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Contract => "contract",
+            Self::Equity => "equity",
+            Self::Index => "index",
+            Self::Chain => "chain",
+            Self::Feed => "feed",
+        }
+    }
+
+    /// Kinds this scope can actually carry.
+    pub fn kinds(self) -> &'static [Kind] {
+        match self {
+            Self::Contract | Self::Equity | Self::Chain => {
+                &[Kind::Trade, Kind::Quote, Kind::MarketValue]
+            }
+            // No index trade or quote stream exists. Price is its own kind and
+            // arrives in a trade-shaped message despite not being trade data.
+            Self::Index => &[Kind::Price, Kind::MarketValue],
+            // The bulk stream is a trade stream; the quotes and OHLC around
+            // each print ride along with it rather than being subscribable.
+            Self::Feed => &[Kind::Trade],
+        }
+    }
+
+    /// Why a kind is refused, phrased for a model that has to choose again.
+    pub fn reject(self, kind: Kind) -> Option<String> {
+        if self.kinds().contains(&kind) {
+            return None;
+        }
+        let offered = self
+            .kinds()
+            .iter()
+            .map(|k| k.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        Some(match (self, kind) {
+            (Self::Index, Kind::Trade | Kind::Quote) => format!(
+                "indices have no {} stream; this scope offers {offered}",
+                kind.as_str()
+            ),
+            (Self::Feed, Kind::Quote) => format!(
+                "the bulk stream is a trade stream. It carries the quote before each print \
+                 and the two after it, but not every quote update. For every quote on a \
+                 contract, watch it at contract or equity scope with kind=quote. \
+                 This scope offers {offered}"
+            ),
+            _ => format!("{} scope offers {offered}", self.as_str()),
+        })
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Kind {
     Quote,
     Trade,
     OpenInterest,
+    /// Derived midpoint, not a quote. Never present it as NBBO.
     MarketValue,
+    /// Index price changes. Reported about once a second, and only the price
+    /// moves between reports, so staleness reads differently here than on a
+    /// quote.
+    Price,
 }
 
 impl Kind {
@@ -46,6 +136,7 @@ impl Kind {
             "trade" => Some(Self::Trade),
             "open_interest" => Some(Self::OpenInterest),
             "market_value" => Some(Self::MarketValue),
+            "price" => Some(Self::Price),
             _ => None,
         }
     }
@@ -56,6 +147,7 @@ impl Kind {
             Self::Trade => "trade",
             Self::OpenInterest => "open_interest",
             Self::MarketValue => "market_value",
+            Self::Price => "price",
         }
     }
 }
@@ -89,9 +181,17 @@ pub enum Tick {
     MarketValue {
         ms_of_day: i32,
         date: i32,
-        bid: f64,
-        ask: f64,
+        /// Absent for an index, which reports a market price with no book.
+        bid: Option<f64>,
+        ask: Option<f64>,
         price: f64,
+    },
+    Price {
+        ms_of_day: i32,
+        date: i32,
+        price: f64,
+        sequence: i32,
+        condition: i32,
     },
 }
 
@@ -102,6 +202,7 @@ impl Tick {
             Self::Trade { .. } => Kind::Trade,
             Self::OpenInterest { .. } => Kind::OpenInterest,
             Self::MarketValue { .. } => Kind::MarketValue,
+            Self::Price { .. } => Kind::Price,
         }
     }
 
@@ -110,7 +211,8 @@ impl Tick {
             Self::Quote { ms_of_day, .. }
             | Self::Trade { ms_of_day, .. }
             | Self::OpenInterest { ms_of_day, .. }
-            | Self::MarketValue { ms_of_day, .. } => ms_of_day,
+            | Self::MarketValue { ms_of_day, .. }
+            | Self::Price { ms_of_day, .. } => ms_of_day,
         }
     }
 }
@@ -123,6 +225,22 @@ pub struct Stamped {
     pub seen_ms: u64,
 }
 
+
+/// A print with the market around it.
+///
+/// The bulk full-trade stream sends, for every trade: the last quote before
+/// it and an OHLC for the contract, then the trade, then the next two quotes.
+/// They arrive as separate messages, so the value only exists once something
+/// correlates them. That is this.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Print {
+    pub trade: Tick,
+    /// The NBBO as it stood immediately before the print.
+    pub quote_before: Option<Tick>,
+    /// The next two NBBO updates after it. The second does not always arrive.
+    pub quotes_after: Vec<Tick>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bar {
     pub start_ms: i64,
@@ -132,6 +250,71 @@ pub struct Bar {
     pub close: f64,
     pub volume: i64,
     pub trades: u64,
+}
+
+/// Enough of a contract to rebuild the subscription and to name the book.
+///
+/// The book index is a string because every read is a lookup by name, but a
+/// subscription needs the parts back, so the parts are what is stored and the
+/// name is derived from them.
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct Spec {
+    pub sec_type: SecType,
+    pub root: String,
+    /// Option legs only.
+    pub expiration: Option<u32>,
+    /// Option legs only, in tenths of a cent, as the wire carries it.
+    pub strike: Option<i64>,
+    /// Option legs only: 'C' or 'P'.
+    pub right: Option<char>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum SecType {
+    Option,
+    Stock,
+    Index,
+}
+
+impl SecType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Option => "option",
+            Self::Stock => "stock",
+            Self::Index => "index",
+        }
+    }
+}
+
+impl Spec {
+    pub fn equity(root: &str) -> Self {
+        Self { sec_type: SecType::Stock, root: root.to_owned(), expiration: None, strike: None, right: None }
+    }
+
+    pub fn index(root: &str) -> Self {
+        Self { sec_type: SecType::Index, root: root.to_owned(), expiration: None, strike: None, right: None }
+    }
+
+    pub fn option(root: &str, expiration: u32, strike: i64, right: char) -> Self {
+        Self {
+            sec_type: SecType::Option,
+            root: root.to_owned(),
+            expiration: Some(expiration),
+            strike: Some(strike),
+            right: Some(right),
+        }
+    }
+
+    /// The book name. Stable, and the same string the ingest side derives from
+    /// an incoming contract, which is what makes the two sides meet.
+    pub fn symbol(&self) -> String {
+        match (self.expiration, self.strike, self.right) {
+            (Some(exp), Some(strike), Some(right)) => {
+                format!("{} {exp} {right} {strike}", self.root)
+            }
+            _ => self.root.clone(),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -167,6 +350,9 @@ impl Book {
 #[derive(Debug)]
 struct Watch {
     keys: Vec<BookKey>,
+    /// What to subscribe and unsubscribe on the feed. The book index cannot
+    /// carry this: it is a name, and a subscription needs the parts.
+    specs: Vec<(Spec, Kind)>,
     scope: String,
     created_ms: u64,
     last_read_ms: u64,
@@ -192,10 +378,20 @@ impl WatchError {
     }
 }
 
+/// Per-contract correlation state. Trades and quotes arrive as separate
+/// messages in separate books, so the print-with-context view has to be
+/// assembled across them, which means it cannot live on either book.
+#[derive(Debug, Default)]
+struct Correlation {
+    last_quote: Option<Tick>,
+    prints: VecDeque<Print>,
+}
+
 #[derive(Debug, Default)]
 pub struct Inner {
     watches: HashMap<String, Watch>,
     books: HashMap<BookKey, Book>,
+    correlation: HashMap<String, Correlation>,
     minted: u64,
 }
 
@@ -241,7 +437,11 @@ impl Registry {
     /// Keys already held by another handle are shared, not re-subscribed. The
     /// returned list is the subset that is new to this process, which is
     /// exactly what the caller must subscribe on the feed.
-    pub fn watch(&self, scope: &str, keys: Vec<BookKey>, now: u64) -> (String, Vec<BookKey>) {
+    pub fn watch(&self, scope: &str, specs: Vec<(Spec, Kind)>, now: u64) -> (String, Vec<(Spec, Kind)>) {
+        let keys: Vec<BookKey> = specs
+            .iter()
+            .map(|(spec, kind)| BookKey { symbol: spec.symbol(), kind: *kind })
+            .collect();
         let mut inner = self.lock();
         self.collect_expired(&mut inner, now);
 
@@ -249,10 +449,10 @@ impl Registry {
         let handle = format!("sw_{:012x}{:04x}", now, inner.minted & 0xffff);
 
         let mut fresh = Vec::new();
-        for key in &keys {
+        for (idx, key) in keys.iter().enumerate() {
             let book = inner.books.entry(key.clone()).or_insert_with(Book::new);
             if book.refs == 0 {
-                fresh.push(key.clone());
+                fresh.push(specs[idx].clone());
             }
             book.refs += 1;
         }
@@ -261,6 +461,7 @@ impl Registry {
             handle.clone(),
             Watch {
                 keys,
+                specs,
                 scope: scope.to_owned(),
                 created_ms: now,
                 last_read_ms: now,
@@ -271,7 +472,7 @@ impl Registry {
 
     /// Drop a watch. Returns the keys whose last reference just went away —
     /// the ones the caller should unsubscribe on the feed.
-    pub fn release(&self, handle: &str, now: u64) -> Result<Vec<BookKey>, WatchError> {
+    pub fn release(&self, handle: &str, now: u64) -> Result<Vec<(Spec, Kind)>, WatchError> {
         let mut inner = self.lock();
         let watch = inner
             .watches
@@ -279,7 +480,14 @@ impl Registry {
             .ok_or(WatchError::UnknownHandle)?;
         let freed = Self::deref_keys(&mut inner, &watch.keys);
         self.collect_expired(&mut inner, now);
-        Ok(freed)
+        // Only the specs whose last reference just went away.
+        Ok(watch
+            .specs
+            .into_iter()
+            .filter(|(spec, kind)| {
+                freed.iter().any(|k| k.symbol == spec.symbol() && k.kind == *kind)
+            })
+            .collect())
     }
 
     fn deref_keys(inner: &mut Inner, keys: &[BookKey]) -> Vec<BookKey> {
@@ -331,22 +539,101 @@ impl Registry {
         };
         let mut inner = self.lock();
         let capacity = self.ring_capacity;
-        let Some(book) = inner.books.get_mut(&key) else {
+        if !inner.books.contains_key(&key) {
             return;
-        };
+        }
+        {
+            let book = inner.books.get_mut(&key).expect("checked above");
+            book.received += 1;
+            if BAR_KINDS.contains(&tick.kind()) {
+                Self::fold_bar(book, &tick, bar_interval_ms);
+            }
+            if book.ring.len() == capacity {
+                book.ring.pop_front();
+                book.dropped += 1;
+            }
+            book.ring.push_back(Stamped {
+                tick: tick.clone(),
+                seen_ms: now,
+            });
+        }
+        Self::correlate(&mut inner, symbol, &tick, capacity);
+    }
 
-        book.received += 1;
-        if BAR_KINDS.contains(&tick.kind()) {
-            Self::fold_bar(book, &tick, bar_interval_ms);
+    /// Fold a tick into the per-contract print view.
+    ///
+    /// A quote either completes the two-quote tail of the most recent print or
+    /// becomes the standing pre-trade quote for the next one. A trade opens a
+    /// new print carrying whatever quote stood before it.
+    fn correlate(inner: &mut Inner, symbol: &str, tick: &Tick, capacity: usize) {
+        let state = inner
+            .correlation
+            .entry(symbol.to_owned())
+            .or_insert_with(Correlation::default);
+        match tick {
+            Tick::Quote { .. } => {
+                if let Some(open) = state.prints.back_mut() {
+                    if open.quotes_after.len() < 2 {
+                        open.quotes_after.push(tick.clone());
+                    }
+                }
+                state.last_quote = Some(tick.clone());
+            }
+            Tick::Trade { .. } => {
+                state.prints.push_back(Print {
+                    trade: tick.clone(),
+                    quote_before: state.last_quote.clone(),
+                    quotes_after: Vec::new(),
+                });
+                // Prints are the expensive view; keep far fewer than ticks.
+                while state.prints.len() > capacity / 8 + 1 {
+                    state.prints.pop_front();
+                }
+            }
+            _ => {}
         }
-        if book.ring.len() == capacity {
-            book.ring.pop_front();
-            book.dropped += 1;
-        }
-        book.ring.push_back(Stamped {
-            tick,
-            seen_ms: now,
-        });
+    }
+
+    /// Recent prints with the market around each one.
+    pub fn prints(
+        &self,
+        handle: &str,
+        symbol: Option<&str>,
+        count: usize,
+        now: u64,
+    ) -> Result<Vec<(String, Vec<Print>)>, WatchError> {
+        let mut inner = self.lock();
+        let keys = Self::touch(&mut inner, handle, now)?;
+        let mut symbols: Vec<String> = match symbol {
+            Some(want) => {
+                if !keys.iter().any(|k| k.symbol == want) {
+                    return Err(WatchError::NotWatched);
+                }
+                vec![want.to_owned()]
+            }
+            None => {
+                let mut all: Vec<String> = keys.iter().map(|k| k.symbol.clone()).collect();
+                all.sort();
+                all.dedup();
+                all
+            }
+        };
+        symbols.truncate(64);
+
+        Ok(symbols
+            .into_iter()
+            .map(|sym| {
+                let mut rows: Vec<Print> = inner
+                    .correlation
+                    .get(&sym)
+                    .map(|c| c.prints.iter().cloned().collect())
+                    .unwrap_or_default();
+                if rows.len() > count {
+                    rows.drain(..rows.len() - count);
+                }
+                (sym, rows)
+            })
+            .collect())
     }
 
     fn fold_bar(book: &mut Book, tick: &Tick, interval_ms: i64) {
@@ -555,6 +842,10 @@ mod tests {
         }
     }
 
+    fn spec(symbol: &str, kind: Kind) -> (Spec, Kind) {
+        (Spec::equity(symbol), kind)
+    }
+
     fn trade(ms: i32, price: f64, size: i32) -> Tick {
         Tick::Trade {
             ms_of_day: ms,
@@ -566,11 +857,94 @@ mod tests {
         }
     }
 
+    fn quote(ms: i32, bid: f64, ask: f64) -> Tick {
+        Tick::Quote {
+            ms_of_day: ms,
+            date: 20260915,
+            bid,
+            bid_size: 10,
+            ask,
+            ask_size: 10,
+        }
+    }
+
+    #[test]
+    fn indices_have_no_trade_or_quote_stream() {
+        // The vendor publishes only a price stream and a market-value stream
+        // for indices. Offering either of the others would invent a product.
+        assert!(Scope::Index.reject(Kind::Trade).is_some());
+        assert!(Scope::Index.reject(Kind::Quote).is_some());
+        assert!(Scope::Index.reject(Kind::Price).is_none());
+        assert!(Scope::Index.reject(Kind::MarketValue).is_none());
+
+        let why = Scope::Index.reject(Kind::Quote).expect("a reason");
+        assert!(why.contains("price"), "the refusal must name what is on offer: {why}");
+    }
+
+    #[test]
+    fn the_bulk_scope_is_a_trade_stream_and_says_why() {
+        assert!(Scope::Feed.reject(Kind::Trade).is_none());
+        let why = Scope::Feed.reject(Kind::Quote).expect("a reason");
+        assert!(
+            why.contains("every quote"),
+            "a model asking for quotes at feed scope must be told where to get them: {why}"
+        );
+    }
+
+    #[test]
+    fn contract_scope_carries_the_per_contract_streams() {
+        for kind in [Kind::Trade, Kind::Quote, Kind::MarketValue] {
+            assert!(Scope::Contract.reject(kind).is_none(), "{kind:?}");
+            assert!(Scope::Equity.reject(kind).is_none(), "{kind:?}");
+        }
+        assert!(Scope::Contract.reject(Kind::Price).is_some());
+    }
+
+    #[test]
+    fn a_print_carries_the_quote_before_it_and_the_two_after() {
+        let reg = Registry::default();
+        let keys = vec![spec("QQQ", Kind::Trade), spec("QQQ", Kind::Quote)];
+        let (h, _) = reg.watch("feed", keys, 0);
+
+        // Exactly the order the bulk stream sends: the standing quote, the
+        // print, then the next two quotes.
+        reg.ingest("QQQ", quote(10, 1.00, 1.10), 1, 60_000);
+        reg.ingest("QQQ", trade(11, 1.08, 3), 2, 60_000);
+        reg.ingest("QQQ", quote(12, 1.02, 1.12), 3, 60_000);
+        reg.ingest("QQQ", quote(13, 1.03, 1.13), 4, 60_000);
+        // A third quote must not be swept into the same print.
+        reg.ingest("QQQ", quote(14, 1.04, 1.14), 5, 60_000);
+
+        let out = reg.prints(&h, Some("QQQ"), 10, 6).expect("prints");
+        let prints = &out[0].1;
+        assert_eq!(prints.len(), 1);
+        let p = &prints[0];
+        assert_eq!(p.trade, trade(11, 1.08, 3));
+        assert_eq!(p.quote_before, Some(quote(10, 1.00, 1.10)));
+        assert_eq!(
+            p.quotes_after,
+            vec![quote(12, 1.02, 1.12), quote(13, 1.03, 1.13)],
+            "the stream sends two, and only two, belong to this print"
+        );
+    }
+
+    #[test]
+    fn a_print_with_no_prior_quote_says_so_rather_than_guessing() {
+        let reg = Registry::default();
+        let (h, _) = reg.watch("feed", vec![spec("QQQ", Kind::Trade)], 0);
+        reg.ingest("QQQ", trade(11, 1.08, 3), 1, 60_000);
+
+        let out = reg.prints(&h, Some("QQQ"), 10, 2).expect("prints");
+        let p = &out[0].1[0];
+        assert_eq!(p.quote_before, None);
+        assert!(p.quotes_after.is_empty());
+    }
+
     #[test]
     fn a_second_watch_on_the_same_key_shares_one_subscription() {
         let reg = Registry::default();
-        let (_a, fresh_a) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 1_000);
-        let (b, fresh_b) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 1_001);
+        let (_a, fresh_a) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 1_000);
+        let (b, fresh_b) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 1_001);
 
         assert_eq!(fresh_a.len(), 1, "the first watch must subscribe");
         assert!(
@@ -586,12 +960,12 @@ mod tests {
     #[test]
     fn the_last_release_frees_the_subscription() {
         let reg = Registry::default();
-        let (a, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 1_000);
-        let (b, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 1_000);
+        let (a, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 1_000);
+        let (b, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 1_000);
         assert!(reg.release(&a, 1_001).expect("release a").is_empty());
         assert_eq!(
             reg.release(&b, 1_002).expect("release b"),
-            vec![key("AAPL", Kind::Trade)]
+            vec![spec("AAPL", Kind::Trade)]
         );
         assert_eq!(reg.release(&b, 1_003), Err(WatchError::UnknownHandle));
     }
@@ -599,7 +973,7 @@ mod tests {
     #[test]
     fn the_ring_is_bounded_and_says_so() {
         let reg = Registry::new(3, DEFAULT_TTL);
-        let (h, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 0);
+        let (h, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 0);
         for i in 0..10 {
             reg.ingest("AAPL", trade(i, 100.0 + f64::from(i), 1), u64::from(i as u32), 60_000);
         }
@@ -616,7 +990,7 @@ mod tests {
     #[test]
     fn latest_reports_how_stale_it_is() {
         let reg = Registry::default();
-        let (h, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 0);
+        let (h, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 0);
         reg.ingest("AAPL", trade(1, 101.5, 4), 5_000, 60_000);
 
         let rows = reg.latest(&h, None, 7_500).expect("latest");
@@ -629,7 +1003,7 @@ mod tests {
     #[test]
     fn bars_aggregate_trades_and_only_trades() {
         let reg = Registry::default();
-        let keys = vec![key("AAPL", Kind::Trade), key("AAPL", Kind::Quote)];
+        let keys = vec![spec("AAPL", Kind::Trade), spec("AAPL", Kind::Quote)];
         let (h, _) = reg.watch("contract", keys, 0);
 
         reg.ingest("AAPL", trade(0, 100.0, 10), 1, 60_000);
@@ -678,7 +1052,7 @@ mod tests {
     #[test]
     fn a_window_excludes_what_fell_outside_it() {
         let reg = Registry::default();
-        let (h, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 0);
+        let (h, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 0);
         reg.ingest("AAPL", trade(1, 10.0, 1), 1_000, 60_000);
         reg.ingest("AAPL", trade(2, 11.0, 1), 9_000, 60_000);
 
@@ -690,10 +1064,10 @@ mod tests {
     #[test]
     fn an_idle_handle_expires_and_frees_its_subscription() {
         let reg = Registry::new(DEFAULT_RING, Duration::from_millis(100));
-        let (stale, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 0);
+        let (stale, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 0);
 
         // A later watch is what triggers the sweep; nothing runs on a timer.
-        let (_fresh, fresh_keys) = reg.watch("contract", vec![key("MSFT", Kind::Trade)], 10_000);
+        let (_fresh, fresh_keys) = reg.watch("contract", vec![spec("MSFT", Kind::Trade)], 10_000);
         assert_eq!(fresh_keys.len(), 1);
 
         assert_eq!(
@@ -706,14 +1080,14 @@ mod tests {
     #[test]
     fn a_symbol_the_handle_does_not_cover_is_refused() {
         let reg = Registry::default();
-        let (h, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 0);
+        let (h, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 0);
         assert_eq!(reg.latest(&h, Some("MSFT"), 1), Err(WatchError::NotWatched));
     }
 
     #[test]
     fn a_tick_for_an_unwatched_book_is_dropped_rather_than_creating_one() {
         let reg = Registry::default();
-        let (h, _) = reg.watch("contract", vec![key("AAPL", Kind::Trade)], 0);
+        let (h, _) = reg.watch("contract", vec![spec("AAPL", Kind::Trade)], 0);
         reg.ingest("MSFT", trade(1, 5.0, 1), 1, 60_000);
         let status = reg.status(&h, 2).expect("status");
         assert_eq!(status.books.len(), 1, "no book invented for MSFT");
