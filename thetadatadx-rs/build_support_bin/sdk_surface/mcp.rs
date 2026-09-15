@@ -26,13 +26,15 @@ pub(super) fn render_mcp_utilities(utilities: &[&UtilitySpec]) -> String {
 }
 
 /// Whether any execute arm reads the JSON `args` map (and so needs the
-/// `param_or_return!` argument-fetch helper). `ping` reads only the
-/// connection state and the server clock, so a roster of arg-free
+/// `param_or_return!` argument-fetch helper). A roster of arg-free
 /// utilities emits neither the `args` binding nor the macro.
+///
+/// Keyed on whether a utility declares parameters, not on which kinds are
+/// known to be arg-free: the latter reads as "every kind except ping needs
+/// args", so adding any arg-free kind emits an unused binding and an unused
+/// macro, and the crate refuses to build on the warning.
 fn any_utility_reads_args(utilities: &[&UtilitySpec]) -> bool {
-    utilities
-        .iter()
-        .any(|u| !matches!(u.kind, UtilityKind::Ping))
+    utilities.iter().any(|u| !u.params.is_empty())
 }
 
 /// Emit the `try_execute_generated_utility` signature + `match name`
@@ -133,6 +135,20 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("                \"version\": VERSION,\n");
             out.push_str("                \"uptime_secs\": uptime.as_secs(),\n");
             out.push_str("                \"connected\": client.is_some(),\n");
+            out.push_str("            })))\n");
+        }
+        UtilityKind::Entitlements => {
+            out.push_str("            let Some(client) = client else {\n");
+            out.push_str(
+                "                return Some(Err(ToolError::ServerError(\n                 \"not connected to ThetaData yet; retry shortly\".into(),\n)));\n",
+            );
+            out.push_str("            };\n");
+            out.push_str("            let info = client.subscription_info();\n");
+            out.push_str("            Some(Ok(json!({\n");
+            out.push_str("                \"stock\": info.stock,\n");
+            out.push_str("                \"options\": info.options,\n");
+            out.push_str("                \"indices\": info.indices,\n");
+            out.push_str("                \"interest_rate\": info.interest_rate,\n");
             out.push_str("            })))\n");
         }
         UtilityKind::Forwarder

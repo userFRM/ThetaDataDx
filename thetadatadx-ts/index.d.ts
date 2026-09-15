@@ -1,5 +1,6 @@
 /* auto-generated — do not edit by hand */
 /* eslint-disable */
+
 export declare class Client {
   /**
    * Market-data sub-namespace: `client.marketData.stockHistoryEOD(...)`.
@@ -1054,7 +1055,7 @@ export declare class MarketDataClient {
    * Defaults (upstream):
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `false`
+   * - `exclusive`: `true`
    * - `venue`: `"nqb"`
    */
   stockHistoryTradeQuote(symbol: string, options?: StockHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
@@ -1377,7 +1378,7 @@ export declare class MarketDataClient {
    * - `right`: `"both"`
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `false`
+   * - `exclusive`: `true`
    */
   optionHistoryTradeQuote(symbol: string, expiration: string, options?: OptionHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
   /** Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -1967,7 +1968,7 @@ export declare class MarketDataView {
    * Defaults (upstream):
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `false`
+   * - `exclusive`: `true`
    * - `venue`: `"nqb"`
    */
   stockHistoryTradeQuote(symbol: string, options?: StockHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
@@ -2290,7 +2291,7 @@ export declare class MarketDataView {
    * - `right`: `"both"`
    * - `start_time`: `"09:30:00"`
    * - `end_time`: `"16:00:00"`
-   * - `exclusive`: `false`
+   * - `exclusive`: `true`
    */
   optionHistoryTradeQuote(symbol: string, expiration: string, options?: OptionHistoryTradeQuoteOptions | undefined | null): Promise<Array<TradeQuoteTick>>
   /** Stream `option_history_trade_quote` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeQuoteTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeQuote` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -4567,7 +4568,7 @@ export declare const enum Interval {
   M10 = '10m',
   M15 = '15m',
   M30 = '30m',
-  H1 = '1h'
+  H1 = '1h',
 }
 
 /** Implied volatility tick. */
@@ -5715,7 +5716,7 @@ export interface OptionHistoryTradeQuoteOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. */
+  /** When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted. */
   exclusive?: boolean
   /** Maximum days to expiration */
   maxDte?: number
@@ -6365,7 +6366,7 @@ export declare const enum RateType {
   TreasuryY7 = 'treasury_y7',
   TreasuryY10 = 'treasury_y10',
   TreasuryY20 = 'treasury_y20',
-  TreasuryY30 = 'treasury_y30'
+  TreasuryY30 = 'treasury_y30',
 }
 
 /**
@@ -6425,7 +6426,7 @@ export declare const enum RequestType {
   Trade = 'trade',
   Quote = 'quote',
   Eod = 'eod',
-  Ohlc = 'ohlc'
+  Ohlc = 'ohlc',
 }
 
 /** Streaming server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt. */
@@ -6437,7 +6438,7 @@ export interface Restart {
 export declare const enum Right {
   Call = 'call',
   Put = 'put',
-  Both = 'both'
+  Both = 'both',
 }
 
 /** Streaming server-error message (wire code 11). */
@@ -6598,7 +6599,7 @@ export interface StockHistoryTradeQuoteOptions {
   startTime?: string
   /** End time filter */
   endTime?: string
-  /** When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. */
+  /** When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted. */
   exclusive?: boolean
   /** Venue/exchange filter. Accepted values: `nqb`, `utp_cta`. */
   venue?: string
@@ -7535,13 +7536,13 @@ export interface UnknownFrame {
 /** Wire string enum `Venue`. */
 export declare const enum Venue {
   Nqb = 'nqb',
-  UtpCta = 'utp_cta'
+  UtpCta = 'utp_cta',
 }
 
 /** Wire string enum `Version`. */
 export declare const enum Version {
   Latest = 'latest',
-  V1 = '1'
+  V1 = '1',
 }
 
 // `Contract` is the public name for the fluent contract builder; it

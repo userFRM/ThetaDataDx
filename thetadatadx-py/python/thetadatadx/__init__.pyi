@@ -1878,7 +1878,7 @@ class MarketDataView:
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = False,
+        exclusive: Optional[bool] = True,
         venue: Optional[str] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -1892,7 +1892,7 @@ class MarketDataView:
         Defaults (upstream):
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
         - `venue`: `"nqb"`
         """
         ...
@@ -1918,7 +1918,7 @@ class MarketDataView:
         Defaults (upstream):
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
         - `venue`: `"nqb"`
 
 
@@ -3216,7 +3216,7 @@ class MarketDataView:
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = False,
+        exclusive: Optional[bool] = True,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -3235,7 +3235,7 @@ class MarketDataView:
         - `right`: `"both"`
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
         """
         ...
 
@@ -3268,7 +3268,7 @@ class MarketDataView:
         - `right`: `"both"`
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
