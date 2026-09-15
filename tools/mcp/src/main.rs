@@ -37,7 +37,14 @@ use thetadatadx::{
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "2026-07-28";
-const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2026-07-28", "2025-11-25", "2024-11-05"];
+
+/// Newest revision that still uses the `initialize` handshake. Only a legacy
+/// client sends `initialize`, so an unusable `protocolVersion` in one falls
+/// back here rather than to `PROTOCOL_VERSION` — answering a handshake with a
+/// handshake-less revision names something the caller provably cannot speak.
+const LEGACY_PROTOCOL_VERSION: &str = "2025-11-25";
+const SUPPORTED_PROTOCOL_VERSIONS: &[&str] =
+    &[PROTOCOL_VERSION, LEGACY_PROTOCOL_VERSION, "2024-11-05"];
 
 /// `_meta` key a client uses to declare the revision a single request speaks.
 /// `2026-07-28` dropped the handshake, so the revision travels per request
@@ -633,7 +640,7 @@ fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
                 .copied()
                 .find(|supported| version == *supported)
         })
-        .unwrap_or(PROTOCOL_VERSION)
+        .unwrap_or(LEGACY_PROTOCOL_VERSION)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1324,11 +1331,17 @@ async fn handle_request(
     // nothing is a handshake-era client and passes through untouched.
     if let Some(declared) = declared_protocol_version(&req.params) {
         if !is_supported_protocol_version(declared) {
+            // Field names are load-bearing: the client's retry path reads
+            // `supported` to pick a revision and `requested` to know which of
+            // its own attempts was refused.
             return JsonRpcResponse::error_with_data(
                 id,
                 UNSUPPORTED_PROTOCOL_VERSION_CODE,
-                format!("Unsupported protocol version: {declared}"),
-                json!({ "supportedVersions": SUPPORTED_PROTOCOL_VERSIONS }),
+                "Unsupported protocol version".into(),
+                json!({
+                    "supported": SUPPORTED_PROTOCOL_VERSIONS,
+                    "requested": declared,
+                }),
             );
         }
     }
@@ -1434,7 +1447,8 @@ fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
                 "content": [{
                     "type": "text",
                     "text": text,
-                }]
+                }],
+                "_meta": { META_SERVER_INFO: server_info() },
             }),
         ),
         Err(err) => JsonRpcResponse::error(
@@ -1815,13 +1829,21 @@ mod tests {
     }
 
     #[test]
-    fn negotiate_protocol_version_falls_back_to_latest_supported_version() {
-        assert_eq!(negotiate_protocol_version(None), PROTOCOL_VERSION);
-        assert_eq!(negotiate_protocol_version(Some("")), PROTOCOL_VERSION);
+    fn negotiate_protocol_version_falls_back_to_the_newest_legacy_revision() {
+        // Only a legacy client sends `initialize`, so an unusable version in
+        // one must not be answered with the handshake-less revision: that names
+        // something the caller provably cannot speak.
+        assert_eq!(negotiate_protocol_version(None), LEGACY_PROTOCOL_VERSION);
+        assert_eq!(
+            negotiate_protocol_version(Some("")),
+            LEGACY_PROTOCOL_VERSION
+        );
         assert_eq!(
             negotiate_protocol_version(Some("2099-01-01")),
-            PROTOCOL_VERSION
+            LEGACY_PROTOCOL_VERSION
         );
+        assert_ne!(LEGACY_PROTOCOL_VERSION, PROTOCOL_VERSION);
+        assert!(is_supported_protocol_version(LEGACY_PROTOCOL_VERSION));
     }
 
     #[test]
@@ -1860,21 +1882,6 @@ mod tests {
         assert!(is_supported_protocol_version("2026-07-28"));
         assert!(!is_supported_protocol_version("2099-01-01"));
 
-        let response = JsonRpcResponse::error_with_data(
-            Value::from(1),
-            UNSUPPORTED_PROTOCOL_VERSION_CODE,
-            "Unsupported protocol version: 2099-01-01".into(),
-            json!({ "supportedVersions": SUPPORTED_PROTOCOL_VERSIONS }),
-        );
-        let error = response.error.expect("error payload");
-        assert_eq!(error.code, -32022);
-        let data = error.data.expect("supported-version list");
-        let listed = data.get("supportedVersions").expect("supportedVersions");
-        assert_eq!(
-            listed.as_array().expect("array").len(),
-            SUPPORTED_PROTOCOL_VERSIONS.len()
-        );
-
         // The code must sit in the band the specification reserves for itself,
         // not the implementation-defined -32000..=-32019 range this server uses
         // for its own server errors.
@@ -1896,12 +1903,32 @@ mod tests {
             result.get("resultType").and_then(|v: &Value| v.as_str()),
             Some("complete")
         );
-        let versions = result
+        let versions: Vec<String> = result
             .get("supportedVersions")
             .and_then(|v: &Value| v.as_array().cloned())
-            .expect("supportedVersions");
-        assert_eq!(versions.len(), SUPPORTED_PROTOCOL_VERSIONS.len());
-        assert!(result.get("capabilities").is_some());
+            .expect("supportedVersions")
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect();
+        assert_eq!(
+            versions, SUPPORTED_PROTOCOL_VERSIONS,
+            "by value, not by count"
+        );
+        assert!(
+            result
+                .get("capabilities")
+                .and_then(|c: &Value| c.get("tools"))
+                .is_some(),
+            "a client reads capabilities.tools to know this server serves tools"
+        );
+        assert_eq!(
+            result.get("ttlMs").and_then(|v: &Value| v.as_u64()),
+            Some(TOOL_LIST_TTL_MS)
+        );
+        assert_eq!(
+            result.get("cacheScope").and_then(|v: &Value| v.as_str()),
+            Some("private")
+        );
         let name = result
             .get("_meta")
             .and_then(|meta: &Value| meta.get(META_SERVER_INFO))
@@ -1921,9 +1948,37 @@ mod tests {
         let response = handle_request(&request, &client, std::time::Instant::now()).await;
 
         assert!(response.result.is_none(), "must not answer the request");
-        let error = response.error.expect("error payload");
-        assert_eq!(error.code, UNSUPPORTED_PROTOCOL_VERSION_CODE);
-        assert!(error.data.is_some(), "client needs the supported list");
+
+        // Asserted through the serialised form, on the literal field names the
+        // client's retry path reads. A test that only checks `data` is present
+        // still passes when the payload is replaced with `{}`, which is exactly
+        // the shape of bug that leaves a client unable to recover.
+        let wire: Value = sonic_rs::from_str(&sonic_rs::to_string(&response).expect("serialise"))
+            .expect("reparse");
+        let error = wire.get("error").expect("error member");
+        assert_eq!(
+            error.get("code").and_then(|v: &Value| v.as_i64()),
+            Some(i64::from(UNSUPPORTED_PROTOCOL_VERSION_CODE))
+        );
+        assert_eq!(
+            error.get("message").and_then(|v: &Value| v.as_str()),
+            Some("Unsupported protocol version")
+        );
+        let data = error.get("data").expect("data member");
+        assert_eq!(
+            data.get("requested").and_then(|v: &Value| v.as_str()),
+            Some("2099-01-01"),
+            "the client must learn which of its attempts was refused"
+        );
+        let supported: Vec<String> = data
+            .get("supported")
+            .and_then(|v: &Value| v.as_array().cloned())
+            .expect("supported list")
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect();
+        assert_eq!(supported, SUPPORTED_PROTOCOL_VERSIONS);
+        assert_eq!(wire.get("id").and_then(|v: &Value| v.as_i64()), Some(7));
     }
 
     #[tokio::test]
@@ -1955,6 +2010,33 @@ mod tests {
             .get("tools")
             .and_then(|v: &Value| v.as_array())
             .is_some());
+        assert_eq!(
+            result
+                .get("_meta")
+                .and_then(|meta: &Value| meta.get(META_SERVER_INFO))
+                .and_then(|info: &Value| info.get("name"))
+                .and_then(|v: &Value| v.as_str()),
+            Some("thetadatadx-mcp-server")
+        );
+    }
+
+    #[test]
+    fn tool_call_results_are_typed_and_carry_identity() {
+        let mut payload = json!({ "rows": [] });
+        let response = build_tool_call_response(Value::from(3), &mut payload);
+        let result = response.result.expect("tools/call result");
+        assert_eq!(
+            result.get("resultType").and_then(|v: &Value| v.as_str()),
+            Some("complete")
+        );
+        assert_eq!(
+            result
+                .get("_meta")
+                .and_then(|meta: &Value| meta.get(META_SERVER_INFO))
+                .and_then(|info: &Value| info.get("version"))
+                .and_then(|v: &Value| v.as_str()),
+            Some(VERSION)
+        );
     }
 
     #[test]
