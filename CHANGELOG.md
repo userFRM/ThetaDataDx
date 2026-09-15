@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **The MCP server speaks the `2026-07-28` revision of the Model Context Protocol.** That revision drops the handshake: a client declares the revision it speaks on every request, in `_meta`, rather than agreeing one once at `initialize`. The server implements `server/discover`, the mandatory RPC that reports the revisions it speaks, its capabilities and its identity in a single call, so a client can pick a revision up front instead of probing. A request that declares a revision the server does not speak is refused with `-32022` and the list of revisions it does speak, so the client can retry without a second round trip. Results carry `resultType`, and `tools/list` carries the `ttlMs` freshness hint and a `cacheScope` of `private` — the advertised tool set depends on the authenticated account's subscription, so a shared cache must never hand one caller's list to another.
+
+### Changed
+
+- **The MCP server still answers `2025-11-25` and `2024-11-05` clients unchanged.** The `initialize` handshake, the negotiated `protocolVersion` in its result and the existing tool surface all behave as before; an older client sends no revision in `_meta` and is not asked to. Nothing in the tool set, the argument shapes or the returned rows changes with this revision.
+
 ## [0.4.0] - 2026-08-08
 
 ### Removed

@@ -36,8 +36,34 @@ use thetadatadx::{
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-const PROTOCOL_VERSION: &str = "2025-11-25";
-const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2024-11-05"];
+const PROTOCOL_VERSION: &str = "2026-07-28";
+
+/// Newest revision that still uses the `initialize` handshake. Only a legacy
+/// client sends `initialize`, so an unusable `protocolVersion` in one falls
+/// back here rather than to `PROTOCOL_VERSION` — answering a handshake with a
+/// handshake-less revision names something the caller provably cannot speak.
+const LEGACY_PROTOCOL_VERSION: &str = "2025-11-25";
+const SUPPORTED_PROTOCOL_VERSIONS: &[&str] =
+    &[PROTOCOL_VERSION, LEGACY_PROTOCOL_VERSION, "2024-11-05"];
+
+/// `_meta` key a client uses to declare the revision a single request speaks.
+/// `2026-07-28` dropped the handshake, so the revision travels per request
+/// instead of being agreed once at `initialize`.
+const META_PROTOCOL_VERSION: &str = "io.modelcontextprotocol/protocolVersion";
+
+/// `_meta` key a server uses to name itself on a result.
+const META_SERVER_INFO: &str = "io.modelcontextprotocol/serverInfo";
+
+/// JSON-RPC code for a request declaring a revision this server does not
+/// speak. Allocated to the specification's reserved band, not the
+/// implementation-defined one.
+const UNSUPPORTED_PROTOCOL_VERSION_CODE: i32 = -32022;
+
+/// Freshness hint on the cacheable `tools/list` result. The advertised set
+/// changes exactly once per process — when the background connect lands and
+/// the account's subscription becomes known — so a minute is honest and keeps
+/// a client from re-listing on every turn.
+const TOOL_LIST_TTL_MS: u64 = 60_000;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  JSON-RPC types
@@ -66,6 +92,11 @@ struct JsonRpcResponse {
 struct JsonRpcError {
     code: i32,
     message: String,
+    /// Structured payload a client can act on. Only the unsupported-revision
+    /// error carries one today: it lists the revisions this server speaks so
+    /// the client can retry without a second round trip to discover them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<Value>,
 }
 
 impl JsonRpcResponse {
@@ -83,7 +114,24 @@ impl JsonRpcResponse {
             jsonrpc: "2.0".into(),
             id,
             result: None,
-            error: Some(JsonRpcError { code, message }),
+            error: Some(JsonRpcError {
+                code,
+                message,
+                data: None,
+            }),
+        }
+    }
+
+    fn error_with_data(id: Value, code: i32, message: String, data: Value) -> Self {
+        Self {
+            jsonrpc: "2.0".into(),
+            id,
+            result: None,
+            error: Some(JsonRpcError {
+                code,
+                message,
+                data: Some(data),
+            }),
         }
     }
 }
@@ -562,6 +610,28 @@ fn mcp_param_description(ep: &EndpointMeta, param: &ParamMeta) -> String {
     param.description.to_string()
 }
 
+/// The revision a request declares in `_meta`, if it declares one.
+///
+/// A `2026-07-28` client sends it on every request. A handshake-era client
+/// sends nothing here, which is not an error: the revision it agreed at
+/// `initialize` still governs, so the caller treats `None` as "no claim".
+fn declared_protocol_version(params: &Value) -> Option<&str> {
+    params
+        .get("_meta")
+        .and_then(|meta: &Value| meta.get(META_PROTOCOL_VERSION))
+        .and_then(|version: &Value| version.as_str())
+        .filter(|version| !version.is_empty())
+}
+
+fn is_supported_protocol_version(version: &str) -> bool {
+    SUPPORTED_PROTOCOL_VERSIONS.contains(&version)
+}
+
+/// This server's identity, as carried in a result's `_meta`.
+fn server_info() -> Value {
+    json!({ "name": "thetadatadx-mcp-server", "version": VERSION })
+}
+
 fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
     client_version
         .and_then(|version| {
@@ -570,7 +640,7 @@ fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
                 .copied()
                 .find(|supported| version == *supported)
         })
-        .unwrap_or(PROTOCOL_VERSION)
+        .unwrap_or(LEGACY_PROTOCOL_VERSION)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1226,7 +1296,8 @@ async fn execute_tool(
     })?;
 
     let converted_args = param!(convert_endpoint_args(args));
-    let output = match endpoint::invoke_endpoint(client.market_data(), name, &converted_args).await {
+    let output = match endpoint::invoke_endpoint(client.market_data(), name, &converted_args).await
+    {
         Ok(output) => output,
         Err(EndpointError::InvalidParams(message)) => {
             return Err(ToolError::InvalidParams(message));
@@ -1255,7 +1326,43 @@ async fn handle_request(
     let client = client.get();
     let id = req.id.clone().unwrap_or(Value::new_null());
 
+    // `2026-07-28` moved version negotiation onto every request, so the check
+    // happens here rather than once at `initialize`. A request that declares
+    // nothing is a handshake-era client and passes through untouched.
+    if let Some(declared) = declared_protocol_version(&req.params) {
+        if !is_supported_protocol_version(declared) {
+            // Field names are load-bearing: the client's retry path reads
+            // `supported` to pick a revision and `requested` to know which of
+            // its own attempts was refused.
+            return JsonRpcResponse::error_with_data(
+                id,
+                UNSUPPORTED_PROTOCOL_VERSION_CODE,
+                "Unsupported protocol version".into(),
+                json!({
+                    "supported": SUPPORTED_PROTOCOL_VERSIONS,
+                    "requested": declared,
+                }),
+            );
+        }
+    }
+
     match req.method.as_str() {
+        "server/discover" => JsonRpcResponse::success(
+            id,
+            json!({
+                "resultType": "complete",
+                "supportedVersions": SUPPORTED_PROTOCOL_VERSIONS,
+                "capabilities": { "tools": {} },
+                "instructions": "ThetaData market data. Call tools/list first: the \
+                    set of endpoints offered reflects what the authenticated \
+                    account's subscription actually grants, so a tool that is \
+                    absent is out of plan rather than missing.",
+                "ttlMs": TOOL_LIST_TTL_MS,
+                "cacheScope": "private",
+                "_meta": { META_SERVER_INFO: server_info() },
+            }),
+        ),
+
         "initialize" => {
             let client_version = req
                 .params
@@ -1267,14 +1374,13 @@ async fn handle_request(
             JsonRpcResponse::success(
                 id,
                 json!({
+                    "resultType": "complete",
                     "protocolVersion": protocol_version,
                     "capabilities": {
                         "tools": {}
                     },
-                    "serverInfo": {
-                        "name": "thetadatadx-mcp-server",
-                        "version": VERSION,
-                    }
+                    "serverInfo": server_info(),
+                    "_meta": { META_SERVER_INFO: server_info() },
                 }),
             )
         }
@@ -1289,7 +1395,16 @@ async fn handle_request(
             // background connect has landed.
             let access = client.map(SubscriptionAccess::from_client);
             let tools = tool_definitions_for(access);
-            JsonRpcResponse::success(id, json!({ "tools": tools }))
+            JsonRpcResponse::success(
+                id,
+                json!({
+                    "resultType": "complete",
+                    "tools": tools,
+                    "ttlMs": TOOL_LIST_TTL_MS,
+                    "cacheScope": "private",
+                    "_meta": { META_SERVER_INFO: server_info() },
+                }),
+            )
         }
 
         "tools/call" => {
@@ -1328,10 +1443,12 @@ fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
         Ok(text) => JsonRpcResponse::success(
             id,
             json!({
+                "resultType": "complete",
                 "content": [{
                     "type": "text",
                     "text": text,
-                }]
+                }],
+                "_meta": { META_SERVER_INFO: server_info() },
             }),
         ),
         Err(err) => JsonRpcResponse::error(
@@ -1712,12 +1829,213 @@ mod tests {
     }
 
     #[test]
-    fn negotiate_protocol_version_falls_back_to_latest_supported_version() {
-        assert_eq!(negotiate_protocol_version(None), PROTOCOL_VERSION);
-        assert_eq!(negotiate_protocol_version(Some("")), PROTOCOL_VERSION);
+    fn negotiate_protocol_version_falls_back_to_the_newest_legacy_revision() {
+        // Only a legacy client sends `initialize`, so an unusable version in
+        // one must not be answered with the handshake-less revision: that names
+        // something the caller provably cannot speak.
+        assert_eq!(negotiate_protocol_version(None), LEGACY_PROTOCOL_VERSION);
+        assert_eq!(
+            negotiate_protocol_version(Some("")),
+            LEGACY_PROTOCOL_VERSION
+        );
         assert_eq!(
             negotiate_protocol_version(Some("2099-01-01")),
-            PROTOCOL_VERSION
+            LEGACY_PROTOCOL_VERSION
+        );
+        assert_ne!(LEGACY_PROTOCOL_VERSION, PROTOCOL_VERSION);
+        assert!(is_supported_protocol_version(LEGACY_PROTOCOL_VERSION));
+    }
+
+    #[test]
+    fn handshake_era_revisions_stay_negotiable() {
+        // A client that predates the per-request `_meta` still agrees its
+        // revision at `initialize`, and both older revisions must keep working
+        // for as long as they are listed as supported.
+        assert_eq!(negotiate_protocol_version(Some("2026-07-28")), "2026-07-28");
+        assert_eq!(negotiate_protocol_version(Some("2025-11-25")), "2025-11-25");
+        assert_eq!(negotiate_protocol_version(Some("2024-11-05")), "2024-11-05");
+        assert_eq!(PROTOCOL_VERSION, "2026-07-28");
+        assert_eq!(SUPPORTED_PROTOCOL_VERSIONS[0], PROTOCOL_VERSION);
+    }
+
+    #[test]
+    fn declared_revision_is_read_from_request_meta() {
+        let params = json!({ "_meta": { META_PROTOCOL_VERSION: "2026-07-28" } });
+        assert_eq!(declared_protocol_version(&params), Some("2026-07-28"));
+
+        // No `_meta` at all, an empty string, and a `_meta` without the key are
+        // all "no claim" rather than a bad claim: a handshake-era client sends
+        // none of them and must not be rejected.
+        assert_eq!(declared_protocol_version(&json!({})), None);
+        assert_eq!(
+            declared_protocol_version(&json!({ "_meta": { META_PROTOCOL_VERSION: "" } })),
+            None
+        );
+        assert_eq!(
+            declared_protocol_version(&json!({ "_meta": { "unrelated": "x" } })),
+            None
+        );
+    }
+
+    #[test]
+    fn unsupported_declared_revision_is_rejected_with_the_supported_list() {
+        assert!(is_supported_protocol_version("2026-07-28"));
+        assert!(!is_supported_protocol_version("2099-01-01"));
+
+        // The code must sit in the band the specification reserves for itself,
+        // not the implementation-defined -32000..=-32019 range this server uses
+        // for its own server errors.
+        assert!((-32099..=-32020).contains(&UNSUPPORTED_PROTOCOL_VERSION_CODE));
+    }
+
+    #[tokio::test]
+    async fn discover_reports_every_supported_revision_and_identity() {
+        let request = JsonRpcRequest {
+            id: Some(Value::from(1)),
+            method: "server/discover".into(),
+            params: json!({ "_meta": { META_PROTOCOL_VERSION: "2026-07-28" } }),
+        };
+        let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
+        let response = handle_request(&request, &client, std::time::Instant::now()).await;
+
+        let result = response.result.expect("discover result");
+        assert_eq!(
+            result.get("resultType").and_then(|v: &Value| v.as_str()),
+            Some("complete")
+        );
+        let versions: Vec<String> = result
+            .get("supportedVersions")
+            .and_then(|v: &Value| v.as_array().cloned())
+            .expect("supportedVersions")
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect();
+        assert_eq!(
+            versions, SUPPORTED_PROTOCOL_VERSIONS,
+            "by value, not by count"
+        );
+        assert!(
+            result
+                .get("capabilities")
+                .and_then(|c: &Value| c.get("tools"))
+                .is_some(),
+            "a client reads capabilities.tools to know this server serves tools"
+        );
+        assert_eq!(
+            result.get("ttlMs").and_then(|v: &Value| v.as_u64()),
+            Some(TOOL_LIST_TTL_MS)
+        );
+        assert_eq!(
+            result.get("cacheScope").and_then(|v: &Value| v.as_str()),
+            Some("private")
+        );
+        let name = result
+            .get("_meta")
+            .and_then(|meta: &Value| meta.get(META_SERVER_INFO))
+            .and_then(|info: &Value| info.get("name"))
+            .and_then(|v: &Value| v.as_str());
+        assert_eq!(name, Some("thetadatadx-mcp-server"));
+    }
+
+    #[tokio::test]
+    async fn a_revision_this_server_does_not_speak_is_refused() {
+        let request = JsonRpcRequest {
+            id: Some(Value::from(7)),
+            method: "tools/list".into(),
+            params: json!({ "_meta": { META_PROTOCOL_VERSION: "2099-01-01" } }),
+        };
+        let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
+        let response = handle_request(&request, &client, std::time::Instant::now()).await;
+
+        assert!(response.result.is_none(), "must not answer the request");
+
+        // Asserted through the serialised form, on the literal field names the
+        // client's retry path reads. A test that only checks `data` is present
+        // still passes when the payload is replaced with `{}`, which is exactly
+        // the shape of bug that leaves a client unable to recover.
+        let wire: Value = sonic_rs::from_str(&sonic_rs::to_string(&response).expect("serialise"))
+            .expect("reparse");
+        let error = wire.get("error").expect("error member");
+        assert_eq!(
+            error.get("code").and_then(|v: &Value| v.as_i64()),
+            Some(i64::from(UNSUPPORTED_PROTOCOL_VERSION_CODE))
+        );
+        assert_eq!(
+            error.get("message").and_then(|v: &Value| v.as_str()),
+            Some("Unsupported protocol version")
+        );
+        let data = error.get("data").expect("data member");
+        assert_eq!(
+            data.get("requested").and_then(|v: &Value| v.as_str()),
+            Some("2099-01-01"),
+            "the client must learn which of its attempts was refused"
+        );
+        let supported: Vec<String> = data
+            .get("supported")
+            .and_then(|v: &Value| v.as_array().cloned())
+            .expect("supported list")
+            .iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect();
+        assert_eq!(supported, SUPPORTED_PROTOCOL_VERSIONS);
+        assert_eq!(wire.get("id").and_then(|v: &Value| v.as_i64()), Some(7));
+    }
+
+    #[tokio::test]
+    async fn tool_list_is_cacheable_and_names_the_server() {
+        let request = JsonRpcRequest {
+            id: Some(Value::from(2)),
+            method: "tools/list".into(),
+            params: json!({}),
+        };
+        let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
+        let response = handle_request(&request, &client, std::time::Instant::now()).await;
+
+        let result = response.result.expect("tools/list result");
+        assert_eq!(
+            result.get("resultType").and_then(|v: &Value| v.as_str()),
+            Some("complete")
+        );
+        assert_eq!(
+            result.get("ttlMs").and_then(|v: &Value| v.as_u64()),
+            Some(TOOL_LIST_TTL_MS)
+        );
+        // The advertised set depends on the account's subscription, so a shared
+        // intermediary must never serve one caller's list to another.
+        assert_eq!(
+            result.get("cacheScope").and_then(|v: &Value| v.as_str()),
+            Some("private")
+        );
+        assert!(result
+            .get("tools")
+            .and_then(|v: &Value| v.as_array())
+            .is_some());
+        assert_eq!(
+            result
+                .get("_meta")
+                .and_then(|meta: &Value| meta.get(META_SERVER_INFO))
+                .and_then(|info: &Value| info.get("name"))
+                .and_then(|v: &Value| v.as_str()),
+            Some("thetadatadx-mcp-server")
+        );
+    }
+
+    #[test]
+    fn tool_call_results_are_typed_and_carry_identity() {
+        let mut payload = json!({ "rows": [] });
+        let response = build_tool_call_response(Value::from(3), &mut payload);
+        let result = response.result.expect("tools/call result");
+        assert_eq!(
+            result.get("resultType").and_then(|v: &Value| v.as_str()),
+            Some("complete")
+        );
+        assert_eq!(
+            result
+                .get("_meta")
+                .and_then(|meta: &Value| meta.get(META_SERVER_INFO))
+                .and_then(|info: &Value| info.get("version"))
+                .and_then(|v: &Value| v.as_str()),
+            Some(VERSION)
         );
     }
 
