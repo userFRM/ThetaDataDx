@@ -1333,7 +1333,7 @@ fn pro_required(sec: SecType, tier: Option<SubscriptionTier>) -> Result<(), Tool
         _ => {
             return Err(ToolError::InvalidParams(format!(
                 "tape_market covers option and stock: the vendor broadcasts every trade for \
-                 those two only; a {} is read per contract with tape_read",
+                 those two only. Read {} per contract with tape_read instead",
                 sec.as_str().to_ascii_lowercase()
             )))
         }
