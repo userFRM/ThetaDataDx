@@ -40,6 +40,23 @@ const PRINTS: usize = 256;
 const TTL: Duration = Duration::from_secs(900);
 /// Newest rows served verbatim on a read, unless asked otherwise.
 const TAIL: usize = 10;
+/// Most rows a caller can take verbatim in one read.
+///
+/// The cap is not about response size. Rows are copied while the registry
+/// lock is held, and the streaming dispatcher needs that same lock to record
+/// a tick, so an unbounded tail lets one request stall the feed for as long
+/// as it takes to clone the ring. Fifty rows is more than a model can use
+/// and short enough that the critical section stays negligible.
+const TAIL_MAX: usize = 50;
+
+/// Rows to serve verbatim for a requested tail.
+///
+/// Pulled out of the request arm so the bound is reachable by a test: the
+/// arm around it needs a live client, and a cap that only exists inside an
+/// untestable branch is a cap nobody can prove is there.
+fn tail_rows(requested: usize) -> usize {
+    requested.min(TAIL_MAX)
+}
 
 /// Subscriptions to open or close on the feed, in the SDK's own tuple order.
 type Subs = Vec<(SubscriptionKind, Contract)>;
@@ -618,7 +635,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "description": "Fixed lookback. Default: since your last read."},
-                "tail": {"type": "integer", "description": "Newest rows served verbatim. Default 10."}
+                "tail": {"type": "integer", "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."}
             }))
         }),
         json!({
@@ -976,7 +993,13 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 .and_then(|v: &Value| v.as_f64())
                 .map(|s| (s.max(0.0) * 1_000.0) as u64);
             ensure_streaming(client, reg)?;
-            let (r, expired) = reg.read(&contract, kind, window, num_of("tail", TAIL), now);
+            let (r, expired) = reg.read(
+                &contract,
+                kind,
+                window,
+                tail_rows(num_of("tail", TAIL)),
+                now,
+            );
             close_expired(client, expired);
             if r.first {
                 open_on_feed(client, reg, &contract, &[kind])?;
@@ -1529,6 +1552,42 @@ mod tests {
             why.contains("trade"),
             "the refusal names what is on offer: {why}"
         );
+    }
+
+    #[test]
+    fn a_tail_larger_than_the_cap_is_clamped() {
+        // Rows are copied while the registry lock is held and the dispatcher
+        // needs that lock to record a tick, so an uncapped tail lets one
+        // request stall the feed for as long as cloning the ring takes.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        // Open the book first: ingest drops a tick for a contract nobody
+        // holds, so ingesting before the read would leave an empty tail and
+        // an assertion that cannot fail.
+        reg.read(&c, SubscriptionKind::Trade, None, TAIL, 0);
+        for i in 0..(TAIL_MAX + 40) {
+            reg.ingest(trade(&c, 1.0 + i as f64, i as u64));
+        }
+
+        let asked = TAIL_MAX + 40;
+        let (uncapped, _) = reg.read(&c, SubscriptionKind::Trade, Some(600_000), asked, 1);
+        assert_eq!(
+            uncapped.tail.len(),
+            asked,
+            "the registry serves what it is asked for; the bound belongs to the tool"
+        );
+
+        assert_eq!(tail_rows(asked), TAIL_MAX, "the tool clamps it");
+        assert_eq!(tail_rows(3), 3, "and leaves a modest request alone");
+
+        let (capped, _) = reg.read(
+            &c,
+            SubscriptionKind::Trade,
+            Some(600_000),
+            tail_rows(asked),
+            2,
+        );
+        assert_eq!(capped.tail.len(), TAIL_MAX);
     }
 
     #[test]
