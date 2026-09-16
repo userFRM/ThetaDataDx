@@ -526,13 +526,26 @@ struct Book {
     /// the SDK's discard count covers what it threw away, not what never
     /// arrived. Set on every interruption, cleared by the read that
     /// discloses it.
-    gap_since_read: bool,
-    /// The most recent moment this book is known to have lost rows, from a
-    /// feed interruption or a discard. A window that reaches back over it is
-    /// not whole, however many times it is asked for; the gap flag alone
-    /// answers "since you last looked" and is spent by the read that
-    /// discloses it. Zero means nothing has been lost.
+    /// Interruptions this book has seen, and how many the last answer
+    /// disclosed. Counted rather than flagged: the feed can break between a
+    /// read and the commit that settles it, and clearing a flag would
+    /// discharge an interruption nobody was ever shown.
+    gaps: u64,
+    gaps_at_read: u64,
+    /// The latest moment up to which this book is known to have lost rows.
+    ///
+    /// Dated to the read that learns of the loss, not to when the loss
+    /// began: a feed that broke at t=10 and resumed at t=20 was not
+    /// delivering for all of it, and nothing between the break and the read
+    /// that notices is proven. A window reaching back over this moment is
+    /// not whole however often it is asked, which is what makes a named
+    /// window answer the same way twice. Zero means nothing has been lost.
     incomplete_at_ms: u64,
+    /// The feed was interrupted and nothing has arrived since, so there is
+    /// no proof it is delivering again. Until a row lands, no window ending
+    /// now can be shown whole; the row that lands is the proof, and dates
+    /// the end of the loss.
+    awaiting_resume: bool,
     /// The caller's predicate; empty when none. Evaluated as rows arrive,
     /// because the rows it exists for are the ones the ring loses between
     /// two reads.
@@ -555,8 +568,10 @@ impl Book {
             touched_ms: now,
             read_seq: 0,
             feed_drops_at_read: None,
-            gap_since_read: false,
+            gaps: 0,
+            gaps_at_read: 0,
             incomplete_at_ms: 0,
+            awaiting_resume: false,
             watch: Vec::new(),
             retained: VecDeque::new(),
             retained_dropped: 0,
@@ -582,7 +597,7 @@ struct ContractState {
     prints_read: u64,
     /// See [`Book::feed_drops_at_read`].
     feed_drops_at_prints_read: Option<u64>,
-    /// See [`Book::gap_since_read`]; the print list loses rows the same way.
+    /// See [`Book::gaps`]; the print list loses rows the same way.
     /// Counted rather than flagged: a read discloses the interruptions it
     /// saw, and the commit that settles it must not clear one that arrived
     /// while the answer was being assembled.
@@ -655,7 +670,7 @@ struct Market {
     read_seq: u64,
     /// See [`Book::feed_drops_at_read`].
     feed_drops_at_read: Option<u64>,
-    /// See [`Book::gap_since_read`]. A selection has no ring to fall short,
+    /// See [`Book::gaps`]. A selection has no ring to fall short,
     /// so without this its only loss signal is the SDK's discard count, and
     /// rows that never arrived are not in it.
     gap_since_read: bool,
@@ -837,6 +852,15 @@ fn overlaps(kind: SubscriptionKind) -> bool {
 struct Settle {
     received: u64,
     feed_drops: u64,
+    /// Discards this answer reported, which date the loss on settling.
+    feed_dropped: u64,
+    /// Interruptions counted as this answer saw them, so one arriving
+    /// afterwards is still owed to the next read.
+    gaps: u64,
+    /// Matches, evictions and rows examined as this answer carried them.
+    watched: usize,
+    watched_dropped: u64,
+    checked: u64,
     gap: bool,
     /// The predicate this read installs, when it brought one.
     watch: Option<Vec<Clause>>,
@@ -914,21 +938,33 @@ struct Coverage {
     gap: bool,
     /// When this book last lost rows, or zero if it never has.
     incomplete_at_ms: u64,
+    /// This read's clock, which dates a loss with no end yet proven.
+    now: u64,
+    /// See [`Book::awaiting_resume`].
+    awaiting_resume: bool,
 }
 
 fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
-    c.gap
-        || c.feed_dropped > 0
-        || match window {
-            None => c.new > c.held as u64,
-            // A named window is asked about again and must answer the same
-            // way: it reaches back over a loss, or it does not.
-            Some(_) => {
-                c.covered_since_ms > floor
-                    || (c.dropped > 0 && c.covered_since_ms == floor)
-                    || (c.incomplete_at_ms > 0 && c.incomplete_at_ms >= floor)
-            }
+    match window {
+        // Since your last read: anything lost in that interval counts, and
+        // the disclosure is spent by the read that makes it.
+        None => c.gap || c.feed_dropped > 0 || c.new > c.held as u64,
+        // A named window asks about an interval, so only a loss inside it
+        // counts. A loss learned of now is dated now, since nothing between
+        // the loss and this read is proven.
+        Some(_) => {
+            // Nothing has arrived since the interruption, so no window
+            // ending now can be shown whole.
+            let lost_at = if c.awaiting_resume || c.feed_dropped > 0 {
+                c.now.max(c.incomplete_at_ms)
+            } else {
+                c.incomplete_at_ms
+            };
+            c.covered_since_ms > floor
+                || (c.dropped > 0 && c.covered_since_ms == floor)
+                || (lost_at > 0 && lost_at >= floor)
         }
+    }
 }
 
 /// Events the feed discarded since a book's last read, given the SDK's
@@ -1261,7 +1297,10 @@ impl Registry {
         let dropped = book.dropped;
         let newest_ms = book.ring.back().and_then(seen_ms);
         // Everything the book has to say, read out before the borrow ends.
-        let gap = book.gap_since_read;
+        let gap = book.gaps > book.gaps_at_read;
+        let gaps_seen = book.gaps;
+        let awaiting_resume = book.awaiting_resume;
+        let watched_count = watched.len();
         let incomplete_at = book.incomplete_at_ms;
         let held_rows = book.ring.len();
         let drops_at_read = book.feed_drops_at_read.unwrap_or(0);
@@ -1282,6 +1321,8 @@ impl Registry {
                     feed_dropped,
                     gap,
                     incomplete_at_ms: incomplete_at,
+                    now,
+                    awaiting_resume,
                 },
             ),
             new_since_last_read: new,
@@ -1297,6 +1338,11 @@ impl Registry {
             settle: Settle {
                 received,
                 feed_drops: feed_drops.max(drops_at_read),
+                feed_dropped,
+                gaps: gaps_seen,
+                watched: watched_count,
+                watched_dropped,
+                checked,
                 gap,
                 watch: incoming,
             },
@@ -1321,6 +1367,8 @@ impl Registry {
         let mut opened = Vec::new();
         // Coverage starts where the trade leg opened: a print is a trade.
         let mut opened_ms = now;
+        let held_prints = !state.prints.is_empty();
+        let mut gaps_from_reopen = 0u64;
         for kind in [SubscriptionKind::Trade, SubscriptionKind::Quote] {
             let (book, first) = state.open(kind, now);
             if first {
@@ -1330,6 +1378,16 @@ impl Registry {
                 opened_ms = book.opened_ms;
             }
             book.touched_ms = now;
+            // Prints accrue only while the trade book exists, so a trade
+            // book being created while prints from before it are still held
+            // means it expired and the feed stopped carrying this contract
+            // in between. Nothing else records that interval.
+            if first && kind == SubscriptionKind::Trade && held_prints {
+                gaps_from_reopen += 1;
+            }
+        }
+        if gaps_from_reopen > 0 {
+            state.gaps += 1;
         }
         let received = state.prints_dropped + state.prints.len() as u64;
         let new = received - state.prints_read;
@@ -1393,13 +1451,19 @@ impl Registry {
         };
         book.read_ms = now;
         book.read_seq = settle.received;
-        book.feed_drops_at_read = Some(settle.feed_drops);
-        if settle.gap {
-            book.gap_since_read = false;
+        // Whatever this answer disclosed is now behind it, dated here
+        // because nothing between the loss and this read is proven.
+        if settle.gap || settle.feed_dropped > 0 {
+            book.incomplete_at_ms = now;
         }
-        book.retained.clear();
-        book.retained_dropped = 0;
-        book.checked = 0;
+        book.gaps_at_read = settle.gaps;
+        book.feed_drops_at_read = Some(settle.feed_drops);
+        // Exactly what the answer carried. A match the dispatcher added
+        // after the snapshot was never shown to anyone, so it stays.
+        book.retained
+            .drain(..settle.watched.min(book.retained.len()));
+        book.retained_dropped = book.retained_dropped.saturating_sub(settle.watched_dropped);
+        book.checked = book.checked.saturating_sub(settle.checked);
         if let Some(w) = settle.watch {
             book.watch = w;
         }
@@ -1442,8 +1506,9 @@ impl Registry {
             state.seal();
             state.gaps += 1;
             for (_, book) in &mut state.books {
-                book.gap_since_read = true;
+                book.gaps += 1;
                 book.incomplete_at_ms = now;
+                book.awaiting_resume = true;
             }
         }
         for (_, market) in &mut held.markets {
@@ -1668,6 +1733,12 @@ impl Registry {
             return;
         };
         book.received += 1;
+        if book.awaiting_resume {
+            // Delivery is proven again, and the loss ended no later than
+            // this row.
+            book.incomplete_at_ms = seen_ms(&data).unwrap_or(book.incomplete_at_ms);
+            book.awaiting_resume = false;
+        }
         if book.ring.len() == RING {
             book.ring.pop_front();
             book.dropped += 1;
@@ -3705,6 +3776,128 @@ mod tests {
     }
 
     #[test]
+    fn a_discard_clips_every_window_that_reaches_back_over_it() {
+        // A discard is a loss like an interruption, and a named window
+        // asking about the same interval must answer the same way twice.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        let first = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            None,
+            4,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        assert!(first.clipped, "the discard is inside the window");
+        let again = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            None,
+            4,
+            2_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            again.clipped,
+            "the same window still reaches back over the same loss"
+        );
+        let moved_on = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1),
+            TAIL,
+            None,
+            4,
+            600_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!moved_on.clipped, "the loss is behind this window");
+    }
+
+    #[test]
+    fn a_window_entirely_after_an_interruption_is_whole() {
+        // The interruption is disclosed once on the default window. A named
+        // window that does not reach back to it was never affected.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.gap(10_000);
+        // The feed comes back and delivers, which is the proof that it did.
+        reg.ingest(trade(&c, 1.0, 11_000 * MS));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            None,
+            0,
+            600_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            !r.clipped,
+            "this second of tape is nowhere near the interruption"
+        );
+    }
+
+    #[test]
+    fn a_match_arriving_after_a_read_is_not_cleared_by_its_commit() {
+        // The dispatcher keeps matching while the answer is assembled. A
+        // match nobody has seen must not be discharged by settling one.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let watch = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(0.0),
+        }];
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(watch),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        let seen = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 2 * MS)
+            .expect("nothing to refuse");
+        assert_eq!(seen.watched.len(), 1, "one match was in the answer");
+        // A second match arrives before the answer is settled.
+        reg.ingest(trade(&c, 2.0, 3 * MS));
+        reg.commit_read(&c, SubscriptionKind::Trade, seen.settle.clone(), 2 * MS);
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            4 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(next.watched.len(), 1, "the unseen match is still owed");
+        assert_eq!(next.checked, 1, "and so is the population it came from");
+    }
+
+    #[test]
     fn prints_coverage_never_starts_after_a_print_it_returns() {
         // A trade book reopened after the prints it holds opened later than
         // they arrived. Taking its clock would claim coverage beginning
@@ -3996,7 +4189,26 @@ mod tests {
             again.clipped,
             "a named window answers the same way every time it is asked"
         );
-        // Once the window no longer reaches back that far, it is whole.
+        // Nothing has arrived since the interruption, so no window ending
+        // now is proven whole, however short.
+        let unproven = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1),
+            TAIL,
+            None,
+            0,
+            30_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            unproven.clipped,
+            "no row since the interruption, so nothing shows the feed is back"
+        );
+        // A row is that proof, and dates the end of the loss. Once the
+        // window no longer reaches back that far, it is whole.
+        reg.ingest(trade(&c, 1.0, 40_000 * MS));
         let moved_on = read_now(
             &reg,
             &c,
