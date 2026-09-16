@@ -613,6 +613,10 @@ struct Market {
     read_seq: u64,
     /// See [`Book::feed_drops_at_read`].
     feed_drops_at_read: Option<u64>,
+    /// See [`Book::gap_since_read`]. A selection has no ring to fall short,
+    /// so without this its only loss signal is the SDK's discard count, and
+    /// rows that never arrived are not in it.
+    gap_since_read: bool,
     newest_ms: Option<u64>,
     /// The quote most recently sent on the stream. The vendor sends a
     /// contract's last NBBO and bar just before its trade, so the trade
@@ -630,6 +634,7 @@ impl Market {
             read_ms: now,
             read_seq: 0,
             feed_drops_at_read: None,
+            gap_since_read: false,
             newest_ms: None,
             last_quote: None,
         }
@@ -703,9 +708,18 @@ impl Selection {
                     self.kept.len()
                 }
                 Some(field) => {
-                    let Some(key) = print_field(trade, quote_before.as_ref(), field) else {
-                        self.unranked += 1;
-                        return;
+                    // partition_point needs the predicate to hold on a
+                    // prefix and fail after it. Every comparison with a
+                    // non-finite key is false, which puts it at the front
+                    // and then lets the next row displace the real best, so
+                    // a key that cannot be ordered is a key that cannot be
+                    // ranked.
+                    let key = match print_field(trade, quote_before.as_ref(), field) {
+                        Some(k) if k.is_finite() => k,
+                        _ => {
+                            self.unranked += 1;
+                            return;
+                        }
                     };
                     let ascending = self.query.ascending;
                     // Kept rows are best first, and a row already kept holds
@@ -937,6 +951,10 @@ struct MarketReading {
     newest_ms: Option<u64>,
     new_since_last_read: u64,
     feed_dropped_since_last_read: u64,
+    /// The feed was interrupted while the selection stood, so prints it
+    /// never saw are missing and the discard count cannot show it: those
+    /// rows never reached the SDK to be discarded.
+    gap: bool,
     /// The populations each count covers: prints the selection saw since
     /// the last read, prints that passed it, matches it could not rank,
     /// and the rows kept.
@@ -1257,11 +1275,16 @@ impl Registry {
     }
 
     /// Advance the prints cursor to what a successful `tape_prints` served.
-    fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64) {
+    /// Settle what the answer just delivered. `gap` is what that answer
+    /// reported, not what the mark says now: the feed can be interrupted
+    /// between the read and this call, and clearing a mark the caller never
+    /// saw would bury it.
+    fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64, gap: bool) {
         if let Some(state) = self.lock().contracts.get_mut(contract) {
             state.prints_read = received;
-            // Disclosed by the answer the caller is about to receive.
-            state.gap_since_prints_read = false;
+            if gap {
+                state.gap_since_prints_read = false;
+            }
             state.feed_drops_at_prints_read = Some(feed_drops);
         }
     }
@@ -1300,6 +1323,7 @@ impl Registry {
         }
         for (_, market) in &mut held.markets {
             market.last_quote = None;
+            market.gap_since_read = true;
         }
     }
 
@@ -1361,6 +1385,7 @@ impl Registry {
             newest_ms: market.newest_ms,
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
+            gap: std::mem::take(&mut market.gap_since_read),
             examined,
             matched,
             unranked,
@@ -1768,8 +1793,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 and rank the vendor's own fields. examined and matched say how many prints the \
                 selection saw and how many passed since your last read; returned is what you \
                 got; unranked counts matches without the rank field, such as a quote field on \
-                a print with no quote ahead of it. feed_dropped_since_last_read is the only \
-                way a print can be missing. Sending different parameters replaces the \
+                a print with no quote ahead of it. A print can go missing two ways and both \
+                are reported: feed_dropped_since_last_read counts what the feed threw away, \
+                and feed_interrupted says the connection broke while the selection stood, so \
+                prints from that interval never arrived to be counted at all. Sending different parameters replaces the \
                 selection; the rows that come back were kept under the previous one, shown as \
                 selected_by. Needs an Options Pro or Stocks Pro subscription; the error says \
                 which when the account lacks it. The first call installs the selection, opens \
@@ -2389,6 +2416,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             "received": m.received,
             "new_since_last_read": m.new_since_last_read,
             "feed_dropped_since_last_read": m.feed_dropped_since_last_read,
+            "feed_interrupted": m.gap,
             "age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
             "examined": m.examined,
             "matched": m.matched,
@@ -2499,7 +2527,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             open_on_feed(client, reg, &opened)?;
             reconcile(client, reg, &kept, now)?;
             // Only an answer the caller receives consumes the cursor.
-            reg.commit_prints_read(&contract, p.received, p.feed_drops_seen);
+            reg.commit_prints_read(&contract, p.received, p.feed_drops_seen, p.gap);
             Ok(json!({
                 "contract": contract.to_string(),
                 "feed": feed_state(client, reg),
@@ -2680,7 +2708,7 @@ mod tests {
         // A call that is answered commits its cursor, as the tool does.
         let expired = reg.expire(now);
         let p = reg.prints(c, count, 0, now).expect("nothing to refuse");
-        reg.commit_prints_read(c, p.received, p.feed_drops_seen);
+        reg.commit_prints_read(c, p.received, p.feed_drops_seen, p.gap);
         (p, expired)
     }
 
@@ -3060,7 +3088,7 @@ mod tests {
         // The cursor moves where the prints cursor moves: on the commit that
         // follows a call the caller actually received.
         let first = reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
-        reg.commit_prints_read(&c, first.received, first.feed_drops_seen);
+        reg.commit_prints_read(&c, first.received, first.feed_drops_seen, first.gap);
         let p = reg.prints(&c, 10, 9, 4).expect("nothing to refuse");
         assert_eq!(p.feed_dropped_since_last_read, 3);
         // Uncommitted, so the same three are still owed.
@@ -3069,7 +3097,7 @@ mod tests {
             again.feed_dropped_since_last_read, 3,
             "a call the caller never received does not spend the count"
         );
-        reg.commit_prints_read(&c, again.received, again.feed_drops_seen);
+        reg.commit_prints_read(&c, again.received, again.feed_drops_seen, again.gap);
         let settled = reg.prints(&c, 10, 9, 6).expect("nothing to refuse");
         assert_eq!(settled.feed_dropped_since_last_read, 0);
         reg.market(SecType::Option, query(1), 9, 5)
@@ -3079,6 +3107,77 @@ mod tests {
             .market(SecType::Option, query(1), 10, 6)
             .expect("nothing to refuse");
         assert_eq!(m.feed_dropped_since_last_read, 1);
+    }
+
+    #[test]
+    fn a_feed_gap_is_reported_on_a_market_selection() {
+        // The selection has no ring to fall short, so without this the only
+        // loss signal is the discard count, and rows that never reached the
+        // SDK are not in it.
+        let reg = Registry::default();
+        let call = option("550000", "C");
+        reg.market(SecType::Option, query(5), 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&call, 1.0, 0));
+        reg.gap();
+        let m = reg
+            .market(SecType::Option, query(5), 0, 1)
+            .expect("nothing to refuse");
+        assert_eq!(
+            (m.feed_dropped_since_last_read, m.gap),
+            (0, true),
+            "the feed discarded nothing; the prints simply never came"
+        );
+        let after = reg
+            .market(SecType::Option, query(5), 0, 2)
+            .expect("nothing to refuse");
+        assert!(!after.gap, "disclosed once, not for ever");
+    }
+
+    #[test]
+    fn a_gap_arriving_after_a_read_is_not_buried_by_its_commit() {
+        // The feed can break between the answer and the commit that settles
+        // it. Clearing a mark the caller never saw would lose it entirely.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 0));
+        let p = reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
+        assert!(!p.gap, "nothing had been interrupted when this was read");
+        reg.gap();
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gap);
+        let next = reg.prints(&c, 10, 0, 2).expect("nothing to refuse");
+        assert!(
+            next.gap,
+            "the interruption the answer predates still stands"
+        );
+    }
+
+    #[test]
+    fn a_rank_key_that_cannot_be_ordered_is_not_ranked() {
+        // partition_point needs the predicate to hold on a prefix. Every
+        // comparison with a non-finite key is false, so it lands at the
+        // front and the next row displaces the real best.
+        let reg = Registry::default();
+        let call = option("550000", "C");
+        let mut q = query(1);
+        q.rank_by = Some("price".into());
+        reg.market(SecType::Option, q.clone(), 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&call, 10.0, 0));
+        reg.ingest(trade(&call, f64::NAN, 1));
+        reg.ingest(trade(&call, 5.0, 2));
+        let m = reg
+            .market(SecType::Option, q, 0, 3)
+            .expect("nothing to refuse");
+        assert_eq!(m.unranked, Some(1), "the unorderable one is set aside");
+        let kept: Vec<f64> = m
+            .rows
+            .iter()
+            .filter_map(|p| print_field(&p.trade, None, "price"))
+            .collect();
+        assert_eq!(kept, vec![10.0], "the largest finite price still wins");
     }
 
     #[test]
@@ -3092,7 +3191,7 @@ mod tests {
             .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
         reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
-        reg.commit_prints_read(&c, 1, 0);
+        reg.commit_prints_read(&c, 1, 0, false);
 
         reg.gap();
 
@@ -3116,7 +3215,7 @@ mod tests {
         assert!(p.gap, "the interruption is reported");
         let again = reg.prints(&c, 10, 0, 5).expect("nothing to refuse");
         assert!(again.gap, "uncommitted, so it is still owed");
-        reg.commit_prints_read(&c, again.received, again.feed_drops_seen);
+        reg.commit_prints_read(&c, again.received, again.feed_drops_seen, again.gap);
         let settled = reg.prints(&c, 10, 0, 6).expect("nothing to refuse");
         assert!(!settled.gap, "committed, so it is discharged");
     }
@@ -3274,7 +3373,7 @@ mod tests {
             again.new_since_last_read, 3,
             "not consumed by a call that failed"
         );
-        reg.commit_prints_read(&c, p.received, p.feed_drops_seen);
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gap);
         let (after, _) = prints(&reg, &c, 10, 3);
         assert_eq!(
             after.new_since_last_read, 0,
