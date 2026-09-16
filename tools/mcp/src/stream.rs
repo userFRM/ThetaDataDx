@@ -2446,7 +2446,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 reconcile(client, reg, &[sub], now)?;
             }
             let newest = r.tail.last();
-            let watch = (!r.watch.is_empty() || !r.watched.is_empty()).then(|| {
+            // The predicate that was in force is disclosed by the read that
+            // retires it: a caller clearing one with [] is the only caller
+            // who will ever see what it examined and what it caught.
+            let watch = (!r.watch.is_empty() || !r.watched.is_empty() || !r.matched_by.is_empty())
+                .then(|| {
                 json!({
                     "clauses": r.watch.iter().map(clause_json).collect::<Vec<_>>(),
                     "matched_by": (r.matched_by != r.watch)
