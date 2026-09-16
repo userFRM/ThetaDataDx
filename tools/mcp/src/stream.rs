@@ -704,6 +704,16 @@ impl Market {
     }
 
     fn ingest(&mut self, data: &StreamData) {
+        // The dispatcher can deliver a row captured before this book was
+        // opened: a per-contract subscription swept moments earlier still
+        // has rows in flight, and they route here by security type. They
+        // belong to a subscription this selection never had.
+        // A zero stamp is the SDK's fallback when the clock misbehaves,
+        // and means unknown rather than old: dropping live rows over a
+        // clock hiccup would be far worse than counting a late one.
+        if seen_ms(data).is_some_and(|seen| seen > 0 && seen < self.opened_ms) {
+            return;
+        }
         match data {
             StreamData::Quote { .. } => self.last_quote = Some(data.clone()),
             StreamData::Trade { contract, .. } => {
@@ -1269,7 +1279,17 @@ impl Registry {
             state.gaps += 1;
             state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
         }
+        let inherited = state
+            .feed_drops_at_prints_read
+            .into_iter()
+            .chain(state.books.iter().filter_map(|(_, b)| b.feed_drops_at_read))
+            .min();
         let (book, _) = state.open(kind, now);
+        if book.feed_drops_at_read.is_none() {
+            // Another view of this contract has been watching, so what the
+            // feed discarded since is this book's to report too.
+            book.feed_drops_at_read = inherited;
+        }
         let previous = book.read_ms;
         // Using the book is what keeps it alive, and that is true even of a
         // call that goes on to fail. Everything else this read observes is
@@ -1468,6 +1488,16 @@ impl Registry {
         // Reported without moving the cursor: a call that fails still owes
         // these to the next one, the same as the gap mark and the prints
         // cursor beside it.
+        // A contract already being read has a baseline; prints starting
+        // afterwards inherit it rather than treating every discard since as
+        // nobody's to report.
+        if state.feed_drops_at_prints_read.is_none() {
+            state.feed_drops_at_prints_read = state
+                .books
+                .iter()
+                .filter_map(|(_, b)| b.feed_drops_at_read)
+                .min();
+        }
         let feed_dropped = state
             .feed_drops_at_prints_read
             .map_or(0, |at| feed_drops.saturating_sub(at));
@@ -1542,7 +1572,10 @@ impl Registry {
         }
         book.gaps_at_read = settle.gaps;
         book.feed_drops_at_read = Some(settle.feed_drops);
-        match settle.watch {
+        // Sending the same clauses again is not a change: the rows it has
+        // been catching are still its own.
+        let replaced = settle.watch.filter(|w| *w != book.watch);
+        match replaced {
             // A new predicate cannot speak for rows the old one caught, and
             // the old one's matches have just been reported. Anything it
             // caught while this answer was in flight is disclosed as
@@ -4342,6 +4375,94 @@ mod tests {
     }
 
     #[test]
+    fn a_row_captured_before_a_market_book_existed_is_not_its_own() {
+        // A per-contract subscription swept a moment earlier still has rows
+        // in flight, and they route to a market book by security type. They
+        // belong to a subscription this selection never had.
+        let reg = Registry::default();
+        let call = option("550000", "C");
+        market_now(&reg, SecType::Option, query(5), 0, 10_000).expect("nothing to refuse");
+        // Captured before the book opened.
+        reg.ingest(trade(&call, 1.0, 5_000 * MS));
+        // Captured after it.
+        reg.ingest(trade(&call, 2.0, 11_000 * MS));
+        let m = market_now(&reg, SecType::Option, query(5), 0, 12_000).expect("nothing to refuse");
+        assert_eq!(
+            (m.examined, m.rows.len()),
+            (1, 1),
+            "only the print this selection was open for"
+        );
+    }
+
+    #[test]
+    fn sending_the_same_predicate_again_is_not_replacing_it() {
+        // Only a different line orphans what the old one caught. Repeating
+        // the same clauses is the same standing interest, and a match it
+        // made while an answer was in flight is still owed.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let watch = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(0.0),
+        }];
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(watch.clone()),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        let answered = reg
+            .read(
+                &c,
+                SubscriptionKind::Trade,
+                None,
+                TAIL,
+                Some(watch.clone()),
+                0,
+                MS,
+            )
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2 * MS));
+        reg.commit_read(&c, SubscriptionKind::Trade, answered.settle.clone(), MS);
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(next.watched.len(), 1, "the match is still owed");
+        assert_eq!(next.checked, 1, "and the population it came from");
+    }
+
+    #[test]
+    fn a_second_view_of_a_contract_inherits_what_the_first_was_counting() {
+        // Discards belong to the contract, not to whichever tool looked
+        // first. A view opened afterwards must not report a clean history
+        // the other one already knows has a hole in it.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        // The feed discards three while only the trade book is watching.
+        let p = reg.prints(&c, 10, 3, MS).expect("nothing to refuse");
+        assert_eq!(
+            p.feed_dropped_since_last_read, 3,
+            "prints start where the book already was, not from nothing"
+        );
+    }
+
+    #[test]
     fn an_eviction_of_a_row_already_reported_is_not_a_loss() {
         // A match arriving while an answer is in flight pushes out the
         // oldest held row. That row was in the answer, so the caller lost
@@ -5920,18 +6041,20 @@ mod tests {
             },
         )
         .expect("a valid contract");
-        let feed = |reg: &Registry| {
+        // Rows arrive after the selection is installed, as they do on a
+        // feed: a book cannot be shown prints from before it existed.
+        let feed = |reg: &Registry, t: u64| {
             reg.ingest(quote(&c550, 1.0, 1.5));
-            reg.ingest(trade_sized(&c550, 1.2, 10, 0, MS));
-            reg.ingest(trade_sized(&c540, 5.0, 300, 0, 2 * MS));
-            reg.ingest(trade_sized(&p550, 0.9, 200, 0, 3 * MS));
-            reg.ingest(trade_sized(&c550, 1.3, 50, 0, 4 * MS));
-            reg.ingest(trade_sized(&qqq, 2.0, 999, 0, 5 * MS));
+            reg.ingest(trade_sized(&c550, 1.2, 10, 0, (t + 1) * MS));
+            reg.ingest(trade_sized(&c540, 5.0, 300, 0, (t + 2) * MS));
+            reg.ingest(trade_sized(&p550, 0.9, 200, 0, (t + 3) * MS));
+            reg.ingest(trade_sized(&c550, 1.3, 50, 0, (t + 4) * MS));
+            reg.ingest(trade_sized(&qqq, 2.0, 999, 0, (t + 5) * MS));
         };
         // Install a selection, let the five prints through it, read it back.
         let run = |q: MarketQuery, t: u64| {
             market_now(&reg, SecType::Option, q.clone(), 0, t).expect("nothing to refuse");
-            feed(&reg);
+            feed(&reg, t);
             market_now(&reg, SecType::Option, q, 0, t + 1).expect("nothing to refuse")
         };
         let sizes = |m: &MarketReading| {
@@ -5992,7 +6115,7 @@ mod tests {
         // Disclosed by the selection that set them aside, even when the read
         // that collects them no longer ranks.
         market_now(&reg, SecType::Option, q, 0, 52).expect("nothing to refuse");
-        feed(&reg);
+        feed(&reg, 52);
         let m = market_now(&reg, SecType::Option, query(5), 0, 53).expect("nothing to refuse");
         assert_eq!((m.unranked, m.selected_by.is_some()), (Some(4), true));
         let m = market_now(&reg, SecType::Option, query(5), 0, 54).expect("nothing to refuse");
@@ -6011,7 +6134,7 @@ mod tests {
         let mut nasdaq = query(10);
         nasdaq.root = Some("QQQ".into());
         market_now(&reg, SecType::Option, spy.clone(), 0, 80).expect("nothing to refuse");
-        feed(&reg);
+        feed(&reg, 80);
         let m =
             market_now(&reg, SecType::Option, nasdaq.clone(), 0, 81).expect("nothing to refuse");
         assert_eq!(
@@ -6020,7 +6143,7 @@ mod tests {
             "the SPY prints, kept under the SPY selection"
         );
         assert_eq!(m.selected_by, Some(spy));
-        feed(&reg);
+        feed(&reg, 81);
         let m = market_now(&reg, SecType::Option, nasdaq, 0, 82).expect("nothing to refuse");
         assert_eq!((m.rows.len(), m.selected_by), (1, None));
     }
