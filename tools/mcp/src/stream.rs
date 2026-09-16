@@ -1471,6 +1471,11 @@ impl Registry {
         let feed_dropped = state
             .feed_drops_at_prints_read
             .map_or(0, |at| feed_drops.saturating_sub(at));
+        // A discard leaves the same hole an interruption does: the prints
+        // on either side of it are served again and again.
+        if feed_dropped > 0 && state.prints_holed_before.is_none() {
+            state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
+        }
         let mut rows: Vec<Print> = state.prints.iter().rev().take(count).cloned().collect();
         rows.reverse();
         let prints = Prints {
@@ -1543,8 +1548,12 @@ impl Registry {
             // caught while this answer was in flight is disclosed as
             // dropped rather than attributed to a line it never met.
             Some(w) => {
-                book.retained_dropped = book.retained.len().saturating_sub(settle.watched) as u64;
+                // What the old predicate caught after this answer was built
+                // goes with it. The new one has dropped nothing: counting
+                // those rows against it would report a loss under a line
+                // they were never measured by.
                 book.retained.clear();
+                book.retained_dropped = 0;
                 book.checked = 0;
                 book.watch = w;
             }
@@ -1555,7 +1564,10 @@ impl Registry {
                 let evicted = book.retained_dropped.saturating_sub(settle.watched_dropped);
                 let carried = (settle.watched as u64).saturating_sub(evicted) as usize;
                 book.retained.drain(..carried.min(book.retained.len()));
-                book.retained_dropped = evicted;
+                // An eviction that pushed out a row this answer already
+                // carried cost the caller nothing. Only evictions beyond
+                // those lost a match nobody saw.
+                book.retained_dropped = evicted.saturating_sub(settle.watched as u64);
                 book.checked = book.checked.saturating_sub(settle.checked);
             }
         }
@@ -1774,10 +1786,26 @@ impl Registry {
         match shape(sub) {
             Some(Shape::Contract(contract, kind)) => {
                 let state = held.contracts.entry(contract.clone()).or_default();
+                let had_prints = !state.prints.is_empty();
                 let (book, first) = state.open(kind, now);
                 if first {
                     book.read_ms = 0;
                     book.touched_ms = 0;
+                    // The book was gone while the feed kept delivering, and
+                    // putting it back is not the same as never having lost
+                    // it. A later read must not find an intact leg and
+                    // conclude nothing was missed.
+                    book.gaps += 1;
+                    book.incomplete_at_ms = now;
+                    book.awaiting_resume = true;
+                    if kind == SubscriptionKind::Trade && had_prints {
+                        state.gaps += 1;
+                        state.prints_holed_before =
+                            Some(state.prints_dropped + state.prints.len() as u64);
+                    }
+                    if kind == SubscriptionKind::Quote {
+                        state.seal();
+                    }
                 }
             }
             Some(Shape::Full(sec, _)) if held.market(sec).is_none() => {
@@ -3137,7 +3165,12 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "kind": kind.kind_str(),
                 "feed": feed_state(client, reg),
                 "subscribed_now": r.first,
-                "window_seconds": seconds(now.saturating_sub(r.floor)),
+                // A row decoded before the last read and dispatched after
+                // it is new to this one, and the span must reach back far
+                // enough to hold it.
+                "window_seconds": seconds(now.saturating_sub(
+                    r.tail.first().and_then(seen_ms).map_or(r.floor, |o| o.min(r.floor))
+                )),
                 "window_from": if window.is_some() { "request" } else { "last_read" },
                 "covers_seconds": seconds(now.saturating_sub(r.covered_since_ms)),
                 "clipped": r.clipped,
@@ -4265,6 +4298,102 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(!proven.clipped, "the feed is delivering again");
+    }
+
+    #[test]
+    fn a_discard_holes_a_print_history_for_as_long_as_it_shows() {
+        // The discard is disclosed once. The prints on either side of the
+        // missing one are served again and again, and the history between
+        // them has a hole in it the whole time.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let p = reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        reg.ingest(trade(&c, 1.0, MS));
+        // The feed discarded one between these two.
+        reg.ingest(trade(&c, 3.0, 3 * MS));
+        let first = reg.prints(&c, 10, 2, 4).expect("nothing to refuse");
+        assert!(first.holed, "the read that learns of the discard");
+        reg.commit_prints_read(&c, first.received, first.feed_drops_seen, first.gaps_seen);
+        let again = reg.prints(&c, 10, 2, 5).expect("nothing to refuse");
+        assert_eq!(again.feed_dropped_since_last_read, 0, "disclosed once");
+        assert!(again.holed, "but the same prints with the same hole");
+    }
+
+    #[test]
+    fn a_book_put_back_after_a_failed_release_is_not_an_unbroken_one() {
+        // The feed would not let the subscription go, so the book is kept
+        // to try again. It was gone while the feed kept delivering, and a
+        // later read must not find an intact leg and conclude nothing was
+        // missed.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        reg.forget(&subscription(SubscriptionKind::Trade, &c));
+        reg.reinstate(&subscription(SubscriptionKind::Trade, &c), 2);
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 3)
+            .expect("nothing to refuse");
+        assert!(
+            r.clipped,
+            "the leg was absent while the feed carried on without it"
+        );
+    }
+
+    #[test]
+    fn an_eviction_of_a_row_already_reported_is_not_a_loss() {
+        // A match arriving while an answer is in flight pushes out the
+        // oldest held row. That row was in the answer, so the caller lost
+        // nothing, and reporting a drop would claim they had.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let watch = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(0.0),
+        }];
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(watch),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        // Fill the buffer to its bound.
+        for i in 0..WATCHED {
+            reg.ingest(trade(&c, i as f64, i as u64 * MS));
+        }
+        let answered = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, MS)
+            .expect("nothing to refuse");
+        assert_eq!(answered.watched.len(), WATCHED, "the whole buffer");
+        assert_eq!(answered.watched_dropped, 0, "nothing was lost to build it");
+        // One more match arrives before the answer settles, evicting the
+        // oldest of the rows that answer carried.
+        reg.ingest(trade(&c, 1.0, (WATCHED as u64 + 1) * MS));
+        reg.commit_read(&c, SubscriptionKind::Trade, answered.settle.clone(), MS);
+
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            2 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(next.watched.len(), 1, "the match nobody had seen");
+        assert_eq!(
+            next.watched_dropped, 0,
+            "the row it pushed out had already been reported"
+        );
     }
 
     #[test]
