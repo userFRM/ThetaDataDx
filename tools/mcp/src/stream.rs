@@ -1884,7 +1884,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 are Eastern. A book goes 15 minutes unread and the next call to any of these \
                 tools closes it; tape_stop closes it now. A read that finds \
                 the feed refused the subscription after accepting it says so and releases the \
-                book; reading again re-subscribes.",
+                book; reading again re-subscribes. In the answer: window_from says whether the \
+                window came from your seconds or from your last read, window_seconds is how far \
+                back it reaches, columns names the fields of each tail row in order, and date is \
+                the trading date they share, absent and carried on each row instead when they \
+                span more than one.",
             "inputSchema": contract_schema(&["option", "stock", "index"], json!({
                 "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
                          "description": "Default quote, or trade for an index."},
@@ -1902,7 +1906,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 second or two later. A contract whose trade and quote books are both open already has prints straight away. \
                 new_since_last_read counts prints since you last looked at this contract's \
                 trades. Prints are held within a memory budget, and clipped means older ones \
-                were discarded before you asked. A print is a trade and the quote that stood \
+                were discarded before you asked. Each print carries quote_before, the quote that stood when it \
+                traded, and date when the prints span more than one trading date. A print is a \
+                trade and the quote that stood \
                 before it, and an index has no quote stream, so indices are not on this tool; \
                 tape_read with kind trade carries the index price. \
                 Times are Eastern.",
@@ -1928,7 +1934,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 a print with no quote ahead of it. A print can go missing two ways and both \
                 are reported: feed_dropped_since_last_read counts what the feed threw away, \
                 and feed_interrupted says the connection broke while the selection stood, so \
-                prints from that interval never arrived to be counted at all. Sending different parameters replaces the \
+                prints from that interval never arrived to be counted at all. since_seconds is how long the selection stood before \
+                this read took it. Sending different parameters replaces the \
                 selection; the rows that come back were kept under the previous one, shown as \
                 selected_by. Needs an Options Pro or Stocks Pro subscription; the error says \
                 which when the account lacks it. The first call installs the selection, opens \
