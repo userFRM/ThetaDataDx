@@ -874,6 +874,9 @@ struct Prints {
     /// cleared only once the call has succeeded, so a failed read does not
     /// consume the disclosure.
     gap: bool,
+    /// The SDK's discard count as this read saw it: the cursor to commit
+    /// alongside `received`.
+    feed_drops_seen: u64,
     covered_since_ms: u64,
     newest_ms: Option<u64>,
     new_since_last_read: u64,
@@ -1224,7 +1227,12 @@ impl Registry {
         }
         let received = state.prints_dropped + state.prints.len() as u64;
         let new = received - state.prints_read;
-        let feed_dropped = feed_dropped_since(&mut state.feed_drops_at_prints_read, feed_drops);
+        // Reported without moving the cursor: a call that fails still owes
+        // these to the next one, the same as the gap mark and the prints
+        // cursor beside it.
+        let feed_dropped = state
+            .feed_drops_at_prints_read
+            .map_or(0, |at| feed_drops.saturating_sub(at));
         let mut rows: Vec<Print> = state.prints.iter().rev().take(count).cloned().collect();
         rows.reverse();
         let prints = Prints {
@@ -1234,6 +1242,7 @@ impl Registry {
             received,
             feed_dropped_since_last_read: feed_dropped,
             gap: state.gap_since_prints_read,
+            feed_drops_seen: feed_drops,
             covered_since_ms: state
                 .prints
                 .front()
@@ -1248,11 +1257,12 @@ impl Registry {
     }
 
     /// Advance the prints cursor to what a successful `tape_prints` served.
-    fn commit_prints_read(&self, contract: &Contract, received: u64) {
+    fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64) {
         if let Some(state) = self.lock().contracts.get_mut(contract) {
             state.prints_read = received;
             // Disclosed by the answer the caller is about to receive.
             state.gap_since_prints_read = false;
+            state.feed_drops_at_prints_read = Some(feed_drops);
         }
     }
 
@@ -2485,7 +2495,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             open_on_feed(client, reg, &opened)?;
             reconcile(client, reg, &kept, now)?;
             // Only an answer the caller receives consumes the cursor.
-            reg.commit_prints_read(&contract, p.received);
+            reg.commit_prints_read(&contract, p.received, p.feed_drops_seen);
             Ok(json!({
                 "contract": contract.to_string(),
                 "feed": feed_state(client, reg),
@@ -2666,7 +2676,7 @@ mod tests {
         // A call that is answered commits its cursor, as the tool does.
         let expired = reg.expire(now);
         let p = reg.prints(c, count, 0, now).expect("nothing to refuse");
-        reg.commit_prints_read(c, p.received);
+        reg.commit_prints_read(c, p.received, p.feed_drops_seen);
         (p, expired)
     }
 
@@ -3043,9 +3053,21 @@ mod tests {
             .expect("nothing to refuse");
         assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
 
-        reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
+        // The cursor moves where the prints cursor moves: on the commit that
+        // follows a call the caller actually received.
+        let first = reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
+        reg.commit_prints_read(&c, first.received, first.feed_drops_seen);
         let p = reg.prints(&c, 10, 9, 4).expect("nothing to refuse");
         assert_eq!(p.feed_dropped_since_last_read, 3);
+        // Uncommitted, so the same three are still owed.
+        let again = reg.prints(&c, 10, 9, 5).expect("nothing to refuse");
+        assert_eq!(
+            again.feed_dropped_since_last_read, 3,
+            "a call the caller never received does not spend the count"
+        );
+        reg.commit_prints_read(&c, again.received, again.feed_drops_seen);
+        let settled = reg.prints(&c, 10, 9, 6).expect("nothing to refuse");
+        assert_eq!(settled.feed_dropped_since_last_read, 0);
         reg.market(SecType::Option, query(1), 9, 5)
             .expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 5 * MS));
@@ -3066,7 +3088,7 @@ mod tests {
             .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
         reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
-        reg.commit_prints_read(&c, 1);
+        reg.commit_prints_read(&c, 1, 0);
 
         reg.gap();
 
@@ -3090,7 +3112,7 @@ mod tests {
         assert!(p.gap, "the interruption is reported");
         let again = reg.prints(&c, 10, 0, 5).expect("nothing to refuse");
         assert!(again.gap, "uncommitted, so it is still owed");
-        reg.commit_prints_read(&c, again.received);
+        reg.commit_prints_read(&c, again.received, again.feed_drops_seen);
         let settled = reg.prints(&c, 10, 0, 6).expect("nothing to refuse");
         assert!(!settled.gap, "committed, so it is discharged");
     }
@@ -3248,7 +3270,7 @@ mod tests {
             again.new_since_last_read, 3,
             "not consumed by a call that failed"
         );
-        reg.commit_prints_read(&c, p.received);
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen);
         let (after, _) = prints(&reg, &c, 10, 3);
         assert_eq!(
             after.new_since_last_read, 0,
