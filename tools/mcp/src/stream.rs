@@ -604,6 +604,10 @@ struct ContractState {
     gaps: u64,
     /// Interruptions disclosed by the last answer the caller received.
     gaps_at_prints_read: u64,
+    /// Prints received as of the last interruption, so a list still holding
+    /// prints from before one is still incomplete however often it is read.
+    /// The hole leaves when the prints on either side of it do.
+    prints_holed_before: Option<u64>,
     /// Position, counted from the first print ever, before which no print
     /// takes another quote. Quotes seen while the quote book was away, or
     /// after it came back, belong to an interval the correlation did not
@@ -673,7 +677,8 @@ struct Market {
     /// See [`Book::gaps`]. A selection has no ring to fall short,
     /// so without this its only loss signal is the SDK's discard count, and
     /// rows that never arrived are not in it.
-    gap_since_read: bool,
+    gaps: u64,
+    gaps_at_read: u64,
     newest_ms: Option<u64>,
     /// The quote most recently sent on the stream. The vendor sends a
     /// contract's last NBBO and bar just before its trade, so the trade
@@ -691,7 +696,8 @@ impl Market {
             read_ms: now,
             read_seq: 0,
             feed_drops_at_read: None,
-            gap_since_read: false,
+            gaps: 0,
+            gaps_at_read: 0,
             newest_ms: None,
             last_quote: None,
         }
@@ -970,7 +976,7 @@ fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
     match window {
         // Since your last read: anything lost in that interval counts, and
         // the disclosure is spent by the read that makes it.
-        None => c.gap || c.feed_dropped > 0 || c.new > c.held as u64,
+        None => c.gap || c.awaiting_resume || c.feed_dropped > 0 || c.new > c.held as u64,
         // A named window asks about an interval, so only a loss inside it
         // counts. A loss learned of now is dated now, since nothing between
         // the loss and this read is proven.
@@ -1002,6 +1008,10 @@ struct Prints {
     /// cleared only once the call has succeeded, so a failed read does not
     /// consume the disclosure.
     gap: bool,
+    /// Prints from before a loss are still held. Unlike `gap` this is not
+    /// spent by the read that reports it: the history stays holed until the
+    /// prints around the hole are gone.
+    holed: bool,
     /// Interruptions counted as this read saw them: the cursor to commit
     /// alongside `received`, so one that arrives afterwards still stands.
     gaps_seen: u64,
@@ -1066,8 +1076,9 @@ impl MarketQuery {
 struct SettleMarket {
     received: u64,
     feed_drops: u64,
-    feed_dropped: u64,
-    gap: bool,
+    /// Interruptions as this answer saw them, so one arriving before the
+    /// commit is still owed to the next read.
+    gaps: u64,
     /// The selection this read installs, restored if it never lands.
     outgoing: Option<Selection>,
 }
@@ -1422,6 +1433,15 @@ impl Registry {
         }
         if gaps_from_reopen > 0 {
             state.gaps += 1;
+            state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
+        }
+        // The hole is behind every print still held, so nothing it touches
+        // is being served any more.
+        if state
+            .prints_holed_before
+            .is_some_and(|at| state.prints_dropped >= at)
+        {
+            state.prints_holed_before = None;
         }
         let received = state.prints_dropped + state.prints.len() as u64;
         let new = received - state.prints_read;
@@ -1440,6 +1460,9 @@ impl Registry {
             received,
             feed_dropped_since_last_read: feed_dropped,
             gap: state.gaps > state.gaps_at_prints_read,
+            // Prints from before a loss are still held, so the history
+            // these rows come from has a hole in it.
+            holed: state.prints_holed_before.is_some(),
             gaps_seen: state.gaps,
             feed_drops_seen: feed_drops,
             // Coverage starts at the oldest print held, or where the trade
@@ -1485,21 +1508,36 @@ impl Registry {
         };
         book.read_ms = now;
         book.read_seq = settle.received;
-        // Whatever this answer disclosed is now behind it, dated here
-        // because nothing between the loss and this read is proven.
-        if settle.gap || settle.feed_dropped > 0 {
-            book.incomplete_at_ms = now;
+        // A loss with no proof of resumption is dated here, because nothing
+        // between it and this read is proven. One a row has already proven
+        // the end of keeps that row's stamp: moving it forward would clip
+        // windows that sit entirely after the feed came back.
+        if (settle.gap && book.awaiting_resume) || settle.feed_dropped > 0 {
+            book.incomplete_at_ms = book.incomplete_at_ms.max(now);
         }
         book.gaps_at_read = settle.gaps;
         book.feed_drops_at_read = Some(settle.feed_drops);
-        // Exactly what the answer carried. A match the dispatcher added
-        // after the snapshot was never shown to anyone, so it stays.
-        book.retained
-            .drain(..settle.watched.min(book.retained.len()));
-        book.retained_dropped = book.retained_dropped.saturating_sub(settle.watched_dropped);
-        book.checked = book.checked.saturating_sub(settle.checked);
-        if let Some(w) = settle.watch {
-            book.watch = w;
+        match settle.watch {
+            // A new predicate cannot speak for rows the old one caught, and
+            // the old one's matches have just been reported. Anything it
+            // caught while this answer was in flight is disclosed as
+            // dropped rather than attributed to a line it never met.
+            Some(w) => {
+                book.retained_dropped = book.retained.len().saturating_sub(settle.watched) as u64;
+                book.retained.clear();
+                book.checked = 0;
+                book.watch = w;
+            }
+            // Exactly what the answer carried. A match the dispatcher added
+            // after the snapshot was never shown to anyone, so it stays, and
+            // so does the count of rows it was chosen from.
+            None => {
+                let evicted = book.retained_dropped.saturating_sub(settle.watched_dropped);
+                let carried = (settle.watched as u64).saturating_sub(evicted) as usize;
+                book.retained.drain(..carried.min(book.retained.len()));
+                book.retained_dropped = evicted;
+                book.checked = book.checked.saturating_sub(settle.checked);
+            }
         }
     }
 
@@ -1515,9 +1553,7 @@ impl Registry {
         market.read_ms = now;
         market.read_seq = settle.received;
         market.feed_drops_at_read = Some(settle.feed_drops);
-        if settle.gap || settle.feed_dropped > 0 {
-            market.gap_since_read = false;
-        }
+        market.gaps_at_read = settle.gaps;
     }
 
     /// Put back the selection a failed read took, so its rows and counts
@@ -1532,7 +1568,13 @@ impl Registry {
             // belongs to the same caller, so it is folded back in.
             let replacement = market.selection.replace(outgoing);
             if let (Some(kept), Some(back)) = (replacement, market.selection.as_mut()) {
-                back.absorb(kept);
+                // Only when the replacement was asking the same question.
+                // A different filter examined a different population and
+                // kept rows this one would not have, and folding those in
+                // would report them as its own.
+                if kept.query == back.query {
+                    back.absorb(kept);
+                }
             }
         }
     }
@@ -1573,6 +1615,7 @@ impl Registry {
         for state in held.contracts.values_mut() {
             state.seal();
             state.gaps += 1;
+            state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
             for (_, book) in &mut state.books {
                 book.gaps += 1;
                 book.incomplete_at_ms = now;
@@ -1581,7 +1624,7 @@ impl Registry {
         }
         for (_, market) in &mut held.markets {
             market.last_quote = None;
-            market.gap_since_read = true;
+            market.gaps += 1;
         }
     }
 
@@ -1647,8 +1690,7 @@ impl Registry {
             settle: SettleMarket {
                 received,
                 feed_drops: feed_drops.max(market.feed_drops_at_read.unwrap_or(0)),
-                feed_dropped,
-                gap: market.gap_since_read,
+                gaps: market.gaps,
                 outgoing: taken,
             },
             previous_ms: previous,
@@ -1656,7 +1698,7 @@ impl Registry {
             newest_ms: market.newest_ms,
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
-            gap: market.gap_since_read,
+            gap: market.gaps > market.gaps_at_read,
             examined,
             matched,
             unranked,
@@ -3069,6 +3111,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "count": p.rows.len(),
                 "held": p.held,
                 "clipped": p.gap
+                    || p.holed
                     || (p.held < count && p.dropped > 0)
                     || p.feed_dropped_since_last_read > 0,
                 "covers_seconds": seconds(now.saturating_sub(p.covered_since_ms)),
@@ -3830,7 +3873,20 @@ mod tests {
         assert!(next.clipped, "nor the interruption");
         assert_eq!(next.watch, watch, "and the predicate still stands");
 
-        // Once answered, they are settled.
+        // Once answered, they are settled. A row first, since nothing else
+        // shows the feed came back from the interruption above.
+        reg.ingest(trade(&c, 2.0, 4 * MS));
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            7,
+            5 * MS,
+        )
+        .expect("nothing to refuse");
         let after = read_now(
             &reg,
             &c,
@@ -3839,7 +3895,7 @@ mod tests {
             TAIL,
             None,
             7,
-            4 * MS,
+            6 * MS,
         )
         .expect("nothing to refuse");
         assert_eq!(
@@ -3956,6 +4012,148 @@ mod tests {
         assert!(
             !r.clipped,
             "this second of tape is nowhere near the interruption"
+        );
+    }
+
+    #[test]
+    fn a_window_after_the_feed_came_back_stays_whole_however_often_it_is_read() {
+        // The loss ended where the first row after it landed. Dating it at
+        // the read that noticed would clip windows sitting entirely after
+        // the feed returned, and clip them again on every later read.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.gap(10_000);
+        reg.ingest(trade(&c, 1.0, 11_000 * MS));
+        let first = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            None,
+            0,
+            20_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!first.clipped, "this second sits after the feed came back");
+        let again = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            None,
+            0,
+            20_100,
+        )
+        .expect("nothing to refuse");
+        assert!(!again.clipped, "and it is still after it on the next read");
+    }
+
+    #[test]
+    fn a_restored_selection_does_not_take_counts_from_a_different_question() {
+        // A replacement asking something else examined a different
+        // population and kept rows this one would have refused. Folding
+        // those in would report another question's work as its own.
+        let reg = Registry::default();
+        let spy = option("550000", "C");
+        let mut aapl = query(5);
+        aapl.root = Some("AAPL".into());
+        market_now(&reg, SecType::Option, aapl.clone(), 0, 0).expect("nothing to refuse");
+
+        // The read that changes the question fails on the feed, so the AAPL
+        // selection goes back; meanwhile the replacement caught an SPY row.
+        let mut spy_q = query(5);
+        spy_q.root = Some("SPY".into());
+        let lost = reg
+            .market(SecType::Option, spy_q, 0, 1)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&spy, 1.0, MS));
+        reg.restore_market(SecType::Option, lost.settle.outgoing);
+
+        let next = market_now(&reg, SecType::Option, aapl, 0, 2).expect("nothing to refuse");
+        assert_eq!(
+            (next.examined, next.matched, next.rows.len()),
+            (0, 0, 0),
+            "an SPY print is not this selection's to count"
+        );
+    }
+
+    #[test]
+    fn no_window_is_whole_while_the_feed_is_unproven() {
+        // The interruption is disclosed once, but until something arrives
+        // there is no evidence the feed is delivering, so neither shape of
+        // window can be called whole.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.gap(1_000);
+        let disclosed = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            2_000,
+        )
+        .expect("nothing to refuse");
+        assert!(disclosed.clipped, "the read that notices");
+        let still = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            still.clipped,
+            "the interruption is spent, but nothing has arrived to show the feed is back"
+        );
+        // A row is that evidence.
+        reg.ingest(trade(&c, 1.0, 4_000 * MS));
+        let proven = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            5_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!proven.clipped, "the feed is delivering again");
+    }
+
+    #[test]
+    fn a_history_with_a_hole_in_it_says_so_every_time() {
+        // The interruption is disclosed once, but the prints on either side
+        // of the missing ones are served again and again, and the history
+        // they come from has a hole in it for as long as they are held.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let p = reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        reg.ingest(trade(&c, 1.0, MS));
+        reg.gap(2);
+        reg.ingest(trade(&c, 3.0, 3 * MS));
+        let first = reg.prints(&c, 10, 0, 4).expect("nothing to refuse");
+        assert!(first.gap && first.holed, "both, on the read that notices");
+        reg.commit_prints_read(&c, first.received, first.feed_drops_seen, first.gaps_seen);
+        let again = reg.prints(&c, 10, 0, 5).expect("nothing to refuse");
+        assert!(!again.gap, "the interruption is disclosed once");
+        assert!(
+            again.holed,
+            "but these are the same prints, with the same hole between them"
         );
     }
 
