@@ -546,7 +546,12 @@ struct ContractState {
     /// See [`Book::feed_drops_at_read`].
     feed_drops_at_prints_read: Option<u64>,
     /// See [`Book::gap_since_read`]; the print list loses rows the same way.
-    gap_since_prints_read: bool,
+    /// Counted rather than flagged: a read discloses the interruptions it
+    /// saw, and the commit that settles it must not clear one that arrived
+    /// while the answer was being assembled.
+    gaps: u64,
+    /// Interruptions disclosed by the last answer the caller received.
+    gaps_at_prints_read: u64,
     /// Position, counted from the first print ever, before which no print
     /// takes another quote. Quotes seen while the quote book was away, or
     /// after it came back, belong to an interval the correlation did not
@@ -888,6 +893,9 @@ struct Prints {
     /// cleared only once the call has succeeded, so a failed read does not
     /// consume the disclosure.
     gap: bool,
+    /// Interruptions counted as this read saw them: the cursor to commit
+    /// alongside `received`, so one that arrives afterwards still stands.
+    gaps_seen: u64,
     /// The SDK's discard count as this read saw it: the cursor to commit
     /// alongside `received`.
     feed_drops_seen: u64,
@@ -1259,7 +1267,8 @@ impl Registry {
             dropped: state.prints_dropped,
             received,
             feed_dropped_since_last_read: feed_dropped,
-            gap: state.gap_since_prints_read,
+            gap: state.gaps > state.gaps_at_prints_read,
+            gaps_seen: state.gaps,
             feed_drops_seen: feed_drops,
             covered_since_ms: state
                 .prints
@@ -1275,16 +1284,14 @@ impl Registry {
     }
 
     /// Advance the prints cursor to what a successful `tape_prints` served.
-    /// Settle what the answer just delivered. `gap` is what that answer
-    /// reported, not what the mark says now: the feed can be interrupted
-    /// between the read and this call, and clearing a mark the caller never
-    /// saw would bury it.
-    fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64, gap: bool) {
+    /// Settle what the answer just delivered. The interruption count is
+    /// the one that answer saw, not the one standing now: the feed can
+    /// break between the read and this call, and an interruption the
+    /// caller was never shown is still owed to the next read.
+    fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64, gaps: u64) {
         if let Some(state) = self.lock().contracts.get_mut(contract) {
             state.prints_read = received;
-            if gap {
-                state.gap_since_prints_read = false;
-            }
+            state.gaps_at_prints_read = gaps;
             state.feed_drops_at_prints_read = Some(feed_drops);
         }
     }
@@ -1316,7 +1323,7 @@ impl Registry {
         let mut held = self.lock();
         for state in held.contracts.values_mut() {
             state.seal();
-            state.gap_since_prints_read = true;
+            state.gaps += 1;
             for (_, book) in &mut state.books {
                 book.gap_since_read = true;
             }
@@ -2199,8 +2206,23 @@ fn parse_contract(args: &Value) -> Result<(SecType, Contract), ToolError> {
 }
 
 fn parse_market_query(args: &Value, limit: usize) -> Result<MarketQuery, ToolError> {
+    // A narrowing field that is present but unreadable is refused, never
+    // dropped. Dropping one widens the selection: a caller asking for one
+    // expiration would be handed every expiration and told nothing.
+    fn narrowing<T>(
+        args: &Value,
+        key: &str,
+        what: &str,
+        read: impl Fn(&Value) -> Option<T>,
+    ) -> Result<Option<T>, ToolError> {
+        match args.get(key).filter(|v| !v.is_null()) {
+            None => Ok(None),
+            Some(v) => read(v)
+                .map(Some)
+                .ok_or_else(|| ToolError::InvalidParams(format!("{key} must be {what}"))),
+        }
+    }
     let str_of = |k: &str| args.get(k).and_then(|v: &Value| v.as_str());
-    let num_of = |k: &str| args.get(k).and_then(|v: &Value| v.as_f64());
     let is_call = match str_of("right") {
         None => None,
         Some("C") => Some(true),
@@ -2209,13 +2231,12 @@ fn parse_market_query(args: &Value, limit: usize) -> Result<MarketQuery, ToolErr
     };
     Ok(MarketQuery {
         root: str_of("root").map(str::to_string),
-        expiration: args
-            .get("expiration")
-            .and_then(|v: &Value| v.as_i64())
-            .and_then(|e| i32::try_from(e).ok()),
+        expiration: narrowing(args, "expiration", "a date as YYYYMMDD", |v| {
+            v.as_i64().and_then(|e| i32::try_from(e).ok())
+        })?,
         is_call,
-        strike_min: num_of("strike_min"),
-        strike_max: num_of("strike_max"),
+        strike_min: narrowing(args, "strike_min", "a number of dollars", Value::as_f64)?,
+        strike_max: narrowing(args, "strike_max", "a number of dollars", Value::as_f64)?,
         clauses: args
             .get("where")
             .map_or(Ok(Vec::new()), |v| parse_clauses(v, &PRINT_FIELDS))?,
@@ -2527,7 +2548,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             open_on_feed(client, reg, &opened)?;
             reconcile(client, reg, &kept, now)?;
             // Only an answer the caller receives consumes the cursor.
-            reg.commit_prints_read(&contract, p.received, p.feed_drops_seen, p.gap);
+            reg.commit_prints_read(&contract, p.received, p.feed_drops_seen, p.gaps_seen);
             Ok(json!({
                 "contract": contract.to_string(),
                 "feed": feed_state(client, reg),
@@ -2708,7 +2729,7 @@ mod tests {
         // A call that is answered commits its cursor, as the tool does.
         let expired = reg.expire(now);
         let p = reg.prints(c, count, 0, now).expect("nothing to refuse");
-        reg.commit_prints_read(c, p.received, p.feed_drops_seen, p.gap);
+        reg.commit_prints_read(c, p.received, p.feed_drops_seen, p.gaps_seen);
         (p, expired)
     }
 
@@ -3088,7 +3109,7 @@ mod tests {
         // The cursor moves where the prints cursor moves: on the commit that
         // follows a call the caller actually received.
         let first = reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
-        reg.commit_prints_read(&c, first.received, first.feed_drops_seen, first.gap);
+        reg.commit_prints_read(&c, first.received, first.feed_drops_seen, first.gaps_seen);
         let p = reg.prints(&c, 10, 9, 4).expect("nothing to refuse");
         assert_eq!(p.feed_dropped_since_last_read, 3);
         // Uncommitted, so the same three are still owed.
@@ -3097,7 +3118,7 @@ mod tests {
             again.feed_dropped_since_last_read, 3,
             "a call the caller never received does not spend the count"
         );
-        reg.commit_prints_read(&c, again.received, again.feed_drops_seen, again.gap);
+        reg.commit_prints_read(&c, again.received, again.feed_drops_seen, again.gaps_seen);
         let settled = reg.prints(&c, 10, 9, 6).expect("nothing to refuse");
         assert_eq!(settled.feed_dropped_since_last_read, 0);
         reg.market(SecType::Option, query(1), 9, 5)
@@ -3135,6 +3156,47 @@ mod tests {
     }
 
     #[test]
+    fn a_second_interruption_survives_the_commit_that_settles_the_first() {
+        // The answer disclosed one interruption; another arrived while it
+        // was in flight. Settling the first must not discharge the second.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 0));
+        reg.gap();
+        let p = reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
+        assert!(p.gap, "the first interruption is disclosed");
+        reg.gap();
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        let next = reg.prints(&c, 10, 0, 2).expect("nothing to refuse");
+        assert!(next.gap, "the second was never shown, so it is still owed");
+        reg.commit_prints_read(&c, next.received, next.feed_drops_seen, next.gaps_seen);
+        let settled = reg.prints(&c, 10, 0, 3).expect("nothing to refuse");
+        assert!(!settled.gap, "both disclosed and both settled");
+    }
+
+    #[test]
+    fn a_narrowing_filter_that_cannot_be_read_is_refused_not_dropped() {
+        // Dropping one widens the selection: a caller asking for a single
+        // expiration would be handed every expiration and told nothing.
+        for (key, bad) in [
+            ("expiration", json!(4_294_967_296i64)),
+            ("expiration", json!("20260620")),
+            ("strike_min", json!("550")),
+            ("strike_max", json!(false)),
+        ] {
+            let why = refused(parse_market_query(&json!({key: bad}), 10));
+            assert!(why.contains(key), "names the field it refused: {why}");
+        }
+        // Absent and explicitly null both mean no filter.
+        let q = parse_market_query(&json!({"expiration": null}), 10).expect("no filter");
+        assert_eq!(q.expiration, None);
+        let q = parse_market_query(&json!({"expiration": 20260620}), 10).expect("a date");
+        assert_eq!(q.expiration, Some(20260620));
+    }
+
+    #[test]
     fn a_gap_arriving_after_a_read_is_not_buried_by_its_commit() {
         // The feed can break between the answer and the commit that settles
         // it. Clearing a mark the caller never saw would lose it entirely.
@@ -3146,7 +3208,7 @@ mod tests {
         let p = reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
         assert!(!p.gap, "nothing had been interrupted when this was read");
         reg.gap();
-        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gap);
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
         let next = reg.prints(&c, 10, 0, 2).expect("nothing to refuse");
         assert!(
             next.gap,
@@ -3191,7 +3253,7 @@ mod tests {
             .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
         reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
-        reg.commit_prints_read(&c, 1, 0, false);
+        reg.commit_prints_read(&c, 1, 0, 0);
 
         reg.gap();
 
@@ -3215,7 +3277,7 @@ mod tests {
         assert!(p.gap, "the interruption is reported");
         let again = reg.prints(&c, 10, 0, 5).expect("nothing to refuse");
         assert!(again.gap, "uncommitted, so it is still owed");
-        reg.commit_prints_read(&c, again.received, again.feed_drops_seen, again.gap);
+        reg.commit_prints_read(&c, again.received, again.feed_drops_seen, again.gaps_seen);
         let settled = reg.prints(&c, 10, 0, 6).expect("nothing to refuse");
         assert!(!settled.gap, "committed, so it is discharged");
     }
@@ -3373,7 +3435,7 @@ mod tests {
             again.new_since_last_read, 3,
             "not consumed by a call that failed"
         );
-        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gap);
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
         let (after, _) = prints(&reg, &c, 10, 3);
         assert_eq!(
             after.new_since_last_read, 0,
