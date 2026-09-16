@@ -1710,9 +1710,12 @@ fn rejection_meaning(code: StreamResponseType) -> &'static str {
 
 /// The contract properties shared by every tool that names one, plus
 /// whatever the tool adds.
-fn contract_schema(extra: Value) -> Value {
+/// `sec_types` is what the tool can actually serve, not what the vendor
+/// has: a type offered here and refused on every call is a call a model
+/// will make, and an answer it will never get.
+fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
     let mut props = json!({
-        "sec_type": {"type": "string", "enum": ["option", "stock", "index"]},
+        "sec_type": {"type": "string", "enum": sec_types},
         "root": {"type": "string", "description": "Ticker or option root, e.g. AAPL."},
         "expiration": {"type": "integer", "description": "YYYYMMDD. Options only."},
         "strike": {"type": "number", "description": "Strike in dollars. Options only."},
@@ -1776,7 +1779,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 tools closes it; tape_stop closes it now. A read that finds \
                 the feed refused the subscription after accepting it says so and releases the \
                 book; reading again re-subscribes.",
-            "inputSchema": contract_schema(json!({
+            "inputSchema": contract_schema(&["option", "stock", "index"], json!({
                 "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "description": "Fixed lookback. Default: since your last read."},
@@ -1792,9 +1795,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 call and returns nothing yet; call again a second or two later. \
                 new_since_last_read counts prints since you last looked at this contract's \
                 trades. Prints are held within a memory budget, and clipped means older ones \
-                were discarded before you asked. \
+                were discarded before you asked. A print is a trade and the quote that stood \
+                before it, and an index has no quote stream, so indices are not on this tool; \
+                tape_read with kind trade carries the index price. \
                 Times are Eastern.",
-            "inputSchema": contract_schema(json!({
+            "inputSchema": contract_schema(&["option", "stock"], json!({
                 "count": {"type": "integer", "description": "Newest prints. Default 20."},
                 "quotes_after": {"type": "boolean", "description": "Include the two quotes after each print. Default false."}
             }))
@@ -1865,7 +1870,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
-                "properties": contract_schema(json!({})).get("properties").cloned().unwrap_or_default(),
+                "properties": contract_schema(&["option", "stock", "index"], json!({}))
+                    .get("properties")
+                    .cloned()
+                    .unwrap_or_default(),
                 "required": ["sec_type"]
             }
         }),
@@ -2235,15 +2243,15 @@ fn parse_market_query(args: &Value, limit: usize) -> Result<MarketQuery, ToolErr
                 .ok_or_else(|| ToolError::InvalidParams(format!("{key} must be {what}"))),
         }
     }
-    let str_of = |k: &str| args.get(k).and_then(|v: &Value| v.as_str());
-    let is_call = match str_of("right") {
+    let text = |v: &Value| v.as_str().map(str::to_string);
+    let is_call = match narrowing(args, "right", "C or P", text)?.as_deref() {
         None => None,
         Some("C") => Some(true),
         Some("P") => Some(false),
         Some(_) => return Err(ToolError::InvalidParams("right must be C or P".into())),
     };
     Ok(MarketQuery {
-        root: str_of("root").map(str::to_string),
+        root: narrowing(args, "root", "a ticker symbol", text)?,
         expiration: narrowing(args, "expiration", "a date as YYYYMMDD", |v| {
             v.as_i64().and_then(|e| i32::try_from(e).ok())
         })?,
@@ -3190,6 +3198,34 @@ mod tests {
     }
 
     #[test]
+    fn a_tool_offers_only_the_security_types_it_can_serve() {
+        // A type offered in the schema and refused on every call is a call
+        // a model will make and an answer it will never get.
+        let types = |tool: &str| -> Vec<String> {
+            tool_definitions()
+                .into_iter()
+                .find(|t| t["name"] == tool)
+                .and_then(|t| {
+                    t["inputSchema"]["properties"]["sec_type"]["enum"]
+                        .as_array()
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|v| v.as_str().map(str::to_string))
+                                .collect()
+                        })
+                })
+                .unwrap_or_default()
+        };
+        // A print is a trade with the quote that stood before it, and an
+        // index has no quote stream at any tier.
+        assert_eq!(types("tape_prints"), ["option", "stock"]);
+        // An index price arrives on the trade subscription, so a read and a
+        // stop both work.
+        assert_eq!(types("tape_read"), ["option", "stock", "index"]);
+        assert_eq!(types("tape_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
     fn a_narrowing_filter_that_cannot_be_read_is_refused_not_dropped() {
         // Dropping one widens the selection: a caller asking for a single
         // expiration would be handed every expiration and told nothing.
@@ -3198,6 +3234,11 @@ mod tests {
             ("expiration", json!("20260620")),
             ("strike_min", json!("550")),
             ("strike_max", json!(false)),
+            // The two that widen the most: a root that is not a string
+            // selects every root, and a right that is not a string selects
+            // both.
+            ("root", json!(123)),
+            ("right", json!(true)),
         ] {
             let why = refused(parse_market_query(&json!({key: bad}), 10));
             assert!(why.contains(key), "names the field it refused: {why}");
