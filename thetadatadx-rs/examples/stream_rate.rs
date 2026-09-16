@@ -27,8 +27,11 @@ fn ms_of_day(data: &StreamData) -> Option<i32> {
     Some(match data {
         StreamData::Quote { ms_of_day, .. }
         | StreamData::Trade { ms_of_day, .. }
-        | StreamData::OpenInterest { ms_of_day, .. }
-        | StreamData::Ohlcvc { ms_of_day, .. } => *ms_of_day,
+        | StreamData::OpenInterest { ms_of_day, .. } => *ms_of_day,
+        // The vendor's bar is stamped at its session boundary, not when it
+        // arrives: a stock feed carries bars marked 04:00:00.000 and
+        // 20:00:00.000 all session, which would stretch the span to the
+        // whole extended day whatever the run actually covered.
         _ => return None,
     })
 }
@@ -184,11 +187,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         }
     }
+    // Trim the partial buckets at each END OF THE RUN, then sort. Sorting
+    // first would drop the largest bucket, which is the one this whole
+    // harness exists to find.
     let mut bursts: Vec<u64> = PER_100MS.lock().unwrap().values().copied().collect();
-    bursts.sort_unstable();
     if bursts.len() > 2 {
         bursts.remove(0);
         bursts.pop();
+        bursts.sort_unstable();
         println!(
             "\npeak 100ms      : {} rows  (= {} msg/s instantaneous)",
             bursts[bursts.len() - 1],
