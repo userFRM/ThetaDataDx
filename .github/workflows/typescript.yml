@@ -123,12 +123,18 @@ jobs:
       # postbuild alias). Any drift means a contributor forgot to
       # commit a regenerated stub after a binding change, so the
       # published types lie about the runtime.
-      - name: Verify index.d.ts is in sync with native build
+      - name: Verify the committed napi output is in sync with the native build
         if: matrix.os == 'ubuntu-latest'
         working-directory: thetadatadx-ts
         run: |
-          if ! git diff --exit-code -- index.d.ts; then
-            echo "::error::thetadatadx-ts/index.d.ts is out of sync with the napi build. Run \`npm run build\` locally and commit the regenerated file." >&2
+          for f in index.d.ts index.js; do
+            if ! git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+              echo "::error::thetadatadx-ts/$f is generated and must be committed." >&2
+              exit 1
+            fi
+          done
+          if ! git diff --exit-code HEAD -- index.d.ts index.js; then
+            echo "::error::thetadatadx-ts/index.d.ts or index.js is out of sync with the napi build. Run \`npm run build\` locally and commit the regenerated files." >&2
             exit 1
           fi
       # H9: run `npm test` on every advertised platform (Linux,
