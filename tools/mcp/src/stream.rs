@@ -817,8 +817,20 @@ fn overlaps(kind: SubscriptionKind) -> bool {
 }
 
 /// What one read saw, copied out from under the lock.
+/// What a read observed and what settling it costs, handed back so the
+/// call can settle only once its answer is going to reach the caller.
+#[derive(Clone)]
+struct Settle {
+    received: u64,
+    feed_drops: u64,
+    gap: bool,
+    /// The predicate this read installs, when it brought one.
+    watch: Option<Vec<Clause>>,
+}
+
 struct Reading {
     first: bool,
+    settle: Settle,
     floor: u64,
     dropped: u64,
     /// Where coverage starts: the oldest row held once the ring has
@@ -1142,11 +1154,16 @@ impl Registry {
         let state = held.contracts.entry(contract.clone()).or_default();
         let (book, first) = state.open(kind, now);
         let previous = book.read_ms;
-        book.read_ms = now;
+        // Using the book is what keeps it alive, and that is true even of a
+        // call that goes on to fail. Everything else this read observes is
+        // settled by `commit_read`, once the answer is going to reach the
+        // caller.
         book.touched_ms = now;
         let new = book.received - book.read_seq;
-        book.read_seq = book.received;
-        let feed_dropped = feed_dropped_since(&mut book.feed_drops_at_read, feed_drops);
+        let received = book.received;
+        let feed_dropped = book
+            .feed_drops_at_read
+            .map_or(0, |at| feed_drops.saturating_sub(at));
         let floor = window.map_or(previous, |w| now.saturating_sub(w));
 
         let mut summary = Summary::default();
@@ -1198,16 +1215,15 @@ impl Registry {
         summary.high = high.map(|(_, d)| d.clone());
         rows.reverse();
 
-        // What the standing predicate kept comes out before a new one goes
-        // in: it matched the line that stood when it arrived, and is
-        // reported under that line.
-        let watched = std::mem::take(&mut book.retained).into();
-        let watched_dropped = std::mem::take(&mut book.retained_dropped);
-        let checked = std::mem::take(&mut book.checked);
-        let matched_by = match watch {
-            Some(w) => std::mem::replace(&mut book.watch, w),
-            None => book.watch.clone(),
-        };
+        // What the standing predicate kept is reported under the line that
+        // was standing when it arrived, and is copied rather than taken: a
+        // call that fails after this point must leave it for the next one.
+        let watched: Vec<StreamData> = book.retained.iter().cloned().collect();
+        let watched_dropped = book.retained_dropped;
+        let checked = book.checked;
+        let matched_by = book.watch.clone();
+        let in_force = watch.clone().unwrap_or_else(|| matched_by.clone());
+        let incoming = watch;
 
         let covered_since_ms = book
             .ring
@@ -1217,7 +1233,10 @@ impl Registry {
             .unwrap_or(book.opened_ms);
         let dropped = book.dropped;
         let newest_ms = book.ring.back().and_then(seen_ms);
-        let watch = book.watch.clone();
+        // Everything the book has to say, read out before the borrow ends.
+        let gap = book.gap_since_read;
+        let held_rows = book.ring.len();
+        let drops_at_read = book.feed_drops_at_read.unwrap_or(0);
         let reading = Reading {
             first,
             floor,
@@ -1227,23 +1246,29 @@ impl Registry {
             clipped: clipped(
                 window,
                 new,
-                book.ring.len(),
+                held_rows,
                 dropped,
                 covered_since_ms,
                 floor,
                 feed_dropped,
-                std::mem::take(&mut book.gap_since_read),
+                gap,
             ),
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
             summary,
             tail: rows,
             ohlcvc: state.ohlcvc.clone(),
-            watch,
+            watch: in_force,
             matched_by,
             watched,
             watched_dropped,
             checked,
+            settle: Settle {
+                received,
+                feed_drops: feed_drops.max(drops_at_read),
+                gap,
+                watch: incoming,
+            },
         };
         Ok(reading)
     }
@@ -1312,6 +1337,32 @@ impl Registry {
     /// the one that answer saw, not the one standing now: the feed can
     /// break between the read and this call, and an interruption the
     /// caller was never shown is still owed to the next read.
+    /// Settle a book read: advance its cursors, install the predicate it
+    /// brought, and discharge the interruption it disclosed. Runs only once
+    /// the answer is going to reach the caller, so a call that fails on the
+    /// feed leaves every one of them for the next read.
+    fn commit_read(&self, contract: &Contract, kind: SubscriptionKind, settle: Settle, now: u64) {
+        let mut held = self.lock();
+        let Some(state) = held.contracts.get_mut(contract) else {
+            return;
+        };
+        let Some((_, book)) = state.books.iter_mut().find(|(k, _)| *k == kind) else {
+            return;
+        };
+        book.read_ms = now;
+        book.read_seq = settle.received;
+        book.feed_drops_at_read = Some(settle.feed_drops);
+        if settle.gap {
+            book.gap_since_read = false;
+        }
+        book.retained.clear();
+        book.retained_dropped = 0;
+        book.checked = 0;
+        if let Some(w) = settle.watch {
+            book.watch = w;
+        }
+    }
+
     fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64, gaps: u64) {
         if let Some(state) = self.lock().contracts.get_mut(contract) {
             state.prints_read = received;
@@ -2551,6 +2602,10 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             } else {
                 reconcile(client, reg, &[sub], now)?;
             }
+            // The answer is going to reach the caller, so the cursors move,
+            // the predicate goes in and the matches are released. A call
+            // that failed above left all of it for the next read.
+            reg.commit_read(&contract, kind, r.settle, now);
             let newest = r.tail.last();
             // One date for the whole tail while they agree; otherwise it
             // travels on each row, because restamping one is not an option.
@@ -2819,11 +2874,30 @@ mod tests {
         tail: usize,
         now: u64,
     ) -> (Reading, Subs) {
+        // A call that is answered settles its cursors, as the tool does.
         let expired = reg.expire(now);
-        let reading = reg
-            .read(c, kind, window, tail, None, 0, now)
-            .expect("nothing to refuse");
+        let reading =
+            read_now(reg, c, kind, window, tail, None, 0, now).expect("nothing to refuse");
+        reg.commit_read(c, kind, reading.settle.clone(), now);
         (reading, expired)
+    }
+
+    /// Read the way `execute` does: observe, then settle. A bare
+    /// `Registry::read` leaves its cursors where they were, because the
+    /// answer has not reached anyone yet.
+    fn read_now(
+        reg: &Registry,
+        c: &Contract,
+        kind: SubscriptionKind,
+        window: Option<u64>,
+        tail: usize,
+        watch: Option<Vec<Clause>>,
+        feed_drops: u64,
+        now: u64,
+    ) -> Result<Reading, ToolError> {
+        let r = reg.read(c, kind, window, tail, watch, feed_drops, now)?;
+        reg.commit_read(c, kind, r.settle.clone(), now);
+        Ok(r)
     }
 
     fn prints(reg: &Registry, c: &Contract, count: usize, now: u64) -> (Prints, Subs) {
@@ -3106,7 +3180,8 @@ mod tests {
 
         let expired = reg.expire(PAST_TTL);
         assert_eq!(expired, vec![aapl.trade()], "the idle stock book is freed");
-        let why = refused(reg.read(
+        let why = refused(read_now(
+            &reg,
             &option("550", "C"),
             SubscriptionKind::Quote,
             None,
@@ -3186,13 +3261,11 @@ mod tests {
         let c = stock("AAPL");
         let call = option("550", "C");
         // The SDK's counter is cumulative; a first read starts from it.
-        let r = reg
-            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 5, 0)
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 5, 0)
             .expect("nothing to refuse");
         assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
         reg.ingest(trade(&c, 1.0, MS));
-        let r = reg
-            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 6, 1)
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 6, 1)
             .expect("nothing to refuse");
         assert_eq!(
             r.feed_dropped_since_last_read, 1,
@@ -3202,8 +3275,7 @@ mod tests {
             r.clipped,
             "it may have been this book's, so the window is not whole"
         );
-        let r = reg
-            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 6, 2)
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 6, 2)
             .expect("nothing to refuse");
         assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
 
@@ -3262,7 +3334,7 @@ mod tests {
         // was in flight. Settling the first must not discharge the second.
         let reg = Registry::default();
         let c = stock("AAPL");
-        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
             .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
         reg.gap();
@@ -3285,13 +3357,21 @@ mod tests {
         // the read would report a window shorter than what it returned.
         let reg = Registry::default();
         let c = stock("AAPL");
-        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
             .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, MS));
         reg.prints(&c, 10, 0, 2 * MS).expect("nothing to refuse");
-        let r = reg
-            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 3 * MS)
-            .expect("nothing to refuse");
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3 * MS,
+        )
+        .expect("nothing to refuse");
         assert_eq!(r.new_since_last_read, 1, "the trade is new to this read");
         assert_eq!(
             r.floor, 0,
@@ -3312,6 +3392,84 @@ mod tests {
             "one session, one date"
         );
         assert_eq!(one_date(std::iter::empty()), None, "nothing to name");
+    }
+
+    #[test]
+    fn a_read_that_is_never_answered_leaves_everything_for_the_next_one() {
+        // The feed steps run after the registry has produced the answer. If
+        // one of them fails the caller gets an error and no rows, so nothing
+        // the read observed may have been spent.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let watch = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(0.0),
+        }];
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(watch.clone()),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        reg.gap();
+
+        // An uncommitted read: the answer never reached anyone.
+        let lost = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 7, 2 * MS)
+            .expect("nothing to refuse");
+        assert_eq!(lost.new_since_last_read, 1);
+        assert_eq!(lost.checked, 1);
+        assert_eq!(lost.watched.len(), 1);
+        assert_eq!(lost.feed_dropped_since_last_read, 7);
+
+        // Every one of them is still owed.
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            7,
+            3 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(next.new_since_last_read, 1, "the row is still new");
+        assert_eq!(next.checked, 1, "the population is still owed");
+        assert_eq!(next.watched.len(), 1, "the match was not consumed");
+        assert_eq!(next.feed_dropped_since_last_read, 7, "nor the discards");
+        assert!(next.clipped, "nor the interruption");
+        assert_eq!(next.watch, watch, "and the predicate still stands");
+
+        // Once answered, they are settled.
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            7,
+            4 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            (
+                after.new_since_last_read,
+                after.checked,
+                after.watched.len(),
+                after.feed_dropped_since_last_read,
+                after.clipped
+            ),
+            (0, 0, 0, 0, false)
+        );
     }
 
     #[test]
@@ -3373,7 +3531,7 @@ mod tests {
         // it. Clearing a mark the caller never saw would lose it entirely.
         let reg = Registry::default();
         let c = stock("AAPL");
-        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
             .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
         let p = reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
@@ -3420,25 +3578,50 @@ mod tests {
         // window is not whole and must not read as if it were.
         let reg = Registry::default();
         let c = stock("AAPL");
-        reg.read(&c, SubscriptionKind::Trade, Some(60_000), TAIL, None, 0, 0)
-            .expect("nothing to refuse");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            None,
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
         reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
         reg.commit_prints_read(&c, 1, 0, 0);
 
         reg.gap();
 
-        let r = reg
-            .read(&c, SubscriptionKind::Trade, Some(60_000), TAIL, None, 0, 2)
-            .expect("nothing to refuse");
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            None,
+            0,
+            2,
+        )
+        .expect("nothing to refuse");
         assert_eq!(
             (r.feed_dropped_since_last_read, r.clipped),
             (0, true),
             "the feed discarded nothing; the rows are missing because they never came"
         );
-        let after = reg
-            .read(&c, SubscriptionKind::Trade, Some(60_000), TAIL, None, 0, 3)
-            .expect("nothing to refuse");
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            None,
+            0,
+            3,
+        )
+        .expect("nothing to refuse");
         assert!(!after.clipped, "the gap is disclosed once, not for ever");
 
         // The print list loses rows the same way, and a read that never
@@ -3462,15 +3645,23 @@ mod tests {
         let reg = Registry::default();
         let c = stock("AAPL");
         let call = option("550", "C");
-        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 5_000, 0)
-            .expect("nothing to refuse");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            5_000,
+            0,
+        )
+        .expect("nothing to refuse");
         reg.prints(&c, 10, 5_000, 1).expect("nothing to refuse");
         reg.market(SecType::Option, query(1), 5_000, 2)
             .expect("nothing to refuse");
 
         reg.restarted();
-        let r = reg
-            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 300, 3)
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 300, 3)
             .expect("nothing to refuse");
         assert_eq!(
             (r.feed_dropped_since_last_read, r.clipped),
@@ -3496,7 +3687,8 @@ mod tests {
         let c = stock("AAPL");
         let big = clauses(json!([{"field": "size", "op": ">", "value": 100}]));
         let huge = clauses(json!([{"field": "size", "op": ">", "value": 1000}]));
-        reg.read(
+        read_now(
+            &reg,
             &c,
             SubscriptionKind::Trade,
             None,
@@ -3508,17 +3700,17 @@ mod tests {
         .expect("nothing to refuse");
         reg.ingest(trade_sized(&c, 1.0, 150, 0, MS));
 
-        let r = reg
-            .read(
-                &c,
-                SubscriptionKind::Trade,
-                None,
-                TAIL,
-                Some(huge.clone()),
-                0,
-                1,
-            )
-            .expect("nothing to refuse");
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(huge.clone()),
+            0,
+            1,
+        )
+        .expect("nothing to refuse");
         assert_eq!(
             r.watched
                 .iter()
@@ -3531,8 +3723,7 @@ mod tests {
             r.matched_by, big,
             "but the match is reported under the predicate it matched"
         );
-        let r = reg
-            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 2)
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 2)
             .expect("nothing to refuse");
         assert_eq!(r.matched_by, huge, "unchanged, the two are the same");
     }
@@ -4304,17 +4495,17 @@ mod tests {
         let reg = Registry::default();
         let c = stock("AAPL");
         let big = clauses(json!([{"field": "size", "op": ">", "value": 100}]));
-        let r = reg
-            .read(
-                &c,
-                SubscriptionKind::Trade,
-                None,
-                TAIL,
-                Some(big.clone()),
-                0,
-                0,
-            )
-            .expect("nothing to refuse");
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(big.clone()),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
         assert_eq!(r.watch, big, "the predicate is in force from this read");
         assert!(r.watched.is_empty() && r.checked == 0);
 
@@ -4367,17 +4558,17 @@ mod tests {
                 (RING as u64 + 10 + i) * MS,
             ));
         }
-        let r = reg
-            .read(
-                &c,
-                SubscriptionKind::Trade,
-                None,
-                TAIL,
-                Some(Vec::new()),
-                0,
-                RING as u64 + 100,
-            )
-            .expect("nothing to refuse");
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(Vec::new()),
+            0,
+            RING as u64 + 100,
+        )
+        .expect("nothing to refuse");
         assert_eq!(r.watched.len(), WATCHED);
         assert_eq!(r.watched_dropped, 3);
         assert_eq!(
@@ -4621,7 +4812,16 @@ mod tests {
         reg.forget(&c.trade());
         reg.market(SecType::Option, query(1), 0, 3)
             .expect("nothing to refuse");
-        let why = refused(reg.read(&c, SubscriptionKind::Quote, None, TAIL, None, 0, 4));
+        let why = refused(read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Quote,
+            None,
+            TAIL,
+            None,
+            0,
+            4,
+        ));
         assert!(why.contains("tape_market"), "names the other side: {why}");
         assert!(
             reg.prints(&c, 1, 0, 5).is_err(),
