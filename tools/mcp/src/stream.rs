@@ -901,26 +901,32 @@ fn span(acc: Option<(f64, f64)>, v: f64) -> Option<(f64, f64)> {
 /// one, coverage starting after the floor — or on it while rows were
 /// discarded: rows discarded ahead of the oldest held may share its stamp,
 /// so a floor the oldest held row sits on is not proven covered.
-fn clipped(
-    window: Option<u64>,
+/// What a book knows about its own completeness at the moment of a read.
+struct Coverage {
+    /// Rows the ring no longer holds but the cursor still counts.
     new: u64,
     held: usize,
     dropped: u64,
     covered_since_ms: u64,
-    floor: u64,
+    /// Events the SDK discarded since this book last settled.
     feed_dropped: u64,
+    /// The feed was interrupted since this book last settled.
     gap: bool,
+    /// When this book last lost rows, or zero if it never has.
     incomplete_at_ms: u64,
-) -> bool {
-    gap || feed_dropped > 0
+}
+
+fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
+    c.gap
+        || c.feed_dropped > 0
         || match window {
-            None => new > held as u64,
+            None => c.new > c.held as u64,
             // A named window is asked about again and must answer the same
             // way: it reaches back over a loss, or it does not.
             Some(_) => {
-                covered_since_ms > floor
-                    || (dropped > 0 && covered_since_ms == floor)
-                    || (incomplete_at_ms > 0 && incomplete_at_ms >= floor)
+                c.covered_since_ms > floor
+                    || (c.dropped > 0 && c.covered_since_ms == floor)
+                    || (c.incomplete_at_ms > 0 && c.incomplete_at_ms >= floor)
             }
         }
 }
@@ -1267,14 +1273,16 @@ impl Registry {
             newest_ms,
             clipped: clipped(
                 window,
-                new,
-                held_rows,
-                dropped,
-                covered_since_ms,
                 floor,
-                feed_dropped,
-                gap,
-                incomplete_at,
+                &Coverage {
+                    new,
+                    held: held_rows,
+                    dropped,
+                    covered_since_ms,
+                    feed_dropped,
+                    gap,
+                    incomplete_at_ms: incomplete_at,
+                },
             ),
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
