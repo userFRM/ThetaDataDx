@@ -12,7 +12,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use thetadatadx::streaming::{SecTypeExt, StreamData, StreamEvent};
-use thetadatadx::{Client, Credentials, DirectConfig, SecType};
+use thetadatadx::{Client, Credentials, DirectConfig, SecType, WaitMode};
 
 static COUNT: AtomicU64 = AtomicU64::new(0);
 static PER_SEC: Mutex<BTreeMap<u64, u64>> = Mutex::new(BTreeMap::new());
@@ -79,11 +79,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let interval: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(5).max(1);
 
     let creds = Credentials::from_file(&creds_path)?;
-    let config = if prod {
+    let mut config = if prod {
         DirectConfig::production()
     } else {
         DirectConfig::dev()
     };
+    // The consumer defaults to a spin wait, which holds a whole core for as
+    // long as the stream is connected. Nothing here needs that: this counts
+    // messages, it does not chase microseconds. Backoff spins while they
+    // arrive and sleeps when they stop, so a busy tape is measured at full
+    // speed and a quiet one costs nothing. `dropped` is printed on every
+    // line and is the check: if the consumer ever fell behind, it would
+    // show there rather than quietly flattening the numbers.
+    config.streaming.wait_mode = WaitMode::Backoff;
     let client = Client::connect(&creds, config).await?;
 
     client.stream().start_streaming(|event: &StreamEvent| {
