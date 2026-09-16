@@ -399,9 +399,13 @@ fn parse_clauses(v: &Value, fields: &[&str]) -> Result<Vec<Clause>, ToolError> {
                 .unwrap_or_default();
             let value = item.get("value");
             if op == "inside" || op == "outside" {
+                // Every entry must be a number. Dropping the ones that are
+                // not would turn [90, "x", 110] into a valid [90, 110] and
+                // install a predicate the caller never wrote.
                 let bounds: Vec<f64> = value
                     .and_then(|v: &Value| v.as_array())
-                    .map(|a| a.iter().filter_map(|v| v.as_f64()).collect())
+                    .map(|a| a.iter().map(|v| v.as_f64()).collect::<Option<Vec<_>>>())
+                    .unwrap_or_default()
                     .unwrap_or_default();
                 let [lo, hi] = bounds[..] else {
                     return Err(ToolError::InvalidParams(format!(
@@ -1691,7 +1695,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 rows, and clipped says so. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
-                are Eastern. A book unread for 15 minutes closes on its own. A read that finds \
+                are Eastern. A book goes 15 minutes unread and the next call to any of these \
+                tools closes it; tape_stop closes it now. A read that finds \
                 the feed refused the subscription after accepting it says so and releases the \
                 book; reading again re-subscribes.",
             "inputSchema": contract_schema(json!({
@@ -1739,8 +1744,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 the subscription and returns nothing yet; call again a second or two later. A \
                 market book is not held alongside per-contract trade or quote books on the same \
                 security type, because the feed would deliver those contracts twice; tape_stop \
-                one side. Unread for 15 minutes it closes; tape_stop with sec_type alone closes \
-                it. Times are Eastern.",
+                one side. Once 15 minutes unread, the next call to any of these tools closes \
+                it; tape_stop with sec_type alone closes it now. Times are Eastern.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -1777,7 +1782,8 @@ pub fn tool_definitions() -> Vec<Value> {
             "description": "Close every book held for a contract and release its subscriptions; \
                 with sec_type alone, close the whole-market book for that security type. A \
                 subscription the feed did not release stays held, and the next sweep or stop \
-                tries again. Books also close on their own after 15 minutes without a read.",
+                tries again. A book 15 minutes unread is closed by the next call to any of these \
+                tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
                 "properties": contract_schema(json!({})).get("properties").cloned().unwrap_or_default(),
@@ -1962,7 +1968,7 @@ fn feed_state(client: &Client, reg: &Registry) -> String {
 /// started, and a new session knows nothing of the books this process still
 /// holds, so they are reopened from the registry rather than from what the
 /// old session tracked.
-fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<(), ToolError> {
+fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, ToolError> {
     let stream = client.stream();
     let exhausted = reg.reconnects_exhausted.swap(false, Ordering::Relaxed);
     match stream.connection_status() {
@@ -1970,7 +1976,7 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<(), ToolE
         // A dead session still occupies the slot until it is stopped.
         ConnectionStatus::Disconnected => stream.stop_streaming(),
         _ if exhausted => stream.stop_streaming(),
-        _ => return Ok(()),
+        _ => return Ok(stream.dropped_event_count()),
     }
     // A session that died or was never started delivered nothing since the
     // books last saw the feed; the correlation across that interval closes,
@@ -1998,7 +2004,7 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<(), ToolE
         .map_err(|e| stream_error("could not start streaming", e))?;
     let (per_contract, full) = reg.subscriptions();
     match stream.restore_subscriptions(&per_contract, &full) {
-        Ok(()) => Ok(()),
+        Ok(()) => Ok(stream.dropped_event_count()),
         // The session is up and reads as Connected from here on, so nothing
         // later would notice a book the restore left behind. Release those
         // now and say which: the next read of each opens it afresh.
@@ -2279,10 +2285,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     // Before anything else: what the sweep frees is closed here, whatever
     // the call goes on to do or refuse.
     close_expired(client, reg, reg.expire(now), now);
-    let feed_drops = client.stream().dropped_event_count();
 
     if name == "tape_list" {
         let rows = reg.list();
+        // Cumulative and display-only, so it needs no session of its own.
+        let feed_drops = client.stream().dropped_event_count();
         // A listing is diagnostic, so a feed that cannot say what it carries
         // leaves the on_feed fields null rather than failing the call.
         let live = on_feed(client).ok();
@@ -2331,7 +2338,10 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             },
         )?;
         let q = parse_market_query(args, tail_rows(num_of("limit", 20)))?;
-        ensure_streaming(client, reg)?;
+        // Sampled from the session this call guarantees, never before it:
+        // a restart resets the SDK's counter, and a count taken ahead of one
+        // belongs to the session that just died.
+        let feed_drops = ensure_streaming(client, reg)?;
         let m = reg.market(sec, q.clone(), feed_drops, now)?;
         let sub = sec.full_trades();
         if m.first {
@@ -2387,7 +2397,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 .get("watch")
                 .map(|v| parse_clauses(v, &FIELDS))
                 .transpose()?;
-            ensure_streaming(client, reg)?;
+            let feed_drops = ensure_streaming(client, reg)?;
             let r = reg.read(
                 &contract,
                 kind,
@@ -2444,7 +2454,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 .and_then(|v: &Value| v.as_bool())
                 .unwrap_or(false);
             let count = num_of("count", 20);
-            ensure_streaming(client, reg)?;
+            let feed_drops = ensure_streaming(client, reg)?;
             let p = reg.prints(&contract, count, feed_drops, now)?;
             let (opened, kept): (Subs, Subs) = [SubscriptionKind::Trade, SubscriptionKind::Quote]
                 .into_iter()
@@ -3117,6 +3127,32 @@ mod tests {
                 .limit,
             7
         );
+    }
+
+    #[test]
+    fn a_range_with_a_non_numeric_bound_is_refused_not_repaired() {
+        // Dropping the bad entry would leave [90, 110]: a valid predicate the
+        // caller never asked for, installed silently over the one they did.
+        for bad in [
+            json!([90, "ignored", 110]),
+            json!([90, null, 110]),
+            json!(["90", "110"]),
+        ] {
+            let why = refused(parse_clauses(
+                &json!([{"field": "price", "op": "inside", "value": bad}]),
+                &FIELDS,
+            ));
+            assert!(
+                why.contains("[low, high]"),
+                "refused and says the shape: {why}"
+            );
+        }
+        // The well-formed pair still parses.
+        assert!(parse_clauses(
+            &json!([{"field": "price", "op": "inside", "value": [90, 110]}]),
+            &FIELDS,
+        )
+        .is_ok());
     }
 
     #[test]

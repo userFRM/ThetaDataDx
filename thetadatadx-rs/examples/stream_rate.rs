@@ -47,8 +47,9 @@ fn now_s() -> u64 {
         .as_secs()
 }
 
-/// UTC wall clock, so a long run's log lines locate themselves against the
-/// session (13:30 UTC open).
+/// UTC wall clock, so a long run's log lines locate themselves in time. UTC
+/// and not a session offset: which venue is trading, and whether it keeps a
+/// session at all, is not something this example should assume.
 fn wall_clock() -> String {
     let s = now_s() % 86_400;
     format!("{:02}:{:02}:{:02}", s / 3600, (s / 60) % 60, s % 60)
