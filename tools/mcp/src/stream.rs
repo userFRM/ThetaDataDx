@@ -736,6 +736,28 @@ struct Selection {
 }
 
 impl Selection {
+    /// Take on what another selection caught while this one was set aside,
+    /// so a read that failed loses nothing and double-counts nothing. The
+    /// kept rows are whatever the two hold between them, cut to the limit
+    /// the restored selection was installed with.
+    fn absorb(&mut self, other: Self) {
+        // `offer` counts what it is shown, and these rows were counted when
+        // they first arrived. Re-offering them is how they find their place
+        // in the ranking; the counters are restored afterwards so nothing
+        // is counted twice.
+        let (examined, matched, unranked) = (
+            self.examined + other.examined,
+            self.matched + other.matched,
+            self.unranked + other.unranked,
+        );
+        for print in other.kept {
+            self.offer(&print.trade, print.quote_before);
+        }
+        self.examined = examined;
+        self.matched = matched;
+        self.unranked = unranked;
+    }
+
     fn new(query: MarketQuery) -> Self {
         Self {
             query,
@@ -967,17 +989,6 @@ fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
     }
 }
 
-/// Events the feed discarded since a book's last read, given the SDK's
-/// cumulative count now. A first read sees none: what was lost before the
-/// book existed was never its to report. The count belongs to one session
-/// and starts again with a new one, so [`Registry::restarted`] resets the
-/// cursor when this server replaces the session.
-fn feed_dropped_since(at_read: &mut Option<u64>, now: u64) -> u64 {
-    let since = at_read.map_or(0, |at| now.saturating_sub(at));
-    *at_read = Some(now);
-    since
-}
-
 struct Prints {
     opened: Vec<SubscriptionKind>,
     rows: Vec<Print>,
@@ -1050,8 +1061,20 @@ impl MarketQuery {
     }
 }
 
+/// What settling a market read costs, so a call that fails on the feed
+/// leaves the selection and its counts for the next one.
+struct SettleMarket {
+    received: u64,
+    feed_drops: u64,
+    feed_dropped: u64,
+    gap: bool,
+    /// The selection this read installs, restored if it never lands.
+    outgoing: Option<Selection>,
+}
+
 struct MarketReading {
     first: bool,
+    settle: SettleMarket,
     previous_ms: u64,
     received: u64,
     newest_ms: Option<u64>,
@@ -1469,6 +1492,40 @@ impl Registry {
         }
     }
 
+    /// Settle a whole-market read: advance its cursors and discharge the
+    /// interruption it disclosed. The replacement selection was installed
+    /// as the answer was built, since the dispatcher must keep selecting
+    /// against something; what this settles is everything else.
+    fn commit_market(&self, sec: SecType, settle: &SettleMarket, now: u64) {
+        let mut held = self.lock();
+        let Some((_, market)) = held.markets.iter_mut().find(|(s, _)| *s == sec) else {
+            return;
+        };
+        market.read_ms = now;
+        market.read_seq = settle.received;
+        market.feed_drops_at_read = Some(settle.feed_drops);
+        if settle.gap || settle.feed_dropped > 0 {
+            market.gap_since_read = false;
+        }
+    }
+
+    /// Put back the selection a failed read took, so its rows and counts
+    /// reach the next caller instead of being lost with the error.
+    fn restore_market(&self, sec: SecType, outgoing: Option<Selection>) {
+        let Some(outgoing) = outgoing else {
+            return;
+        };
+        let mut held = self.lock();
+        if let Some((_, market)) = held.markets.iter_mut().find(|(s, _)| *s == sec) {
+            // Whatever the replacement caught while the call was failing
+            // belongs to the same caller, so it is folded back in.
+            let replacement = market.selection.replace(outgoing);
+            if let (Some(kept), Some(back)) = (replacement, market.selection.as_mut()) {
+                back.absorb(kept);
+            }
+        }
+    }
+
     fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64, gaps: u64) {
         if let Some(state) = self.lock().contracts.get_mut(contract) {
             state.prints_read = received;
@@ -1545,37 +1602,50 @@ impl Registry {
         });
         let market = &mut held.markets[i].1;
         let previous = market.read_ms;
-        market.read_ms = now;
+        // Observed here, settled by `commit_market` once the answer is
+        // going to reach the caller. A call that fails on the feed after
+        // this point leaves the selection and its counts for the next read.
         let new = market.received - market.read_seq;
-        market.read_seq = market.received;
-        let feed_dropped = feed_dropped_since(&mut market.feed_drops_at_read, feed_drops);
+        let received = market.received;
+        let feed_dropped = market
+            .feed_drops_at_read
+            .map_or(0, |at| feed_drops.saturating_sub(at));
 
         // What stood until now comes out, reported under its own query
         // when this read changed it; the new selection starts empty.
         let outgoing = market.selection.replace(Selection::new(q.clone()));
-        let (examined, matched, unranked, rows, selected_by) = match outgoing {
+        let (examined, matched, unranked, rows, selected_by, taken) = match outgoing {
             Some(s) => {
                 // Disclosed by the selection that kept the rows: whether it
                 // ranked decides whether it could have set anything aside.
                 let unranked = s.query.rank_by.as_ref().map(|_| s.unranked);
+                let query = s.query.clone();
                 (
                     s.examined,
                     s.matched,
                     unranked,
-                    s.kept,
-                    (s.query != q).then_some(s.query),
+                    s.kept.clone(),
+                    (query != q).then_some(query),
+                    Some(s),
                 )
             }
-            None => (0, 0, None, Vec::new(), None),
+            None => (0, 0, None, Vec::new(), None, None),
         };
         let reading = MarketReading {
             first,
+            settle: SettleMarket {
+                received,
+                feed_drops: feed_drops.max(market.feed_drops_at_read.unwrap_or(0)),
+                feed_dropped,
+                gap: market.gap_since_read,
+                outgoing: taken,
+            },
             previous_ms: previous,
             received: market.received,
             newest_ms: market.newest_ms,
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
-            gap: std::mem::take(&mut market.gap_since_read),
+            gap: market.gap_since_read,
             examined,
             matched,
             unranked,
@@ -2767,13 +2837,20 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         // a restart resets the SDK's counter, and a count taken ahead of one
         // belongs to the session that just died.
         let feed_drops = ensure_streaming(client, reg)?;
-        let m = reg.market(sec, q.clone(), feed_drops, now)?;
+        let mut m = reg.market(sec, q.clone(), feed_drops, now)?;
         let sub = sec.full_trades();
-        if m.first {
-            open_on_feed(client, reg, &[sub])?;
+        let landed = if m.first {
+            open_on_feed(client, reg, &[sub])
         } else {
-            reconcile(client, reg, &[sub], now)?;
+            reconcile(client, reg, &[sub], now)
+        };
+        if let Err(e) = landed {
+            // The caller receives nothing, so the selection this read took
+            // goes back and its rows reach whoever asks next.
+            reg.restore_market(sec, m.settle.outgoing.take());
+            return Err(e);
         }
+        reg.commit_market(sec, &m.settle, now);
         // One date for the whole selection while the prints agree;
         // otherwise it travels on each print.
         let market_date = one_date(m.rows.iter().map(|p| &p.trade));
@@ -3175,6 +3252,19 @@ mod tests {
         Ok(r)
     }
 
+    /// Read a market the way `execute` does: observe, then settle.
+    fn market_now(
+        reg: &Registry,
+        sec: SecType,
+        q: MarketQuery,
+        feed_drops: u64,
+        now: u64,
+    ) -> Result<MarketReading, ToolError> {
+        let m = reg.market(sec, q, feed_drops, now)?;
+        reg.commit_market(sec, &m.settle, now);
+        Ok(m)
+    }
+
     fn prints(reg: &Registry, c: &Contract, count: usize, now: u64) -> (Prints, Subs) {
         // A call that is answered commits its cursor, as the tool does.
         let expired = reg.expire(now);
@@ -3288,16 +3378,11 @@ mod tests {
         assert_eq!(prints(&reg, &c, 10, 300).0.new_since_last_read, 1);
         assert_eq!(prints(&reg, &c, 10, 301).0.new_since_last_read, 0);
         let call = option("550", "C");
-        reg.market(SecType::Option, query(10), 0, 400)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(10), 0, 400).expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 400 * MS));
-        let m = reg
-            .market(SecType::Option, query(10), 0, 400)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(10), 0, 400).expect("nothing to refuse");
         assert_eq!((m.new_since_last_read, m.examined), (1, 1));
-        let m = reg
-            .market(SecType::Option, query(10), 0, 401)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(10), 0, 401).expect("nothing to refuse");
         assert_eq!((m.new_since_last_read, m.examined), (0, 0));
     }
 
@@ -3417,8 +3502,7 @@ mod tests {
         let c = stock("AAPL");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        reg.market(SecType::Option, query(1), 0, 0)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(1), 0, 0).expect("nothing to refuse");
 
         let released = release_unrestored(
             &reg,
@@ -3450,8 +3534,7 @@ mod tests {
         let reg = Registry::default();
         let aapl = stock("AAPL");
         read(&reg, &aapl, SubscriptionKind::Trade, None, TAIL, 0);
-        reg.market(SecType::Option, query(1), 0, PAST_TTL - 1)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(1), 0, PAST_TTL - 1).expect("nothing to refuse");
 
         let expired = reg.expire(PAST_TTL);
         assert_eq!(expired, vec![aapl.trade()], "the idle stock book is freed");
@@ -3485,7 +3568,7 @@ mod tests {
         // The close failed, so the book is put back before any conflict is
         // judged; the feed still delivers that contract.
         reg.reinstate(&c.trade(), PAST_TTL);
-        let why = refused(reg.market(SecType::Option, query(1), 0, PAST_TTL));
+        let why = refused(market_now(&reg, SecType::Option, query(1), 0, PAST_TTL));
         assert!(why.contains("1 OPTION contract"), "{why}");
     }
 
@@ -3495,8 +3578,7 @@ mod tests {
         let c = stock("AAPL");
         let call = option("550", "C");
         prints(&reg, &c, 10, 0);
-        reg.market(SecType::Option, query(10), 0, 0)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(10), 0, 0).expect("nothing to refuse");
         reg.ingest(quote(&c, 1.00, 1.10));
         reg.ingest(trade(&c, 1.05, 0));
         reg.ingest(quote(&call, 3.00, 3.10));
@@ -3521,9 +3603,7 @@ mod tests {
             Some(2.01),
             "a print after the gap correlates with what came after it"
         );
-        let m = reg
-            .market(SecType::Option, query(10), 0, 3)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(10), 0, 3).expect("nothing to refuse");
         assert!(
             m.rows[0].quote_before.is_none(),
             "the market's waiting quote is from before the gap and is not this trade's"
@@ -3569,12 +3649,9 @@ mod tests {
         reg.commit_prints_read(&c, again.received, again.feed_drops_seen, again.gaps_seen);
         let settled = reg.prints(&c, 10, 9, 6).expect("nothing to refuse");
         assert_eq!(settled.feed_dropped_since_last_read, 0);
-        reg.market(SecType::Option, query(1), 9, 5)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(1), 9, 5).expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 5 * MS));
-        let m = reg
-            .market(SecType::Option, query(1), 10, 6)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(1), 10, 6).expect("nothing to refuse");
         assert_eq!(m.feed_dropped_since_last_read, 1);
     }
 
@@ -3585,21 +3662,16 @@ mod tests {
         // SDK are not in it.
         let reg = Registry::default();
         let call = option("550000", "C");
-        reg.market(SecType::Option, query(5), 0, 0)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(5), 0, 0).expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 0));
         reg.gap(1);
-        let m = reg
-            .market(SecType::Option, query(5), 0, 1)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(5), 0, 1).expect("nothing to refuse");
         assert_eq!(
             (m.feed_dropped_since_last_read, m.gap),
             (0, true),
             "the feed discarded nothing; the prints simply never came"
         );
-        let after = reg
-            .market(SecType::Option, query(5), 0, 2)
-            .expect("nothing to refuse");
+        let after = market_now(&reg, SecType::Option, query(5), 0, 2).expect("nothing to refuse");
         assert!(!after.gap, "disclosed once, not for ever");
     }
 
@@ -3850,6 +3922,46 @@ mod tests {
             !r.clipped,
             "this second of tape is nowhere near the interruption"
         );
+    }
+
+    #[test]
+    fn a_market_read_that_is_never_answered_gives_its_rows_back() {
+        // The feed steps run after the selection has been taken. A call
+        // that fails there returns no prints, so the prints it took must
+        // reach whoever asks next, and the population they were chosen
+        // from must survive with them.
+        let reg = Registry::default();
+        let call = option("550000", "C");
+        // A selection that keeps one row of however many it sees, so the
+        // rows kept and the rows counted are different numbers.
+        market_now(&reg, SecType::Option, query(1), 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&call, 1.0, MS));
+        reg.ingest(trade(&call, 2.0, 2 * MS));
+
+        // Taken, then the call fails: nothing reached the caller.
+        let lost = reg
+            .market(SecType::Option, query(1), 0, 3)
+            .expect("nothing to refuse");
+        assert_eq!((lost.rows.len(), lost.examined), (1, 2));
+        // Three more arrive against the replacement while the call fails.
+        for (i, price) in [3.0, 4.0, 5.0].into_iter().enumerate() {
+            reg.ingest(trade(&call, price, (4 + i as u64) * MS));
+        }
+        reg.restore_market(SecType::Option, lost.settle.outgoing);
+
+        let next = market_now(&reg, SecType::Option, query(1), 0, 9).expect("nothing to refuse");
+        assert_eq!(
+            next.rows.len(),
+            1,
+            "one row, as the selection was asked for"
+        );
+        assert_eq!(
+            next.examined, 5,
+            "every print since the last answered read, counted once each"
+        );
+        let settled =
+            market_now(&reg, SecType::Option, query(1), 0, 10).expect("nothing to refuse");
+        assert_eq!((settled.rows.len(), settled.examined), (0, 0));
     }
 
     #[test]
@@ -4115,14 +4227,11 @@ mod tests {
         let call = option("550000", "C");
         let mut q = query(1);
         q.rank_by = Some("price".into());
-        reg.market(SecType::Option, q.clone(), 0, 0)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, q.clone(), 0, 0).expect("nothing to refuse");
         reg.ingest(trade(&call, 10.0, 0));
         reg.ingest(trade(&call, f64::NAN, 1));
         reg.ingest(trade(&call, 5.0, 2));
-        let m = reg
-            .market(SecType::Option, q, 0, 3)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, q, 0, 3).expect("nothing to refuse");
         assert_eq!(m.unranked, Some(1), "the unorderable one is set aside");
         let kept: Vec<f64> = m
             .rows
@@ -4255,8 +4364,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         reg.prints(&c, 10, 5_000, 1).expect("nothing to refuse");
-        reg.market(SecType::Option, query(1), 5_000, 2)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(1), 5_000, 2).expect("nothing to refuse");
 
         reg.restarted();
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 300, 3)
@@ -4273,9 +4381,7 @@ mod tests {
             300
         );
         reg.ingest(trade(&call, 1.0, 4 * MS));
-        let m = reg
-            .market(SecType::Option, query(1), 300, 5)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(1), 300, 5).expect("nothing to refuse");
         assert_eq!(m.feed_dropped_since_last_read, 300);
     }
 
@@ -4800,8 +4906,7 @@ mod tests {
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        reg.market(SecType::Option, query(1), 0, 0)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(1), 0, 0).expect("nothing to refuse");
 
         let (mut subs, full) = reg.subscriptions();
         subs.sort_by_key(|(k, _)| k.kind_str());
@@ -5200,9 +5305,7 @@ mod tests {
         let reg = Registry::default();
         let call = option("550", "C");
         let put = option("540", "P");
-        let m = reg
-            .market(SecType::Option, query(10), 0, 0)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(10), 0, 0).expect("nothing to refuse");
         assert!(m.first, "the first look opens it");
 
         // The vendor sends the contract's NBBO and bar, then its trade.
@@ -5215,9 +5318,7 @@ mod tests {
         // A stock trade belongs to a market book this registry does not hold.
         reg.ingest(trade(&stock("AAPL"), 150.0, 3 * MS));
 
-        let m = reg
-            .market(SecType::Option, query(10), 0, 10)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(10), 0, 10).expect("nothing to refuse");
         assert!(!m.first);
         assert_eq!(m.received, 2, "two option trades, no stock");
         assert_eq!(m.new_since_last_read, 2);
@@ -5245,21 +5346,16 @@ mod tests {
         );
 
         // A read takes what was kept: the next has nothing until more prints.
-        let m = reg
-            .market(SecType::Option, query(10), 0, 11)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(10), 0, 11).expect("nothing to refuse");
         assert_eq!((m.examined, m.matched, m.rows.len()), (0, 0, 0));
 
         // Only `limit` rows are kept, the newest, and the counts still say
         // how many there were.
-        reg.market(SecType::Option, query(2), 0, 12)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(2), 0, 12).expect("nothing to refuse");
         for i in 0..5 {
             reg.ingest(trade(&call, i as f64, (20 + i) * MS));
         }
-        let m = reg
-            .market(SecType::Option, query(2), 0, 30)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(2), 0, 30).expect("nothing to refuse");
         assert_eq!((m.examined, m.matched), (5, 5));
         assert_eq!(
             m.rows.iter().map(|p| price(&p.trade)).collect::<Vec<_>>(),
@@ -5292,11 +5388,9 @@ mod tests {
         };
         // Install a selection, let the five prints through it, read it back.
         let run = |q: MarketQuery, t: u64| {
-            reg.market(SecType::Option, q.clone(), 0, t)
-                .expect("nothing to refuse");
+            market_now(&reg, SecType::Option, q.clone(), 0, t).expect("nothing to refuse");
             feed(&reg);
-            reg.market(SecType::Option, q, 0, t + 1)
-                .expect("nothing to refuse")
+            market_now(&reg, SecType::Option, q, 0, t + 1).expect("nothing to refuse")
         };
         let sizes = |m: &MarketReading| {
             m.rows
@@ -5355,16 +5449,11 @@ mod tests {
         assert_eq!(sizes(&m), vec![Some(10.0)], "the one print with a bid");
         // Disclosed by the selection that set them aside, even when the read
         // that collects them no longer ranks.
-        reg.market(SecType::Option, q, 0, 52)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, q, 0, 52).expect("nothing to refuse");
         feed(&reg);
-        let m = reg
-            .market(SecType::Option, query(5), 0, 53)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(5), 0, 53).expect("nothing to refuse");
         assert_eq!((m.unranked, m.selected_by.is_some()), (Some(4), true));
-        let m = reg
-            .market(SecType::Option, query(5), 0, 54)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, query(5), 0, 54).expect("nothing to refuse");
         assert_eq!(m.unranked, None, "an unranked selection sets nothing aside");
 
         let mut q = query(10);
@@ -5379,12 +5468,10 @@ mod tests {
         spy.root = Some("SPY".into());
         let mut nasdaq = query(10);
         nasdaq.root = Some("QQQ".into());
-        reg.market(SecType::Option, spy.clone(), 0, 80)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, spy.clone(), 0, 80).expect("nothing to refuse");
         feed(&reg);
-        let m = reg
-            .market(SecType::Option, nasdaq.clone(), 0, 81)
-            .expect("nothing to refuse");
+        let m =
+            market_now(&reg, SecType::Option, nasdaq.clone(), 0, 81).expect("nothing to refuse");
         assert_eq!(
             m.rows.len(),
             4,
@@ -5392,9 +5479,7 @@ mod tests {
         );
         assert_eq!(m.selected_by, Some(spy));
         feed(&reg);
-        let m = reg
-            .market(SecType::Option, nasdaq, 0, 82)
-            .expect("nothing to refuse");
+        let m = market_now(&reg, SecType::Option, nasdaq, 0, 82).expect("nothing to refuse");
         assert_eq!((m.rows.len(), m.selected_by), (1, None));
     }
 
@@ -5403,18 +5488,16 @@ mod tests {
         let reg = Registry::default();
         let c = option("550", "C");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
-        let why = refused(reg.market(SecType::Option, query(1), 0, 1));
+        let why = refused(market_now(&reg, SecType::Option, query(1), 0, 1));
         assert!(
             why.contains("1 OPTION contract"),
             "names the conflict: {why}"
         );
         assert!(!reg.market_held(SecType::Option), "and opens nothing");
-        reg.market(SecType::Stock, query(1), 0, 2)
-            .expect("another class is no conflict");
+        market_now(&reg, SecType::Stock, query(1), 0, 2).expect("another class is no conflict");
 
         reg.forget(&c.trade());
-        reg.market(SecType::Option, query(1), 0, 3)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Option, query(1), 0, 3).expect("nothing to refuse");
         let why = refused(read_now(
             &reg,
             &c,
@@ -5451,15 +5534,13 @@ mod tests {
     #[test]
     fn an_idle_market_book_is_swept_and_stopped_by_its_class() {
         let reg = Registry::default();
-        reg.market(SecType::Stock, query(1), 0, 0)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Stock, query(1), 0, 0).expect("nothing to refuse");
         let spx = Contract::index("SPX");
         let (_, expired) = read(&reg, &spx, SubscriptionKind::Trade, None, TAIL, PAST_TTL);
         assert_eq!(expired, vec![SecType::Stock.full_trades()]);
         assert!(!reg.market_held(SecType::Stock));
 
-        reg.market(SecType::Stock, query(1), 0, PAST_TTL)
-            .expect("nothing to refuse");
+        market_now(&reg, SecType::Stock, query(1), 0, PAST_TTL).expect("nothing to refuse");
         assert!(reg.market_held(SecType::Stock));
         reg.forget(&SecType::Stock.full_trades());
         assert!(!reg.market_held(SecType::Stock), "stopped");
