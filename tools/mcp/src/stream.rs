@@ -41,22 +41,35 @@ use thetadatadx::{
 
 use crate::{sanitize_error, ToolError};
 
-/// Memory a book's ring may hold. Capacity in rows follows from the row
-/// size, so the number says what a full book costs; what it covers in time
-/// depends on the contract's rate, which no constant here knows and
-/// `covers_seconds` reports at each read. No stream rate has been measured
-/// for this repository, and none is assumed.
+/// Memory a book's ring may hold: 13,107 rows at the 80-byte row measured
+/// on this build. Capacity in rows follows from the row size, so the
+/// number says what a full book costs; what it covers in time depends on
+/// the rate, and `covers_seconds` reports that at each read.
+///
+/// Measured on the production feed at the open of 2026-09-16
+/// (`thetadatadx-rs/examples/stream_rate.rs`): the whole stock market
+/// peaked at 672,350 msg/s over 100 ms and averaged 3,366 msg/s over the
+/// session; the whole option market peaked at 121,630 msg/s and averaged
+/// 1,113 msg/s. The peak was 41 times the mean of the minute that held
+/// it. No single book sees more than its whole market, so this budget
+/// covered at least 20 ms at that stock burst and about 4 s at that
+/// session mean — two figures two hundred times apart, both true, which
+/// is why nothing here promises a length of time.
 const BOOK_BUDGET: usize = 1 << 20;
 /// Rows retained per book.
 const RING: usize = BOOK_BUDGET / size_of::<StreamData>();
-/// Memory a contract's prints may hold. A print carries its trade and up
-/// to three quotes, one inline and two on the heap.
+/// Memory a contract's prints may hold: 762 prints at the sizes measured
+/// on this build. A print carries its trade and up to three quotes, one
+/// inline and two on the heap. The rates above bound what it covers: a
+/// contract prints no faster than its whole market trades.
 const PRINTS_BUDGET: usize = 256 << 10;
 /// Prints retained per contract.
 const PRINTS: usize = PRINTS_BUDGET / (size_of::<Print>() + 2 * size_of::<StreamData>());
-/// Memory a predicate's matches may hold between two reads. A predicate
-/// that matches more than this is a line the market crossed for good, and
-/// the newest matches say so as well as a thousand would.
+/// Memory a predicate's matches may hold between two reads: 204 rows at
+/// the 80-byte row. What that covers depends on the predicate, not the
+/// feed; a predicate that matches more than this between two reads is a
+/// line the market crossed for good, and the newest matches say so as
+/// well as a thousand would.
 const WATCH_BUDGET: usize = 16 << 10;
 /// Rows a predicate may keep on a book.
 const WATCHED: usize = WATCH_BUDGET / size_of::<StreamData>();
