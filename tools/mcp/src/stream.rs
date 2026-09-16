@@ -2857,7 +2857,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         // Sampled from the session this call guarantees, never before it:
         // a restart resets the SDK's counter, and a count taken ahead of one
         // belongs to the session that just died.
+        // Re-read the clock: starting a session can take seconds, and a
+        // window's end must be when the rows were read, not when the call
+        // arrived, or it names a shorter window than the rows it returns.
         let feed_drops = ensure_streaming(client, reg)?;
+        let now = now_ms();
         let mut m = reg.market(sec, q.clone(), feed_drops, now)?;
         let sub = sec.full_trades();
         let landed = if m.first {
@@ -2951,6 +2955,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 .map(|v| parse_clauses(v, &FIELDS))
                 .transpose()?;
             let feed_drops = ensure_streaming(client, reg)?;
+            let now = now_ms();
             let r = reg.read(
                 &contract,
                 kind,
@@ -3045,6 +3050,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 arg(args, "quotes_after", "true or false", Value::as_bool)?.unwrap_or(false);
             let count = num_of("count", 20)?;
             let feed_drops = ensure_streaming(client, reg)?;
+            let now = now_ms();
             let p = reg.prints(&contract, count, feed_drops, now)?;
             let (opened, kept): (Subs, Subs) = [SubscriptionKind::Trade, SubscriptionKind::Quote]
                 .into_iter()
