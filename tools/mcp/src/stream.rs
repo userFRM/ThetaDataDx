@@ -41,23 +41,28 @@ use thetadatadx::{
 
 use crate::{sanitize_error, ToolError};
 
-/// Rows retained per book. A busy contract prints far more than this in a
-/// session; the tail is what a model can act on and the rest is weight.
-const RING: usize = 4_096;
-/// Prints retained per contract. Fewer than rows: each one holds up to four
-/// messages.
-const PRINTS: usize = 256;
-/// Prints retained per whole-market book. Every trade on the security type
-/// lands here, so the window is short in time however deep it is in rows;
-/// `covers_seconds` says how far back it reaches at the moment of a read.
-const MARKET_RING: usize = 16_384;
-/// Rows a predicate may keep on a book. A predicate that matches more than
-/// this between two reads is a line the market crossed for good, and the
-/// newest matches say so as well as a thousand would.
-const WATCHED: usize = 64;
+/// Memory a book's ring may hold. Capacity in rows follows from the row
+/// size, so the number says what a full book costs; what it covers in time
+/// depends on the contract's rate, which no constant here knows and
+/// `covers_seconds` reports at each read. No stream rate has been measured
+/// for this repository, and none is assumed.
+const BOOK_BUDGET: usize = 1 << 20;
+/// Rows retained per book.
+const RING: usize = BOOK_BUDGET / size_of::<StreamData>();
+/// Memory a contract's prints may hold. A print carries its trade and up
+/// to three quotes, one inline and two on the heap.
+const PRINTS_BUDGET: usize = 256 << 10;
+/// Prints retained per contract.
+const PRINTS: usize = PRINTS_BUDGET / (size_of::<Print>() + 2 * size_of::<StreamData>());
+/// Memory a predicate's matches may hold between two reads. A predicate
+/// that matches more than this is a line the market crossed for good, and
+/// the newest matches say so as well as a thousand would.
+const WATCH_BUDGET: usize = 16 << 10;
+/// Rows a predicate may keep on a book.
+const WATCHED: usize = WATCH_BUDGET / size_of::<StreamData>();
 /// Clauses a predicate may hold. Every clause runs on every row of a
-/// watched book under the lock the dispatcher records ticks on, and on
-/// every print in a market window, so the bound is on the dispatcher's
+/// watched book and on every print of a selected market, under the lock
+/// the dispatcher records ticks on, so the bound is on the dispatcher's
 /// time, not on what a caller may mean.
 const MAX_CLAUSES: usize = 8;
 /// How long a book survives without a read. Stated in the tool descriptions,
@@ -434,8 +439,8 @@ pub struct Print {
 }
 
 /// A print's fields: the trade's, then the quote that stood before it.
-fn print_field(p: &Print, name: &str) -> Option<f64> {
-    field_of(&p.trade, name).or_else(|| p.quote_before.as_ref().and_then(|q| field_of(q, name)))
+fn print_field(trade: &StreamData, quote: Option<&StreamData>, name: &str) -> Option<f64> {
+    field_of(trade, name).or_else(|| quote.and_then(|q| field_of(q, name)))
 }
 
 #[derive(Debug)]
@@ -549,17 +554,24 @@ impl ContractState {
 
 /// Every trade on one security type, from the vendor's full-stream
 /// subscription, each with the NBBO the vendor sends ahead of it.
+///
+/// Nothing is buffered. A whole market prints at a rate no buffer here
+/// could hold for a stated length of time, so a read does not walk a
+/// window; the caller's selection is applied to each print as it arrives
+/// and what it keeps is what a read returns.
 #[derive(Debug)]
 struct Market {
-    ring: VecDeque<Print>,
+    /// The standing selection; none while the book only holds a
+    /// subscription the feed would not release.
+    selection: Option<Selection>,
     received: u64,
-    dropped: u64,
     opened_ms: u64,
     read_ms: u64,
     /// Prints received as of the last read; see [`Book::read_seq`].
     read_seq: u64,
     /// See [`Book::feed_drops_at_read`].
     feed_drops_at_read: Option<u64>,
+    newest_ms: Option<u64>,
     /// The quote most recently sent on the stream. The vendor sends a
     /// contract's last NBBO and bar just before its trade, so the trade
     /// claims this when it is for the same contract and leaves it when
@@ -570,13 +582,13 @@ struct Market {
 impl Market {
     fn open(now: u64) -> Self {
         Self {
-            ring: VecDeque::new(),
+            selection: None,
             received: 0,
-            dropped: 0,
             opened_ms: now,
             read_ms: now,
             read_seq: 0,
             feed_drops_at_read: None,
+            newest_ms: None,
             last_quote: None,
         }
     }
@@ -586,22 +598,99 @@ impl Market {
             StreamData::Quote { .. } => self.last_quote = Some(data.clone()),
             StreamData::Trade { contract, .. } => {
                 self.received += 1;
+                self.newest_ms = seen_ms(data);
                 let quote_before = self
                     .last_quote
                     .take()
                     .filter(|q| contract_of(q) == Some(contract));
-                if self.ring.len() == MARKET_RING {
-                    self.ring.pop_front();
-                    self.dropped += 1;
+                if let Some(selection) = &mut self.selection {
+                    selection.offer(data, quote_before);
                 }
-                self.ring.push_back(Print {
-                    trade: data.clone(),
-                    quote_before,
-                    quotes_after: Vec::new(),
-                });
             }
             _ => {}
         }
+    }
+}
+
+/// A standing selection over a market: the filter and rank the caller
+/// installed, applied to every print as it arrives, and what it has kept
+/// since the last read. A read takes the kept rows and the counts and
+/// starts them again, so it answers "since I last looked" over every
+/// print the feed delivered, whatever the rate.
+#[derive(Debug)]
+struct Selection {
+    query: MarketQuery,
+    /// Prints seen, and prints that passed the filter, since the last
+    /// read: the population the kept rows were chosen from.
+    examined: u64,
+    matched: u64,
+    /// Matches without the rank field, which cannot be placed.
+    unranked: u64,
+    /// The top `limit` by the rank, best first; without a rank, the newest
+    /// `limit`, oldest first.
+    kept: Vec<Print>,
+}
+
+impl Selection {
+    fn new(query: MarketQuery) -> Self {
+        Self {
+            query,
+            examined: 0,
+            matched: 0,
+            unranked: 0,
+            kept: Vec::new(),
+        }
+    }
+
+    /// Runs on the dispatcher thread for every print on the market. The
+    /// print is built only when it is kept; `limit` is at least one, so
+    /// the newest match always has a place.
+    fn offer(&mut self, trade: &StreamData, quote_before: Option<StreamData>) {
+        self.examined += 1;
+        if !self.query.selects(trade, quote_before.as_ref()) {
+            return;
+        }
+        self.matched += 1;
+        let limit = self.query.limit;
+        let pos =
+            match self.query.rank_by.as_deref() {
+                None => {
+                    if self.kept.len() == limit {
+                        self.kept.remove(0);
+                    }
+                    self.kept.len()
+                }
+                Some(field) => {
+                    let Some(key) = print_field(trade, quote_before.as_ref(), field) else {
+                        self.unranked += 1;
+                        return;
+                    };
+                    let ascending = self.query.ascending;
+                    // Kept rows are best first, and a row already kept holds
+                    // its place on a tie.
+                    let pos =
+                        self.kept.partition_point(|k| {
+                            print_field(&k.trade, k.quote_before.as_ref(), field)
+                                .is_some_and(|kk| if ascending { kk <= key } else { kk >= key })
+                        });
+                    // Behind every kept row on a full selection: the
+                    // truncate below would drop it, so it is not built at
+                    // all. On a busy market that is most prints.
+                    if pos == limit {
+                        return;
+                    }
+                    pos
+                }
+            };
+        self.kept.insert(
+            pos,
+            Print {
+                trade: trade.clone(),
+                quote_before,
+                quotes_after: Vec::new(),
+            },
+        );
+        self.kept.truncate(limit);
     }
 }
 
@@ -741,8 +830,10 @@ struct Prints {
     new_since_last_read: u64,
 }
 
-/// What a whole-market read selects: the contract attributes, the
+/// What a whole-market selection keeps: the contract attributes, the
 /// predicate over vendor fields, and how to rank and cut what passes.
+/// `limit` is at least one.
+#[derive(Clone, Debug, PartialEq)]
 struct MarketQuery {
     root: Option<String>,
     expiration: Option<i32>,
@@ -756,8 +847,8 @@ struct MarketQuery {
 }
 
 impl MarketQuery {
-    fn selects(&self, p: &Print) -> bool {
-        let Some(c) = contract_of(&p.trade) else {
+    fn selects(&self, trade: &StreamData, quote: Option<&StreamData>) -> bool {
+        let Some(c) = contract_of(trade) else {
             return false;
         };
         if self
@@ -783,26 +874,26 @@ impl MarketQuery {
         {
             return false;
         }
-        holds_all(&self.clauses, &|f| print_field(p, f))
+        holds_all(&self.clauses, &|f| print_field(trade, quote, f))
     }
 }
 
 struct MarketReading {
     first: bool,
-    floor: u64,
+    previous_ms: u64,
     received: u64,
-    held: usize,
-    dropped: u64,
-    covered_since_ms: u64,
     newest_ms: Option<u64>,
-    clipped: bool,
     new_since_last_read: u64,
     feed_dropped_since_last_read: u64,
-    /// The populations each count covers: prints inside the window, prints
-    /// the query selected from those, and the rows served.
-    in_window: u64,
+    /// The populations each count covers: prints the selection saw since
+    /// the last read, prints that passed it, matches it could not rank,
+    /// and the rows kept.
+    examined: u64,
     matched: u64,
+    unranked: u64,
     rows: Vec<Print>,
+    /// The selection the rows were kept under, when this read replaced it.
+    selected_by: Option<MarketQuery>,
 }
 
 struct Holding {
@@ -1125,14 +1216,13 @@ impl Registry {
         }
     }
 
-    /// Read the whole-market book for `sec`, opening it on the first look.
-    /// The walk is one pass over references; only the rows served are
-    /// cloned, and there are at most `limit` of those.
+    /// Read the whole-market book for `sec`, opening it on the first look,
+    /// and install `q` as its selection from here on. What comes back was
+    /// kept by the selection that stood until now.
     fn market(
         &self,
         sec: SecType,
-        q: &MarketQuery,
-        window: Option<u64>,
+        q: MarketQuery,
         feed_drops: u64,
         now: u64,
     ) -> Result<MarketReading, ToolError> {
@@ -1158,70 +1248,32 @@ impl Registry {
         let new = market.received - market.read_seq;
         market.read_seq = market.received;
         let feed_dropped = feed_dropped_since(&mut market.feed_drops_at_read, feed_drops);
-        let floor = window.map_or(previous, |w| now.saturating_sub(w));
 
-        let mut in_window = 0;
-        let mut picked: Vec<(Option<f64>, &Print)> = Vec::new();
-        for (i, p) in market.ring.iter().rev().enumerate() {
-            let inside = match window {
-                None => (i as u64) < new,
-                Some(_) => seen_ms(&p.trade).is_none_or(|s| s >= floor),
-            };
-            if !inside {
-                break;
-            }
-            in_window += 1;
-            if q.selects(p) {
-                let key = q.rank_by.as_deref().and_then(|f| print_field(p, f));
-                picked.push((key, p));
-            }
-        }
-        let matched = picked.len() as u64;
-        if q.rank_by.is_some() {
-            // A row without the rank field sorts last either way; the sort
-            // is stable, so ties keep the newest first.
-            picked.sort_by(|(a, _), (b, _)| match (a, b) {
-                (Some(x), Some(y)) if q.ascending => x.total_cmp(y),
-                (Some(x), Some(y)) => y.total_cmp(x),
-                (Some(_), None) => std::cmp::Ordering::Less,
-                (None, Some(_)) => std::cmp::Ordering::Greater,
-                (None, None) => std::cmp::Ordering::Equal,
-            });
-        }
-        picked.truncate(q.limit);
-        let mut rows: Vec<Print> = picked.into_iter().map(|(_, p)| p.clone()).collect();
-        if q.rank_by.is_none() {
-            rows.reverse();
-        }
-
-        let covered_since_ms = market
-            .ring
-            .front()
-            .and_then(|p| seen_ms(&p.trade))
-            .filter(|_| market.dropped > 0)
-            .unwrap_or(market.opened_ms);
+        // What stood until now comes out, reported under its own query
+        // when this read changed it; the new selection starts empty.
+        let outgoing = market.selection.replace(Selection::new(q.clone()));
+        let (examined, matched, unranked, rows, selected_by) = match outgoing {
+            Some(s) => (
+                s.examined,
+                s.matched,
+                s.unranked,
+                s.kept,
+                (s.query != q).then_some(s.query),
+            ),
+            None => (0, 0, 0, Vec::new(), None),
+        };
         let reading = MarketReading {
             first,
-            floor,
+            previous_ms: previous,
             received: market.received,
-            held: market.ring.len(),
-            dropped: market.dropped,
-            covered_since_ms,
-            newest_ms: market.ring.back().and_then(|p| seen_ms(&p.trade)),
-            clipped: clipped(
-                window,
-                new,
-                market.ring.len(),
-                market.dropped,
-                covered_since_ms,
-                floor,
-                feed_dropped,
-            ),
+            newest_ms: market.newest_ms,
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
-            in_window,
+            examined,
             matched,
+            unranked,
             rows,
+            selected_by,
         };
         Ok(reading)
     }
@@ -1315,11 +1367,11 @@ impl Registry {
                 sub: sec.full_trades(),
                 label: sec.as_str().to_string(),
                 received: m.received,
-                held: m.ring.len(),
-                dropped: m.dropped,
+                held: m.selection.as_ref().map_or(0, |s| s.kept.len()),
+                dropped: 0,
                 opened_ms: m.opened_ms,
                 read_ms: m.read_ms,
-                newest_ms: m.ring.back().and_then(|p| seen_ms(&p.trade)),
+                newest_ms: m.newest_ms,
             }))
             .collect();
         rows.sort_by_key(|h| (h.label.clone(), label(&h.sub)));
@@ -1565,9 +1617,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 for a fixed lookback. A snapshot is a round trip and has already moved by the \
                 time you read it, so age_ms says how old the newest row is: an index reports \
                 about once a second, so seconds of age are normal there and stale on an option \
-                quote. covers_seconds is how far back the rows held reach and clipped means the \
-                window you asked for reaches further, which a liquid quote book hits inside a \
-                minute: 4096 rows are held per book. The summary counts and sorts the rows it \
+                quote. Rows are held within a memory budget, not for a length of time: \
+                covers_seconds is how far back the rows held reach right now, and clipped means \
+                the window you asked for reaches further, which a liquid book can hit within \
+                seconds. The summary counts and sorts the rows it \
                 saw, each trade extreme with its condition code, and the tail is the vendor's \
                 messages as sent, condition and exchange codes intact. vendor_ohlcvc is the \
                 vendor's own bar for the contract as last sent, served as is; nothing here \
@@ -1590,7 +1643,7 @@ pub fn tool_definitions() -> Vec<Value> {
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "description": "Fixed lookback. Default: since your last read."},
                 "tail": {"type": "integer", "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."},
-                "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses; 64 matches are kept between reads.")
+                "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses. A bounded number of matches are kept between reads, the newest surviving; watch.dropped counts the rest.")
             }))
         }),
         json!({
@@ -1600,7 +1653,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 quotes_after returns them. Opens the trade and quote subscriptions on the first \
                 call and returns nothing yet; call again a second or two later. \
                 new_since_last_read counts prints since you last looked at this contract's \
-                trades. clipped means older prints were discarded: 256 are held per contract. \
+                trades. Prints are held within a memory budget, and clipped means older ones \
+                were discarded before you asked. \
                 Times are Eastern.",
             "inputSchema": contract_schema(json!({
                 "count": {"type": "integer", "description": "Newest prints. Default 20."},
@@ -1610,18 +1664,22 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({
             "name": "tape_market",
             "description": "Every trade across the whole option or stock market from one \
-                subscription, held as a rolling window of 16384 prints, each with the NBBO the \
-                vendor sent ahead of it. Needs an Options Pro or Stocks Pro subscription; the \
-                error says which when the account lacks it. Nothing is computed: you select and \
-                rank. Filter on the contract (root, expiration, right, strike_min, strike_max) \
-                and on the vendor's fields (where), rank by one field (rank_by, largest first \
-                unless ascending), and take at most limit rows, 50 at most. Without rank_by the \
-                newest matches come back, oldest first. in_window, matched and returned say how \
-                many prints the window held, how many passed your selection and how many you \
-                got; held, dropped and covers_seconds say what the ring reaches, and \
-                feed_dropped_since_last_read counts events the SDK discarded because this \
-                server fell behind, which clipped also reflects. The window \
-                defaults to since your last read; seconds fixes a lookback. The first call opens \
+                subscription, selected as it arrives. State a selection: contract filters \
+                (root, expiration, right, strike_min, strike_max), clauses over the vendor's \
+                fields (where), and one field to rank by (rank_by, largest first unless \
+                ascending), with limit rows kept (default 20, at most 50). The server applies \
+                it to every print the feed delivers and keeps the top rows, or the newest \
+                without rank_by, until your next read, which returns them and starts again. So \
+                a read answers the largest prints since you last looked exactly, whatever the \
+                rate: nothing here is windowed by a buffer. Nothing is computed: you select \
+                and rank the vendor's own fields. examined and matched say how many prints the \
+                selection saw and how many passed since your last read; returned is what you \
+                got; unranked counts matches without the rank field, such as a quote field on \
+                a print with no quote ahead of it. feed_dropped_since_last_read is the only \
+                way a print can be missing. Sending different parameters replaces the \
+                selection; the rows that come back were kept under the previous one, shown as \
+                selected_by. Needs an Options Pro or Stocks Pro subscription; the error says \
+                which when the account lacks it. The first call installs the selection, opens \
                 the subscription and returns nothing yet; call again a second or two later. A \
                 market book is not held alongside per-contract trade or quote books on the same \
                 security type, because the feed would deliver those contracts twice; tape_stop \
@@ -1637,10 +1695,9 @@ pub fn tool_definitions() -> Vec<Value> {
                     "strike_min": {"type": "number", "description": "Dollars, inclusive. Options only."},
                     "strike_max": {"type": "number", "description": "Dollars, inclusive. Options only."},
                     "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it; spread is ask minus bid. At most 8."),
-                    "rank_by": {"type": "string", "enum": FIELDS, "description": "Rank the selection by this field. Default: newest."},
+                    "rank_by": {"type": "string", "enum": FIELDS, "description": "Keep the top rows by this field. Default: the newest."},
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
-                    "limit": {"type": "integer", "description": "Rows returned. Default 20, capped at 50."},
-                    "seconds": {"type": "number", "description": "Fixed lookback. Default: since your last read."}
+                    "limit": {"type": "integer", "description": "Rows kept between reads. Default 20, capped at 50."}
                 },
                 "required": ["sec_type"]
             }
@@ -2045,7 +2102,25 @@ fn parse_market_query(args: &Value, limit: usize) -> Result<MarketQuery, ToolErr
             .get("ascending")
             .and_then(|v: &Value| v.as_bool())
             .unwrap_or(false),
-        limit,
+        // A selection that keeps nothing answers nothing; one row is the
+        // least that means anything, and what `Selection::offer` relies on.
+        limit: limit.max(1),
+    })
+}
+
+/// A selection as the caller stated it, echoed so a read says what its
+/// rows were kept under.
+fn query_json(q: &MarketQuery) -> Value {
+    json!({
+        "root": q.root,
+        "expiration": q.expiration,
+        "right": q.is_call.map(|c| if c { "C" } else { "P" }),
+        "strike_min": q.strike_min,
+        "strike_max": q.strike_max,
+        "where": q.clauses.iter().map(clause_json).collect::<Vec<_>>(),
+        "rank_by": q.rank_by,
+        "ascending": q.ascending,
+        "limit": q.limit
     })
 }
 
@@ -2197,7 +2272,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         )?;
         let q = parse_market_query(args, tail_rows(num_of("limit", 20)))?;
         ensure_streaming(client, reg)?;
-        let m = reg.market(sec, &q, window, feed_drops, now)?;
+        let m = reg.market(sec, q.clone(), feed_drops, now)?;
         let sub = sec.full_trades();
         if m.first {
             open_on_feed(client, reg, &[sub])?;
@@ -2208,20 +2283,17 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             "sec_type": sec.as_str().to_ascii_lowercase(),
             "feed": feed_state(client, reg),
             "subscribed_now": m.first,
-            "window_seconds": seconds(now.saturating_sub(m.floor)),
-            "window_from": if window.is_some() { "request" } else { "last_read" },
-            "covers_seconds": seconds(now.saturating_sub(m.covered_since_ms)),
-            "clipped": m.clipped,
+            "since_seconds": seconds(now.saturating_sub(m.previous_ms)),
             "received": m.received,
-            "held": m.held,
-            "dropped": m.dropped,
             "new_since_last_read": m.new_since_last_read,
             "feed_dropped_since_last_read": m.feed_dropped_since_last_read,
             "age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
-            "in_window": m.in_window,
+            "examined": m.examined,
             "matched": m.matched,
+            "unranked": q.rank_by.as_ref().map(|_| m.unranked),
             "returned": m.rows.len(),
-            "ranked_by": q.rank_by,
+            "selection": query_json(&q),
+            "selected_by": m.selected_by.as_ref().map(query_json),
             "date": m.rows.last().and_then(|p| date_of(&p.trade)),
             "prints": m.rows.iter().map(|p| json!({
                 "contract": contract_of(&p.trade).map(ToString::to_string),
@@ -2606,17 +2678,17 @@ mod tests {
         assert_eq!(prints(&reg, &c, 10, 300).0.new_since_last_read, 1);
         assert_eq!(prints(&reg, &c, 10, 301).0.new_since_last_read, 0);
         let call = option("550", "C");
-        reg.market(SecType::Option, &query(10), None, 0, 400)
+        reg.market(SecType::Option, query(10), 0, 400)
             .expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 400 * MS));
         let m = reg
-            .market(SecType::Option, &query(10), None, 0, 400)
+            .market(SecType::Option, query(10), 0, 400)
             .expect("nothing to refuse");
-        assert_eq!((m.new_since_last_read, m.in_window), (1, 1));
+        assert_eq!((m.new_since_last_read, m.examined), (1, 1));
         let m = reg
-            .market(SecType::Option, &query(10), None, 0, 401)
+            .market(SecType::Option, query(10), 0, 401)
             .expect("nothing to refuse");
-        assert_eq!((m.new_since_last_read, m.in_window), (0, 0));
+        assert_eq!((m.new_since_last_read, m.examined), (0, 0));
     }
 
     #[test]
@@ -2645,18 +2717,6 @@ mod tests {
         assert_eq!(r.new_since_last_read, RING as u64 + 1);
         assert_eq!(r.summary.count, RING as u64, "the ring holds one fewer");
         assert!(r.clipped, "one new row was gone before this read");
-
-        // The market book answers the same way.
-        let call = option("550", "C");
-        reg.market(SecType::Option, &query(1), None, 0, 0)
-            .expect("nothing to refuse");
-        for _ in 0..=MARKET_RING {
-            reg.ingest(trade(&call, 1.0, 1_000 * MS));
-        }
-        let m = reg
-            .market(SecType::Option, &query(1), Some(1_000), 0, 2_000)
-            .expect("nothing to refuse");
-        assert!(m.clipped && m.dropped == 1);
     }
 
     #[test]
@@ -2747,7 +2807,7 @@ mod tests {
         let c = stock("AAPL");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        reg.market(SecType::Option, &query(1), None, 0, 0)
+        reg.market(SecType::Option, query(1), 0, 0)
             .expect("nothing to refuse");
 
         let released = release_unrestored(
@@ -2780,7 +2840,7 @@ mod tests {
         let reg = Registry::default();
         let aapl = stock("AAPL");
         read(&reg, &aapl, SubscriptionKind::Trade, None, TAIL, 0);
-        reg.market(SecType::Option, &query(1), None, 0, PAST_TTL - 1)
+        reg.market(SecType::Option, query(1), 0, PAST_TTL - 1)
             .expect("nothing to refuse");
 
         let expired = reg.expire(PAST_TTL);
@@ -2814,7 +2874,7 @@ mod tests {
         // The close failed, so the book is put back before any conflict is
         // judged; the feed still delivers that contract.
         reg.reinstate(&c.trade(), PAST_TTL);
-        let why = refused(reg.market(SecType::Option, &query(1), None, 0, PAST_TTL));
+        let why = refused(reg.market(SecType::Option, query(1), 0, PAST_TTL));
         assert!(why.contains("1 OPTION contract"), "{why}");
     }
 
@@ -2824,7 +2884,7 @@ mod tests {
         let c = stock("AAPL");
         let call = option("550", "C");
         prints(&reg, &c, 10, 0);
-        reg.market(SecType::Option, &query(10), None, 0, 0)
+        reg.market(SecType::Option, query(10), 0, 0)
             .expect("nothing to refuse");
         reg.ingest(quote(&c, 1.00, 1.10));
         reg.ingest(trade(&c, 1.05, 0));
@@ -2851,7 +2911,7 @@ mod tests {
             "a print after the gap correlates with what came after it"
         );
         let m = reg
-            .market(SecType::Option, &query(10), None, 0, 3)
+            .market(SecType::Option, query(10), 0, 3)
             .expect("nothing to refuse");
         assert!(
             m.rows[0].quote_before.is_none(),
@@ -2889,13 +2949,13 @@ mod tests {
         reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
         let p = reg.prints(&c, 10, 9, 4).expect("nothing to refuse");
         assert_eq!(p.feed_dropped_since_last_read, 3);
-        reg.market(SecType::Option, &query(1), None, 9, 5)
+        reg.market(SecType::Option, query(1), 9, 5)
             .expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 5 * MS));
         let m = reg
-            .market(SecType::Option, &query(1), Some(100), 10, 6)
+            .market(SecType::Option, query(1), 10, 6)
             .expect("nothing to refuse");
-        assert_eq!((m.feed_dropped_since_last_read, m.clipped), (1, true));
+        assert_eq!(m.feed_dropped_since_last_read, 1);
     }
 
     #[test]
@@ -2943,6 +3003,20 @@ mod tests {
             .read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 2)
             .expect("nothing to refuse");
         assert_eq!(r.matched_by, huge, "unchanged, the two are the same");
+    }
+
+    #[test]
+    fn a_selection_keeps_at_least_one_row() {
+        // `Selection::offer` evicts the oldest kept row once `limit` are
+        // held; a limit of zero would evict from nothing.
+        let q = parse_market_query(&json!({"limit": 0}), 0).expect("a valid query");
+        assert_eq!(q.limit, 1);
+        assert_eq!(
+            parse_market_query(&json!({}), 7)
+                .expect("a valid query")
+                .limit,
+            7
+        );
     }
 
     #[test]
@@ -3374,7 +3448,7 @@ mod tests {
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        reg.market(SecType::Option, &query(1), None, 0, 0)
+        reg.market(SecType::Option, query(1), 0, 0)
             .expect("nothing to refuse");
 
         let (mut subs, full) = reg.subscriptions();
@@ -3745,7 +3819,7 @@ mod tests {
         let call = option("550", "C");
         let put = option("540", "P");
         let m = reg
-            .market(SecType::Option, &query(10), None, 0, 0)
+            .market(SecType::Option, query(10), 0, 0)
             .expect("nothing to refuse");
         assert!(m.first, "the first look opens it");
 
@@ -3760,12 +3834,12 @@ mod tests {
         reg.ingest(trade(&stock("AAPL"), 150.0, 3 * MS));
 
         let m = reg
-            .market(SecType::Option, &query(10), None, 0, 10)
+            .market(SecType::Option, query(10), 0, 10)
             .expect("nothing to refuse");
         assert!(!m.first);
         assert_eq!(m.received, 2, "two option trades, no stock");
         assert_eq!(m.new_since_last_read, 2);
-        assert_eq!((m.in_window, m.matched, m.rows.len()), (2, 2, 2));
+        assert_eq!((m.examined, m.matched, m.rows.len()), (2, 2, 2));
         assert_eq!(
             m.rows.iter().map(|p| price(&p.trade)).collect::<Vec<_>>(),
             vec![1.05, 1.06],
@@ -3788,26 +3862,32 @@ mod tests {
             "a market row opens no per-contract book"
         );
 
-        // The ring is bounded and says what it lost.
-        for i in 0..(MARKET_RING as u64 + 5) {
-            reg.ingest(trade(&call, 1.0, (100 + i) * MS));
+        // A read takes what was kept: the next has nothing until more prints.
+        let m = reg
+            .market(SecType::Option, query(10), 0, 11)
+            .expect("nothing to refuse");
+        assert_eq!((m.examined, m.matched, m.rows.len()), (0, 0, 0));
+
+        // Only `limit` rows are kept, the newest, and the counts still say
+        // how many there were.
+        reg.market(SecType::Option, query(2), 0, 12)
+            .expect("nothing to refuse");
+        for i in 0..5 {
+            reg.ingest(trade(&call, i as f64, (20 + i) * MS));
         }
         let m = reg
-            .market(SecType::Option, &query(1), Some(1_000_000), 0, 100_000)
+            .market(SecType::Option, query(2), 0, 30)
             .expect("nothing to refuse");
-        assert_eq!((m.held, m.dropped), (MARKET_RING, 7));
+        assert_eq!((m.examined, m.matched), (5, 5));
         assert_eq!(
-            m.covered_since_ms, 105,
-            "coverage starts at the oldest print held"
+            m.rows.iter().map(|p| price(&p.trade)).collect::<Vec<_>>(),
+            vec![3.0, 4.0]
         );
-        assert!(m.clipped);
     }
 
     #[test]
-    fn a_market_read_selects_on_the_contract_and_the_fields_and_ranks_what_passes() {
+    fn a_market_selection_filters_and_ranks_every_print_as_it_arrives() {
         let reg = Registry::default();
-        reg.market(SecType::Option, &query(10), None, 0, 0)
-            .expect("nothing to refuse");
         let c540 = option("540", "C");
         let c550 = option("550", "C");
         let p550 = option("550", "P");
@@ -3820,13 +3900,22 @@ mod tests {
             },
         )
         .expect("a valid contract");
-        reg.ingest(quote(&c550, 1.0, 1.5));
-        reg.ingest(trade_sized(&c550, 1.2, 10, 0, MS));
-        reg.ingest(trade_sized(&c540, 5.0, 300, 0, 2 * MS));
-        reg.ingest(trade_sized(&p550, 0.9, 200, 0, 3 * MS));
-        reg.ingest(trade_sized(&c550, 1.3, 50, 0, 4 * MS));
-        reg.ingest(trade_sized(&qqq, 2.0, 999, 0, 5 * MS));
-
+        let feed = |reg: &Registry| {
+            reg.ingest(quote(&c550, 1.0, 1.5));
+            reg.ingest(trade_sized(&c550, 1.2, 10, 0, MS));
+            reg.ingest(trade_sized(&c540, 5.0, 300, 0, 2 * MS));
+            reg.ingest(trade_sized(&p550, 0.9, 200, 0, 3 * MS));
+            reg.ingest(trade_sized(&c550, 1.3, 50, 0, 4 * MS));
+            reg.ingest(trade_sized(&qqq, 2.0, 999, 0, 5 * MS));
+        };
+        // Install a selection, let the five prints through it, read it back.
+        let run = |q: MarketQuery, t: u64| {
+            reg.market(SecType::Option, q.clone(), 0, t)
+                .expect("nothing to refuse");
+            feed(&reg);
+            reg.market(SecType::Option, q, 0, t + 1)
+                .expect("nothing to refuse")
+        };
         let sizes = |m: &MarketReading| {
             m.rows
                 .iter()
@@ -3840,11 +3929,9 @@ mod tests {
         q.is_call = Some(true);
         q.strike_min = Some(545.0);
         q.strike_max = Some(555.0);
-        let m = reg
-            .market(SecType::Option, &q, Some(100), 0, 10)
-            .expect("nothing to refuse");
+        let m = run(q, 10);
         assert_eq!(
-            (m.in_window, m.matched),
+            (m.examined, m.matched),
             (5, 2),
             "population, then selection"
         );
@@ -3857,21 +3944,17 @@ mod tests {
         // Vendor fields, on the trade and on the quote before it.
         let mut q = query(10);
         q.clauses = clauses(json!([{"field": "spread", "op": ">=", "value": 0.5}]));
-        let m = reg
-            .market(SecType::Option, &q, Some(100), 0, 11)
-            .expect("nothing to refuse");
+        let m = run(q, 20);
         assert_eq!(
             sizes(&m),
             vec![Some(10.0)],
             "only the print with a quote ahead of it has a spread"
         );
 
-        // Rank, direction, cut — and a rank field the row lacks sorts last.
+        // Rank, direction, cut.
         let mut q = query(2);
         q.rank_by = Some("size".into());
-        let m = reg
-            .market(SecType::Option, &q, Some(100), 0, 12)
-            .expect("nothing to refuse");
+        let m = run(q.clone(), 30);
         assert_eq!(
             (m.matched, m.rows.len()),
             (5, 2),
@@ -3879,41 +3962,45 @@ mod tests {
         );
         assert_eq!(sizes(&m), vec![Some(999.0), Some(300.0)], "largest first");
         q.ascending = true;
-        let m = reg
-            .market(SecType::Option, &q, Some(100), 0, 13)
-            .expect("nothing to refuse");
+        let m = run(q, 40);
         assert_eq!(sizes(&m), vec![Some(10.0), Some(50.0)]);
+
+        // A match without the rank field cannot be placed, and is counted.
         let mut q = query(5);
         q.rank_by = Some("bid".into());
-        let m = reg
-            .market(SecType::Option, &q, Some(100), 0, 14)
-            .expect("nothing to refuse");
-        assert_eq!(
-            sizes(&m)[0],
-            Some(10.0),
-            "the one print with a bid ranks ahead of those without"
-        );
+        let m = run(q, 50);
+        assert_eq!((m.matched, m.unranked), (5, 4));
+        assert_eq!(sizes(&m), vec![Some(10.0)], "the one print with a bid");
 
-        // The window is the population.
-        let m = reg
-            .market(SecType::Option, &query(10), Some(2), 0, 6)
-            .expect("nothing to refuse");
-        assert_eq!(
-            (m.in_window, m.matched),
-            (2, 2),
-            "two prints inside the last 2 ms"
-        );
         let mut q = query(10);
         q.expiration = Some(20260620);
-        let m = reg
-            .market(SecType::Option, &q, Some(100), 0, 15)
-            .expect("nothing to refuse");
-        assert_eq!(m.matched, 5);
+        assert_eq!(run(q.clone(), 60).matched, 5);
         q.expiration = Some(20260621);
-        let m = reg
-            .market(SecType::Option, &q, Some(100), 0, 16)
+        assert_eq!(run(q, 70).matched, 0);
+
+        // Changing the selection: what comes back was kept by the old one,
+        // and says so.
+        let mut spy = query(10);
+        spy.root = Some("SPY".into());
+        let mut nasdaq = query(10);
+        nasdaq.root = Some("QQQ".into());
+        reg.market(SecType::Option, spy.clone(), 0, 80)
             .expect("nothing to refuse");
-        assert_eq!(m.matched, 0);
+        feed(&reg);
+        let m = reg
+            .market(SecType::Option, nasdaq.clone(), 0, 81)
+            .expect("nothing to refuse");
+        assert_eq!(
+            m.rows.len(),
+            4,
+            "the SPY prints, kept under the SPY selection"
+        );
+        assert_eq!(m.selected_by, Some(spy));
+        feed(&reg);
+        let m = reg
+            .market(SecType::Option, nasdaq, 0, 82)
+            .expect("nothing to refuse");
+        assert_eq!((m.rows.len(), m.selected_by), (1, None));
     }
 
     #[test]
@@ -3921,17 +4008,17 @@ mod tests {
         let reg = Registry::default();
         let c = option("550", "C");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
-        let why = refused(reg.market(SecType::Option, &query(1), None, 0, 1));
+        let why = refused(reg.market(SecType::Option, query(1), 0, 1));
         assert!(
             why.contains("1 OPTION contract"),
             "names the conflict: {why}"
         );
         assert!(!reg.market_held(SecType::Option), "and opens nothing");
-        reg.market(SecType::Stock, &query(1), None, 0, 2)
+        reg.market(SecType::Stock, query(1), 0, 2)
             .expect("another class is no conflict");
 
         reg.forget(&c.trade());
-        reg.market(SecType::Option, &query(1), None, 0, 3)
+        reg.market(SecType::Option, query(1), 0, 3)
             .expect("nothing to refuse");
         let why = refused(reg.read(&c, SubscriptionKind::Quote, None, TAIL, None, 0, 4));
         assert!(why.contains("tape_market"), "names the other side: {why}");
@@ -3960,14 +4047,14 @@ mod tests {
     #[test]
     fn an_idle_market_book_is_swept_and_stopped_by_its_class() {
         let reg = Registry::default();
-        reg.market(SecType::Stock, &query(1), None, 0, 0)
+        reg.market(SecType::Stock, query(1), 0, 0)
             .expect("nothing to refuse");
         let spx = Contract::index("SPX");
         let (_, expired) = read(&reg, &spx, SubscriptionKind::Trade, None, TAIL, PAST_TTL);
         assert_eq!(expired, vec![SecType::Stock.full_trades()]);
         assert!(!reg.market_held(SecType::Stock));
 
-        reg.market(SecType::Stock, &query(1), None, 0, PAST_TTL)
+        reg.market(SecType::Stock, query(1), 0, PAST_TTL)
             .expect("nothing to refuse");
         assert!(reg.market_held(SecType::Stock));
         reg.forget(&SecType::Stock.full_trades());
