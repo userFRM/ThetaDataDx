@@ -1787,7 +1787,7 @@ fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
     let mut props = json!({
         "sec_type": {"type": "string", "enum": sec_types},
         "root": {"type": "string", "description": "Ticker or option root, e.g. AAPL."},
-        "expiration": {"type": "integer", "description": "YYYYMMDD. Options only."},
+        "expiration": {"type": "integer", "minimum": 0, "description": "YYYYMMDD. Options only."},
         "strike": {"type": "number", "description": "Strike in dollars. Options only."},
         "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."}
     });
@@ -1809,7 +1809,7 @@ fn clauses_schema(description: &str, fields: &[&str]) -> Value {
             "properties": {
                 "field": {"type": "string", "enum": fields},
                 "op": {"type": "string", "enum": [">", ">=", "<", "<=", "==", "!=", "inside", "outside"]},
-                "value": {"description": "A number; a field name to compare against, as in bid >= ask; or [low, high] for inside and outside."}
+                "value": {"description": "A number; a field name to compare against, as in bid >= ask; or [low, high] for inside and outside.", "type": ["number", "string", "array"]}
             },
             "required": ["field", "op", "value"]
         }
@@ -1852,8 +1852,8 @@ pub fn tool_definitions() -> Vec<Value> {
             "inputSchema": contract_schema(&["option", "stock", "index"], json!({
                 "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
                          "description": "Default quote, or trade for an index."},
-                "seconds": {"type": "number", "description": "Fixed lookback. Default: since your last read."},
-                "tail": {"type": "integer", "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."},
+                "seconds": {"type": "number", "minimum": 0, "description": "Fixed lookback. Default: since your last read."},
+                "tail": {"type": "integer", "minimum": 0, "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."},
                 "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses. A bounded number of matches are kept between reads, the newest surviving; watch.dropped counts the rest.", &FIELDS)
             }))
         }),
@@ -1863,7 +1863,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 stood before it; the feed also sends the two quotes after a print, and \
                 quotes_after returns them. Opens the trade and quote subscriptions if they are \
                 not already held, and a call that opens them returns nothing yet; call again a \
-                second or two later. A contract already being read has prints straight away. \
+                second or two later. A contract whose trade and quote books are both open already has prints straight away. \
                 new_since_last_read counts prints since you last looked at this contract's \
                 trades. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. A print is a trade and the quote that stood \
@@ -1871,7 +1871,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 tape_read with kind trade carries the index price. \
                 Times are Eastern.",
             "inputSchema": contract_schema(&["option", "stock"], json!({
-                "count": {"type": "integer", "description": "Newest prints. Default 20."},
+                "count": {"type": "integer", "minimum": 0, "description": "Newest prints. Default 20."},
                 "quotes_after": {"type": "boolean", "description": "Include the two quotes after each print. Default false."}
             }))
         }),
@@ -1913,7 +1913,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it; spread is ask minus bid. At most 8.", &PRINT_FIELDS),
                     "rank_by": {"type": "string", "enum": PRINT_FIELDS, "description": "Keep the top rows by this field of the trade or the quote before it. Default: the newest."},
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
-                    "limit": {"type": "integer", "description": "Rows kept between reads. Default 20, capped at 50."}
+                    "limit": {"type": "integer", "minimum": 1, "description": "Rows kept between reads. Default 20, capped at 50."}
                 },
                 "required": ["sec_type"]
             }
@@ -2095,11 +2095,24 @@ fn row(data: &StreamData) -> Value {
         .into()
 }
 
-fn summary_json(s: &Summary) -> Value {
+/// `dated` carries the trading date on every row it renders, for a summary
+/// over rows that do not share one. The collection-level date is absent in
+/// that case, and a summary row with no date of its own would have none at
+/// all.
+fn summary_json(s: &Summary, dated: bool) -> Value {
+    let object = |d: &StreamData| {
+        let mut v = object(d);
+        if dated {
+            if let (Some(o), Some(day)) = (v.as_object_mut(), date_of(d)) {
+                o.insert("date", Value::from(day));
+            }
+        }
+        v
+    };
     let mut out = json!({
         "count": s.count,
-        "first": s.first.as_ref().map(object),
-        "last": s.last.as_ref().map(object),
+        "first": s.first.as_ref().map(&object),
+        "last": s.last.as_ref().map(&object),
     });
     let Some(obj) = out.as_object_mut() else {
         return out;
@@ -2278,13 +2291,23 @@ fn reconcile(
 }
 
 fn parse_sec(args: &Value) -> Result<SecType, ToolError> {
-    match args.get("sec_type").and_then(|v: &Value| v.as_str()) {
+    parse_sec_of(args, &["option", "stock", "index"])
+}
+
+/// `offered` is what the calling tool can serve. Recommending a type it
+/// always refuses sends the caller straight into a second refusal.
+fn parse_sec_of(args: &Value, offered: &[&str]) -> Result<SecType, ToolError> {
+    let raw = arg(args, "sec_type", &offered.join(", "), |v| {
+        v.as_str().map(str::to_string)
+    })?;
+    match raw.as_deref().filter(|r| offered.contains(r)) {
         Some("option") => Ok(SecType::Option),
         Some("stock") => Ok(SecType::Stock),
         Some("index") => Ok(SecType::Index),
-        _ => Err(ToolError::InvalidParams(
-            "sec_type must be option, stock or index".into(),
-        )),
+        _ => Err(ToolError::InvalidParams(format!(
+            "sec_type must be {}",
+            offered.join(" or ")
+        ))),
     }
 }
 
@@ -2382,9 +2405,18 @@ fn parse_market_query(args: &Value, limit: usize) -> Result<MarketQuery, ToolErr
             .map(|v| field_name(Some(v), "rank_by", &PRINT_FIELDS))
             .transpose()?,
         ascending: arg(args, "ascending", "true or false", Value::as_bool)?.unwrap_or(false),
-        // A selection that keeps nothing answers nothing; one row is the
-        // least that means anything, and what `Selection::offer` relies on.
-        limit: limit.max(1),
+        // A selection that keeps nothing answers nothing, and quietly
+        // keeping one instead answers a question the caller did not ask.
+        limit: match limit {
+            0 => {
+                return Err(ToolError::InvalidParams(
+                    "limit must keep at least one row; a selection of none has nothing to \
+                     report"
+                        .into(),
+                ))
+            }
+            n => n,
+        },
     })
 }
 
@@ -2477,7 +2509,45 @@ pub async fn try_execute(
             "not connected to ThetaData yet; retry shortly".into(),
         )));
     };
+    if let Err(e) = only_declared_arguments(name, args) {
+        return Some(Err(e));
+    }
     Some(execute(client, name, args))
+}
+
+/// Refuse an argument the tool does not declare.
+///
+/// An unknown name is a question the caller meant to ask and the server did
+/// not hear. `strike` on a whole-market read is the shape of it: a caller
+/// narrowing to one strike, ignored, handed every strike on the root, and
+/// told nothing. The tool's own schema is the list, so the two cannot drift.
+fn only_declared_arguments(name: &str, args: &Value) -> Result<(), ToolError> {
+    let Some(supplied) = args.as_object() else {
+        return Ok(());
+    };
+    let Some(schema) = tool_definitions().into_iter().find(|t| t["name"] == name) else {
+        return Ok(());
+    };
+    let declared = &schema["inputSchema"]["properties"];
+    let mut unknown: Vec<&str> = supplied
+        .iter()
+        .map(|(k, _)| k)
+        .filter(|k| declared.get(*k).is_none())
+        .collect();
+    if unknown.is_empty() {
+        return Ok(());
+    }
+    unknown.sort_unstable();
+    let mut known: Vec<&str> = declared
+        .as_object()
+        .map(|d| d.iter().map(|(k, _)| k).collect())
+        .unwrap_or_default();
+    known.sort_unstable();
+    Err(ToolError::InvalidParams(format!(
+        "{name} does not take {}; it takes {}",
+        unknown.join(", "),
+        known.join(", ")
+    )))
 }
 
 /// Tool calls arrive one at a time (the JSON-RPC loop awaits each before
@@ -2569,7 +2639,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     }
 
     if name == "tape_market" {
-        let sec = parse_sec(args)?;
+        let sec = parse_sec_of(args, &["option", "stock"])?;
         let hist = client.market_data();
         pro_required(
             sec,
@@ -2620,7 +2690,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     }
 
     if name == "tape_stop" && args.get("root").is_none() {
-        let sec = parse_sec(args)?;
+        let sec = parse_sec_of(args, &["option", "stock"])?;
         // Without a root this closes the whole market. Contract identifiers
         // say the caller meant one contract, and closing every one of them
         // instead is not a smaller mistake for being silent.
@@ -2687,9 +2757,19 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             // that failed above left all of it for the next read.
             reg.commit_read(&contract, kind, r.settle, now);
             let newest = r.tail.last();
-            // One date for the whole tail while they agree; otherwise it
-            // travels on each row, because restamping one is not an option.
-            let shared_date = one_date(r.tail.iter());
+            // One date for everything this response renders while they
+            // agree, which is the tail and the rows the summary names.
+            // Otherwise it travels on each row: restamping one is not an
+            // option, and the summary reaches further back than the tail.
+            let shared_date = one_date(
+                r.tail
+                    .iter()
+                    .chain(r.summary.first.iter())
+                    .chain(r.summary.last.iter())
+                    .chain(r.summary.low.iter())
+                    .chain(r.summary.high.iter())
+                    .chain(r.watched.iter()),
+            );
             // The predicate that was in force is disclosed by the read that
             // retires it: a caller clearing one with [] is the only caller
             // who will ever see what it examined and what it caught.
@@ -2717,7 +2797,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "new_since_last_read": r.new_since_last_read,
                 "feed_dropped_since_last_read": r.feed_dropped_since_last_read,
                 "age_ms": r.newest_ms.map(|s| now.saturating_sub(s)),
-                "summary": summary_json(&r.summary),
+                "summary": summary_json(&r.summary, shared_date.is_none()),
                 "watch": watch,
                 "vendor_ohlcvc": r.ohlcvc.as_ref().map(|bar| aged_object(bar, now)),
                 "date": shared_date,
@@ -2756,6 +2836,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             reconcile(client, reg, &kept, now)?;
             // Only an answer the caller receives consumes the cursor.
             reg.commit_prints_read(&contract, p.received, p.feed_drops_seen, p.gaps_seen);
+            // One date while the prints agree; otherwise it travels on each.
+            let prints_date = one_date(p.rows.iter().map(|p| &p.trade));
             Ok(json!({
                 "contract": contract.to_string(),
                 "feed": feed_state(client, reg),
@@ -2769,9 +2851,10 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "new_since_last_read": p.new_since_last_read,
                 "feed_dropped_since_last_read": p.feed_dropped_since_last_read,
                 "age_ms": p.newest_ms.map(|s| now.saturating_sub(s)),
-                "date": p.rows.last().and_then(|p| date_of(&p.trade)),
+                "date": prints_date,
                 "prints": p.rows.iter().map(|p| {
                     let mut out = json!({
+                        "date": prints_date.is_none().then(|| date_of(&p.trade)).flatten(),
                         "trade": object(&p.trade),
                         "quote_before": p.quote_before.as_ref().map(object)
                     });
@@ -3579,6 +3662,60 @@ mod tests {
     }
 
     #[test]
+    fn an_argument_the_tool_does_not_take_is_refused() {
+        // An unknown name is a question the caller meant to ask and the
+        // server did not hear. `strike` on a whole-market read is the shape
+        // of it: narrowing to one strike, ignored, handed every strike.
+        let why = refused(only_declared_arguments(
+            "tape_market",
+            &json!({"sec_type": "option", "root": "SPY", "strike": 550}),
+        ));
+        assert!(
+            why.contains("does not take strike") && why.contains("strike_min"),
+            "names it and what it does take: {why}"
+        );
+        // Everything a tool declares is accepted.
+        for t in tool_definitions() {
+            let name = t["name"].as_str().expect("a name");
+            let declared = t["inputSchema"]["properties"]
+                .as_object()
+                .expect("properties");
+            let mut args = json!({});
+            if let Some(o) = args.as_object_mut() {
+                for (k, _) in declared {
+                    o.insert(k, Value::from(1));
+                }
+            }
+            only_declared_arguments(name, &args).expect("every declared name is taken");
+        }
+    }
+
+    #[test]
+    fn a_tool_recommends_only_a_security_type_it_serves() {
+        // Recommending one it always refuses sends the caller into a second
+        // refusal.
+        let why = refused(parse_sec_of(
+            &json!({"sec_type": "bogus"}),
+            &["option", "stock"],
+        ));
+        assert!(
+            !why.contains("index"),
+            "does not offer what it refuses: {why}"
+        );
+        assert!(why.contains("option or stock"), "{why}");
+        assert_eq!(
+            parse_sec_of(&json!({"sec_type": "index"}), &["option", "stock", "index"])
+                .expect("served here"),
+            SecType::Index
+        );
+        let why = refused(parse_sec_of(
+            &json!({"sec_type": "index"}),
+            &["option", "stock"],
+        ));
+        assert!(why.contains("option or stock"), "{why}");
+    }
+
+    #[test]
     fn naming_an_option_leg_on_something_that_has_none_is_refused() {
         // Acting on the stock instead would close a book the caller never
         // named, which is the wrong answer to a clear question.
@@ -3883,9 +4020,14 @@ mod tests {
     #[test]
     fn a_selection_keeps_at_least_one_row() {
         // `Selection::offer` evicts the oldest kept row once `limit` are
-        // held; a limit of zero would evict from nothing.
-        let q = parse_market_query(&json!({"limit": 0}), 0).expect("a valid query");
-        assert_eq!(q.limit, 1);
+        // held, so zero would evict from nothing. Quietly keeping one
+        // instead would answer a question the caller did not ask, so the
+        // request is refused and says why.
+        let why = refused(parse_market_query(&json!({"limit": 0}), 0));
+        assert!(
+            why.contains("at least one row"),
+            "says what it needs: {why}"
+        );
         assert_eq!(
             parse_market_query(&json!({}), 7)
                 .expect("a valid query")
