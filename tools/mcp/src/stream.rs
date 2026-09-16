@@ -180,6 +180,26 @@ const FIELDS: [&str; 18] = [
     "market_price",
 ];
 
+/// The names a print carries: its trade's fields and its quote's. The full
+/// trade stream sends no open-interest or market-value row, so offering
+/// those to `tape_market` would invite a selection nothing can ever pass.
+const PRINT_FIELDS: [&str; 14] = [
+    "price",
+    "size",
+    "condition",
+    "exchange",
+    "sequence",
+    "bid",
+    "ask",
+    "spread",
+    "bid_size",
+    "ask_size",
+    "bid_exchange",
+    "ask_exchange",
+    "bid_condition",
+    "ask_condition",
+];
+
 /// A numeric field of a row by name; `None` when the row has no such field.
 ///
 /// Runs on the dispatcher thread for a watched book, so it reads the enum
@@ -333,21 +353,30 @@ fn holds_all(clauses: &[Clause], get: &dyn Fn(&str) -> Option<f64>) -> bool {
     clauses.iter().all(|c| c.holds(get))
 }
 
-fn field_name(v: Option<&Value>, what: &str) -> Result<String, ToolError> {
+/// A field name from `fields`, the names the rows in question carry. A
+/// name that exists on some other row is refused in words, so a caller
+/// who asked a print for its open interest learns why nothing would ever
+/// match rather than reading an empty answer forever.
+fn field_name(v: Option<&Value>, what: &str, fields: &[&str]) -> Result<String, ToolError> {
     let name = v.and_then(|v: &Value| v.as_str()).unwrap_or_default();
-    if FIELDS.contains(&name) {
+    if fields.contains(&name) {
         Ok(name.to_string())
+    } else if FIELDS.contains(&name) {
+        Err(ToolError::InvalidParams(format!(
+            "{name} is not a field these rows carry; {what} must be one of {}",
+            fields.join(", ")
+        )))
     } else {
         Err(ToolError::InvalidParams(format!(
             "{what} must be one of {}",
-            FIELDS.join(", ")
+            fields.join(", ")
         )))
     }
 }
 
-/// Parse `[{field, op, value}, ...]`. `value` is a number, a field name
-/// for a comparison, or `[low, high]` for `inside` / `outside`.
-fn parse_clauses(v: &Value) -> Result<Vec<Clause>, ToolError> {
+/// Parse `[{field, op, value}, ...]` over `fields`. `value` is a number, a
+/// field name for a comparison, or `[low, high]` for `inside` / `outside`.
+fn parse_clauses(v: &Value, fields: &[&str]) -> Result<Vec<Clause>, ToolError> {
     let Some(items) = v.as_array() else {
         return Err(ToolError::InvalidParams(
             "a predicate is an array of {field, op, value} clauses".into(),
@@ -363,7 +392,7 @@ fn parse_clauses(v: &Value) -> Result<Vec<Clause>, ToolError> {
     items
         .iter()
         .map(|item| {
-            let field = field_name(item.get("field"), "field")?;
+            let field = field_name(item.get("field"), "field", fields)?;
             let op = item
                 .get("op")
                 .and_then(|v: &Value| v.as_str())
@@ -393,7 +422,7 @@ fn parse_clauses(v: &Value) -> Result<Vec<Clause>, ToolError> {
             };
             let rhs = match value.and_then(|v: &Value| v.as_f64()) {
                 Some(n) => Rhs::Number(n),
-                None => Rhs::Field(field_name(value, "value")?),
+                None => Rhs::Field(field_name(value, "value", fields)?),
             };
             Ok(Clause::Compare {
                 field,
@@ -809,7 +838,9 @@ fn clipped(
 
 /// Events the feed discarded since a book's last read, given the SDK's
 /// cumulative count now. A first read sees none: what was lost before the
-/// book existed was never its to report.
+/// book existed was never its to report. The count belongs to one session
+/// and starts again with a new one, so [`Registry::restarted`] resets the
+/// cursor when this server replaces the session.
 fn feed_dropped_since(at_read: &mut Option<u64>, now: u64) -> u64 {
     let since = at_read.map_or(0, |at| now.saturating_sub(at));
     *at_read = Some(now);
@@ -890,7 +921,8 @@ struct MarketReading {
     /// and the rows kept.
     examined: u64,
     matched: u64,
-    unranked: u64,
+    /// Present when the selection that kept the rows ranked them.
+    unranked: Option<u64>,
     rows: Vec<Print>,
     /// The selection the rows were kept under, when this read replaced it.
     selected_by: Option<MarketQuery>,
@@ -1202,6 +1234,25 @@ impl Registry {
         }
     }
 
+    /// This server replaced the feed session. The SDK's discard count is
+    /// per session and the new one starts at zero, so a cursor left at the
+    /// old session's count would hide every discard until the new count
+    /// passed it; everything the new session discards is new to every
+    /// book, so the cursors start at zero too. Not for the SDK's own
+    /// reconnects: the session and its count survive those.
+    fn restarted(&self) {
+        let mut held = self.lock();
+        for state in held.contracts.values_mut() {
+            state.feed_drops_at_prints_read = Some(0);
+            for (_, book) in &mut state.books {
+                book.feed_drops_at_read = Some(0);
+            }
+        }
+        for (_, market) in &mut held.markets {
+            market.feed_drops_at_read = Some(0);
+        }
+    }
+
     /// The feed was interrupted: whatever correlation was open spans an
     /// interval nobody observed, so every print is closed as it stands and
     /// no quote waits to go before the next trade, on every contract and
@@ -1253,14 +1304,19 @@ impl Registry {
         // when this read changed it; the new selection starts empty.
         let outgoing = market.selection.replace(Selection::new(q.clone()));
         let (examined, matched, unranked, rows, selected_by) = match outgoing {
-            Some(s) => (
-                s.examined,
-                s.matched,
-                s.unranked,
-                s.kept,
-                (s.query != q).then_some(s.query),
-            ),
-            None => (0, 0, 0, Vec::new(), None),
+            Some(s) => {
+                // Disclosed by the selection that kept the rows: whether it
+                // ranked decides whether it could have set anything aside.
+                let unranked = s.query.rank_by.as_ref().map(|_| s.unranked);
+                (
+                    s.examined,
+                    s.matched,
+                    unranked,
+                    s.kept,
+                    (s.query != q).then_some(s.query),
+                )
+            }
+            None => (0, 0, None, Vec::new(), None),
         };
         let reading = MarketReading {
             first,
@@ -1589,15 +1645,15 @@ fn contract_schema(extra: Value) -> Value {
     json!({"type": "object", "properties": props, "required": ["sec_type", "root"]})
 }
 
-/// The schema of a predicate: clauses over the vendor's fields.
-fn clauses_schema(description: &str) -> Value {
+/// The schema of a predicate: clauses over `fields`.
+fn clauses_schema(description: &str, fields: &[&str]) -> Value {
     json!({
         "type": "array",
         "description": description,
         "items": {
             "type": "object",
             "properties": {
-                "field": {"type": "string", "enum": FIELDS},
+                "field": {"type": "string", "enum": fields},
                 "op": {"type": "string", "enum": [">", ">=", "<", "<=", "==", "!=", "inside", "outside"]},
                 "value": {"description": "A number; a field name to compare against, as in bid >= ask; or [low, high] for inside and outside."}
             },
@@ -1643,7 +1699,7 @@ pub fn tool_definitions() -> Vec<Value> {
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "description": "Fixed lookback. Default: since your last read."},
                 "tail": {"type": "integer", "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."},
-                "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses. A bounded number of matches are kept between reads, the newest surviving; watch.dropped counts the rest.")
+                "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses. A bounded number of matches are kept between reads, the newest surviving; watch.dropped counts the rest.", &FIELDS)
             }))
         }),
         json!({
@@ -1694,8 +1750,8 @@ pub fn tool_definitions() -> Vec<Value> {
                     "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."},
                     "strike_min": {"type": "number", "description": "Dollars, inclusive. Options only."},
                     "strike_max": {"type": "number", "description": "Dollars, inclusive. Options only."},
-                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it; spread is ask minus bid. At most 8."),
-                    "rank_by": {"type": "string", "enum": FIELDS, "description": "Keep the top rows by this field. Default: the newest."},
+                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it; spread is ask minus bid. At most 8.", &PRINT_FIELDS),
+                    "rank_by": {"type": "string", "enum": PRINT_FIELDS, "description": "Keep the top rows by this field of the trade or the quote before it. Default: the newest."},
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
                     "limit": {"type": "integer", "description": "Rows kept between reads. Default 20, capped at 50."}
                 },
@@ -1917,8 +1973,10 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<(), ToolE
         _ => return Ok(()),
     }
     // A session that died or was never started delivered nothing since the
-    // books last saw the feed; the correlation across that interval closes.
+    // books last saw the feed; the correlation across that interval closes,
+    // and the new session's discard count starts from nothing.
     reg.gap();
+    reg.restarted();
     stream
         .start_streaming(move |event: &StreamEvent| match event {
             StreamEvent::Data(data) => reg.ingest(data.clone()),
@@ -2093,10 +2151,12 @@ fn parse_market_query(args: &Value, limit: usize) -> Result<MarketQuery, ToolErr
         is_call,
         strike_min: num_of("strike_min"),
         strike_max: num_of("strike_max"),
-        clauses: args.get("where").map_or(Ok(Vec::new()), parse_clauses)?,
+        clauses: args
+            .get("where")
+            .map_or(Ok(Vec::new()), |v| parse_clauses(v, &PRINT_FIELDS))?,
         rank_by: args
             .get("rank_by")
-            .map(|v| field_name(Some(v), "rank_by"))
+            .map(|v| field_name(Some(v), "rank_by", &PRINT_FIELDS))
             .transpose()?,
         ascending: args
             .get("ascending")
@@ -2290,11 +2350,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             "age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
             "examined": m.examined,
             "matched": m.matched,
-            "unranked": q.rank_by.as_ref().map(|_| m.unranked),
+            "unranked": m.unranked,
             "returned": m.rows.len(),
             "selection": query_json(&q),
             "selected_by": m.selected_by.as_ref().map(query_json),
-            "date": m.rows.last().and_then(|p| date_of(&p.trade)),
+            "date": m.rows.iter().filter_map(|p| date_of(&p.trade)).max(),
             "prints": m.rows.iter().map(|p| json!({
                 "contract": contract_of(&p.trade).map(ToString::to_string),
                 "trade": object(&p.trade),
@@ -2323,7 +2383,10 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     match name {
         "tape_read" => {
             let kind = resolve_kind(sec, args.get("kind").and_then(|v: &Value| v.as_str()))?;
-            let watch = args.get("watch").map(parse_clauses).transpose()?;
+            let watch = args
+                .get("watch")
+                .map(|v| parse_clauses(v, &FIELDS))
+                .transpose()?;
             ensure_streaming(client, reg)?;
             let r = reg.read(
                 &contract,
@@ -2531,7 +2594,7 @@ mod tests {
     }
 
     fn clauses(v: Value) -> Vec<Clause> {
-        parse_clauses(&v).expect("a valid predicate")
+        parse_clauses(&v, &FIELDS).expect("a valid predicate")
     }
 
     fn query(limit: usize) -> MarketQuery {
@@ -2959,6 +3022,43 @@ mod tests {
     }
 
     #[test]
+    fn a_replaced_session_counts_its_discards_from_nothing() {
+        // The SDK's discard count belongs to one session; a new one starts
+        // at zero. A cursor left at the old count would read clean until
+        // the new count passed it, on the one path where the feed was just
+        // unhealthy.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let call = option("550", "C");
+        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 5_000, 0)
+            .expect("nothing to refuse");
+        reg.prints(&c, 10, 5_000, 1).expect("nothing to refuse");
+        reg.market(SecType::Option, query(1), 5_000, 2)
+            .expect("nothing to refuse");
+
+        reg.restarted();
+        let r = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 300, 3)
+            .expect("nothing to refuse");
+        assert_eq!(
+            (r.feed_dropped_since_last_read, r.clipped),
+            (300, true),
+            "everything the new session discarded is new to the book"
+        );
+        assert_eq!(
+            reg.prints(&c, 10, 300, 4)
+                .expect("nothing to refuse")
+                .feed_dropped_since_last_read,
+            300
+        );
+        reg.ingest(trade(&call, 1.0, 4 * MS));
+        let m = reg
+            .market(SecType::Option, query(1), 300, 5)
+            .expect("nothing to refuse");
+        assert_eq!(m.feed_dropped_since_last_read, 300);
+    }
+
+    #[test]
     fn matches_are_reported_under_the_predicate_that_produced_them() {
         let reg = Registry::default();
         let c = stock("AAPL");
@@ -3023,8 +3123,8 @@ mod tests {
     fn a_predicate_is_bounded() {
         let clause = json!({"field": "size", "op": ">", "value": 1});
         let of = |n: usize| Value::from(vec![clause.clone(); n]);
-        assert!(parse_clauses(&of(MAX_CLAUSES)).is_ok());
-        let why = refused(parse_clauses(&of(MAX_CLAUSES + 1)));
+        assert!(parse_clauses(&of(MAX_CLAUSES), &FIELDS).is_ok());
+        let why = refused(parse_clauses(&of(MAX_CLAUSES + 1), &FIELDS));
         assert!(
             why.contains(&format!("at most {MAX_CLAUSES}")),
             "names the bound: {why}"
@@ -3649,6 +3749,36 @@ mod tests {
             Some(0.25),
             "spread is ask minus bid"
         );
+
+        // What tape_market offers is exactly what a print can read: a name
+        // it cannot would select nothing forever, so it is refused in words
+        // instead.
+        let (t, q) = (trade(&c, 1.0, 0), quote(&c, 1.0, 1.1));
+        for name in FIELDS {
+            assert_eq!(
+                PRINT_FIELDS.contains(&name),
+                print_field(&t, Some(&q), name).is_some(),
+                "{name}"
+            );
+        }
+        let why = refused(parse_market_query(&json!({"rank_by": "open_interest"}), 1));
+        assert!(
+            why.contains("open_interest is not a field these rows carry"),
+            "{why}"
+        );
+        assert!(parse_market_query(
+            &json!({"where": [{"field": "market_price", "op": ">", "value": 1}]}),
+            1
+        )
+        .is_err());
+        assert!(
+            parse_clauses(
+                &json!([{"field": "open_interest", "op": ">", "value": 1}]),
+                &FIELDS
+            )
+            .is_ok(),
+            "an open-interest book can still watch its own field"
+        );
     }
 
     #[test]
@@ -3694,7 +3824,7 @@ mod tests {
             json!([{"field": "bid", "op": "inside", "value": [1]}]),
             json!({"field": "bid"}),
         ] {
-            assert!(parse_clauses(&bad).is_err(), "accepted {bad}");
+            assert!(parse_clauses(&bad, &FIELDS).is_err(), "accepted {bad}");
         }
         let round_trip: Vec<Value> = [&wide[0], &crossed[0], &outside[0]]
             .into_iter()
@@ -3968,9 +4098,22 @@ mod tests {
         // A match without the rank field cannot be placed, and is counted.
         let mut q = query(5);
         q.rank_by = Some("bid".into());
-        let m = run(q, 50);
-        assert_eq!((m.matched, m.unranked), (5, 4));
+        let m = run(q.clone(), 50);
+        assert_eq!((m.matched, m.unranked), (5, Some(4)));
         assert_eq!(sizes(&m), vec![Some(10.0)], "the one print with a bid");
+        // Disclosed by the selection that set them aside, even when the read
+        // that collects them no longer ranks.
+        reg.market(SecType::Option, q, 0, 52)
+            .expect("nothing to refuse");
+        feed(&reg);
+        let m = reg
+            .market(SecType::Option, query(5), 0, 53)
+            .expect("nothing to refuse");
+        assert_eq!((m.unranked, m.selected_by.is_some()), (Some(4), true));
+        let m = reg
+            .market(SecType::Option, query(5), 0, 54)
+            .expect("nothing to refuse");
+        assert_eq!(m.unranked, None, "an unranked selection sets nothing aside");
 
         let mut q = query(10);
         q.expiration = Some(20260620);
