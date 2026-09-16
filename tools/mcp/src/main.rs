@@ -32,7 +32,8 @@ use zeroize::Zeroizing;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
-    param_type_to_json_type, Client, Credentials, DirectConfig, EndpointMeta, ParamMeta, ENDPOINTS,
+    param_type_to_json_type, Client, Credentials, DirectConfig, EndpointMeta, ParamMeta, WaitMode,
+    ENDPOINTS,
 };
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -1672,6 +1673,25 @@ fn parse_args() -> Args {
 //  Main
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// The streaming consumer's idle behaviour, chosen for where this server
+/// runs rather than for the lowest possible latency.
+///
+/// The SDK defaults to `Spin`, which holds about a whole core for as long
+/// as the stream is connected. That is the right trade for a colocated
+/// consumer chasing microseconds; it is the wrong one here. This server
+/// sits on a workstation beside an editor and a browser, and the thing
+/// reading it composes a sentence between calls, so a core burned to save
+/// a fraction of a millisecond is a core taken from the person using it.
+///
+/// `Backoff` spins while prints are arriving and sleeps once they stop,
+/// snapping back when they resume: full speed on a busy tape, near nothing
+/// on a quiet one, and no latency floor while the market is active.
+fn mcp_config() -> DirectConfig {
+    let mut config = DirectConfig::production();
+    config.streaming.wait_mode = WaitMode::Backoff;
+    config
+}
+
 #[tokio::main]
 async fn main() {
     // Seat ring as the process-default rustls CryptoProvider before any
@@ -1709,7 +1729,7 @@ async fn main() {
     if let Some(creds) = creds {
         let client_bg = Arc::clone(&client);
         tokio::spawn(async move {
-            match Client::connect(&creds, DirectConfig::production()).await {
+            match Client::connect(&creds, mcp_config()).await {
                 Ok(c) => {
                     tracing::info!("connected to ThetaData MDDS");
                     if client_bg.set(c).is_err() {
