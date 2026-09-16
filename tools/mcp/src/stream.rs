@@ -2348,10 +2348,7 @@ fn parse_market_query(args: &Value, limit: usize) -> Result<MarketQuery, ToolErr
             .get("rank_by")
             .map(|v| field_name(Some(v), "rank_by", &PRINT_FIELDS))
             .transpose()?,
-        ascending: args
-            .get("ascending")
-            .and_then(|v: &Value| v.as_bool())
-            .unwrap_or(false),
+        ascending: arg(args, "ascending", "true or false", Value::as_bool)?.unwrap_or(false),
         // A selection that keeps nothing answers nothing; one row is the
         // least that means anything, and what `Selection::offer` relies on.
         limit: limit.max(1),
@@ -2454,18 +2451,45 @@ pub async fn try_execute(
 /// reading the next), so a registry mutation and the feed call that follows
 /// it are never interleaved with another tool call. That ordering is what
 /// lets a read hand back subscriptions to open or close outside the lock.
+/// An argument the caller supplied, or the default when absent.
+///
+/// A value that is present and cannot be read is refused, never replaced by
+/// the default. Replacing it answers a different question from the one
+/// asked, and says nothing: `ascending: "true"` would rank the wrong way,
+/// `kind: 123` would read the wrong book, `quotes_after: "true"` would drop
+/// the quotes the caller asked for, and a negative count would silently
+/// become twenty.
+fn arg<T>(
+    args: &Value,
+    key: &str,
+    what: &str,
+    read: impl Fn(&Value) -> Option<T>,
+) -> Result<Option<T>, ToolError> {
+    match args.get(key).filter(|v| !v.is_null()) {
+        None => Ok(None),
+        Some(v) => read(v)
+            .map(Some)
+            .ok_or_else(|| ToolError::InvalidParams(format!("{key} must be {what}"))),
+    }
+}
+
+/// A whole number of rows: present and negative, fractional or oversized is
+/// refused rather than rounded into a default.
+fn count_arg(args: &Value, key: &str, default: usize) -> Result<usize, ToolError> {
+    Ok(arg(args, key, "a whole number of rows, zero or more", |v| {
+        v.as_u64().map(|n| n as usize)
+    })?
+    .unwrap_or(default))
+}
+
 fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError> {
     let reg = registry();
     let now = now_ms();
-    let num_of = |k: &str, d: usize| {
-        args.get(k)
-            .and_then(|v: &Value| v.as_u64())
-            .map_or(d, |v| v as usize)
-    };
-    let window = args
-        .get("seconds")
-        .and_then(|v: &Value| v.as_f64())
-        .map(|s| (s.max(0.0) * 1_000.0) as u64);
+    let num_of = |k: &str, d: usize| count_arg(args, k, d);
+    let window = arg(args, "seconds", "a number of seconds, zero or more", |v| {
+        v.as_f64().filter(|s| *s >= 0.0)
+    })?
+    .map(|s| (s * 1_000.0) as u64);
     // Before anything else: what the sweep frees is closed here, whatever
     // the call goes on to do or refuse.
     close_expired(client, reg, reg.expire(now), now);
@@ -2521,7 +2545,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 _ => hist.stock_tier(),
             },
         )?;
-        let q = parse_market_query(args, tail_rows(num_of("limit", 20)))?;
+        let q = parse_market_query(args, tail_rows(num_of("limit", 20)?))?;
         // Sampled from the session this call guarantees, never before it:
         // a restart resets the SDK's counter, and a count taken ahead of one
         // belongs to the session that just died.
@@ -2581,7 +2605,10 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     let (sec, contract) = parse_contract(args)?;
     match name {
         "tape_read" => {
-            let kind = resolve_kind(sec, args.get("kind").and_then(|v: &Value| v.as_str()))?;
+            let kind = arg(args, "kind", "a subscription name", |v| {
+                v.as_str().map(str::to_string)
+            })?;
+            let kind = resolve_kind(sec, kind.as_deref())?;
             let watch = args
                 .get("watch")
                 .map(|v| parse_clauses(v, &FIELDS))
@@ -2591,7 +2618,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 &contract,
                 kind,
                 window,
-                tail_rows(num_of("tail", TAIL)),
+                tail_rows(num_of("tail", TAIL)?),
                 watch,
                 feed_drops,
                 now,
@@ -2663,11 +2690,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             // A print needs both legs; an index offers neither quote nor
             // print, and the refusal names what it does offer.
             resolve_kind(sec, Some("quote"))?;
-            let with_quotes_after = args
-                .get("quotes_after")
-                .and_then(|v: &Value| v.as_bool())
-                .unwrap_or(false);
-            let count = num_of("count", 20);
+            let with_quotes_after =
+                arg(args, "quotes_after", "true or false", Value::as_bool)?.unwrap_or(false);
+            let count = num_of("count", 20)?;
             let feed_drops = ensure_streaming(client, reg)?;
             let p = reg.prints(&contract, count, feed_drops, now)?;
             let (opened, kept): (Subs, Subs) = [SubscriptionKind::Trade, SubscriptionKind::Quote]
@@ -3498,6 +3523,44 @@ mod tests {
         // stop both work.
         assert_eq!(types("tape_read"), ["option", "stock", "index"]);
         assert_eq!(types("tape_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
+    fn an_argument_that_cannot_be_read_is_refused_not_defaulted() {
+        // Replacing it with the default answers a different question from
+        // the one asked, and says nothing about having done so.
+        for (key, bad, what) in [
+            ("seconds", json!("60"), "a number of seconds"),
+            ("seconds", json!(-60), "a number of seconds"),
+            ("tail", json!(-1), "a whole number of rows"),
+            ("count", json!(1.5), "a whole number of rows"),
+            ("quotes_after", json!("true"), "true or false"),
+            ("ascending", json!("true"), "true or false"),
+        ] {
+            let args = json!({ key: bad });
+            let got = match key {
+                "seconds" => arg(&args, "seconds", "a number of seconds, zero or more", |v| {
+                    v.as_f64().filter(|s| *s >= 0.0)
+                })
+                .err(),
+                "quotes_after" | "ascending" => {
+                    arg(&args, key, "true or false", Value::as_bool).err()
+                }
+                _ => count_arg(&args, key, 20).err(),
+            };
+            let why = format!("{:?}", got.expect("refused"));
+            assert!(why.contains(key) && why.contains(what), "{why}");
+        }
+        // Absent and null still mean the default.
+        assert_eq!(count_arg(&json!({}), "tail", 10).expect("default"), 10);
+        assert_eq!(
+            count_arg(&json!({"tail": null}), "tail", 10).expect("default"),
+            10
+        );
+        assert_eq!(
+            count_arg(&json!({"tail": 3}), "tail", 10).expect("given"),
+            3
+        );
     }
 
     #[test]
