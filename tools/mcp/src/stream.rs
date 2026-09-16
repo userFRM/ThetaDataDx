@@ -439,7 +439,14 @@ fn parse_clauses(v: &Value, fields: &[&str]) -> Result<Vec<Clause>, ToolError> {
             };
             let rhs = match value.and_then(|v: &Value| v.as_f64()) {
                 Some(n) => Rhs::Number(n),
-                None => Rhs::Field(field_name(value, "value", fields)?),
+                // Naming the fields alone would read as though a number were
+                // not allowed, and a number is the common case.
+                None => Rhs::Field(field_name(value, "value", fields).map_err(|_| {
+                    ToolError::InvalidParams(format!(
+                        "value must be a number, or one of {} to compare two fields",
+                        fields.join(", ")
+                    ))
+                })?),
             };
             Ok(Clause::Compare {
                 field,
@@ -1854,8 +1861,9 @@ pub fn tool_definitions() -> Vec<Value> {
             "name": "tape_prints",
             "description": "Recent trades on one contract, newest last, each with the quote that \
                 stood before it; the feed also sends the two quotes after a print, and \
-                quotes_after returns them. Opens the trade and quote subscriptions on the first \
-                call and returns nothing yet; call again a second or two later. \
+                quotes_after returns them. Opens the trade and quote subscriptions if they are \
+                not already held, and a call that opens them returns nothing yet; call again a \
+                second or two later. A contract already being read has prints straight away. \
                 new_since_last_read counts prints since you last looked at this contract's \
                 trades. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. A print is a trade and the quote that stood \
@@ -1928,8 +1936,8 @@ pub fn tool_definitions() -> Vec<Value> {
             "name": "tape_stop",
             "description": "Close every book held for a contract and release its subscriptions; \
                 with sec_type alone, close the whole-market book for that security type. A \
-                subscription the feed did not release stays held, and the next sweep or stop \
-                tries again. A book 15 minutes unread is closed by the next call to any of these \
+                subscription the feed did not release stays held; the book is kept so a \
+                later stop, or the sweep once it is idle again, tries to release it. A book 15 minutes unread is closed by the next call to any of these \
                 tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
@@ -2280,17 +2288,42 @@ fn parse_sec(args: &Value) -> Result<SecType, ToolError> {
     }
 }
 
+/// The names that identify one option leg, which only an option has.
+const OPTION_LEG: [&str; 3] = ["expiration", "strike", "right"];
+
 fn parse_contract(args: &Value) -> Result<(SecType, Contract), ToolError> {
-    let str_of = |k: &str| args.get(k).and_then(|v: &Value| v.as_str());
     let sec = parse_sec(args)?;
-    let root = str_of("root").ok_or_else(|| ToolError::InvalidParams("root is required".into()))?;
+    let root = arg(args, "root", "a ticker symbol", |v| {
+        v.as_str().map(str::to_string)
+    })?
+    .ok_or_else(|| ToolError::InvalidParams("root is required".into()))?;
+    let root = root.as_str();
     let contract = match sec {
-        SecType::Stock => Contract::stock(root),
-        SecType::Index => Contract::index(root),
+        SecType::Stock | SecType::Index => {
+            // Naming a leg on something that has none means the caller meant
+            // a different contract than the one this would act on, and
+            // acting on it anyway is the wrong answer to a clear question.
+            if let Some(named) = OPTION_LEG
+                .iter()
+                .find(|k| args.get(*k).is_some_and(|v: &Value| !v.is_null()))
+            {
+                return Err(ToolError::InvalidParams(format!(
+                    "{named} identifies an option leg, and {} is not an option; drop it, or ask \
+                     for sec_type option",
+                    sec.as_str().to_ascii_lowercase()
+                )));
+            }
+            if sec == SecType::Stock {
+                Contract::stock(root)
+            } else {
+                Contract::index(root)
+            }
+        }
         _ => {
-            let exp = args.get("expiration").and_then(|v: &Value| v.as_u64());
-            let strike = args.get("strike").and_then(|v: &Value| v.as_f64());
-            let (Some(exp), Some(strike), Some(right)) = (exp, strike, str_of("right")) else {
+            let exp = arg(args, "expiration", "a date as YYYYMMDD", Value::as_u64)?;
+            let strike = arg(args, "strike", "a strike in dollars", Value::as_f64)?;
+            let right = arg(args, "right", "C or P", |v| v.as_str().map(str::to_string))?;
+            let (Some(exp), Some(strike), Some(right)) = (exp, strike, right.as_deref()) else {
                 return Err(ToolError::InvalidParams(
                     "an option needs expiration, strike and right".into(),
                 ));
@@ -2588,6 +2621,26 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
 
     if name == "tape_stop" && args.get("root").is_none() {
         let sec = parse_sec(args)?;
+        // Without a root this closes the whole market. Contract identifiers
+        // say the caller meant one contract, and closing every one of them
+        // instead is not a smaller mistake for being silent.
+        if let Some(named) = OPTION_LEG
+            .iter()
+            .find(|k| args.get(*k).is_some_and(|v: &Value| !v.is_null()))
+        {
+            return Err(ToolError::InvalidParams(format!(
+                "{named} identifies one contract, and sec_type alone closes the whole \
+                 {} market; give root to close that contract, or drop {named}",
+                sec.as_str().to_ascii_lowercase()
+            )));
+        }
+        if sec == SecType::Index {
+            return Err(ToolError::InvalidParams(
+                "an index has no whole-market stream to close; tape_read follows one index at a \
+                 time and tape_stop with its root closes it"
+                    .into(),
+            ));
+        }
         if !reg.market_held(sec) {
             return Err(ToolError::InvalidParams(format!(
                 "no whole-market book is held on {}; tape_list shows what is",
@@ -3523,6 +3576,42 @@ mod tests {
         // stop both work.
         assert_eq!(types("tape_read"), ["option", "stock", "index"]);
         assert_eq!(types("tape_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
+    fn naming_an_option_leg_on_something_that_has_none_is_refused() {
+        // Acting on the stock instead would close a book the caller never
+        // named, which is the wrong answer to a clear question.
+        for key in OPTION_LEG {
+            let why = refused(parse_contract(
+                &json!({"sec_type": "stock", "root": "AAPL", key: 1}),
+            ));
+            assert!(
+                why.contains(key) && why.contains("not an option"),
+                "names the leg it refused: {why}"
+            );
+        }
+        // A stock on its own still parses, and so does a whole option leg.
+        parse_contract(&json!({"sec_type": "stock", "root": "AAPL"})).expect("a stock");
+        parse_contract(&json!({
+            "sec_type": "option", "root": "SPY",
+            "expiration": 20260620, "strike": 550, "right": "C"
+        }))
+        .expect("an option");
+    }
+
+    #[test]
+    fn a_clause_value_refusal_says_a_number_is_allowed() {
+        // Naming only the fields reads as though a number were not allowed,
+        // and a number is the common case.
+        let why = refused(parse_clauses(
+            &json!([{"field": "price", "op": ">", "value": true}]),
+            &FIELDS,
+        ));
+        assert!(
+            why.contains("must be a number"),
+            "does not exclude the common case: {why}"
+        );
     }
 
     #[test]
