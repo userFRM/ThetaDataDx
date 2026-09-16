@@ -527,6 +527,12 @@ struct Book {
     /// arrived. Set on every interruption, cleared by the read that
     /// discloses it.
     gap_since_read: bool,
+    /// The most recent moment this book is known to have lost rows, from a
+    /// feed interruption or a discard. A window that reaches back over it is
+    /// not whole, however many times it is asked for; the gap flag alone
+    /// answers "since you last looked" and is spent by the read that
+    /// discloses it. Zero means nothing has been lost.
+    incomplete_at_ms: u64,
     /// The caller's predicate; empty when none. Evaluated as rows arrive,
     /// because the rows it exists for are the ones the ring loses between
     /// two reads.
@@ -550,6 +556,7 @@ impl Book {
             read_seq: 0,
             feed_drops_at_read: None,
             gap_since_read: false,
+            incomplete_at_ms: 0,
             watch: Vec::new(),
             retained: VecDeque::new(),
             retained_dropped: 0,
@@ -903,11 +910,18 @@ fn clipped(
     floor: u64,
     feed_dropped: u64,
     gap: bool,
+    incomplete_at_ms: u64,
 ) -> bool {
     gap || feed_dropped > 0
         || match window {
             None => new > held as u64,
-            Some(_) => covered_since_ms > floor || (dropped > 0 && covered_since_ms == floor),
+            // A named window is asked about again and must answer the same
+            // way: it reaches back over a loss, or it does not.
+            Some(_) => {
+                covered_since_ms > floor
+                    || (dropped > 0 && covered_since_ms == floor)
+                    || (incomplete_at_ms > 0 && incomplete_at_ms >= floor)
+            }
         }
 }
 
@@ -1242,6 +1256,7 @@ impl Registry {
         let newest_ms = book.ring.back().and_then(seen_ms);
         // Everything the book has to say, read out before the borrow ends.
         let gap = book.gap_since_read;
+        let incomplete_at = book.incomplete_at_ms;
         let held_rows = book.ring.len();
         let drops_at_read = book.feed_drops_at_read.unwrap_or(0);
         let reading = Reading {
@@ -1259,6 +1274,7 @@ impl Registry {
                 floor,
                 feed_dropped,
                 gap,
+                incomplete_at,
             ),
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
@@ -1326,11 +1342,22 @@ impl Registry {
             gap: state.gaps > state.gaps_at_prints_read,
             gaps_seen: state.gaps,
             feed_drops_seen: feed_drops,
+            // Coverage starts at the oldest print held, or where the trade
+            // book opened when none was dropped. A book reopened after the
+            // prints it holds opened later than they arrived, and taking its
+            // clock would claim coverage that starts after rows it is
+            // already showing, so the oldest print wins whenever it is older.
             covered_since_ms: state
                 .prints
                 .front()
                 .and_then(|p| seen_ms(&p.trade))
-                .filter(|_| state.prints_dropped > 0)
+                .map(|oldest| {
+                    if state.prints_dropped > 0 {
+                        oldest
+                    } else {
+                        oldest.min(opened_ms)
+                    }
+                })
                 .unwrap_or(opened_ms),
             newest_ms: state.prints.back().and_then(|p| seen_ms(&p.trade)),
             new_since_last_read: new,
@@ -1401,13 +1428,14 @@ impl Registry {
     /// interval nobody observed, so every print is closed as it stands and
     /// no quote waits to go before the next trade, on every contract and
     /// every market.
-    fn gap(&self) {
+    fn gap(&self, now: u64) {
         let mut held = self.lock();
         for state in held.contracts.values_mut() {
             state.seal();
             state.gaps += 1;
             for (_, book) in &mut state.books {
                 book.gap_since_read = true;
+                book.incomplete_at_ms = now;
             }
         }
         for (_, market) in &mut held.markets {
@@ -2172,7 +2200,7 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
     // A session that died or was never started delivered nothing since the
     // books last saw the feed; the correlation across that interval closes,
     // and the new session's discard count starts from nothing.
-    reg.gap();
+    reg.gap(now_ms());
     reg.restarted();
     stream
         .start_streaming(move |event: &StreamEvent| match event {
@@ -2184,7 +2212,7 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
             // between the drop and the new session was never seen.
             StreamEvent::Control(
                 StreamControl::Disconnected { .. } | StreamControl::Reconnecting { .. },
-            ) => reg.gap(),
+            ) => reg.gap(now_ms()),
             StreamEvent::Control(StreamControl::ReqResponse { result, .. })
                 if *result != StreamResponseType::Subscribed =>
             {
@@ -2260,8 +2288,8 @@ fn dropped_by_feed(reg: &Registry, sub: &Subscription, now: u64) -> ToolError {
         )
     });
     ToolError::ServerError(format!(
-        "the feed accepted the {} subscription and then dropped it, so this book received \
-         nothing; it has been released and reading again re-subscribes.{why} A subscribe is \
+        "the feed accepted the {} subscription and then dropped it, so nothing has arrived \
+         since; it has been released and reading again re-subscribes.{why} A subscribe is \
          refused with {} when {}, and with {} when {}.",
         label(sub),
         StreamResponseType::MaxStreamsReached,
@@ -3388,7 +3416,7 @@ mod tests {
         reg.ingest(quote(&call, 3.00, 3.10));
 
         // The connection drops; whatever printed meanwhile was never seen.
-        reg.gap();
+        reg.gap(1);
         reg.ingest(quote(&c, 2.00, 2.10));
         reg.ingest(quote(&c, 2.01, 2.11));
         reg.ingest(trade(&c, 2.05, 1));
@@ -3474,7 +3502,7 @@ mod tests {
         reg.market(SecType::Option, query(5), 0, 0)
             .expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 0));
-        reg.gap();
+        reg.gap(1);
         let m = reg
             .market(SecType::Option, query(5), 0, 1)
             .expect("nothing to refuse");
@@ -3498,10 +3526,10 @@ mod tests {
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
             .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
-        reg.gap();
+        reg.gap(1);
         let p = reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
         assert!(p.gap, "the first interruption is disclosed");
-        reg.gap();
+        reg.gap(1);
         reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
         let next = reg.prints(&c, 10, 0, 2).expect("nothing to refuse");
         assert!(next.gap, "the second was never shown, so it is still owed");
@@ -3579,7 +3607,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, MS));
-        reg.gap();
+        reg.gap(1);
 
         // An uncommitted read: the answer never reached anyone.
         let lost = reg
@@ -3659,6 +3687,42 @@ mod tests {
         // stop both work.
         assert_eq!(types("tape_read"), ["option", "stock", "index"]);
         assert_eq!(types("tape_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
+    fn prints_coverage_never_starts_after_a_print_it_returns() {
+        // A trade book reopened after the prints it holds opened later than
+        // they arrived. Taking its clock would claim coverage beginning
+        // after rows the same answer is showing.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 0));
+        // The quote leg is kept alive while the trade leg goes idle, so the
+        // trade book expires on its own and the print it produced survives.
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Quote,
+            None,
+            TAIL,
+            None,
+            0,
+            PAST_TTL - 1,
+        )
+        .expect("nothing to refuse");
+        reg.expire(PAST_TTL);
+        // A later prints call reopens the trade book, long after the print.
+        let p = reg
+            .prints(&c, 10, 0, PAST_TTL + 1)
+            .expect("nothing to refuse");
+        assert_eq!(p.rows.len(), 1, "the print survived");
+        let oldest = seen_ms(&p.rows[0].trade).expect("a stamp");
+        assert!(
+            p.covered_since_ms <= oldest,
+            "coverage starts at or before the oldest row it returns: {} vs {oldest}",
+            p.covered_since_ms
+        );
     }
 
     #[test]
@@ -3825,7 +3889,7 @@ mod tests {
         reg.ingest(trade(&c, 1.0, 0));
         let p = reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
         assert!(!p.gap, "nothing had been interrupted when this was read");
-        reg.gap();
+        reg.gap(1);
         reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
         let next = reg.prints(&c, 10, 0, 2).expect("nothing to refuse");
         assert!(
@@ -3882,7 +3946,7 @@ mod tests {
         reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
         reg.commit_prints_read(&c, 1, 0, 0);
 
-        reg.gap();
+        reg.gap(1);
 
         let r = read_now(
             &reg,
@@ -3900,7 +3964,9 @@ mod tests {
             (0, true),
             "the feed discarded nothing; the rows are missing because they never came"
         );
-        let after = read_now(
+        // Asked again for the same window, the answer is the same: it still
+        // reaches back over the interval the rows are missing from.
+        let again = read_now(
             &reg,
             &c,
             SubscriptionKind::Trade,
@@ -3911,11 +3977,27 @@ mod tests {
             3,
         )
         .expect("nothing to refuse");
-        assert!(!after.clipped, "the gap is disclosed once, not for ever");
+        assert!(
+            again.clipped,
+            "a named window answers the same way every time it is asked"
+        );
+        // Once the window no longer reaches back that far, it is whole.
+        let moved_on = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1),
+            TAIL,
+            None,
+            0,
+            60_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!moved_on.clipped, "the loss is behind this window");
 
         // The print list loses rows the same way, and a read that never
         // reached the caller must not consume the disclosure.
-        reg.gap();
+        reg.gap(1);
         let p = reg.prints(&c, 10, 0, 4).expect("nothing to refuse");
         assert!(p.gap, "the interruption is reported");
         let again = reg.prints(&c, 10, 0, 5).expect("nothing to refuse");
