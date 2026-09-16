@@ -492,6 +492,12 @@ struct Book {
     /// this book never saw are not in `received`, and the only record of
     /// them is that counter.
     feed_drops_at_read: Option<u64>,
+    /// The feed was interrupted while this book was open, so rows it never
+    /// received are missing from the ring with nothing else to record them:
+    /// the SDK's discard count covers what it threw away, not what never
+    /// arrived. Set on every interruption, cleared by the read that
+    /// discloses it.
+    gap_since_read: bool,
     /// The caller's predicate; empty when none. Evaluated as rows arrive,
     /// because the rows it exists for are the ones the ring loses between
     /// two reads.
@@ -513,6 +519,7 @@ impl Book {
             read_ms: now,
             read_seq: 0,
             feed_drops_at_read: None,
+            gap_since_read: false,
             watch: Vec::new(),
             retained: VecDeque::new(),
             retained_dropped: 0,
@@ -538,6 +545,8 @@ struct ContractState {
     prints_read: u64,
     /// See [`Book::feed_drops_at_read`].
     feed_drops_at_prints_read: Option<u64>,
+    /// See [`Book::gap_since_read`]; the print list loses rows the same way.
+    gap_since_prints_read: bool,
     /// Position, counted from the first print ever, before which no print
     /// takes another quote. Quotes seen while the quote book was away, or
     /// after it came back, belong to an interval the correlation did not
@@ -832,8 +841,9 @@ fn clipped(
     covered_since_ms: u64,
     floor: u64,
     feed_dropped: u64,
+    gap: bool,
 ) -> bool {
-    feed_dropped > 0
+    gap || feed_dropped > 0
         || match window {
             None => new > held as u64,
             Some(_) => covered_since_ms > floor || (dropped > 0 && covered_since_ms == floor),
@@ -860,6 +870,10 @@ struct Prints {
     /// call has succeeded.
     received: u64,
     feed_dropped_since_last_read: u64,
+    /// The feed was interrupted while these prints were held. Reported, and
+    /// cleared only once the call has succeeded, so a failed read does not
+    /// consume the disclosure.
+    gap: bool,
     covered_since_ms: u64,
     newest_ms: Option<u64>,
     new_since_last_read: u64,
@@ -1165,6 +1179,7 @@ impl Registry {
                 covered_since_ms,
                 floor,
                 feed_dropped,
+                std::mem::take(&mut book.gap_since_read),
             ),
             new_since_last_read: new,
             feed_dropped_since_last_read: feed_dropped,
@@ -1218,6 +1233,7 @@ impl Registry {
             dropped: state.prints_dropped,
             received,
             feed_dropped_since_last_read: feed_dropped,
+            gap: state.gap_since_prints_read,
             covered_since_ms: state
                 .prints
                 .front()
@@ -1235,6 +1251,8 @@ impl Registry {
     fn commit_prints_read(&self, contract: &Contract, received: u64) {
         if let Some(state) = self.lock().contracts.get_mut(contract) {
             state.prints_read = received;
+            // Disclosed by the answer the caller is about to receive.
+            state.gap_since_prints_read = false;
         }
     }
 
@@ -1265,6 +1283,10 @@ impl Registry {
         let mut held = self.lock();
         for state in held.contracts.values_mut() {
             state.seal();
+            state.gap_since_prints_read = true;
+            for (_, book) in &mut state.books {
+                book.gap_since_read = true;
+            }
         }
         for (_, market) in &mut held.markets {
             market.last_quote = None;
@@ -2470,7 +2492,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "subscribed_now": p.opened.iter().map(|k| k.kind_str()).collect::<Vec<_>>(),
                 "count": p.rows.len(),
                 "held": p.held,
-                "clipped": (p.held < count && p.dropped > 0) || p.feed_dropped_since_last_read > 0,
+                "clipped": p.gap
+                    || (p.held < count && p.dropped > 0)
+                    || p.feed_dropped_since_last_read > 0,
                 "covers_seconds": seconds(now.saturating_sub(p.covered_since_ms)),
                 "new_since_last_read": p.new_since_last_read,
                 "feed_dropped_since_last_read": p.feed_dropped_since_last_read,
@@ -3029,6 +3053,46 @@ mod tests {
             .market(SecType::Option, query(1), 10, 6)
             .expect("nothing to refuse");
         assert_eq!(m.feed_dropped_since_last_read, 1);
+    }
+
+    #[test]
+    fn a_feed_gap_clips_a_window_the_rows_no_longer_cover() {
+        // A reconnect loses rows that never reached the SDK at all, so its
+        // discard count stays at zero and the ring simply has a hole. The
+        // window is not whole and must not read as if it were.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.read(&c, SubscriptionKind::Trade, Some(60_000), TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 0));
+        reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
+        reg.commit_prints_read(&c, 1);
+
+        reg.gap();
+
+        let r = reg
+            .read(&c, SubscriptionKind::Trade, Some(60_000), TAIL, None, 0, 2)
+            .expect("nothing to refuse");
+        assert_eq!(
+            (r.feed_dropped_since_last_read, r.clipped),
+            (0, true),
+            "the feed discarded nothing; the rows are missing because they never came"
+        );
+        let after = reg
+            .read(&c, SubscriptionKind::Trade, Some(60_000), TAIL, None, 0, 3)
+            .expect("nothing to refuse");
+        assert!(!after.clipped, "the gap is disclosed once, not for ever");
+
+        // The print list loses rows the same way, and a read that never
+        // reached the caller must not consume the disclosure.
+        reg.gap();
+        let p = reg.prints(&c, 10, 0, 4).expect("nothing to refuse");
+        assert!(p.gap, "the interruption is reported");
+        let again = reg.prints(&c, 10, 0, 5).expect("nothing to refuse");
+        assert!(again.gap, "uncommitted, so it is still owed");
+        reg.commit_prints_read(&c, again.received);
+        let settled = reg.prints(&c, 10, 0, 6).expect("nothing to refuse");
+        assert!(!settled.gap, "committed, so it is discharged");
     }
 
     #[test]
