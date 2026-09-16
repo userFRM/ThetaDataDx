@@ -495,7 +495,16 @@ struct Book {
     received: u64,
     dropped: u64,
     opened_ms: u64,
+    /// When this book was last READ: the floor of a default window, which
+    /// is everything since the caller last looked at it.
     read_ms: u64,
+    /// When this book was last USED for anything, which is what keeps it
+    /// alive. `tape_prints` needs the trade and quote books it reads from
+    /// to survive, but it is not a read OF them: moving the window floor
+    /// would shorten a later read's window without moving the cursor that
+    /// decides which rows it returns, and the read would then report a
+    /// window shorter than the rows it came back with.
+    touched_ms: u64,
     /// Rows received as of the last read. The cursor is a count advanced
     /// under the lock that appends the rows, not a clock: a row stamped
     /// the same millisecond as a read, or decoded before it and dispatched
@@ -530,6 +539,7 @@ impl Book {
             dropped: 0,
             opened_ms: now,
             read_ms: now,
+            touched_ms: now,
             read_seq: 0,
             feed_drops_at_read: None,
             gap_since_read: false,
@@ -1070,7 +1080,7 @@ impl Registry {
         let mut freed = Vec::new();
         held.contracts.retain(|contract, state| {
             state.close(|kind, book| {
-                let dead = now.saturating_sub(book.read_ms) > ttl;
+                let dead = now.saturating_sub(book.touched_ms) > ttl;
                 if dead {
                     freed.push(subscription(kind, contract));
                 }
@@ -1133,6 +1143,7 @@ impl Registry {
         let (book, first) = state.open(kind, now);
         let previous = book.read_ms;
         book.read_ms = now;
+        book.touched_ms = now;
         let new = book.received - book.read_seq;
         book.read_seq = book.received;
         let feed_dropped = feed_dropped_since(&mut book.feed_drops_at_read, feed_drops);
@@ -1262,7 +1273,7 @@ impl Registry {
             if kind == SubscriptionKind::Trade {
                 opened_ms = book.opened_ms;
             }
-            book.read_ms = now;
+            book.touched_ms = now;
         }
         let received = state.prints_dropped + state.prints.len() as u64;
         let new = received - state.prints_read;
@@ -1464,6 +1475,7 @@ impl Registry {
                 let (book, first) = state.open(kind, now);
                 if first {
                     book.read_ms = 0;
+                    book.touched_ms = 0;
                 }
             }
             Some(Shape::Full(sec, _)) if held.market(sec).is_none() => {
@@ -1496,7 +1508,7 @@ impl Registry {
                     held: b.ring.len(),
                     dropped: b.dropped,
                     opened_ms: b.opened_ms,
-                    read_ms: b.read_ms,
+                    read_ms: b.touched_ms,
                     newest_ms: b.ring.back().and_then(seen_ms),
                 })
             })
@@ -1996,6 +2008,26 @@ fn aged_object(data: &StreamData, now: u64) -> Value {
     out
 }
 
+/// The single trading date every row shares, or `None` when they do not
+/// share one.
+///
+/// A response names one date for the whole collection, which is both true
+/// and cheap while the rows are from one session. Rows held across a
+/// session boundary are not, and naming one of the two dates would silently
+/// restamp the other. When they disagree the date travels on each row
+/// instead, and this returns `None`.
+fn one_date<'a>(rows: impl Iterator<Item = &'a StreamData>) -> Option<i32> {
+    let mut seen = None;
+    for d in rows {
+        match (date_of(d), seen) {
+            (Some(d), None) => seen = Some(d),
+            (Some(d), Some(s)) if d != s => return None,
+            _ => {}
+        }
+    }
+    seen
+}
+
 fn row(data: &StreamData) -> Value {
     fields(data)
         .into_iter()
@@ -2450,6 +2482,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         } else {
             reconcile(client, reg, &[sub], now)?;
         }
+        // One date for the whole selection while the prints agree;
+        // otherwise it travels on each print.
+        let market_date = one_date(m.rows.iter().map(|p| &p.trade));
         return Ok(json!({
             "sec_type": sec.as_str().to_ascii_lowercase(),
             "feed": feed_state(client, reg),
@@ -2466,8 +2501,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             "returned": m.rows.len(),
             "selection": query_json(&q),
             "selected_by": m.selected_by.as_ref().map(query_json),
-            "date": m.rows.iter().filter_map(|p| date_of(&p.trade)).max(),
+            "date": market_date,
             "prints": m.rows.iter().map(|p| json!({
+                "date": market_date.is_none().then(|| date_of(&p.trade)).flatten(),
                 "contract": contract_of(&p.trade).map(ToString::to_string),
                 "trade": object(&p.trade),
                 "quote_before": p.quote_before.as_ref().map(object)
@@ -2516,6 +2552,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 reconcile(client, reg, &[sub], now)?;
             }
             let newest = r.tail.last();
+            // One date for the whole tail while they agree; otherwise it
+            // travels on each row, because restamping one is not an option.
+            let shared_date = one_date(r.tail.iter());
             // The predicate that was in force is disclosed by the read that
             // retires it: a caller clearing one with [] is the only caller
             // who will ever see what it examined and what it caught.
@@ -2546,9 +2585,23 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "summary": summary_json(&r.summary),
                 "watch": watch,
                 "vendor_ohlcvc": r.ohlcvc.as_ref().map(|bar| aged_object(bar, now)),
-                "date": newest.and_then(date_of),
-                "columns": newest.map(|d| fields(d).into_iter().map(|(k, _)| k).collect::<Vec<_>>()),
-                "tail": r.tail.iter().map(row).collect::<Vec<_>>()
+                "date": shared_date,
+                "columns": newest.map(|d| {
+                    let mut c: Vec<&str> = fields(d).into_iter().map(|(k, _)| k).collect();
+                    if shared_date.is_none() {
+                        c.push("date");
+                    }
+                    c
+                }),
+                "tail": r.tail.iter().map(|d| {
+                    let mut v = row(d);
+                    if shared_date.is_none() {
+                        if let (Some(a), Some(day)) = (v.as_array_mut(), date_of(d)) {
+                            a.push(json!(day));
+                        }
+                    }
+                    v
+                }).collect::<Vec<_>>()
             }))
         }
         "tape_prints" => {
@@ -2659,6 +2712,33 @@ mod tests {
 
     fn trade_with(c: &Contract, price: f64, condition: i32, received_at_ns: u64) -> StreamData {
         trade_sized(c, price, 1, condition, received_at_ns)
+    }
+
+    fn trade_on(c: &Contract, price: f64, date: i32, received_at_ns: u64) -> StreamData {
+        match trade(c, price, received_at_ns) {
+            StreamData::Trade {
+                contract,
+                ms_of_day,
+                sequence,
+                condition,
+                size,
+                exchange,
+                price,
+                received_at_ns,
+                ..
+            } => StreamData::Trade {
+                contract,
+                ms_of_day,
+                sequence,
+                condition,
+                size,
+                exchange,
+                price,
+                date,
+                received_at_ns,
+            },
+            other => other,
+        }
     }
 
     fn trade(c: &Contract, price: f64, received_at_ns: u64) -> StreamData {
@@ -3195,6 +3275,43 @@ mod tests {
         reg.commit_prints_read(&c, next.received, next.feed_drops_seen, next.gaps_seen);
         let settled = reg.prints(&c, 10, 0, 3).expect("nothing to refuse");
         assert!(!settled.gap, "both disclosed and both settled");
+    }
+
+    #[test]
+    fn reading_prints_keeps_a_book_alive_without_moving_its_window() {
+        // tape_prints needs the trade and quote books to survive, but it is
+        // not a read of them: moving the window floor would shorten a later
+        // read's window without moving the cursor that picks its rows, and
+        // the read would report a window shorter than what it returned.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        reg.prints(&c, 10, 0, 2 * MS).expect("nothing to refuse");
+        let r = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 3 * MS)
+            .expect("nothing to refuse");
+        assert_eq!(r.new_since_last_read, 1, "the trade is new to this read");
+        assert_eq!(
+            r.floor, 0,
+            "the window still starts at the last read of this book, not at the prints call"
+        );
+    }
+
+    #[test]
+    fn rows_from_two_sessions_each_carry_their_own_date() {
+        // One date for the collection is true and cheap while the rows agree.
+        // Naming one of two would restamp the other.
+        let a = trade_on(&stock("AAPL"), 1.0, 20260915, 0);
+        let b = trade_on(&stock("AAPL"), 2.0, 20260916, MS);
+        assert_eq!(one_date([&a, &b].into_iter()), None, "they disagree");
+        assert_eq!(
+            one_date([&a].into_iter()),
+            Some(20260915),
+            "one session, one date"
+        );
+        assert_eq!(one_date(std::iter::empty()), None, "nothing to name");
     }
 
     #[test]
