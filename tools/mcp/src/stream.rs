@@ -55,6 +55,11 @@ const MARKET_RING: usize = 16_384;
 /// this between two reads is a line the market crossed for good, and the
 /// newest matches say so as well as a thousand would.
 const WATCHED: usize = 64;
+/// Clauses a predicate may hold. Every clause runs on every row of a
+/// watched book under the lock the dispatcher records ticks on, and on
+/// every print in a market window, so the bound is on the dispatcher's
+/// time, not on what a caller may mean.
+const MAX_CLAUSES: usize = 8;
 /// How long a book survives without a read. Stated in the tool descriptions,
 /// since that is where a model reads it.
 const TTL: Duration = Duration::from_secs(900);
@@ -343,6 +348,13 @@ fn parse_clauses(v: &Value) -> Result<Vec<Clause>, ToolError> {
             "a predicate is an array of {field, op, value} clauses".into(),
         ));
     };
+    if items.len() > MAX_CLAUSES {
+        return Err(ToolError::InvalidParams(format!(
+            "a predicate takes at most {MAX_CLAUSES} clauses, since every one runs on every \
+             row as the feed delivers it; {} were given",
+            items.len()
+        )));
+    }
     items
         .iter()
         .map(|item| {
@@ -438,6 +450,10 @@ struct Book {
     /// the same millisecond as a read, or decoded before it and dispatched
     /// after, is new exactly once.
     read_seq: u64,
+    /// The SDK's count of events it discarded, as of the last read. Rows
+    /// this book never saw are not in `received`, and the only record of
+    /// them is that counter.
+    feed_drops_at_read: Option<u64>,
     /// The caller's predicate; empty when none. Evaluated as rows arrive,
     /// because the rows it exists for are the ones the ring loses between
     /// two reads.
@@ -458,6 +474,7 @@ impl Book {
             opened_ms: now,
             read_ms: now,
             read_seq: 0,
+            feed_drops_at_read: None,
             watch: Vec::new(),
             retained: VecDeque::new(),
             retained_dropped: 0,
@@ -477,9 +494,12 @@ struct ContractState {
     last_quote: Option<StreamData>,
     prints: VecDeque<Print>,
     prints_dropped: u64,
-    /// Prints received as of the last `tape_prints`, the same cursor a
-    /// book keeps.
+    /// Prints received as of the last `tape_prints` that was answered, the
+    /// same cursor a book keeps. Advanced only once the call succeeds, so
+    /// a call that failed leaves its prints new for the next one.
     prints_read: u64,
+    /// See [`Book::feed_drops_at_read`].
+    feed_drops_at_prints_read: Option<u64>,
     /// Position, counted from the first print ever, before which no print
     /// takes another quote. Quotes seen while the quote book was away, or
     /// after it came back, belong to an interval the correlation did not
@@ -538,6 +558,8 @@ struct Market {
     read_ms: u64,
     /// Prints received as of the last read; see [`Book::read_seq`].
     read_seq: u64,
+    /// See [`Book::feed_drops_at_read`].
+    feed_drops_at_read: Option<u64>,
     /// The quote most recently sent on the stream. The vendor sends a
     /// contract's last NBBO and bar just before its trade, so the trade
     /// claims this when it is for the same contract and leaves it when
@@ -554,6 +576,7 @@ impl Market {
             opened_ms: now,
             read_ms: now,
             read_seq: 0,
+            feed_drops_at_read: None,
             last_quote: None,
         }
     }
@@ -638,9 +661,15 @@ struct Reading {
     summary: Summary,
     tail: Vec<StreamData>,
     ohlcvc: Option<StreamData>,
-    /// The predicate in force after this read, and what the previous one
-    /// kept since the last read.
+    /// Events the SDK discarded since the last read because this server
+    /// fell behind. They belong to no book in particular, so every book
+    /// reports them and counts its window clipped while they are not zero.
+    feed_dropped_since_last_read: u64,
+    /// The predicate in force after this read; the one that stood before
+    /// it, which is what `watched` and `checked` were measured against;
+    /// and what it kept since the last read.
     watch: Vec<Clause>,
+    matched_by: Vec<Clause>,
     watched: Vec<StreamData>,
     watched_dropped: u64,
     checked: u64,
@@ -667,11 +696,12 @@ fn span(acc: Option<(f64, f64)>, v: f64) -> Option<(f64, f64)> {
     Some(acc.map_or((v, v), |(lo, hi)| (lo.min(v), hi.max(v))))
 }
 
-/// Whether a window is missing rows. Without a window, rows arrived since
-/// the last read that the ring no longer holds. With one, coverage starting
-/// after the floor — or on it while rows were discarded: rows discarded
-/// ahead of the oldest held may share its stamp, so a floor the oldest held
-/// row sits on is not proven covered.
+/// Whether a window is missing rows. Anything the feed discarded before
+/// this server saw it may have belonged here. Otherwise, without a window,
+/// rows arrived since the last read that the ring no longer holds. With
+/// one, coverage starting after the floor — or on it while rows were
+/// discarded: rows discarded ahead of the oldest held may share its stamp,
+/// so a floor the oldest held row sits on is not proven covered.
 fn clipped(
     window: Option<u64>,
     new: u64,
@@ -679,11 +709,22 @@ fn clipped(
     dropped: u64,
     covered_since_ms: u64,
     floor: u64,
+    feed_dropped: u64,
 ) -> bool {
-    match window {
-        None => new > held as u64,
-        Some(_) => covered_since_ms > floor || (dropped > 0 && covered_since_ms == floor),
-    }
+    feed_dropped > 0
+        || match window {
+            None => new > held as u64,
+            Some(_) => covered_since_ms > floor || (dropped > 0 && covered_since_ms == floor),
+        }
+}
+
+/// Events the feed discarded since a book's last read, given the SDK's
+/// cumulative count now. A first read sees none: what was lost before the
+/// book existed was never its to report.
+fn feed_dropped_since(at_read: &mut Option<u64>, now: u64) -> u64 {
+    let since = at_read.map_or(0, |at| now.saturating_sub(at));
+    *at_read = Some(now);
+    since
 }
 
 struct Prints {
@@ -691,6 +732,10 @@ struct Prints {
     rows: Vec<Print>,
     held: usize,
     dropped: u64,
+    /// Prints received as of this read: the cursor to commit once the
+    /// call has succeeded.
+    received: u64,
+    feed_dropped_since_last_read: u64,
     covered_since_ms: u64,
     newest_ms: Option<u64>,
     new_since_last_read: u64,
@@ -752,6 +797,7 @@ struct MarketReading {
     newest_ms: Option<u64>,
     clipped: bool,
     new_since_last_read: u64,
+    feed_dropped_since_last_read: u64,
     /// The populations each count covers: prints inside the window, prints
     /// the query selected from those, and the rows served.
     in_window: u64,
@@ -828,11 +874,15 @@ impl Registry {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Close books nobody has read inside the TTL. Runs first in every call,
-    /// so a book that outlived its idle window is buried before the read
-    /// that would otherwise have revived it, and a sweep tied to the map
-    /// cannot drift from it.
-    fn sweep(held: &mut Held, now: u64) -> Subs {
+    /// Close books nobody has read inside the TTL and hand back their
+    /// subscriptions. Every tool call runs this first and closes what it
+    /// returns before doing anything else, so a book that outlived its idle
+    /// window is buried before the read that would otherwise have revived
+    /// it, a call the registry refuses cannot strand what the sweep freed,
+    /// and a book put back because the feed would not let it go is in
+    /// place before any conflict is judged.
+    fn expire(&self, now: u64) -> Subs {
+        let mut held = self.lock();
         let ttl = TTL.as_millis() as u64;
         let mut freed = Vec::new();
         held.contracts.retain(|contract, state| {
@@ -877,7 +927,7 @@ impl Registry {
     /// Read a book, opening it if this is the first look. `window` is a
     /// lookback in milliseconds; without one the window is everything since
     /// the previous read. `watch` replaces the book's predicate when given.
-    /// Returns what the sweep freed alongside.
+    /// `feed_drops` is the SDK's count of discarded events now.
     ///
     /// Every reader copies what it needs under the lock and releases it
     /// before serialising. The streaming dispatcher calls [`Self::ingest`] on
@@ -891,10 +941,10 @@ impl Registry {
         window: Option<u64>,
         tail: usize,
         watch: Option<Vec<Clause>>,
+        feed_drops: u64,
         now: u64,
-    ) -> Result<(Reading, Subs), ToolError> {
+    ) -> Result<Reading, ToolError> {
         let mut held = self.lock();
-        let expired = Self::sweep(&mut held, now);
         Self::without_market(&held, contract, kind)?;
         let state = held.contracts.entry(contract.clone()).or_default();
         let (book, first) = state.open(kind, now);
@@ -902,6 +952,7 @@ impl Registry {
         book.read_ms = now;
         let new = book.received - book.read_seq;
         book.read_seq = book.received;
+        let feed_dropped = feed_dropped_since(&mut book.feed_drops_at_read, feed_drops);
         let floor = window.map_or(previous, |w| now.saturating_sub(w));
 
         let mut summary = Summary::default();
@@ -954,13 +1005,15 @@ impl Registry {
         rows.reverse();
 
         // What the standing predicate kept comes out before a new one goes
-        // in: it matched the line that stood when it arrived.
+        // in: it matched the line that stood when it arrived, and is
+        // reported under that line.
         let watched = std::mem::take(&mut book.retained).into();
         let watched_dropped = std::mem::take(&mut book.retained_dropped);
         let checked = std::mem::take(&mut book.checked);
-        if let Some(w) = watch {
-            book.watch = w;
-        }
+        let matched_by = match watch {
+            Some(w) => std::mem::replace(&mut book.watch, w),
+            None => book.watch.clone(),
+        };
 
         let covered_since_ms = book
             .ring
@@ -984,29 +1037,34 @@ impl Registry {
                 dropped,
                 covered_since_ms,
                 floor,
+                feed_dropped,
             ),
             new_since_last_read: new,
+            feed_dropped_since_last_read: feed_dropped,
             summary,
             tail: rows,
             ohlcvc: state.ohlcvc.clone(),
             watch,
+            matched_by,
             watched,
             watched_dropped,
             checked,
         };
-        Ok((reading, expired))
+        Ok(reading)
     }
 
     /// The newest `count` prints, oldest first. Opens the trade and quote
-    /// books a print is built from when they are not already held.
+    /// books a print is built from when they are not already held. The
+    /// cursor is not advanced here: [`Self::commit_prints_read`] does that
+    /// once the call has succeeded.
     fn prints(
         &self,
         contract: &Contract,
         count: usize,
+        feed_drops: u64,
         now: u64,
-    ) -> Result<(Prints, Subs), ToolError> {
+    ) -> Result<Prints, ToolError> {
         let mut held = self.lock();
-        let expired = Self::sweep(&mut held, now);
         Self::without_market(&held, contract, SubscriptionKind::Trade)?;
         let state = held.contracts.entry(contract.clone()).or_default();
         let mut opened = Vec::new();
@@ -1024,13 +1082,15 @@ impl Registry {
         }
         let received = state.prints_dropped + state.prints.len() as u64;
         let new = received - state.prints_read;
-        state.prints_read = received;
+        let feed_dropped = feed_dropped_since(&mut state.feed_drops_at_prints_read, feed_drops);
         let mut rows: Vec<Print> = state.prints.iter().rev().take(count).cloned().collect();
         rows.reverse();
         let prints = Prints {
             opened,
             held: state.prints.len(),
             dropped: state.prints_dropped,
+            received,
+            feed_dropped_since_last_read: feed_dropped,
             covered_since_ms: state
                 .prints
                 .front()
@@ -1041,7 +1101,28 @@ impl Registry {
             new_since_last_read: new,
             rows,
         };
-        Ok((prints, expired))
+        Ok(prints)
+    }
+
+    /// Advance the prints cursor to what a successful `tape_prints` served.
+    fn commit_prints_read(&self, contract: &Contract, received: u64) {
+        if let Some(state) = self.lock().contracts.get_mut(contract) {
+            state.prints_read = received;
+        }
+    }
+
+    /// The feed was interrupted: whatever correlation was open spans an
+    /// interval nobody observed, so every print is closed as it stands and
+    /// no quote waits to go before the next trade, on every contract and
+    /// every market.
+    fn gap(&self) {
+        let mut held = self.lock();
+        for state in held.contracts.values_mut() {
+            state.seal();
+        }
+        for (_, market) in &mut held.markets {
+            market.last_quote = None;
+        }
     }
 
     /// Read the whole-market book for `sec`, opening it on the first look.
@@ -1052,10 +1133,10 @@ impl Registry {
         sec: SecType,
         q: &MarketQuery,
         window: Option<u64>,
+        feed_drops: u64,
         now: u64,
-    ) -> Result<(MarketReading, Subs), ToolError> {
+    ) -> Result<MarketReading, ToolError> {
         let mut held = self.lock();
-        let expired = Self::sweep(&mut held, now);
         let doubled = held.per_contract_feed_on(sec);
         if doubled > 0 {
             return Err(ToolError::InvalidParams(format!(
@@ -1076,6 +1157,7 @@ impl Registry {
         market.read_ms = now;
         let new = market.received - market.read_seq;
         market.read_seq = market.received;
+        let feed_dropped = feed_dropped_since(&mut market.feed_drops_at_read, feed_drops);
         let floor = window.map_or(previous, |w| now.saturating_sub(w));
 
         let mut in_window = 0;
@@ -1133,28 +1215,29 @@ impl Registry {
                 market.dropped,
                 covered_since_ms,
                 floor,
+                feed_dropped,
             ),
             new_since_last_read: new,
+            feed_dropped_since_last_read: feed_dropped,
             in_window,
             matched,
             rows,
         };
-        Ok((reading, expired))
+        Ok(reading)
     }
 
     /// Every subscription a contract's books hold, for `tape_stop` to close
-    /// on the feed before the books go. Returns what the sweep freed
-    /// alongside.
-    fn held_for(&self, contract: &Contract, now: u64) -> (Subs, Subs) {
-        let mut held = self.lock();
-        let expired = Self::sweep(&mut held, now);
-        let subs = held.contracts.get(contract).map_or_else(Vec::new, |s| {
-            s.books
-                .iter()
-                .map(|(k, _)| subscription(*k, contract))
-                .collect()
-        });
-        (subs, expired)
+    /// on the feed before the books go.
+    fn held_for(&self, contract: &Contract) -> Subs {
+        self.lock()
+            .contracts
+            .get(contract)
+            .map_or_else(Vec::new, |s| {
+                s.books
+                    .iter()
+                    .map(|(k, _)| subscription(*k, contract))
+                    .collect()
+            })
     }
 
     fn market_held(&self, sec: SecType) -> bool {
@@ -1211,9 +1294,8 @@ impl Registry {
         self.lock().last_rejection
     }
 
-    fn list(&self, now: u64) -> (Vec<Holding>, Subs) {
-        let mut held = self.lock();
-        let expired = Self::sweep(&mut held, now);
+    fn list(&self) -> Vec<Holding> {
+        let held = self.lock();
         let mut rows: Vec<Holding> = held
             .contracts
             .iter()
@@ -1241,7 +1323,7 @@ impl Registry {
             }))
             .collect();
         rows.sort_by_key(|h| (h.label.clone(), label(&h.sub)));
-        (rows, expired)
+        rows
     }
 
     /// Every subscription the books hold, once each, in the two shapes the
@@ -1493,7 +1575,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 to choose. watch leaves a predicate on the book: rows that match it are kept \
                 past the ring and served at the top of your next read under watch.matched, \
                 with their times, so what crosses a line while you are not reading is not \
-                lost; watch.checked says how many rows it examined. kind \
+                lost; watch.checked says how many rows it examined, and when you replace the \
+                predicate in the same read, watch.matched_by is the one the matches were \
+                checked against. feed_dropped_since_last_read counts events the SDK discarded \
+                because this server fell behind; while it is not zero any book may be missing \
+                rows, and clipped says so. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
                 are Eastern. A book unread for 15 minutes closes on its own. A read that finds \
@@ -1504,7 +1590,7 @@ pub fn tool_definitions() -> Vec<Value> {
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "description": "Fixed lookback. Default: since your last read."},
                 "tail": {"type": "integer", "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."},
-                "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. 64 matches are kept between reads.")
+                "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses; 64 matches are kept between reads.")
             }))
         }),
         json!({
@@ -1532,7 +1618,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 unless ascending), and take at most limit rows, 50 at most. Without rank_by the \
                 newest matches come back, oldest first. in_window, matched and returned say how \
                 many prints the window held, how many passed your selection and how many you \
-                got; held, dropped and covers_seconds say what the ring reaches. The window \
+                got; held, dropped and covers_seconds say what the ring reaches, and \
+                feed_dropped_since_last_read counts events the SDK discarded because this \
+                server fell behind, which clipped also reflects. The window \
                 defaults to since your last read; seconds fixes a lookback. The first call opens \
                 the subscription and returns nothing yet; call again a second or two later. A \
                 market book is not held alongside per-contract trade or quote books on the same \
@@ -1548,7 +1636,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."},
                     "strike_min": {"type": "number", "description": "Dollars, inclusive. Options only."},
                     "strike_max": {"type": "number", "description": "Dollars, inclusive. Options only."},
-                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it; spread is ask minus bid."),
+                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it; spread is ask minus bid. At most 8."),
                     "rank_by": {"type": "string", "enum": FIELDS, "description": "Rank the selection by this field. Default: newest."},
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
                     "limit": {"type": "integer", "description": "Rows returned. Default 20, capped at 50."},
@@ -1564,7 +1652,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 state. on_feed is whether the feed itself still carries the subscription; a \
                 book the feed dropped is released on its next read. on_feed_not_held lists \
                 subscriptions the feed carries for no book. last_rejection is the feed's most \
-                recent refusal of a subscribe, with the vendor's meaning. An age that keeps \
+                recent refusal of a subscribe, with the vendor's meaning. feed_dropped_events is \
+                the SDK's running count of events it discarded because this server fell behind. \
+                An age that keeps \
                 growing while the feed says Connected is a contract that has gone quiet, not a \
                 fault; anything else and the next tape_read restarts the feed.",
             "inputSchema": {"type": "object", "properties": {}}
@@ -1769,12 +1859,20 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<(), ToolE
         _ if exhausted => stream.stop_streaming(),
         _ => return Ok(()),
     }
+    // A session that died or was never started delivered nothing since the
+    // books last saw the feed; the correlation across that interval closes.
+    reg.gap();
     stream
         .start_streaming(move |event: &StreamEvent| match event {
             StreamEvent::Data(data) => reg.ingest(data.clone()),
             StreamEvent::Control(StreamControl::ReconnectsExhausted { .. }) => {
                 reg.reconnects_exhausted.store(true, Ordering::Relaxed);
             }
+            // The SDK reconnects on its own, and whatever the feed sent
+            // between the drop and the new session was never seen.
+            StreamEvent::Control(
+                StreamControl::Disconnected { .. } | StreamControl::Reconnecting { .. },
+            ) => reg.gap(),
             StreamEvent::Control(StreamControl::ReqResponse { result, .. })
                 if *result != StreamResponseType::Subscribed =>
             {
@@ -2043,10 +2141,13 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         .get("seconds")
         .and_then(|v: &Value| v.as_f64())
         .map(|s| (s.max(0.0) * 1_000.0) as u64);
+    // Before anything else: what the sweep frees is closed here, whatever
+    // the call goes on to do or refuse.
+    close_expired(client, reg, reg.expire(now), now);
+    let feed_drops = client.stream().dropped_event_count();
 
     if name == "tape_list" {
-        let (rows, expired) = reg.list(now);
-        close_expired(client, reg, expired, now);
+        let rows = reg.list();
         // A listing is diagnostic, so a feed that cannot say what it carries
         // leaves the on_feed fields null rather than failing the call.
         let live = on_feed(client).ok();
@@ -2058,6 +2159,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         });
         return Ok(json!({
             "feed": feed_state(client, reg),
+            "feed_dropped_events": feed_drops,
             "last_rejection": reg.last_rejection().map(|(code, at)| json!({
                 "result": code.to_string(),
                 "meaning": rejection_meaning(code),
@@ -2095,8 +2197,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         )?;
         let q = parse_market_query(args, tail_rows(num_of("limit", 20)))?;
         ensure_streaming(client, reg)?;
-        let (m, expired) = reg.market(sec, &q, window, now)?;
-        close_expired(client, reg, expired, now);
+        let m = reg.market(sec, &q, window, feed_drops, now)?;
         let sub = sec.full_trades();
         if m.first {
             open_on_feed(client, reg, &[sub])?;
@@ -2115,6 +2216,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             "held": m.held,
             "dropped": m.dropped,
             "new_since_last_read": m.new_since_last_read,
+            "feed_dropped_since_last_read": m.feed_dropped_since_last_read,
             "age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
             "in_window": m.in_window,
             "matched": m.matched,
@@ -2151,15 +2253,15 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             let kind = resolve_kind(sec, args.get("kind").and_then(|v: &Value| v.as_str()))?;
             let watch = args.get("watch").map(parse_clauses).transpose()?;
             ensure_streaming(client, reg)?;
-            let (r, expired) = reg.read(
+            let r = reg.read(
                 &contract,
                 kind,
                 window,
                 tail_rows(num_of("tail", TAIL)),
                 watch,
+                feed_drops,
                 now,
             )?;
-            close_expired(client, reg, expired, now);
             let sub = subscription(kind, &contract);
             if r.first {
                 open_on_feed(client, reg, &[sub])?;
@@ -2170,6 +2272,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             let watch = (!r.watch.is_empty() || !r.watched.is_empty()).then(|| {
                 json!({
                     "clauses": r.watch.iter().map(clause_json).collect::<Vec<_>>(),
+                    "matched_by": (r.matched_by != r.watch)
+                        .then(|| r.matched_by.iter().map(clause_json).collect::<Vec<_>>()),
                     "checked": r.checked,
                     "matched": r.watched.iter().map(|d| aged_object(d, now)).collect::<Vec<_>>(),
                     "dropped": r.watched_dropped
@@ -2186,6 +2290,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "clipped": r.clipped,
                 "dropped": r.dropped,
                 "new_since_last_read": r.new_since_last_read,
+                "feed_dropped_since_last_read": r.feed_dropped_since_last_read,
                 "age_ms": r.newest_ms.map(|s| now.saturating_sub(s)),
                 "summary": summary_json(&r.summary),
                 "watch": watch,
@@ -2205,23 +2310,25 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 .unwrap_or(false);
             let count = num_of("count", 20);
             ensure_streaming(client, reg)?;
-            let (p, expired) = reg.prints(&contract, count, now)?;
-            close_expired(client, reg, expired, now);
+            let p = reg.prints(&contract, count, feed_drops, now)?;
             let (opened, kept): (Subs, Subs) = [SubscriptionKind::Trade, SubscriptionKind::Quote]
                 .into_iter()
                 .map(|k| subscription(k, &contract))
                 .partition(|s| p.opened.iter().any(|k| subscription(*k, &contract) == *s));
             open_on_feed(client, reg, &opened)?;
             reconcile(client, reg, &kept, now)?;
+            // Only an answer the caller receives consumes the cursor.
+            reg.commit_prints_read(&contract, p.received);
             Ok(json!({
                 "contract": contract.to_string(),
                 "feed": feed_state(client, reg),
                 "subscribed_now": p.opened.iter().map(|k| k.kind_str()).collect::<Vec<_>>(),
                 "count": p.rows.len(),
                 "held": p.held,
-                "clipped": p.held < count && p.dropped > 0,
+                "clipped": (p.held < count && p.dropped > 0) || p.feed_dropped_since_last_read > 0,
                 "covers_seconds": seconds(now.saturating_sub(p.covered_since_ms)),
                 "new_since_last_read": p.new_since_last_read,
+                "feed_dropped_since_last_read": p.feed_dropped_since_last_read,
                 "age_ms": p.newest_ms.map(|s| now.saturating_sub(s)),
                 "date": p.rows.last().and_then(|p| date_of(&p.trade)),
                 "prints": p.rows.iter().map(|p| {
@@ -2239,8 +2346,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             }))
         }
         "tape_stop" => {
-            let (held, expired) = reg.held_for(&contract, now);
-            close_expired(client, reg, expired, now);
+            let held = reg.held_for(&contract);
             if held.is_empty() {
                 return Err(ToolError::InvalidParams(format!(
                     "{contract} is not held; tape_list shows what is"
@@ -2380,12 +2486,19 @@ mod tests {
         tail: usize,
         now: u64,
     ) -> (Reading, Subs) {
-        reg.read(c, kind, window, tail, None, now)
-            .expect("nothing to refuse")
+        let expired = reg.expire(now);
+        let reading = reg
+            .read(c, kind, window, tail, None, 0, now)
+            .expect("nothing to refuse");
+        (reading, expired)
     }
 
     fn prints(reg: &Registry, c: &Contract, count: usize, now: u64) -> (Prints, Subs) {
-        reg.prints(c, count, now).expect("nothing to refuse")
+        // A call that is answered commits its cursor, as the tool does.
+        let expired = reg.expire(now);
+        let p = reg.prints(c, count, 0, now).expect("nothing to refuse");
+        reg.commit_prints_read(c, p.received);
+        (p, expired)
     }
 
     /// The refusal a call produced, in words.
@@ -2493,15 +2606,15 @@ mod tests {
         assert_eq!(prints(&reg, &c, 10, 300).0.new_since_last_read, 1);
         assert_eq!(prints(&reg, &c, 10, 301).0.new_since_last_read, 0);
         let call = option("550", "C");
-        reg.market(SecType::Option, &query(10), None, 400)
+        reg.market(SecType::Option, &query(10), None, 0, 400)
             .expect("nothing to refuse");
         reg.ingest(trade(&call, 1.0, 400 * MS));
-        let (m, _) = reg
-            .market(SecType::Option, &query(10), None, 400)
+        let m = reg
+            .market(SecType::Option, &query(10), None, 0, 400)
             .expect("nothing to refuse");
         assert_eq!((m.new_since_last_read, m.in_window), (1, 1));
-        let (m, _) = reg
-            .market(SecType::Option, &query(10), None, 401)
+        let m = reg
+            .market(SecType::Option, &query(10), None, 0, 401)
             .expect("nothing to refuse");
         assert_eq!((m.new_since_last_read, m.in_window), (0, 0));
     }
@@ -2535,13 +2648,13 @@ mod tests {
 
         // The market book answers the same way.
         let call = option("550", "C");
-        reg.market(SecType::Option, &query(1), None, 0)
+        reg.market(SecType::Option, &query(1), None, 0, 0)
             .expect("nothing to refuse");
         for _ in 0..=MARKET_RING {
             reg.ingest(trade(&call, 1.0, 1_000 * MS));
         }
-        let (m, _) = reg
-            .market(SecType::Option, &query(1), Some(1_000), 2_000)
+        let m = reg
+            .market(SecType::Option, &query(1), Some(1_000), 0, 2_000)
             .expect("nothing to refuse");
         assert!(m.clipped && m.dropped == 1);
     }
@@ -2634,7 +2747,7 @@ mod tests {
         let c = stock("AAPL");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        reg.market(SecType::Option, &query(1), None, 0)
+        reg.market(SecType::Option, &query(1), None, 0, 0)
             .expect("nothing to refuse");
 
         let released = release_unrestored(
@@ -2649,13 +2762,223 @@ mod tests {
         );
         assert_eq!(released, vec!["trade AAPL STOCK", "full_trades OPTION"]);
         assert_eq!(
-            reg.held_for(&c, 1).0,
+            reg.held_for(&c),
             vec![c.quote()],
             "the leg that restored is kept; the one that did not is gone"
         );
         assert!(
             !reg.market_held(SecType::Option),
             "a full-stream failure arrives as the marker contract and releases the market book"
+        );
+    }
+
+    #[test]
+    fn a_refused_call_still_hands_back_what_the_sweep_freed() {
+        // The sweep is its own step, run and closed before any call that
+        // the registry may refuse, so a refusal cannot strand a freed
+        // subscription.
+        let reg = Registry::default();
+        let aapl = stock("AAPL");
+        read(&reg, &aapl, SubscriptionKind::Trade, None, TAIL, 0);
+        reg.market(SecType::Option, &query(1), None, 0, PAST_TTL - 1)
+            .expect("nothing to refuse");
+
+        let expired = reg.expire(PAST_TTL);
+        assert_eq!(expired, vec![aapl.trade()], "the idle stock book is freed");
+        let why = refused(reg.read(
+            &option("550", "C"),
+            SubscriptionKind::Quote,
+            None,
+            TAIL,
+            None,
+            0,
+            PAST_TTL,
+        ));
+        assert!(
+            why.contains("tape_market"),
+            "and the call is refused: {why}"
+        );
+        assert_eq!(
+            reg.subscriptions().0,
+            vec![],
+            "the freed subscription is nowhere in the registry: only the caller of expire holds it"
+        );
+    }
+
+    #[test]
+    fn a_book_the_feed_would_not_release_still_bars_the_market() {
+        let reg = Registry::default();
+        let c = option("550", "C");
+        read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
+        assert_eq!(reg.expire(PAST_TTL), vec![c.trade()]);
+        // The close failed, so the book is put back before any conflict is
+        // judged; the feed still delivers that contract.
+        reg.reinstate(&c.trade(), PAST_TTL);
+        let why = refused(reg.market(SecType::Option, &query(1), None, 0, PAST_TTL));
+        assert!(why.contains("1 OPTION contract"), "{why}");
+    }
+
+    #[test]
+    fn a_feed_gap_closes_every_open_correlation() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let call = option("550", "C");
+        prints(&reg, &c, 10, 0);
+        reg.market(SecType::Option, &query(10), None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(quote(&c, 1.00, 1.10));
+        reg.ingest(trade(&c, 1.05, 0));
+        reg.ingest(quote(&call, 3.00, 3.10));
+
+        // The connection drops; whatever printed meanwhile was never seen.
+        reg.gap();
+        reg.ingest(quote(&c, 2.00, 2.10));
+        reg.ingest(quote(&c, 2.01, 2.11));
+        reg.ingest(trade(&c, 2.05, 1));
+        reg.ingest(trade(&call, 3.05, 1));
+
+        let (p, _) = prints(&reg, &c, 10, 2);
+        assert!(
+            p.rows[0].quotes_after.is_empty(),
+            "the print from before the gap takes no quote from after it"
+        );
+        assert_eq!(
+            p.rows[1]
+                .quote_before
+                .as_ref()
+                .and_then(|q| field_of(q, "bid")),
+            Some(2.01),
+            "a print after the gap correlates with what came after it"
+        );
+        let m = reg
+            .market(SecType::Option, &query(10), None, 0, 3)
+            .expect("nothing to refuse");
+        assert!(
+            m.rows[0].quote_before.is_none(),
+            "the market's waiting quote is from before the gap and is not this trade's"
+        );
+    }
+
+    #[test]
+    fn events_the_feed_discarded_count_against_every_window() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let call = option("550", "C");
+        // The SDK's counter is cumulative; a first read starts from it.
+        let r = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 5, 0)
+            .expect("nothing to refuse");
+        assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
+        reg.ingest(trade(&c, 1.0, MS));
+        let r = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 6, 1)
+            .expect("nothing to refuse");
+        assert_eq!(
+            r.feed_dropped_since_last_read, 1,
+            "one event lost since the last read"
+        );
+        assert!(
+            r.clipped,
+            "it may have been this book's, so the window is not whole"
+        );
+        let r = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 6, 2)
+            .expect("nothing to refuse");
+        assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
+
+        reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
+        let p = reg.prints(&c, 10, 9, 4).expect("nothing to refuse");
+        assert_eq!(p.feed_dropped_since_last_read, 3);
+        reg.market(SecType::Option, &query(1), None, 9, 5)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&call, 1.0, 5 * MS));
+        let m = reg
+            .market(SecType::Option, &query(1), Some(100), 10, 6)
+            .expect("nothing to refuse");
+        assert_eq!((m.feed_dropped_since_last_read, m.clipped), (1, true));
+    }
+
+    #[test]
+    fn matches_are_reported_under_the_predicate_that_produced_them() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let big = clauses(json!([{"field": "size", "op": ">", "value": 100}]));
+        let huge = clauses(json!([{"field": "size", "op": ">", "value": 1000}]));
+        reg.read(
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(big.clone()),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade_sized(&c, 1.0, 150, 0, MS));
+
+        let r = reg
+            .read(
+                &c,
+                SubscriptionKind::Trade,
+                None,
+                TAIL,
+                Some(huge.clone()),
+                0,
+                1,
+            )
+            .expect("nothing to refuse");
+        assert_eq!(
+            r.watched
+                .iter()
+                .map(|d| field_of(d, "size"))
+                .collect::<Vec<_>>(),
+            vec![Some(150.0)]
+        );
+        assert_eq!(r.watch, huge, "the new predicate is in force");
+        assert_eq!(
+            r.matched_by, big,
+            "but the match is reported under the predicate it matched"
+        );
+        let r = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, None, 0, 2)
+            .expect("nothing to refuse");
+        assert_eq!(r.matched_by, huge, "unchanged, the two are the same");
+    }
+
+    #[test]
+    fn a_predicate_is_bounded() {
+        let clause = json!({"field": "size", "op": ">", "value": 1});
+        let of = |n: usize| Value::from(vec![clause.clone(); n]);
+        assert!(parse_clauses(&of(MAX_CLAUSES)).is_ok());
+        let why = refused(parse_clauses(&of(MAX_CLAUSES + 1)));
+        assert!(
+            why.contains(&format!("at most {MAX_CLAUSES}")),
+            "names the bound: {why}"
+        );
+    }
+
+    #[test]
+    fn a_failed_prints_call_leaves_its_prints_new() {
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        prints(&reg, &c, 10, 0);
+        for i in 1..=3 {
+            reg.ingest(trade(&c, i as f64, i * MS));
+        }
+        // A call that fails after the read commits nothing, so the prints
+        // it saw are new again for the next one.
+        let p = reg.prints(&c, 10, 0, 1).expect("nothing to refuse");
+        assert_eq!(p.new_since_last_read, 3);
+        let again = reg.prints(&c, 10, 0, 2).expect("nothing to refuse");
+        assert_eq!(
+            again.new_since_last_read, 3,
+            "not consumed by a call that failed"
+        );
+        reg.commit_prints_read(&c, p.received);
+        let (after, _) = prints(&reg, &c, 10, 3);
+        assert_eq!(
+            after.new_since_last_read, 0,
+            "consumed by the call that was answered"
         );
     }
 
@@ -2924,27 +3247,24 @@ mod tests {
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
         read(&reg, &stock("MSFT"), SubscriptionKind::Trade, None, TAIL, 0);
 
-        let (held, _) = reg.held_for(&c, 1);
+        let held = reg.held_for(&c);
         assert_eq!(held.len(), 2, "both legs come back to be unsubscribed");
         // The feed lets one go and keeps the other: only the first is dropped.
         reg.forget(&held[0]);
         assert_eq!(
-            reg.held_for(&c, 1).0,
+            reg.held_for(&c),
             vec![held[1].clone()],
             "the leg the feed kept is still held, for the next stop to retry"
         );
         reg.forget(&held[1]);
-        let (rows, _) = reg.list(2);
+        let rows = reg.list();
         assert_eq!(rows.len(), 1);
         assert_eq!(
             rows[0].sub,
             stock("MSFT").trade(),
             "the other contract is untouched"
         );
-        assert!(
-            reg.held_for(&c, 3).0.is_empty(),
-            "stopping again finds nothing"
-        );
+        assert!(reg.held_for(&c).is_empty(), "stopping again finds nothing");
     }
 
     #[test]
@@ -3054,7 +3374,7 @@ mod tests {
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        reg.market(SecType::Option, &query(1), None, 0)
+        reg.market(SecType::Option, &query(1), None, 0, 0)
             .expect("nothing to refuse");
 
         let (mut subs, full) = reg.subscriptions();
@@ -3322,13 +3642,14 @@ mod tests {
         let reg = Registry::default();
         let c = stock("AAPL");
         let big = clauses(json!([{"field": "size", "op": ">", "value": 100}]));
-        let (r, _) = reg
+        let r = reg
             .read(
                 &c,
                 SubscriptionKind::Trade,
                 None,
                 TAIL,
                 Some(big.clone()),
+                0,
                 0,
             )
             .expect("nothing to refuse");
@@ -3384,13 +3705,14 @@ mod tests {
                 (RING as u64 + 10 + i) * MS,
             ));
         }
-        let (r, _) = reg
+        let r = reg
             .read(
                 &c,
                 SubscriptionKind::Trade,
                 None,
                 TAIL,
                 Some(Vec::new()),
+                0,
                 RING as u64 + 100,
             )
             .expect("nothing to refuse");
@@ -3422,8 +3744,8 @@ mod tests {
         let reg = Registry::default();
         let call = option("550", "C");
         let put = option("540", "P");
-        let (m, _) = reg
-            .market(SecType::Option, &query(10), None, 0)
+        let m = reg
+            .market(SecType::Option, &query(10), None, 0, 0)
             .expect("nothing to refuse");
         assert!(m.first, "the first look opens it");
 
@@ -3437,8 +3759,8 @@ mod tests {
         // A stock trade belongs to a market book this registry does not hold.
         reg.ingest(trade(&stock("AAPL"), 150.0, 3 * MS));
 
-        let (m, _) = reg
-            .market(SecType::Option, &query(10), None, 10)
+        let m = reg
+            .market(SecType::Option, &query(10), None, 0, 10)
             .expect("nothing to refuse");
         assert!(!m.first);
         assert_eq!(m.received, 2, "two option trades, no stock");
@@ -3470,8 +3792,8 @@ mod tests {
         for i in 0..(MARKET_RING as u64 + 5) {
             reg.ingest(trade(&call, 1.0, (100 + i) * MS));
         }
-        let (m, _) = reg
-            .market(SecType::Option, &query(1), Some(1_000_000), 100_000)
+        let m = reg
+            .market(SecType::Option, &query(1), Some(1_000_000), 0, 100_000)
             .expect("nothing to refuse");
         assert_eq!((m.held, m.dropped), (MARKET_RING, 7));
         assert_eq!(
@@ -3484,7 +3806,7 @@ mod tests {
     #[test]
     fn a_market_read_selects_on_the_contract_and_the_fields_and_ranks_what_passes() {
         let reg = Registry::default();
-        reg.market(SecType::Option, &query(10), None, 0)
+        reg.market(SecType::Option, &query(10), None, 0, 0)
             .expect("nothing to refuse");
         let c540 = option("540", "C");
         let c550 = option("550", "C");
@@ -3518,8 +3840,8 @@ mod tests {
         q.is_call = Some(true);
         q.strike_min = Some(545.0);
         q.strike_max = Some(555.0);
-        let (m, _) = reg
-            .market(SecType::Option, &q, Some(100), 10)
+        let m = reg
+            .market(SecType::Option, &q, Some(100), 0, 10)
             .expect("nothing to refuse");
         assert_eq!(
             (m.in_window, m.matched),
@@ -3535,8 +3857,8 @@ mod tests {
         // Vendor fields, on the trade and on the quote before it.
         let mut q = query(10);
         q.clauses = clauses(json!([{"field": "spread", "op": ">=", "value": 0.5}]));
-        let (m, _) = reg
-            .market(SecType::Option, &q, Some(100), 11)
+        let m = reg
+            .market(SecType::Option, &q, Some(100), 0, 11)
             .expect("nothing to refuse");
         assert_eq!(
             sizes(&m),
@@ -3547,8 +3869,8 @@ mod tests {
         // Rank, direction, cut — and a rank field the row lacks sorts last.
         let mut q = query(2);
         q.rank_by = Some("size".into());
-        let (m, _) = reg
-            .market(SecType::Option, &q, Some(100), 12)
+        let m = reg
+            .market(SecType::Option, &q, Some(100), 0, 12)
             .expect("nothing to refuse");
         assert_eq!(
             (m.matched, m.rows.len()),
@@ -3557,14 +3879,14 @@ mod tests {
         );
         assert_eq!(sizes(&m), vec![Some(999.0), Some(300.0)], "largest first");
         q.ascending = true;
-        let (m, _) = reg
-            .market(SecType::Option, &q, Some(100), 13)
+        let m = reg
+            .market(SecType::Option, &q, Some(100), 0, 13)
             .expect("nothing to refuse");
         assert_eq!(sizes(&m), vec![Some(10.0), Some(50.0)]);
         let mut q = query(5);
         q.rank_by = Some("bid".into());
-        let (m, _) = reg
-            .market(SecType::Option, &q, Some(100), 14)
+        let m = reg
+            .market(SecType::Option, &q, Some(100), 0, 14)
             .expect("nothing to refuse");
         assert_eq!(
             sizes(&m)[0],
@@ -3573,8 +3895,8 @@ mod tests {
         );
 
         // The window is the population.
-        let (m, _) = reg
-            .market(SecType::Option, &query(10), Some(2), 6)
+        let m = reg
+            .market(SecType::Option, &query(10), Some(2), 0, 6)
             .expect("nothing to refuse");
         assert_eq!(
             (m.in_window, m.matched),
@@ -3583,13 +3905,13 @@ mod tests {
         );
         let mut q = query(10);
         q.expiration = Some(20260620);
-        let (m, _) = reg
-            .market(SecType::Option, &q, Some(100), 15)
+        let m = reg
+            .market(SecType::Option, &q, Some(100), 0, 15)
             .expect("nothing to refuse");
         assert_eq!(m.matched, 5);
         q.expiration = Some(20260621);
-        let (m, _) = reg
-            .market(SecType::Option, &q, Some(100), 16)
+        let m = reg
+            .market(SecType::Option, &q, Some(100), 0, 16)
             .expect("nothing to refuse");
         assert_eq!(m.matched, 0);
     }
@@ -3599,22 +3921,22 @@ mod tests {
         let reg = Registry::default();
         let c = option("550", "C");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
-        let why = refused(reg.market(SecType::Option, &query(1), None, 1));
+        let why = refused(reg.market(SecType::Option, &query(1), None, 0, 1));
         assert!(
             why.contains("1 OPTION contract"),
             "names the conflict: {why}"
         );
         assert!(!reg.market_held(SecType::Option), "and opens nothing");
-        reg.market(SecType::Stock, &query(1), None, 2)
+        reg.market(SecType::Stock, &query(1), None, 0, 2)
             .expect("another class is no conflict");
 
         reg.forget(&c.trade());
-        reg.market(SecType::Option, &query(1), None, 3)
+        reg.market(SecType::Option, &query(1), None, 0, 3)
             .expect("nothing to refuse");
-        let why = refused(reg.read(&c, SubscriptionKind::Quote, None, TAIL, None, 4));
+        let why = refused(reg.read(&c, SubscriptionKind::Quote, None, TAIL, None, 0, 4));
         assert!(why.contains("tape_market"), "names the other side: {why}");
         assert!(
-            reg.prints(&c, 1, 5).is_err(),
+            reg.prints(&c, 1, 0, 5).is_err(),
             "a print needs both doubled legs"
         );
         read(&reg, &c, SubscriptionKind::OpenInterest, None, TAIL, 6);
@@ -3638,14 +3960,14 @@ mod tests {
     #[test]
     fn an_idle_market_book_is_swept_and_stopped_by_its_class() {
         let reg = Registry::default();
-        reg.market(SecType::Stock, &query(1), None, 0)
+        reg.market(SecType::Stock, &query(1), None, 0, 0)
             .expect("nothing to refuse");
         let spx = Contract::index("SPX");
         let (_, expired) = read(&reg, &spx, SubscriptionKind::Trade, None, TAIL, PAST_TTL);
         assert_eq!(expired, vec![SecType::Stock.full_trades()]);
         assert!(!reg.market_held(SecType::Stock));
 
-        reg.market(SecType::Stock, &query(1), None, PAST_TTL)
+        reg.market(SecType::Stock, &query(1), None, 0, PAST_TTL)
             .expect("nothing to refuse");
         assert!(reg.market_held(SecType::Stock));
         reg.forget(&SecType::Stock.full_trades());
