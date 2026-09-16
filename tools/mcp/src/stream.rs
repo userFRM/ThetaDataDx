@@ -1392,6 +1392,7 @@ impl Registry {
         let mut opened_ms = now;
         let held_prints = !state.prints.is_empty();
         let mut gaps_from_reopen = 0u64;
+        let mut needs_seal = false;
         for kind in [SubscriptionKind::Trade, SubscriptionKind::Quote] {
             let (book, first) = state.open(kind, now);
             if first {
@@ -1401,6 +1402,13 @@ impl Registry {
                 opened_ms = book.opened_ms;
             }
             book.touched_ms = now;
+            // A quote leg coming back has been away, and a print that
+            // arrived while it was gone saw none of the quotes from that
+            // interval. Sealing on the way out is not enough: a trade can
+            // land between the sweep and this reopening.
+            if first && kind == SubscriptionKind::Quote {
+                needs_seal = true;
+            }
             // Prints accrue only while the trade book exists, so a trade
             // book being created while prints from before it are still held
             // means it expired and the feed stopped carrying this contract
@@ -1408,6 +1416,9 @@ impl Registry {
             if first && kind == SubscriptionKind::Trade && held_prints {
                 gaps_from_reopen += 1;
             }
+        }
+        if needs_seal {
+            state.seal();
         }
         if gaps_from_reopen > 0 {
             state.gaps += 1;
@@ -2243,10 +2254,20 @@ fn object(data: &StreamData) -> Value {
 
 /// A row as an object with how old it is, for rows served out of time
 /// order where the tail's implicit ordering does not say.
-fn aged_object(data: &StreamData, now: u64) -> Value {
+/// A row with how long ago it arrived. `dated` also carries its trading
+/// date, for a response whose rows do not share one and so cannot name a
+/// date for the collection.
+fn aged_object_dated(data: &StreamData, now: u64, dated: bool) -> Value {
     let mut out = object(data);
-    if let (Some(obj), Some(seen)) = (out.as_object_mut(), seen_ms(data)) {
-        obj.insert("age_ms", Value::from(now.saturating_sub(seen)));
+    if let Some(obj) = out.as_object_mut() {
+        if let Some(seen) = seen_ms(data) {
+            obj.insert("age_ms", Value::from(now.saturating_sub(seen)));
+        }
+        if dated {
+            if let Some(day) = date_of(data) {
+                obj.insert("date", Value::from(day));
+            }
+        }
     }
     out
 }
@@ -2875,7 +2896,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "date": market_date.is_none().then(|| date_of(&p.trade)).flatten(),
                 "contract": contract_of(&p.trade).map(ToString::to_string),
                 "trade": object(&p.trade),
-                "quote_before": p.quote_before.as_ref().map(object)
+                "quote_before": p.quote_before.as_ref().map(|q| {
+                    aged_object_dated(q, now, market_date.is_none())
+                })
             })).collect::<Vec<_>>()
         }));
     }
@@ -2966,15 +2989,17 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             // who will ever see what it examined and what it caught.
             let watch = (!r.watch.is_empty() || !r.watched.is_empty() || !r.matched_by.is_empty())
                 .then(|| {
-                json!({
-                    "clauses": r.watch.iter().map(clause_json).collect::<Vec<_>>(),
-                    "matched_by": (r.matched_by != r.watch)
-                        .then(|| r.matched_by.iter().map(clause_json).collect::<Vec<_>>()),
-                    "checked": r.checked,
-                    "matched": r.watched.iter().map(|d| aged_object(d, now)).collect::<Vec<_>>(),
-                    "dropped": r.watched_dropped
-                })
-            });
+                    json!({
+                        "clauses": r.watch.iter().map(clause_json).collect::<Vec<_>>(),
+                        "matched_by": (r.matched_by != r.watch)
+                            .then(|| r.matched_by.iter().map(clause_json).collect::<Vec<_>>()),
+                        "checked": r.checked,
+                        "matched": r.watched.iter()
+                            .map(|d| aged_object_dated(d, now, shared_date.is_none()))
+                            .collect::<Vec<_>>(),
+                        "dropped": r.watched_dropped
+                    })
+                });
             Ok(json!({
                 "contract": contract.to_string(),
                 "kind": kind.kind_str(),
@@ -2990,7 +3015,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "age_ms": r.newest_ms.map(|s| now.saturating_sub(s)),
                 "summary": summary_json(&r.summary, shared_date.is_none()),
                 "watch": watch,
-                "vendor_ohlcvc": r.ohlcvc.as_ref().map(|bar| aged_object(bar, now)),
+                "vendor_ohlcvc": r.ohlcvc
+                    .as_ref()
+                    .map(|bar| aged_object_dated(bar, now, shared_date.is_none())),
                 "date": shared_date,
                 "columns": newest.map(|d| {
                     let mut c: Vec<&str> = fields(d).into_iter().map(|(k, _)| k).collect();
@@ -3047,7 +3074,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                     let mut out = json!({
                         "date": prints_date.is_none().then(|| date_of(&p.trade)).flatten(),
                         "trade": object(&p.trade),
-                        "quote_before": p.quote_before.as_ref().map(object)
+                        "quote_before": p.quote_before.as_ref().map(|q| {
+                            aged_object_dated(q, now, prints_date.is_none())
+                        })
                     });
                     if with_quotes_after {
                         if let Some(obj) = out.as_object_mut() {
@@ -3921,6 +3950,50 @@ mod tests {
         assert!(
             !r.clipped,
             "this second of tape is nowhere near the interruption"
+        );
+    }
+
+    #[test]
+    fn a_quote_leg_coming_back_does_not_pair_across_the_interval_it_missed() {
+        // A trade can land between the sweep that drops the quote leg and
+        // the call that brings it back. Quotes after that are from a
+        // different interval than the one the print traded in.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        // The quote leg goes idle while the trade leg is kept alive.
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            PAST_TTL - 1,
+        )
+        .expect("nothing to refuse");
+        reg.expire(PAST_TTL);
+        // A print arrives while nothing is watching the quotes.
+        reg.ingest(trade(&c, 1.0, PAST_TTL * MS));
+        // The quote leg comes back, and quotes start flowing again.
+        let p = reg
+            .prints(&c, 10, 0, PAST_TTL + 1)
+            .expect("nothing to refuse");
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        reg.ingest(quote(&c, 1.0, 2.0));
+        reg.ingest(quote(&c, 1.1, 2.1));
+        let after = reg
+            .prints(&c, 10, 0, PAST_TTL + 2)
+            .expect("nothing to refuse");
+        let orphan = after
+            .rows
+            .iter()
+            .find(|r| price(&r.trade) == 1.0)
+            .expect("the print survived");
+        assert!(
+            orphan.quotes_after.is_empty(),
+            "those quotes are from after an interval nobody watched"
         );
     }
 
