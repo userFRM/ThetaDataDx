@@ -1249,7 +1249,27 @@ impl Registry {
         let mut held = self.lock();
         Self::without_market(&held, contract, kind)?;
         let state = held.contracts.entry(contract.clone()).or_default();
-        let (book, first) = state.open(kind, now);
+        let mut state_seal = false;
+        let mut state_gap = false;
+        // Reopening a leg is an interruption, whichever tool does it: the
+        // feed stopped carrying this contract in between, and prints or
+        // quotes from that interval are simply absent.
+        let held_prints = !state.prints.is_empty();
+        let first = !state.books.iter().any(|(k, _)| *k == kind);
+        if first && kind == SubscriptionKind::Quote {
+            state_seal = true;
+        }
+        if first && kind == SubscriptionKind::Trade && held_prints {
+            state_gap = true;
+        }
+        if state_seal {
+            state.seal();
+        }
+        if state_gap {
+            state.gaps += 1;
+            state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
+        }
+        let (book, _) = state.open(kind, now);
         let previous = book.read_ms;
         // Using the book is what keeps it alive, and that is true even of a
         // call that goes on to fail. Everything else this read observes is
@@ -2010,9 +2030,20 @@ fn rejection_meaning(code: StreamResponseType) -> &'static str {
 
 /// The contract properties shared by every tool that names one, plus
 /// whatever the tool adds.
-/// `sec_types` is what the tool can actually serve, not what the vendor
-/// has: a type offered here and refused on every call is a call a model
-/// will make, and an answer it will never get.
+/// The security types a tool can serve, which is not everything the vendor
+/// has. A type offered and refused on every call is a call a model will
+/// make and an answer it will never get, so this is the one list: the
+/// schema advertises it and the call refuses against it.
+fn sec_types_for(tool: &str) -> &'static [&'static str] {
+    match tool {
+        // A print is a trade with the quote that stood before it, and an
+        // index has no quote stream. A whole-market stream is not offered
+        // on indices at any tier.
+        "tape_prints" | "tape_market" => &["option", "stock"],
+        _ => &["option", "stock", "index"],
+    }
+}
+
 fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
     let mut props = json!({
         "sec_type": {"type": "string", "enum": sec_types},
@@ -2026,7 +2057,23 @@ fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
             props.insert(k, v.clone());
         }
     }
-    json!({"type": "object", "properties": props, "required": ["sec_type", "root"]})
+    json!({
+        "type": "object",
+        "properties": props,
+        "required": ["sec_type", "root"],
+        // An option is one leg, and the three names that identify it are
+        // required exactly when the type is option. Saying so here is what
+        // stops a caller composing a request that can only be refused.
+        "allOf": [{
+            "if": {"properties": {"sec_type": {"const": "option"}}, "required": ["sec_type"]},
+            "then": {"required": ["expiration", "strike", "right"]},
+            "else": {"not": {"anyOf": [
+                {"required": ["expiration"]},
+                {"required": ["strike"]},
+                {"required": ["right"]}
+            ]}}
+        }]
+    })
 }
 
 /// The schema of a predicate: clauses over `fields`.
@@ -2083,7 +2130,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 back it reaches, columns names the fields of each tail row in order, and date is \
                 the trading date they share, absent and carried on each row instead when they \
                 span more than one.",
-            "inputSchema": contract_schema(&["option", "stock", "index"], json!({
+            "inputSchema": contract_schema(sec_types_for("tape_read"), json!({
                 "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "minimum": 0, "description": "Fixed lookback. Default: since your last read."},
@@ -2095,9 +2142,11 @@ pub fn tool_definitions() -> Vec<Value> {
             "name": "tape_prints",
             "description": "Recent trades on one contract, newest last, each with the quote that \
                 stood before it; the feed also sends the two quotes after a print, and \
-                quotes_after returns them. Opens the trade and quote subscriptions if they are \
-                not already held, and a call that opens them returns nothing yet; call again a \
-                second or two later. A contract whose trade and quote books are both open already has prints straight away. \
+                quotes_after returns them. Opens the trade and quote subscriptions if they \
+                are not already held. A print needs both, so a call that opens the trade book \
+                has none yet and you should call again a second or two later; a contract \
+                already being read for its trades has whatever printed since, and gains the \
+                quotes beside them from the next call. \
                 new_since_last_read counts prints since you last looked at this contract's \
                 trades. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. Each print carries quote_before, the quote that stood when it \
@@ -2106,7 +2155,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 before it, and an index has no quote stream, so indices are not on this tool; \
                 tape_read with kind trade carries the index price. \
                 Times are Eastern.",
-            "inputSchema": contract_schema(&["option", "stock"], json!({
+            "inputSchema": contract_schema(sec_types_for("tape_prints"), json!({
                 "count": {"type": "integer", "minimum": 0, "description": "Newest prints. Default 20."},
                 "quotes_after": {"type": "boolean", "description": "Include the two quotes after each print. Default false."}
             }))
@@ -2178,11 +2227,26 @@ pub fn tool_definitions() -> Vec<Value> {
                 tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
-                "properties": contract_schema(&["option", "stock", "index"], json!({}))
+                "properties": contract_schema(sec_types_for("tape_stop"), json!({}))
                     .get("properties")
                     .cloned()
                     .unwrap_or_default(),
-                "required": ["sec_type"]
+                "required": ["sec_type"],
+                // Naming a contract means naming all of it: an option root
+                // without its leg identifies nothing, and a leg without a
+                // root would close a whole market instead of one contract.
+                "allOf": [{
+                    "if": {
+                        "properties": {"sec_type": {"const": "option"}},
+                        "required": ["sec_type", "root"]
+                    },
+                    "then": {"required": ["expiration", "strike", "right"]},
+                    "else": {"not": {"anyOf": [
+                        {"required": ["expiration"]},
+                        {"required": ["strike"]},
+                        {"required": ["right"]}
+                    ]}}
+                }]
             }
         }),
     ]
@@ -2825,17 +2889,14 @@ fn arg<T>(
 
 /// A whole number of rows: present and negative, fractional or oversized is
 /// refused rather than rounded into a default.
-fn count_arg(args: &Value, key: &str, default: usize) -> Result<usize, ToolError> {
-    Ok(arg(args, key, "a whole number of rows, zero or more", |v| {
-        v.as_u64().map(|n| n as usize)
-    })?
-    .unwrap_or(default))
+fn count_arg(args: &Value, key: &str, what: &str, default: usize) -> Result<usize, ToolError> {
+    Ok(arg(args, key, what, |v| v.as_u64().map(|n| n as usize))?.unwrap_or(default))
 }
 
 fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError> {
     let reg = registry();
     let now = now_ms();
-    let num_of = |k: &str, d: usize| count_arg(args, k, d);
+    let num_of = |k: &str, d: usize| count_arg(args, k, "a whole number of rows, zero or more", d);
     let window = arg(args, "seconds", "a number of seconds, zero or more", |v| {
         v.as_f64().filter(|s| *s >= 0.0)
     })?
@@ -2886,7 +2947,19 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     }
 
     if name == "tape_market" {
-        let sec = parse_sec_of(args, &["option", "stock"])?;
+        let sec = parse_sec_of(args, sec_types_for("tape_market"))?;
+        if sec != SecType::Option {
+            if let Some(named) = ["expiration", "right", "strike_min", "strike_max"]
+                .iter()
+                .find(|k| args.get(*k).is_some_and(|v: &Value| !v.is_null()))
+            {
+                return Err(ToolError::InvalidParams(format!(
+                    "{named} describes an option, and no {} has one; a selection on it would \
+                     match nothing",
+                    sec.as_str().to_ascii_lowercase()
+                )));
+            }
+        }
         let hist = client.market_data();
         pro_required(
             sec,
@@ -2895,7 +2968,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 _ => hist.stock_tier(),
             },
         )?;
-        let q = parse_market_query(args, tail_rows(num_of("limit", 20)?))?;
+        let limit = count_arg(args, "limit", "a whole number of rows, one or more", 20)?;
+        let q = parse_market_query(args, tail_rows(limit))?;
         // Sampled from the session this call guarantees, never before it:
         // a restart resets the SDK's counter, and a count taken ahead of one
         // belongs to the session that just died.
@@ -2920,7 +2994,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         reg.commit_market(sec, &m.settle, now);
         // One date for the whole selection while the prints agree;
         // otherwise it travels on each print.
-        let market_date = one_date(m.rows.iter().map(|p| &p.trade));
+        let market_date = one_date(
+            m.rows
+                .iter()
+                .flat_map(|p| std::iter::once(&p.trade).chain(p.quote_before.iter())),
+        );
         return Ok(json!({
             "sec_type": sec.as_str().to_ascii_lowercase(),
             "feed": feed_state(client, reg),
@@ -2950,7 +3028,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     }
 
     if name == "tape_stop" && args.get("root").is_none() {
-        let sec = parse_sec_of(args, &["option", "stock"])?;
+        let sec = parse_sec_of(args, sec_types_for("tape_market"))?;
         // Without a root this closes the whole market. Contract identifiers
         // say the caller meant one contract, and closing every one of them
         // instead is not a smaller mistake for being silent.
@@ -2985,6 +3063,12 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         }));
     }
 
+    // tape_prints pairs a trade with the quote before it, and an index has
+    // no quote stream, so it says which types it serves at the first refusal
+    // rather than after a second call.
+    if name == "tape_prints" {
+        parse_sec_of(args, sec_types_for(name))?;
+    }
     let (sec, contract) = parse_contract(args)?;
     match name {
         "tape_read" => {
@@ -3029,7 +3113,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                     .chain(r.summary.last.iter())
                     .chain(r.summary.low.iter())
                     .chain(r.summary.high.iter())
-                    .chain(r.watched.iter()),
+                    .chain(r.watched.iter())
+                    .chain(r.ohlcvc.iter()),
             );
             // The predicate that was in force is disclosed by the read that
             // retires it: a caller clearing one with [] is the only caller
@@ -3103,7 +3188,16 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             // Only an answer the caller receives consumes the cursor.
             reg.commit_prints_read(&contract, p.received, p.feed_drops_seen, p.gaps_seen);
             // One date while the prints agree; otherwise it travels on each.
-            let prints_date = one_date(p.rows.iter().map(|p| &p.trade));
+            let prints_date = one_date(
+                p.rows
+                    .iter()
+                    .flat_map(|p| {
+                        std::iter::once(&p.trade)
+                            .chain(p.quote_before.iter())
+                            .chain(p.quotes_after.iter())
+                    })
+                    .filter(|_| true),
+            );
             Ok(json!({
                 "contract": contract.to_string(),
                 "feed": feed_state(client, reg),
@@ -3129,7 +3223,9 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                     });
                     if with_quotes_after {
                         if let Some(obj) = out.as_object_mut() {
-                            obj.insert("quotes_after", Value::from(p.quotes_after.iter().map(object).collect::<Vec<_>>()));
+                            obj.insert("quotes_after", Value::from(p.quotes_after.iter()
+                                .map(|q| aged_object_dated(q, now, prints_date.is_none()))
+                                .collect::<Vec<_>>()));
                         }
                     }
                     out
@@ -3931,11 +4027,27 @@ mod tests {
         };
         // A print is a trade with the quote that stood before it, and an
         // index has no quote stream at any tier.
+        // Stated outright, not compared against the same list the code
+        // reads: a test that asks whether a value equals itself passes
+        // whatever the value becomes.
+        assert_eq!(sec_types_for("tape_prints"), ["option", "stock"]);
+        assert_eq!(sec_types_for("tape_market"), ["option", "stock"]);
+        assert_eq!(sec_types_for("tape_read"), ["option", "stock", "index"]);
+        assert_eq!(sec_types_for("tape_stop"), ["option", "stock", "index"]);
         assert_eq!(types("tape_prints"), ["option", "stock"]);
         // An index price arrives on the trade subscription, so a read and a
         // stop both work.
         assert_eq!(types("tape_read"), ["option", "stock", "index"]);
         assert_eq!(types("tape_stop"), ["option", "stock", "index"]);
+        // The refusal a call gives comes from the same list the schema
+        // advertises, so neither can drift from the other.
+        for tool in ["tape_read", "tape_prints", "tape_stop", "tape_market"] {
+            for t in ["option", "stock", "index"] {
+                let served = sec_types_for(tool).contains(&t);
+                let parsed = parse_sec_of(&json!({"sec_type": t}), sec_types_for(tool));
+                assert_eq!(parsed.is_ok(), served, "{tool} and {t}");
+            }
+        }
     }
 
     #[test]
@@ -4050,6 +4162,27 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(!again.clipped, "and it is still after it on the next read");
+    }
+
+    #[test]
+    fn a_schema_says_when_an_option_leg_is_required() {
+        // A caller composing against the schema should not be able to write
+        // a request whose only possible answer is a refusal.
+        for tool in ["tape_read", "tape_prints", "tape_stop"] {
+            let Some(t) = tool_definitions().into_iter().find(|t| t["name"] == tool) else {
+                continue;
+            };
+            let rule = &t["inputSchema"]["allOf"][0];
+            assert_eq!(
+                rule["if"]["properties"]["sec_type"]["const"], "option",
+                "{tool} says which type needs a leg"
+            );
+            let needs = rule["then"]["required"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                .unwrap_or_default();
+            assert_eq!(needs, OPTION_LEG.to_vec(), "{tool} names the whole leg");
+        }
     }
 
     #[test]
@@ -4433,19 +4566,22 @@ mod tests {
                 "quotes_after" | "ascending" => {
                     arg(&args, key, "true or false", Value::as_bool).err()
                 }
-                _ => count_arg(&args, key, 20).err(),
+                _ => count_arg(&args, key, "a whole number of rows, zero or more", 20).err(),
             };
             let why = format!("{:?}", got.expect("refused"));
             assert!(why.contains(key) && why.contains(what), "{why}");
         }
         // Absent and null still mean the default.
-        assert_eq!(count_arg(&json!({}), "tail", 10).expect("default"), 10);
         assert_eq!(
-            count_arg(&json!({"tail": null}), "tail", 10).expect("default"),
+            count_arg(&json!({}), "tail", "rows", 10).expect("default"),
             10
         );
         assert_eq!(
-            count_arg(&json!({"tail": 3}), "tail", 10).expect("given"),
+            count_arg(&json!({"tail": null}), "tail", "rows", 10).expect("default"),
+            10
+        );
+        assert_eq!(
+            count_arg(&json!({"tail": 3}), "tail", "rows", 10).expect("given"),
             3
         );
     }
