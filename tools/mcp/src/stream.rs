@@ -990,7 +990,17 @@ fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
     match window {
         // Since your last read: anything lost in that interval counts, and
         // the disclosure is spent by the read that makes it.
-        None => c.gap || c.awaiting_resume || c.feed_dropped > 0 || c.new > c.held as u64,
+        // Since your last read: a loss disclosed by an earlier read still
+        // sits inside this window if it happened after that read.
+        None => {
+            c.gap
+                || c.awaiting_resume
+                || c.feed_dropped > 0
+                || c.new > c.held as u64
+                // Strictly after the last read: a loss dated at that read
+                // is behind this window, and was disclosed by it.
+                || c.incomplete_at_ms > floor
+        }
         // A named window asks about an interval, so only a loss inside it
         // counts. A loss learned of now is dated now, since nothing between
         // the loss and this read is proven.
@@ -1320,12 +1330,19 @@ impl Registry {
             let inside = match window {
                 None => (i as u64) < new,
                 // A zero stamp is the SDK's fallback for a clock it could
-                // not read. Treating it as older than the floor would end
-                // the walk and hide every row behind it that does belong.
+                // not read, and a clock can also step backwards, so a row
+                // outside the window does not mean the rest are.
                 Some(_) => seen_ms(d).is_none_or(|s| s == 0 || s >= floor),
             };
             if !inside {
-                break;
+                // The default window counts arrivals, which are in order, so
+                // the first row outside it ends the walk. A named window
+                // reads stamps, which are not guaranteed to be, so it keeps
+                // looking rather than hiding what sits behind one.
+                if window.is_none() {
+                    break;
+                }
+                continue;
             }
             summary.count += 1;
             if summary.last.is_none() {
@@ -1533,9 +1550,14 @@ impl Registry {
             received,
             feed_dropped_since_last_read: feed_dropped,
             gap: state.gaps > state.gaps_at_prints_read,
-            // Prints from before a loss are still held, so the history
-            // these rows come from has a hole in it.
-            holed: state.prints_holed_before.is_some(),
+            // A hole matters when the rows coming back sit either side of
+            // it. Asking for only the newest prints, all of them after the
+            // loss, is a complete answer to what was asked.
+            holed: state.prints_holed_before.is_some_and(|at| {
+                let oldest_returned =
+                    state.prints_dropped + state.prints.len().saturating_sub(count) as u64;
+                oldest_returned < at
+            }),
             gaps_seen: state.gaps,
             feed_drops_seen: feed_drops,
             // Coverage starts at the oldest print held, or where the trade
@@ -2183,6 +2205,7 @@ fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
     }
     json!({
         "type": "object",
+        "additionalProperties": false,
         "properties": props,
         "required": ["sec_type", "root"],
         // An option is one leg, and the three names that identify it are
@@ -2341,7 +2364,20 @@ pub fn tool_definitions() -> Vec<Value> {
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
                     "limit": {"type": "integer", "minimum": 1, "description": "Rows kept between reads. Default 20, capped at 50."}
                 },
-                "required": ["sec_type"]
+                "required": ["sec_type"],
+                "additionalProperties": false,
+                // The fields that describe an option belong to an option;
+                // on anything else a selection on them matches nothing.
+                "allOf": [{
+                    "if": {"properties": {"sec_type": {"const": "option"}}, "required": ["sec_type"]},
+                    "then": {},
+                    "else": {"not": {"anyOf": [
+                        {"required": ["expiration"]},
+                        {"required": ["right"]},
+                        {"required": ["strike_min"]},
+                        {"required": ["strike_max"]}
+                    ]}}
+                }]
             }
         }),
         json!({
@@ -2357,7 +2393,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 growing while the feed says Connected is a contract that has gone quiet, not a \
                 fault. A feed that died or spent its reconnect budget is restarted by the \
                 next tape_read; one the SDK is still reconnecting on its own is left to it.",
-            "inputSchema": {"type": "object", "properties": {}}
+            "inputSchema": {"type": "object", "additionalProperties": false, "properties": {}}
         }),
         json!({
             "name": "tape_stop",
@@ -2368,6 +2404,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": contract_schema(sec_types_for("tape_stop"), json!({}))
                     .get("properties")
                     .cloned()
@@ -3352,7 +3389,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "vendor_ohlcvc": r.ohlcvc
                     .as_ref()
                     .map(|bar| aged_object_dated(bar, now, shared_date.is_none())),
-                "date": shared_date,
+                "date": shared_date.map(Value::from),
                 "columns": newest.map(|d| {
                     let mut c: Vec<&str> = fields(d).into_iter().map(|(k, _)| k).collect();
                     if shared_date.is_none() {
@@ -4466,7 +4503,22 @@ mod tests {
             5_000,
         )
         .expect("nothing to refuse");
-        assert!(!proven.clipped, "the feed is delivering again");
+        assert!(
+            proven.clipped,
+            "this window still reaches back over where the loss ended"
+        );
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            6_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!after.clipped, "and this one begins after it");
     }
 
     #[test]
@@ -4664,6 +4716,84 @@ mod tests {
     }
 
     #[test]
+    fn a_loss_inside_a_default_window_clips_it_even_once_disclosed() {
+        // The interruption is disclosed once, but a window that begins
+        // before the loss ended still reaches over it.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        reg.gap(2_000);
+        let disclosed = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3_000,
+        )
+        .expect("nothing to refuse");
+        assert!(disclosed.clipped, "the read that notices");
+        // Delivery resumes after that read, so the loss ended inside the
+        // window the next one covers.
+        reg.ingest(trade(&c, 1.0, 4_000 * MS));
+        let spanning = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            5_000,
+        )
+        .expect("nothing to refuse");
+        assert!(spanning.clipped, "this window reaches back over it");
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            6_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!after.clipped, "and this one begins after it");
+    }
+
+    #[test]
+    fn a_hole_the_rows_returned_do_not_span_is_not_theirs() {
+        // Asking for only the newest prints, all of them after a loss, is a
+        // complete answer to what was asked.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let p = reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        reg.ingest(trade(&c, 1.0, MS));
+        reg.gap(2);
+        reg.ingest(trade(&c, 2.0, 3 * MS));
+        let both = reg.prints(&c, 10, 0, 4).expect("nothing to refuse");
+        assert!(both.holed, "these rows sit either side of it");
+        reg.commit_prints_read(&c, both.received, both.feed_drops_seen, both.gaps_seen);
+        let newest = reg.prints(&c, 1, 0, 5).expect("nothing to refuse");
+        assert_eq!(newest.rows.len(), 1, "only the newest was asked for");
+        assert!(!newest.holed, "and it is entirely after the loss");
+    }
+
+    #[test]
     fn a_resumption_row_with_no_clock_does_not_erase_the_loss() {
         // The row proves the feed is delivering again. Its stamp is the
         // SDK's fallback for a clock it could not read, so it dates
@@ -4758,6 +4888,45 @@ mod tests {
         .expect("nothing to refuse");
         assert_eq!(r.summary.count, 2, "both rows are in the window");
         assert_eq!(r.tail.len(), 2, "and both come back");
+    }
+
+    #[test]
+    fn a_clock_that_steps_backwards_does_not_hide_the_rows_behind_it() {
+        // Arrivals are in order; the stamps on them are not guaranteed to
+        // be. A row outside the window does not mean the rest are, so the
+        // walk keeps looking instead of stopping at the first one.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 3_000 * MS));
+        // The clock steps back, so this one is stamped before the last.
+        reg.ingest(trade(&c, 2.0, 2_000 * MS));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            None,
+            0,
+            3_500,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            r.summary.count, 1,
+            "the row inside the window, found behind the one outside it"
+        );
+        assert_eq!(r.tail.len(), 1, "and it comes back");
     }
 
     #[test]
