@@ -1319,7 +1319,10 @@ impl Registry {
         for (i, d) in book.ring.iter().rev().enumerate() {
             let inside = match window {
                 None => (i as u64) < new,
-                Some(_) => seen_ms(d).is_none_or(|s| s >= floor),
+                // A zero stamp is the SDK's fallback for a clock it could
+                // not read. Treating it as older than the floor would end
+                // the walk and hide every row behind it that does belong.
+                Some(_) => seen_ms(d).is_none_or(|s| s == 0 || s >= floor),
             };
             if !inside {
                 break;
@@ -1594,11 +1597,12 @@ impl Registry {
                 // so it is counted rather than dropped in silence.
                 let evicted = book.retained_dropped.saturating_sub(settle.watched_dropped);
                 let carried = (settle.watched as u64).saturating_sub(evicted) as usize;
-                book.retained_dropped = book
+                let unseen = book
                     .retained
                     .len()
                     .saturating_sub(carried.min(book.retained.len()))
                     as u64;
+                book.retained_dropped = unseen + evicted;
                 book.retained.clear();
                 book.checked = 0;
                 book.watch = w;
@@ -2186,12 +2190,17 @@ fn clauses_schema(description: &str, fields: &[&str]) -> Value {
     json!({
         "type": "array",
         "description": description,
+        "maxItems": MAX_CLAUSES,
         "items": {
             "type": "object",
             "properties": {
                 "field": {"type": "string", "enum": fields},
                 "op": {"type": "string", "enum": [">", ">=", "<", "<=", "==", "!=", "inside", "outside"]},
-                "value": {"description": "A number; a field name to compare against, as in bid >= ask; or [low, high] for inside and outside.", "type": ["number", "string", "array"]}
+                "value": {"description": "A number; a field name to compare against, as in bid >= ask; or [low, high] for inside and outside.", "anyOf": [
+                    {"type": "number"},
+                    {"type": "string", "enum": fields},
+                    {"type": "array"}
+                ]}
             },
             // A range takes two bounds and a comparison takes one value, so
             // the shape follows from the operator rather than being left to
@@ -2201,7 +2210,7 @@ fn clauses_schema(description: &str, fields: &[&str]) -> Value {
                 "then": {"properties": {"value": {
                     "type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2
                 }}},
-                "else": {"properties": {"value": {"type": ["number", "string"]}}}
+                "else": {"properties": {"value": {"not": {"type": "array"}}}}
             }],
             "required": ["field", "op", "value"]
         }
@@ -2263,8 +2272,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 for its trades has whatever printed since, without the quotes beside them, \
                 because a print takes only the quotes that arrived while both were being \
                 watched; prints from after this call have them. \
-                new_since_last_read counts prints since you last looked at this contract's \
-                trades. Prints are held within a memory budget, and clipped means older ones \
+                new_since_last_read counts prints since your last tape_prints on this \
+                contract; tape_read keeps its own count of trades. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. Each print carries quote_before, the quote that stood when it \
                 traded, and date when the prints span more than one trading date. A print is a \
                 trade and the quote that stood \
@@ -2524,6 +2533,34 @@ fn rows_age_ms(rows: &[Print], now: u64) -> Option<u64> {
         .filter_map(|p| seen_ms(&p.trade))
         .max()
         .map(|newest| now.saturating_sub(newest))
+}
+
+/// Where the window a read names begins.
+///
+/// A named window is the interval the caller asked for and nothing else.
+/// The default window is "since you last looked", which has to stretch back
+/// over a row decoded before that read and delivered after it.
+fn window_start(window: Option<u64>, r: &Reading) -> u64 {
+    if window.is_some() {
+        return r.floor;
+    }
+    r.tail
+        .first()
+        .iter()
+        .copied()
+        .chain(r.summary.first.iter())
+        .filter_map(seen_ms)
+        .fold(r.floor, u64::min)
+}
+
+/// Whether a read has anything to say about a predicate: one standing, one
+/// it retired, matches it caught, or matches it lost. The last is why a
+/// cleared predicate still reports: a match nobody saw is still owed.
+fn watch_has_something_to_say(r: &Reading) -> bool {
+    !r.watch.is_empty()
+        || !r.watched.is_empty()
+        || !r.matched_by.is_empty()
+        || r.watched_dropped > 0
 }
 
 fn row(data: &StreamData) -> Value {
@@ -3244,7 +3281,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             // The answer is going to reach the caller, so the cursors move,
             // the predicate goes in and the matches are released. A call
             // that failed above left all of it for the next read.
-            reg.commit_read(&contract, kind, r.settle, now);
+            reg.commit_read(&contract, kind, r.settle.clone(), now);
             let newest = r.tail.last();
             // One date for everything this response renders while they
             // agree, which is the tail and the rows the summary names.
@@ -3263,19 +3300,18 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             // The predicate that was in force is disclosed by the read that
             // retires it: a caller clearing one with [] is the only caller
             // who will ever see what it examined and what it caught.
-            let watch = (!r.watch.is_empty() || !r.watched.is_empty() || !r.matched_by.is_empty())
-                .then(|| {
-                    json!({
-                        "clauses": r.watch.iter().map(clause_json).collect::<Vec<_>>(),
-                        "matched_by": (r.matched_by != r.watch)
-                            .then(|| r.matched_by.iter().map(clause_json).collect::<Vec<_>>()),
-                        "checked": r.checked,
-                        "matched": r.watched.iter()
-                            .map(|d| aged_object_dated(d, now, shared_date.is_none()))
-                            .collect::<Vec<_>>(),
-                        "dropped": r.watched_dropped
-                    })
-                });
+            let watch = watch_has_something_to_say(&r).then(|| {
+                json!({
+                    "clauses": r.watch.iter().map(clause_json).collect::<Vec<_>>(),
+                    "matched_by": (r.matched_by != r.watch)
+                        .then(|| r.matched_by.iter().map(clause_json).collect::<Vec<_>>()),
+                    "checked": r.checked,
+                    "matched": r.watched.iter()
+                        .map(|d| aged_object_dated(d, now, shared_date.is_none()))
+                        .collect::<Vec<_>>(),
+                    "dropped": r.watched_dropped
+                })
+            });
             Ok(json!({
                 "contract": contract.to_string(),
                 "kind": kind.kind_str(),
@@ -3284,13 +3320,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 // A row decoded before the last read and dispatched after
                 // it is new to this one, and the span must reach back far
                 // enough to hold it.
-                "window_seconds": seconds(now.saturating_sub(
-                    r.tail.first().iter().copied()
-                        .chain(r.summary.first.iter())
-                        .chain(r.watched.first().iter().copied())
-                        .filter_map(seen_ms)
-                        .fold(r.floor, u64::min)
-                )),
+                // A named window is the interval the caller asked for. Only
+                // the default window, which is "since you last looked",
+                // stretches back over a row decoded before that read and
+                // delivered after it.
+                "window_seconds": seconds(now.saturating_sub(window_start(window, &r))),
                 "window_from": if window.is_some() { "request" } else { "last_read" },
                 "covers_seconds": seconds(now.saturating_sub(r.covered_since_ms)),
                 "clipped": r.clipped,
@@ -4555,6 +4589,161 @@ mod tests {
         assert!(
             again.holed,
             "the prints held still sit either side of the second hole"
+        );
+    }
+
+    #[test]
+    fn a_stamp_the_clock_could_not_read_does_not_end_a_window() {
+        // Zero is the SDK's fallback for a clock it could not read. Taking
+        // it as older than the floor ends the reverse walk and hides every
+        // row behind it that does belong in the window.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 1_500 * MS));
+        reg.ingest(trade(&c, 2.0, 0));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            None,
+            0,
+            2_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(r.summary.count, 2, "both rows are in the window");
+        assert_eq!(r.tail.len(), 2, "and both come back");
+    }
+
+    #[test]
+    fn a_named_window_is_the_interval_that_was_asked_for() {
+        // Only the default window stretches to cover a row decoded before
+        // the last read. A fixed lookback means what it says.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            None,
+            0,
+            60_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(r.floor, 59_000, "sixty seconds in, one second back");
+        assert_eq!(
+            window_start(Some(1_000), &r),
+            59_000,
+            "the window named, not the one the rows would widen it to"
+        );
+    }
+
+    #[test]
+    fn a_default_window_stretches_back_over_a_row_delivered_late() {
+        // A row decoded before the previous read and dispatched after it is
+        // new to this one, so the span named beside it has to hold it. A
+        // named window is the interval asked for and does not move.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 5_000 * MS));
+        let mut r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            20_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(r.tail.len(), 1, "the row came back");
+        // Its stamp sits before the floor a later read would use.
+        r.floor = 10_000;
+        assert_eq!(
+            window_start(None, &r),
+            5_000,
+            "the default span reaches back over the row it returns"
+        );
+        assert_eq!(
+            window_start(Some(1_000), &r),
+            10_000,
+            "a named window is the interval asked for"
+        );
+    }
+
+    #[test]
+    fn clearing_a_watch_still_reports_what_it_caught_and_lost() {
+        // The predicate is gone and caught nothing this read can show, but
+        // a match it made and nobody saw is still the caller's to hear about.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let watch = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(0.0),
+        }];
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(watch),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        let answered = reg
+            .read(
+                &c,
+                SubscriptionKind::Trade,
+                None,
+                TAIL,
+                Some(Vec::new()),
+                0,
+                MS,
+            )
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2 * MS));
+        reg.commit_read(&c, SubscriptionKind::Trade, answered.settle.clone(), MS);
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            next.watched_dropped, 1,
+            "one match went unseen when the predicate was cleared"
+        );
+        assert!(
+            watch_has_something_to_say(&next),
+            "so the read still reports the predicate, cleared or not"
         );
     }
 
