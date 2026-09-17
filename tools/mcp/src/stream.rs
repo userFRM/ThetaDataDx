@@ -1503,7 +1503,10 @@ impl Registry {
             .map_or(0, |at| feed_drops.saturating_sub(at));
         // A discard leaves the same hole an interruption does: the prints
         // on either side of it are served again and again.
-        if feed_dropped > 0 && state.prints_holed_before.is_none() {
+        if feed_dropped > 0 {
+            // The newest loss, not the first: clearing the marker when the
+            // prints around an older hole are gone would declare a history
+            // whole while it still spans a later one.
             state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
         }
         let mut rows: Vec<Print> = state.prints.iter().rev().take(count).cloned().collect();
@@ -1582,11 +1585,17 @@ impl Registry {
             // dropped rather than attributed to a line it never met.
             Some(w) => {
                 // What the old predicate caught after this answer was built
-                // goes with it. The new one has dropped nothing: counting
-                // those rows against it would report a loss under a line
-                // they were never measured by.
+                // cannot be reported under the new line, which never
+                // measured it. It is still a match the caller will not see,
+                // so it is counted rather than dropped in silence.
+                let evicted = book.retained_dropped.saturating_sub(settle.watched_dropped);
+                let carried = (settle.watched as u64).saturating_sub(evicted) as usize;
+                book.retained_dropped = book
+                    .retained
+                    .len()
+                    .saturating_sub(carried.min(book.retained.len()))
+                    as u64;
                 book.retained.clear();
-                book.retained_dropped = 0;
                 book.checked = 0;
                 book.watch = w;
             }
@@ -2105,6 +2114,23 @@ fn sec_types_for(tool: &str) -> &'static [&'static str] {
     }
 }
 
+/// An index has no quote and no open interest, only its price and a
+/// market value, so the schema says which kinds it takes rather than
+/// leaving a caller to find out from a refusal.
+fn with_index_kinds(mut schema: Value) -> Value {
+    let index_only = json!({
+        "if": {"properties": {"sec_type": {"const": "index"}}, "required": ["sec_type"]},
+        "then": {"properties": {"kind": {"enum": ["trade", "market_value"]}}}
+    });
+    if let Some(all) = schema
+        .get_mut("allOf")
+        .and_then(|v: &mut Value| v.as_array_mut())
+    {
+        all.push(index_only);
+    }
+    schema
+}
+
 fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
     let mut props = json!({
         "sec_type": {"type": "string", "enum": sec_types},
@@ -2149,6 +2175,16 @@ fn clauses_schema(description: &str, fields: &[&str]) -> Value {
                 "op": {"type": "string", "enum": [">", ">=", "<", "<=", "==", "!=", "inside", "outside"]},
                 "value": {"description": "A number; a field name to compare against, as in bid >= ask; or [low, high] for inside and outside.", "type": ["number", "string", "array"]}
             },
+            // A range takes two bounds and a comparison takes one value, so
+            // the shape follows from the operator rather than being left to
+            // a refusal.
+            "allOf": [{
+                "if": {"properties": {"op": {"enum": ["inside", "outside"]}}, "required": ["op"]},
+                "then": {"properties": {"value": {
+                    "type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2
+                }}},
+                "else": {"properties": {"value": {"type": ["number", "string"]}}}
+            }],
             "required": ["field", "op", "value"]
         }
     })
@@ -2191,23 +2227,24 @@ pub fn tool_definitions() -> Vec<Value> {
                 back it reaches, columns names the fields of each tail row in order, and date is \
                 the trading date they share, absent and carried on each row instead when they \
                 span more than one.",
-            "inputSchema": contract_schema(sec_types_for("tape_read"), json!({
+            "inputSchema": with_index_kinds(contract_schema(sec_types_for("tape_read"), json!({
                 "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "minimum": 0, "description": "Fixed lookback. Default: since your last read."},
                 "tail": {"type": "integer", "minimum": 0, "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."},
                 "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses. A bounded number of matches are kept between reads, the newest surviving; watch.dropped counts the rest.", &FIELDS)
-            }))
+            })))
         }),
         json!({
             "name": "tape_prints",
             "description": "Recent trades on one contract, newest last, each with the quote that \
                 stood before it; the feed also sends the two quotes after a print, and \
                 quotes_after returns them. Opens the trade and quote subscriptions if they \
-                are not already held. A print needs both, so a call that opens the trade book \
-                has none yet and you should call again a second or two later; a contract \
-                already being read for its trades has whatever printed since, and gains the \
-                quotes beside them from the next call. \
+                are not already held. A print needs both: a contract nothing was watching has \
+                none yet, so call again a second or two later. A contract already being read \
+                for its trades has whatever printed since, without the quotes beside them, \
+                because a print takes only the quotes that arrived while both were being \
+                watched; prints from after this call have them. \
                 new_since_last_read counts prints since you last looked at this contract's \
                 trades. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. Each print carries quote_before, the quote that stood when it \
@@ -2276,7 +2313,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 the SDK's running count of events it discarded because this server fell behind. \
                 An age that keeps \
                 growing while the feed says Connected is a contract that has gone quiet, not a \
-                fault; anything else and the next tape_read restarts the feed.",
+                fault. A feed that died or spent its reconnect budget is restarted by the \
+                next tape_read; one the SDK is still reconnecting on its own is left to it.",
             "inputSchema": {"type": "object", "properties": {}}
         }),
         json!({
@@ -3202,7 +3240,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 // it is new to this one, and the span must reach back far
                 // enough to hold it.
                 "window_seconds": seconds(now.saturating_sub(
-                    r.tail.first().and_then(seen_ms).map_or(r.floor, |o| o.min(r.floor))
+                    r.tail.first().iter().copied()
+                        .chain(r.summary.first.iter())
+                        .chain(r.watched.first().iter().copied())
+                        .filter_map(seen_ms)
+                        .fold(r.floor, u64::min)
                 )),
                 "window_from": if window.is_some() { "request" } else { "last_read" },
                 "covers_seconds": seconds(now.saturating_sub(r.covered_since_ms)),
@@ -4371,6 +4413,103 @@ mod tests {
         assert!(
             r.clipped,
             "the leg was absent while the feed carried on without it"
+        );
+    }
+
+    #[test]
+    fn a_match_a_replaced_predicate_caught_is_counted_not_dropped_in_silence() {
+        // It cannot be reported under the new line, which never measured
+        // it, but the caller is still owed the fact that a match went
+        // unseen.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let wide = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(0.0),
+        }];
+        let narrow = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(1_000.0),
+        }];
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(wide),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        let answered = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, Some(narrow), 0, MS)
+            .expect("nothing to refuse");
+        // Caught by the predicate still standing, after the answer was built.
+        reg.ingest(trade(&c, 5.0, 2 * MS));
+        reg.commit_read(&c, SubscriptionKind::Trade, answered.settle.clone(), MS);
+
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3 * MS,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            next.watched.is_empty(),
+            "not under a line that never met it"
+        );
+        assert_eq!(next.watched_dropped, 1, "but the caller is told one went");
+    }
+
+    #[test]
+    fn the_newest_hole_is_the_one_a_history_is_measured_against() {
+        // Two losses, the second later than the first. Once the prints from
+        // before the first are gone the history still spans the second, and
+        // a marker left at the first would declare it whole.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let p = reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+
+        reg.ingest(trade(&c, 1.0, MS));
+        let first = reg.prints(&c, 10, 1, 2).expect("nothing to refuse");
+        assert!(first.holed, "one print held, one hole before it");
+        reg.commit_prints_read(&c, first.received, first.feed_drops_seen, first.gaps_seen);
+
+        // Two more, then a second loss, all while nothing has been evicted.
+        reg.ingest(trade(&c, 2.0, 2 * MS));
+        reg.ingest(trade(&c, 3.0, 3 * MS));
+        let second = reg.prints(&c, 10, 2, 4).expect("nothing to refuse");
+        assert!(second.holed, "and a second hole after those");
+        reg.commit_prints_read(
+            &c,
+            second.received,
+            second.feed_drops_seen,
+            second.gaps_seen,
+        );
+
+        // Evict past the first hole, but not past the second: three prints
+        // are held, so one more than the bound drops exactly the first.
+        for i in 0..PRINTS - 2 {
+            reg.ingest(trade(&c, 9.0, (10 + i as u64) * MS));
+        }
+        let again = reg.prints(&c, PRINTS, 2, 5).expect("nothing to refuse");
+        assert_eq!(again.feed_dropped_since_last_read, 0, "disclosed already");
+        assert_eq!(
+            again.dropped, 1,
+            "the print before the first hole, and only it"
+        );
+        assert!(
+            again.holed,
+            "the prints held still sit either side of the second hole"
         );
     }
 
