@@ -2591,7 +2591,7 @@ typescript = "f64"
 # ─── TradeTick flag-word accessors ────────────────────────────────────
 #
 # Boolean accessors decoded from the integer condition / flag columns
-# (`is_cancelled`, `regular_trading_hours`, ...). One schema source
+# (`is_cancelled`, `us_regular_trading_hours`, ...). One schema source
 # (`tick_schema.toml::[types.TradeTick].flag_accessors`) projects them
 # into all four surfaces, so they stay in lockstep by construction and
 # the `generate_sdk_surfaces --check` drift gate — not this matrix —
@@ -2617,7 +2617,7 @@ typescript = "bool"
 
 [[value_field]]
 class = "TradeTick"
-name = "regular_trading_hours"
+name = "us_regular_trading_hours"
 typescript = "bool"
 
 [[value_field]]
