@@ -1298,11 +1298,16 @@ impl Registry {
             .into_iter()
             .chain(state.books.iter().filter_map(|(_, b)| b.feed_drops_at_read))
             .min();
+        let holed_elsewhere = state.prints_holed_before.is_some();
         let (book, _) = state.open(kind, now);
         if book.feed_drops_at_read.is_none() {
             // Another view of this contract has been watching, so what the
-            // feed discarded since is this book's to report too.
+            // feed discarded since is this book's to report too, and so is
+            // the loss that number already stands for.
             book.feed_drops_at_read = inherited;
+            if inherited.is_some() && holed_elsewhere {
+                book.incomplete_at_ms = book.incomplete_at_ms.max(now);
+            }
         }
         let previous = book.read_ms;
         // Using the book is what keeps it alive, and that is true even of a
@@ -1332,7 +1337,7 @@ impl Registry {
                 // A zero stamp is the SDK's fallback for a clock it could
                 // not read, and a clock can also step backwards, so a row
                 // outside the window does not mean the rest are.
-                Some(_) => seen_ms(d).is_none_or(|s| s == 0 || s >= floor),
+                Some(_) => seen_ms(d).is_none_or(|s| s == 0 || (s >= floor && s <= now)),
             };
             if !inside {
                 // The default window counts arrivals, which are in order, so
@@ -1497,13 +1502,16 @@ impl Registry {
         }
         if gaps_from_reopen > 0 {
             state.gaps += 1;
+        }
+        if gaps_from_reopen > 0 {
+            // A leg reopened is an interruption, marked where it happened.
             state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
         }
         // The hole is behind every print still held, so nothing it touches
         // is being served any more.
         if state
             .prints_holed_before
-            .is_some_and(|at| state.prints_dropped >= at)
+            .is_some_and(|at| at > 0 && state.prints_dropped >= at)
         {
             state.prints_holed_before = None;
         }
@@ -1973,7 +1981,18 @@ impl Registry {
         // The vendor's bar has no subscription of its own: it rides ahead of
         // the trade, and a held contract keeps the newest one.
         if let StreamData::Ohlcvc { .. } = data {
-            state.ohlcvc = Some(data);
+            // Through the same gate as every other row: a bar queued by a
+            // subscription that has since closed is not this book's.
+            let fresh = state
+                .books
+                .iter()
+                .find(|(k, _)| *k == SubscriptionKind::Trade)
+                .is_none_or(|(_, b)| {
+                    seen_ms(&data).is_none_or(|seen| seen == 0 || seen >= b.opened_ms)
+                });
+            if fresh {
+                state.ohlcvc = Some(data);
+            }
             return;
         }
         let Some(msg) = msg_type_of(&data) else {
@@ -2194,7 +2213,7 @@ fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
     let mut props = json!({
         "sec_type": {"type": "string", "enum": sec_types},
         "root": {"type": "string", "description": "Ticker or option root, e.g. AAPL."},
-        "expiration": {"type": "integer", "minimum": 0, "description": "YYYYMMDD. Options only."},
+        "expiration": {"type": "integer", "minimum": 0, "maximum": 2147483647, "description": "YYYYMMDD. Options only."},
         "strike": {"type": "number", "description": "Strike in dollars. Options only."},
         "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."}
     });
@@ -2413,7 +2432,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 // Naming a contract means naming all of it: an option root
                 // without its leg identifies nothing, and a leg without a
                 // root would close a whole market instead of one contract.
+                // An index has no whole-market stream, so it needs a root.
                 "allOf": [{
+                    "if": {"properties": {"sec_type": {"const": "index"}}, "required": ["sec_type"]},
+                    "then": {"required": ["root"]}
+                }, {
                     "if": {
                         "properties": {"sec_type": {"const": "option"}},
                         "required": ["sec_type", "root"]
@@ -2544,7 +2567,10 @@ fn object(data: &StreamData) -> Value {
 fn aged_object_dated(data: &StreamData, now: u64, dated: bool) -> Value {
     let mut out = object(data);
     if let Some(obj) = out.as_object_mut() {
-        if let Some(seen) = seen_ms(data) {
+        // Zero is the SDK's fallback for a clock it could not read. Aging
+        // from it would report the time since the epoch and present an
+        // unknown age as decades.
+        if let Some(seen) = seen_ms(data).filter(|s| *s > 0) {
             obj.insert("age_ms", Value::from(now.saturating_sub(seen)));
         }
         if dated {
@@ -2597,11 +2623,10 @@ fn window_start(window: Option<u64>, r: &Reading) -> u64 {
         return r.floor;
     }
     r.tail
-        .first()
         .iter()
-        .copied()
         .chain(r.summary.first.iter())
         .filter_map(seen_ms)
+        .filter(|s| *s > 0)
         .fold(r.floor, u64::min)
 }
 
@@ -3443,8 +3468,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "subscribed_now": p.opened.iter().map(|k| k.kind_str()).collect::<Vec<_>>(),
                 "count": p.rows.len(),
                 "held": p.held,
-                "clipped": p.gap
-                    || p.holed
+                "feed_interrupted": p.gap,
+                "clipped": p.holed
                     || (p.held < count && p.dropped > 0)
                     || p.feed_dropped_since_last_read > 0,
                 "covers_seconds": seconds(now.saturating_sub(p.covered_since_ms)),
@@ -4411,7 +4436,16 @@ mod tests {
             let Some(t) = tool_definitions().into_iter().find(|t| t["name"] == tool) else {
                 continue;
             };
-            let rule = &t["inputSchema"]["allOf"][0];
+            // Found by what it says, not by where it sits: other rules
+            // share the list.
+            let rules = t["inputSchema"]["allOf"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            let rule = rules
+                .iter()
+                .find(|r| r["if"]["properties"]["sec_type"]["const"] == "option")
+                .unwrap_or_else(|| panic!("{tool} has a rule for an option leg"));
             assert_eq!(
                 rule["if"]["properties"]["sec_type"]["const"], "option",
                 "{tool} says which type needs a leg"
@@ -4888,6 +4922,56 @@ mod tests {
         .expect("nothing to refuse");
         assert_eq!(r.summary.count, 2, "both rows are in the window");
         assert_eq!(r.tail.len(), 2, "and both come back");
+    }
+
+    #[test]
+    fn an_unknown_clock_has_no_age_rather_than_a_very_old_one() {
+        // Zero is the SDK's fallback for a clock it could not read. Aging
+        // from it reports the time since the epoch, which presents an
+        // unknown age as decades.
+        let c = stock("AAPL");
+        let unknown = aged_object_dated(&trade(&c, 1.0, 0), 1_700_000_000_000, false);
+        assert!(
+            unknown.get("age_ms").is_none(),
+            "no age at all: {unknown:?}"
+        );
+        let known = aged_object_dated(&trade(&c, 1.0, 5 * MS), 10, false);
+        assert_eq!(known.get("age_ms").and_then(|v| v.as_u64()), Some(5));
+    }
+
+    #[test]
+    fn a_named_window_does_not_reach_past_now() {
+        // A row can land between the clock being read and the registry
+        // being locked. It is newer than the window, not inside it.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(0),
+            TAIL,
+            None,
+            0,
+            1_500,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            r.summary.count, 0,
+            "a zero-length window ending now holds nothing stamped after it"
+        );
     }
 
     #[test]
