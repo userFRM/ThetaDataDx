@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The MCP server can hold the live tape and answer questions about it.** Five tools. `tape_read` gives one contract in one call: the feed's state, what it is now, what arrived since your last read, and the newest rows verbatim. `tape_market` reads the whole market at once over the vendor's bulk trade stream, filtering on contract attributes and ranking on the vendor's own fields, which is the only way a stream of every print in the market is usable by a caller that reads text. `tape_prints` pairs each trade with the quote that stood before it. `tape_list` says what is held and whether each book is still on the feed. `tape_stop` closes one.
+
+  There are no handles: a book is a contract and a kind, opened on the first read and closed after fifteen minutes unread. The window defaults to everything since your last read of that book, so a caller never has to remember when it last asked.
+
+  A snapshot is a round trip and has already moved by the time it is read, so every read carries the age of what it returns, how far back the rows held actually reach, and whether the window asked for reaches further than that. The feed's own state is reported alongside, because a dead feed and a quiet contract look identical from age alone.
+
+  `tape_read` takes an optional `watch`: clauses over the vendor's fields, evaluated as rows arrive rather than when you read, so a row that crossed the line and then fell off the buffer is still reported on the next read with the time it happened.
+
+  Nothing is aggregated. Bar construction has condition, cancel and size rules that belong to the caller, so rows are served with their condition and exchange codes intact and the summary discloses the population it counted. The vendor's own bar is served as the vendor sent it, and never rebuilt from trades.
+
+  Indices have no quote stream and no whole-market stream; asking for either says so and names what is on offer instead. The whole-market read needs a Pro subscription, and below it the refusal names the tier required, the tier held, and what still works.
+
 - **The MCP server can report what the account is entitled to.** A new `entitlements` tool returns the subscription tier for each asset class. Tools are advertised per asset class, so a class the account holds no tier for is withheld from `tools/list` entirely and a caller sees a whole family of tools missing with no way to learn why. This turns "those tools do not exist" into "you hold no options tier". Within a class every tool is advertised, so an individual endpoint can still refuse a call that needs a higher tier than the one held.
 
 - **The MCP server speaks the `2026-07-28` revision of the Model Context Protocol.** That revision drops the handshake: a client declares the revision it speaks on every request, in `_meta`, rather than agreeing one once at `initialize`. The server implements `server/discover`, the mandatory RPC that reports the revisions it speaks, its capabilities and its identity in a single call, so a client can pick a revision up front instead of probing. A request that declares a revision the server does not speak is refused with `-32022` and the list of revisions it does speak, so the client can retry without a second round trip. Results carry `resultType`, and `tools/list` carries the `ttlMs` freshness hint and a `cacheScope` of `private` — the advertised tool set depends on the authenticated account's subscription, so a shared cache must never hand one caller's list to another.
