@@ -4,7 +4,12 @@
 //! day at real rate whatever the wall clock says, so the numbers are open-of-
 //! market numbers without waiting for the open.
 //!
-//! cargo run --release --example stream_rate -- <creds.txt> [seconds] [prod]
+//! cargo run --release --example stream_rate -- <creds.txt> [seconds] [prod|dev] [option|stock] [interval]
+//!
+//! Every argument after the credentials is positional and optional, but
+//! they are taken in that order: sampling length in seconds, which cluster,
+//! which tape, and how often to print a line. Defaults: 60 seconds, the dev
+//! replay cluster, the option tape, a line every 5 seconds.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -73,13 +78,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let creds_path = args
         .next()
         .expect("usage: stream_rate <creds.txt> [secs] [prod]");
-    let secs: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(60);
-    let prod = args.next().as_deref() == Some("prod");
-    let sec_type = match args.next().as_deref() {
-        Some("stock") => SecType::Stock,
-        _ => SecType::Option,
+    // Every argument is checked rather than defaulted: a typo that quietly
+    // selected another cluster or another tape would produce numbers that
+    // look right and describe something else.
+    let secs: u64 = match args.next() {
+        None => 60,
+        Some(a) => a
+            .parse()
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or("seconds must be a whole number of seconds, one or more")?,
     };
-    let interval: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(5).max(1);
+    let prod = match args.next().as_deref() {
+        None | Some("dev") => false,
+        Some("prod") => true,
+        Some(other) => return Err(format!("cluster must be prod or dev, not {other}").into()),
+    };
+    let sec_type = match args.next().as_deref() {
+        None | Some("option") => SecType::Option,
+        Some("stock") => SecType::Stock,
+        Some(other) => return Err(format!("tape must be option or stock, not {other}").into()),
+    };
+    let interval: u64 = match args.next() {
+        None => 5,
+        Some(a) => a
+            .parse()
+            .ok()
+            .filter(|n| *n > 0)
+            .ok_or("interval must be a whole number of seconds, one or more")?,
+    }
+    .min(secs);
 
     let creds = Credentials::from_file(&creds_path)?;
     let mut config = if prod {
@@ -127,8 +155,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = Instant::now();
     let mut last = 0u64;
     let mut seen_buckets = 0usize;
-    while start.elapsed() < Duration::from_secs(secs) {
-        tokio::time::sleep(Duration::from_secs(interval)).await;
+    let deadline = Duration::from_secs(secs);
+    while start.elapsed() < deadline {
+        // Never sleep past the deadline: a short run would otherwise sample
+        // for a whole interval and divide by the length that was asked for.
+        let remaining = deadline.saturating_sub(start.elapsed());
+        tokio::time::sleep(remaining.min(Duration::from_secs(interval))).await;
         let total = COUNT.load(Ordering::Relaxed);
         // Worst 100ms bucket since the previous line: the burst a ring must
         // survive, which a per-interval mean cannot show.
@@ -151,6 +183,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let total = COUNT.load(Ordering::Relaxed);
+    // Measured, not requested: the two differ by the last partial interval.
+    let elapsed = start.elapsed().as_secs_f64().max(f64::MIN_POSITIVE);
     let buckets = PER_SEC.lock().unwrap().clone();
     // The first and last buckets are partial seconds; drop them.
     let mut rates: Vec<u64> = buckets.values().copied().collect();
@@ -161,11 +195,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     rates.sort_unstable();
 
     println!(
-        "\n--- {secs}s sample, full {sec_type:?} trade stream, {} ---",
+        "\n--- {elapsed:.0}s sample, full {sec_type:?} trade stream, {} ---",
         if prod { "PROD" } else { "dev-replay" }
     );
     println!("messages        : {total}");
-    println!("mean msg/s      : {:.0}", total as f64 / secs as f64);
+    println!("mean msg/s      : {:.0}", total as f64 / elapsed);
     if !rates.is_empty() {
         println!("median msg/s    : {}", rates[rates.len() / 2]);
         println!("p95 msg/s       : {}", rates[rates.len() * 95 / 100]);
@@ -205,8 +239,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some((lo, hi)) = *MS_SPAN.lock().unwrap() {
         let span = (hi - lo) as f64 / 1000.0;
         println!(
-            "exchange span   : {span:.0}s of tape over {secs}s wall  (x{:.2} real time)",
-            span / secs as f64
+            "exchange span   : {span:.0}s of tape over {elapsed:.0}s wall  (x{:.2} real time)",
+            span / elapsed
         );
         println!("tape window     : {} -> {}", clock(lo), clock(hi));
     }

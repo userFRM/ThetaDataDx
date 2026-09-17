@@ -78,6 +78,10 @@ const WATCHED: usize = WATCH_BUDGET / size_of::<StreamData>();
 /// the dispatcher records ticks on, so the bound is on the dispatcher's
 /// time, not on what a caller may mean.
 const MAX_CLAUSES: usize = 8;
+/// How long to wait for a retired dispatcher to finish before a new
+/// session replaces it. Long enough for a queue to drain, short enough that
+/// a caller hears about it rather than waiting.
+const DRAIN: Duration = Duration::from_secs(2);
 /// How long a book survives without a read. Stated in the tool descriptions,
 /// since that is where a model reads it.
 const TTL: Duration = Duration::from_secs(900);
@@ -1945,6 +1949,13 @@ impl Registry {
         else {
             return;
         };
+        // A book reopened after an expiry or a stop can still be handed
+        // rows the previous subscription queued. They belong to the feed
+        // this book was not on. A zero stamp is the SDK's fallback for a
+        // clock it could not read and means unknown, so those are kept.
+        if seen_ms(&data).is_some_and(|seen| seen > 0 && seen < book.opened_ms) {
+            return;
+        }
         book.received += 1;
         if book.awaiting_resume {
             // Delivery is proven again, and the loss ended no later than
@@ -2024,11 +2035,18 @@ pub const TOOL_NAMES: [&str; 5] = [
 /// message, which is why `trade` is how it is asked for.
 fn kinds_for(sec: SecType) -> &'static [SubscriptionKind] {
     match sec {
-        SecType::Option | SecType::Stock => &[
+        SecType::Option => &[
             SubscriptionKind::Quote,
             SubscriptionKind::Trade,
             SubscriptionKind::MarketValue,
             SubscriptionKind::OpenInterest,
+        ],
+        // Open interest is a count of contracts outstanding, which a stock
+        // does not have. Offering it opens a book that can never publish.
+        SecType::Stock => &[
+            SubscriptionKind::Quote,
+            SubscriptionKind::Trade,
+            SubscriptionKind::MarketValue,
         ],
         SecType::Index => &[SubscriptionKind::Trade, SubscriptionKind::MarketValue],
         _ => &[],
@@ -2294,7 +2312,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."},
                     "strike_min": {"type": "number", "description": "Dollars, inclusive. Options only."},
                     "strike_max": {"type": "number", "description": "Dollars, inclusive. Options only."},
-                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it; spread is ask minus bid. At most 8.", &PRINT_FIELDS),
+                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it. Every field is the vendor's own except spread, which is ask minus bid. At most 8.", &PRINT_FIELDS),
                     "rank_by": {"type": "string", "enum": PRINT_FIELDS, "description": "Keep the top rows by this field of the trade or the quote before it. Default: the newest."},
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
                     "limit": {"type": "integer", "minimum": 1, "description": "Rows kept between reads. Default 20, capped at 50."}
@@ -2497,6 +2515,17 @@ fn one_date<'a>(rows: impl Iterator<Item = &'a StreamData>) -> Option<i32> {
     seen
 }
 
+/// How old the newest row a selection is returning is, which is not how old
+/// the tape is: a narrow selection holds an old print while the market
+/// carries on, and calling that fresh is the one thing this surface exists
+/// not to do.
+fn rows_age_ms(rows: &[Print], now: u64) -> Option<u64> {
+    rows.iter()
+        .filter_map(|p| seen_ms(&p.trade))
+        .max()
+        .map(|newest| now.saturating_sub(newest))
+}
+
 fn row(data: &StreamData) -> Value {
     fields(data)
         .into_iter()
@@ -2578,6 +2607,17 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
         ConnectionStatus::Disconnected => stream.stop_streaming(),
         _ if exhausted => stream.stop_streaming(),
         _ => return Ok(stream.dropped_event_count()),
+    }
+    // Stopping is asynchronous: the retired dispatcher can still be
+    // running, and a row it delivers after the reset would be recorded as
+    // the new session's and would prove a resumption that has not happened.
+    // Wait for it to finish before anything is reset.
+    if !stream.await_drain(DRAIN) {
+        return Err(ToolError::ServerError(format!(
+            "the previous feed session was still delivering after {} s; nothing was reset, so \
+             try again",
+            DRAIN.as_secs()
+        )));
     }
     // A session that died or was never started delivered nothing since the
     // books last saw the feed; the correlation across that interval closes,
@@ -3107,7 +3147,12 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             "new_since_last_read": m.new_since_last_read,
             "feed_dropped_since_last_read": m.feed_dropped_since_last_read,
             "feed_interrupted": m.gap,
-            "age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
+            // The age of what came back, not of the newest print on the
+            // market: a narrow selection can hold an old row while the tape
+            // is busy, and calling that fresh is the one thing this surface
+            // exists not to do.
+            "age_ms": rows_age_ms(&m.rows, now),
+            "feed_age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
             "examined": m.examined,
             "matched": m.matched,
             "unranked": m.unranked,
@@ -4511,6 +4556,95 @@ mod tests {
             again.holed,
             "the prints held still sit either side of the second hole"
         );
+    }
+
+    #[test]
+    fn a_row_captured_before_a_book_reopened_is_not_its_own() {
+        // A book reopened after an expiry can still be handed rows the
+        // previous subscription queued. They belong to a feed this book was
+        // not on, and counting them makes a fresh book look busy.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.expire(PAST_TTL);
+        // Reopened long after the first book went.
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            PAST_TTL + 1,
+        )
+        .expect("nothing to refuse");
+        assert!(r.first, "a fresh book");
+        // Queued by the subscription that closed.
+        reg.ingest(trade(&c, 1.0, MS));
+        // Delivered by the one that opened.
+        reg.ingest(trade(&c, 2.0, (PAST_TTL + 2) * MS));
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            PAST_TTL + 3,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            next.new_since_last_read, 1,
+            "only the row this book was open for"
+        );
+    }
+
+    #[test]
+    fn a_market_read_ages_the_rows_it_returns_not_the_tape() {
+        // A narrow selection holds an old row while the tape stays busy.
+        // Reporting the tape's age as the row's is the one thing this
+        // surface exists not to do.
+        let reg = Registry::default();
+        let mine = stock("AAPL");
+        let other = stock("MSFT");
+        let mut q = query(5);
+        q.root = Some("AAPL".into());
+        market_now(&reg, SecType::Stock, q.clone(), 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&mine, 1.0, 1_100 * MS));
+        // The tape carries on, none of it this selection's.
+        reg.ingest(trade(&other, 2.0, 5_000 * MS));
+        let m = market_now(&reg, SecType::Stock, q, 0, 6_000).expect("nothing to refuse");
+        assert_eq!(m.rows.len(), 1, "the one print that matched");
+        let returned = m
+            .rows
+            .iter()
+            .filter_map(|p| seen_ms(&p.trade))
+            .max()
+            .expect("a stamp");
+        assert_eq!(returned, 1_100, "the matching print, not the newest trade");
+        assert_eq!(
+            m.newest_ms,
+            Some(5_000),
+            "the tape moved on without this selection"
+        );
+        assert_eq!(
+            rows_age_ms(&m.rows, 6_000),
+            Some(4_900),
+            "the age of the print returned, not of the tape"
+        );
+    }
+
+    #[test]
+    fn a_stock_is_not_offered_a_count_of_contracts_outstanding() {
+        // Open interest is a number of option contracts. A stock has none,
+        // and the book would never publish.
+        assert!(!kinds_for(SecType::Stock).contains(&SubscriptionKind::OpenInterest));
+        assert!(kinds_for(SecType::Option).contains(&SubscriptionKind::OpenInterest));
+        let why = refused(resolve_kind(SecType::Stock, Some("open_interest")));
+        assert!(why.contains("not available"), "{why}");
     }
 
     #[test]
