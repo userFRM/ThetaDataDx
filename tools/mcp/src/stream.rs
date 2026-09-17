@@ -1504,6 +1504,14 @@ impl Registry {
                 .iter()
                 .filter_map(|(_, b)| b.feed_drops_at_read)
                 .min();
+            // The baseline carries what it has already counted. Taking the
+            // number without the loss behind it would start these prints
+            // from a clean history the book knows is holed.
+            if state.books.iter().any(|(_, b)| b.incomplete_at_ms > 0)
+                && state.prints_holed_before.is_none()
+            {
+                state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
+            }
         }
         let feed_dropped = state
             .feed_drops_at_prints_read
@@ -1602,7 +1610,10 @@ impl Registry {
                     .len()
                     .saturating_sub(carried.min(book.retained.len()))
                     as u64;
-                book.retained_dropped = unseen + evicted;
+                // Rows nobody saw, plus evictions beyond the ones that
+                // pushed out rows this answer had already carried: counting
+                // every eviction charges the caller for a row they were shown.
+                book.retained_dropped = unseen + evicted.saturating_sub(settle.watched as u64);
                 book.retained.clear();
                 book.checked = 0;
                 book.watch = w;
@@ -1962,10 +1973,14 @@ impl Registry {
         }
         book.received += 1;
         if book.awaiting_resume {
-            // Delivery is proven again, and the loss ended no later than
-            // this row.
-            book.incomplete_at_ms = seen_ms(&data).unwrap_or(book.incomplete_at_ms);
-            book.awaiting_resume = false;
+            // Delivery is proven again. A row whose clock could not be read
+            // proves that much and dates nothing, so the loss keeps the
+            // moment it already had rather than being moved to zero, which
+            // would erase it.
+            if let Some(seen) = seen_ms(&data).filter(|s| *s > 0) {
+                book.incomplete_at_ms = seen;
+                book.awaiting_resume = false;
+            }
         }
         if book.ring.len() == RING {
             book.ring.pop_front();
@@ -4593,6 +4608,124 @@ mod tests {
     }
 
     #[test]
+    fn a_replaced_predicate_charges_a_row_once() {
+        // A match arriving while the answer was in flight evicts one the
+        // answer already carried. One match went unseen, not two.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let wide = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(0.0),
+        }];
+        let narrow = vec![Clause::Compare {
+            field: "price".into(),
+            op: Op::Ge,
+            rhs: Rhs::Number(1_000.0),
+        }];
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            Some(wide),
+            0,
+            0,
+        )
+        .expect("nothing to refuse");
+        // Fill the buffer to its bound.
+        for i in 0..WATCHED {
+            reg.ingest(trade(&c, i as f64, i as u64 * MS));
+        }
+        let answered = reg
+            .read(&c, SubscriptionKind::Trade, None, TAIL, Some(narrow), 0, MS)
+            .expect("nothing to refuse");
+        assert_eq!(answered.watched.len(), WATCHED, "the whole buffer");
+        // One more, which evicts a row the answer carried.
+        reg.ingest(trade(&c, 1.0, (WATCHED as u64 + 1) * MS));
+        reg.commit_read(&c, SubscriptionKind::Trade, answered.settle.clone(), MS);
+
+        let next = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            2 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            next.watched_dropped, 1,
+            "the unseen match, not it and the row it replaced"
+        );
+    }
+
+    #[test]
+    fn a_resumption_row_with_no_clock_does_not_erase_the_loss() {
+        // The row proves the feed is delivering again. Its stamp is the
+        // SDK's fallback for a clock it could not read, so it dates
+        // nothing, and dating the loss at zero would erase it.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.gap(10_000);
+        // Delivery resumes, but with an unreadable clock.
+        reg.ingest(trade(&c, 1.0, 0));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            None,
+            0,
+            60_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            r.clipped,
+            "the interruption still stands; nothing has dated its end"
+        );
+    }
+
+    #[test]
+    fn prints_inherit_the_losses_behind_the_baseline_they_take() {
+        // A book that already counted a discard hands on its number. Taking
+        // it without the loss behind it would start these prints from a
+        // clean history the book knows is holed.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        // The book learns of a discard and advances its own baseline.
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            3,
+            2 * MS,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(r.feed_dropped_since_last_read, 3, "the book counted them");
+        reg.ingest(trade(&c, 2.0, 3 * MS));
+        // The first prints call inherits that baseline.
+        let p = reg.prints(&c, 10, 3, 4 * MS).expect("nothing to refuse");
+        assert_eq!(p.feed_dropped_since_last_read, 0, "already counted once");
+        assert!(
+            p.holed,
+            "but the history these prints come from has the hole in it"
+        );
+    }
+
+    #[test]
     fn a_stamp_the_clock_could_not_read_does_not_end_a_window() {
         // Zero is the SDK's fallback for a clock it could not read. Taking
         // it as older than the floor ends the reverse walk and hides every
@@ -4739,7 +4872,7 @@ mod tests {
         .expect("nothing to refuse");
         assert_eq!(
             next.watched_dropped, 1,
-            "one match went unseen when the predicate was cleared"
+            "one match went unseen when the predicate was cleared, and only one"
         );
         assert!(
             watch_has_something_to_say(&next),
