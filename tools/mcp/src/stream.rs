@@ -1299,6 +1299,7 @@ impl Registry {
             .chain(state.books.iter().filter_map(|(_, b)| b.feed_drops_at_read))
             .min();
         let holed_elsewhere = state.prints_holed_before.is_some();
+        let inherited = Some(inherited.unwrap_or(feed_drops));
         let (book, _) = state.open(kind, now);
         if book.feed_drops_at_read.is_none() {
             // Another view of this contract has been watching, so what the
@@ -1524,11 +1525,18 @@ impl Registry {
         // afterwards inherit it rather than treating every discard since as
         // nobody's to report.
         if state.feed_drops_at_prints_read.is_none() {
-            state.feed_drops_at_prints_read = state
-                .books
-                .iter()
-                .filter_map(|(_, b)| b.feed_drops_at_read)
-                .min();
+            // Where another view of this contract already was, or where this
+            // one starts. Either way it is set now rather than when an answer
+            // first lands: a call that fails still opened the subscriptions,
+            // and a discard after that is this contract's to report.
+            state.feed_drops_at_prints_read = Some(
+                state
+                    .books
+                    .iter()
+                    .filter_map(|(_, b)| b.feed_drops_at_read)
+                    .min()
+                    .unwrap_or(feed_drops),
+            );
             // The baseline carries what it has already counted. Taking the
             // number without the loss behind it would start these prints
             // from a clean history the book knows is holed.
@@ -1697,6 +1705,13 @@ impl Registry {
                 // would report them as its own.
                 if kept.query == back.query {
                     back.absorb(kept);
+                } else if kept.examined > 0 {
+                    // A replacement asking something else examined prints
+                    // this selection never saw. Folding its counts in would
+                    // report another question's work as this one's, so they
+                    // go; but a caller must not read the difference between
+                    // received and examined as nothing having happened.
+                    market.gaps += 1;
                 }
             }
         }
@@ -1983,12 +1998,16 @@ impl Registry {
         if let StreamData::Ohlcvc { .. } = data {
             // Through the same gate as every other row: a bar queued by a
             // subscription that has since closed is not this book's.
+            // Measured against the earliest book this contract still holds.
+            // With none, there is nothing this bar can belong to: a bar left
+            // over from a subscription that has closed is not the next one's.
             let fresh = state
                 .books
                 .iter()
-                .find(|(k, _)| *k == SubscriptionKind::Trade)
-                .is_none_or(|(_, b)| {
-                    seen_ms(&data).is_none_or(|seen| seen == 0 || seen >= b.opened_ms)
+                .map(|(_, b)| b.opened_ms)
+                .min()
+                .is_some_and(|opened| {
+                    seen_ms(&data).is_none_or(|seen| seen == 0 || seen >= opened)
                 });
             if fresh {
                 state.ohlcvc = Some(data);
@@ -4456,6 +4475,93 @@ mod tests {
                 .unwrap_or_default();
             assert_eq!(needs, OPTION_LEG.to_vec(), "{tool} names the whole leg");
         }
+    }
+
+    #[test]
+    fn a_discarded_replacement_does_not_leave_prints_unaccounted_for() {
+        // Its counts cannot be folded in: it was asking something else. But
+        // the prints it saw are still prints this contract received, and the
+        // gap between received and examined must not read as nothing having
+        // happened.
+        let reg = Registry::default();
+        let spy = option("550000", "C");
+        let mut aapl = query(5);
+        aapl.root = Some("AAPL".into());
+        market_now(&reg, SecType::Option, aapl.clone(), 0, 0).expect("nothing to refuse");
+
+        let mut spy_q = query(5);
+        spy_q.root = Some("SPY".into());
+        let lost = reg
+            .market(SecType::Option, spy_q, 0, 1)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&spy, 1.0, 2 * MS));
+        reg.restore_market(SecType::Option, lost.settle.outgoing);
+
+        let next = market_now(&reg, SecType::Option, aapl, 0, 3).expect("nothing to refuse");
+        assert_eq!(next.examined, 0, "an SPY print is not this selection's");
+        assert_eq!(next.new_since_last_read, 1, "but it did arrive");
+        assert!(
+            next.gap,
+            "and the answer says its view of the tape was broken"
+        );
+    }
+
+    #[test]
+    fn a_view_that_failed_to_open_still_counts_what_followed_it() {
+        // Opening the subscriptions starts the count, not the first answer
+        // that lands. A call that fails still opened them, so a discard
+        // after that belongs to this contract rather than being swallowed.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        // The feed has already discarded five before this contract was ever
+        // looked at; those were never this view's to report.
+        reg.prints(&c, 10, 5, 0).expect("nothing to refuse");
+        // One more is discarded, then a retry succeeds.
+        let retry = reg.prints(&c, 10, 6, MS).expect("nothing to refuse");
+        assert_eq!(
+            retry.feed_dropped_since_last_read, 1,
+            "the one discarded since the subscriptions opened, not all six"
+        );
+    }
+
+    #[test]
+    fn a_bar_with_no_book_to_measure_it_against_is_not_kept() {
+        // A bar queued by a subscription that has closed is not the next
+        // one's. With the trade book gone it has nothing to be measured
+        // against except the books that remain.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        reg.forget(&subscription(SubscriptionKind::Trade, &c));
+        // A fresh quote-only view, opened long after that bar was decoded.
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Quote,
+            None,
+            TAIL,
+            None,
+            0,
+            10_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(bar(&c, 1.0, MS));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Quote,
+            None,
+            TAIL,
+            None,
+            0,
+            11_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            r.ohlcvc.is_none(),
+            "the previous subscription's bar is not this book's"
+        );
     }
 
     #[test]
