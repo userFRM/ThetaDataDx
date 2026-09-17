@@ -811,6 +811,7 @@ struct SpawnArgs<'a, P> {
     ping_interval: Duration,
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
+    reconnects_exhausted: Arc<AtomicBool>,
     active_subs: io_loop::ActiveSubs,
     active_full_subs: io_loop::ActiveFullSubs,
     pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>>,
@@ -871,6 +872,10 @@ pub struct StreamingClient {
     shutdown: Arc<AtomicBool>,
     /// Whether we are authenticated and the connection is live.
     authenticated: Arc<AtomicBool>,
+    /// Set once auto-recovery has given up on this session. Nothing
+    /// clears it: the session it belongs to is over, and a caller that
+    /// wants a feed has to start another.
+    reconnects_exhausted: Arc<AtomicBool>,
     /// Monotonically increasing request ID counter, shared with the
     /// fpss-io reconnect path so re-subscribe frames carry a fresh
     /// `req_id` correlatable to the original subscribe — server-side
@@ -1265,6 +1270,7 @@ impl StreamingClient {
 
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
+        let reconnects_exhausted = Arc::new(AtomicBool::new(false));
         let active_subs: io_loop::ActiveSubs = Arc::new(Mutex::new(Vec::new()));
         let active_full_subs: io_loop::ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
         let pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>> =
@@ -1355,6 +1361,7 @@ impl StreamingClient {
             ping_interval,
             shutdown,
             authenticated,
+            reconnects_exhausted,
             active_subs,
             active_full_subs,
             pending_subs,
@@ -1405,6 +1412,7 @@ impl StreamingClient {
             ping_interval,
             shutdown,
             authenticated,
+            reconnects_exhausted,
             active_subs,
             active_full_subs,
             pending_subs,
@@ -1424,6 +1432,7 @@ impl StreamingClient {
         // Spawn the I/O thread: blocking TLS read + ring publish + command drain.
         let io_shutdown = Arc::clone(&shutdown);
         let io_authenticated = Arc::clone(&authenticated);
+        let io_reconnects_exhausted = Arc::clone(&reconnects_exhausted);
         let io_creds = creds.clone();
         let io_hosts = hosts.to_vec();
         let io_active_subs = Arc::clone(&active_subs);
@@ -1451,6 +1460,7 @@ impl StreamingClient {
                     ring_size,
                     shutdown: io_shutdown,
                     authenticated: io_authenticated,
+                    reconnects_exhausted: io_reconnects_exhausted,
                     permissions,
                     pending_control,
                     policy,
@@ -1512,6 +1522,7 @@ impl StreamingClient {
             })),
             shutdown,
             authenticated,
+            reconnects_exhausted,
             next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
@@ -2409,6 +2420,27 @@ impl StreamingClient {
         self.authenticated.load(Ordering::Acquire)
     }
 
+    /// Whether auto-recovery has given up on this session.
+    ///
+    /// `true` means the reconnect budget is spent and nothing further will
+    /// be attempted: the session is over and a caller that wants a feed
+    /// must start a new one. It never returns to `false`.
+    pub fn reconnects_exhausted(&self) -> bool {
+        self.reconnects_exhausted.load(Ordering::Acquire)
+    }
+
+    /// Mark auto-recovery as having given up, as the io loop does when its
+    /// reconnect budget runs out.
+    ///
+    /// Exposed (not `#[cfg(test)]`) so a test can reach the terminal state
+    /// without a network, exactly as [`Self::for_io_fault_test`] does for a
+    /// dispatcher fault.
+    #[doc(hidden)]
+    pub fn mark_reconnects_exhausted_for_test(&self) {
+        self.authenticated.store(false, Ordering::Release);
+        self.reconnects_exhausted.store(true, Ordering::Release);
+    }
+
     /// Get the server address the initial connect landed on.
     ///
     /// Snapshot from connect time; auto-reconnect may move the session
@@ -2747,6 +2779,7 @@ impl StreamingClient {
             poller_state: Mutex::new(None),
             shutdown,
             authenticated,
+            reconnects_exhausted: Arc::new(AtomicBool::new(false)),
             next_req_id: Arc::clone(&next_req_id),
             active_subs,
             active_full_subs,
@@ -2794,6 +2827,7 @@ impl StreamingClient {
             poller_state: Mutex::new(None),
             shutdown: Arc::new(AtomicBool::new(true)),
             authenticated: Arc::new(AtomicBool::new(true)),
+            reconnects_exhausted: Arc::new(AtomicBool::new(false)),
             next_req_id: Arc::new(AtomicI64::new(1)),
             active_subs: Arc::new(Mutex::new(Vec::new())),
             active_full_subs: Arc::new(Mutex::new(Vec::new())),
@@ -2859,6 +2893,7 @@ impl StreamingClient {
             })),
             shutdown: Arc::new(AtomicBool::new(false)),
             authenticated: Arc::new(AtomicBool::new(true)),
+            reconnects_exhausted: Arc::new(AtomicBool::new(false)),
             next_req_id: Arc::new(AtomicI64::new(1)),
             active_subs: Arc::new(Mutex::new(Vec::new())),
             active_full_subs: Arc::new(Mutex::new(Vec::new())),

@@ -26,7 +26,6 @@
 //! so what crosses a line between two reads is not lost with the ring.
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -989,9 +988,8 @@ struct Coverage {
 fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
     match window {
         // Since your last read: anything lost in that interval counts, and
-        // the disclosure is spent by the read that makes it.
-        // Since your last read: a loss disclosed by an earlier read still
-        // sits inside this window if it happened after that read.
+        // a loss an earlier read disclosed still sits inside this window
+        // when it happened after that read.
         None => {
             c.gap
                 || c.awaiting_resume
@@ -1187,10 +1185,6 @@ fn label(sub: &Subscription) -> String {
 #[derive(Debug, Default)]
 pub struct Registry {
     inner: Mutex<Held>,
-    /// Set when the feed reports its reconnect budget spent. The SDK then
-    /// reads as `Reconnecting` for good, so this is the only signal that the
-    /// next read must restart the session rather than wait for it.
-    reconnects_exhausted: AtomicBool,
 }
 
 impl Registry {
@@ -2715,30 +2709,26 @@ fn stream_error(what: &str, e: impl std::fmt::Display) -> ToolError {
     ToolError::ServerError(format!("{what}: {}", sanitize_error(&e.to_string())))
 }
 
-fn feed_state(client: &Client, reg: &Registry) -> String {
-    if reg.reconnects_exhausted.load(Ordering::Relaxed) {
-        "ReconnectsExhausted".to_string()
-    } else {
-        format!("{:?}", client.stream().connection_status())
-    }
+fn feed_state(client: &Client) -> String {
+    format!("{:?}", client.stream().connection_status())
 }
 
 /// Make sure the feed delivers into the registry.
 ///
-/// The SDK reconnects on its own after a drop. When it gives up it says so
-/// once and then reads as `Reconnecting` indefinitely; a dispatcher fault
-/// reads as `Disconnected`. Both need the dead session retired and a new one
-/// started, and a new session knows nothing of the books this process still
+/// The SDK reconnects on its own after a drop, and says so in its status
+/// while it is trying. A budget it has given up on and a dispatcher fault
+/// both read as terminal, and both need the dead session retired and a new
+/// one started; a new session knows nothing of the books this process still
 /// holds, so they are reopened from the registry rather than from what the
 /// old session tracked.
 fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, ToolError> {
     let stream = client.stream();
-    let exhausted = reg.reconnects_exhausted.swap(false, Ordering::Relaxed);
     match stream.connection_status() {
         ConnectionStatus::NotStarted => {}
         // A dead session still occupies the slot until it is stopped.
-        ConnectionStatus::Disconnected => stream.stop_streaming(),
-        _ if exhausted => stream.stop_streaming(),
+        ConnectionStatus::Disconnected | ConnectionStatus::ReconnectsExhausted => {
+            stream.stop_streaming();
+        }
         _ => return Ok(stream.dropped_event_count()),
     }
     // Stopping is asynchronous: the retired dispatcher can still be
@@ -2760,9 +2750,6 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
     stream
         .start_streaming(move |event: &StreamEvent| match event {
             StreamEvent::Data(data) => reg.ingest(data.clone()),
-            StreamEvent::Control(StreamControl::ReconnectsExhausted { .. }) => {
-                reg.reconnects_exhausted.store(true, Ordering::Relaxed);
-            }
             // The SDK reconnects on its own, and whatever the feed sent
             // between the drop and the new session was never seen.
             StreamEvent::Control(
@@ -3191,7 +3178,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 .collect::<Vec<_>>()
         });
         return Ok(json!({
-            "feed": feed_state(client, reg),
+            "feed": feed_state(client),
             "feed_dropped_events": feed_drops,
             "last_rejection": reg.last_rejection().map(|(code, at)| json!({
                 "result": code.to_string(),
@@ -3273,7 +3260,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         );
         return Ok(json!({
             "sec_type": sec.as_str().to_ascii_lowercase(),
-            "feed": feed_state(client, reg),
+            "feed": feed_state(client),
             "subscribed_now": m.first,
             "since_seconds": seconds(now.saturating_sub(m.previous_ms)),
             "received": m.received,
@@ -3411,7 +3398,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             Ok(json!({
                 "contract": contract.to_string(),
                 "kind": kind.kind_str(),
-                "feed": feed_state(client, reg),
+                "feed": feed_state(client),
                 "subscribed_now": r.first,
                 // A row decoded before the last read and dispatched after
                 // it is new to this one, and the span must reach back far
@@ -3483,7 +3470,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             );
             Ok(json!({
                 "contract": contract.to_string(),
-                "feed": feed_state(client, reg),
+                "feed": feed_state(client),
                 "subscribed_now": p.opened.iter().map(|k| k.kind_str()).collect::<Vec<_>>(),
                 "count": p.rows.len(),
                 "held": p.held,

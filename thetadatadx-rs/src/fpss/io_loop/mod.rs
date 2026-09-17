@@ -453,6 +453,10 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub ring_size: usize,
     pub shutdown: Arc<AtomicBool>,
     pub authenticated: Arc<AtomicBool>,
+    /// Set once auto-recovery gives up, so a caller can tell a session
+    /// that has stopped trying from one still trying. Nothing clears it:
+    /// the session it belongs to is over.
+    pub reconnects_exhausted: Arc<AtomicBool>,
     pub permissions: String,
     pub pending_control: Vec<StreamControl>,
     pub policy: ReconnectPolicy,
@@ -685,6 +689,7 @@ where
         ring_size,
         shutdown,
         authenticated,
+        reconnects_exhausted,
         permissions,
         mut pending_control,
         policy,
@@ -1153,6 +1158,10 @@ where
         // budget exhaustion from a clean `shutdown()` call.
         macro_rules! publish_exhausted {
             ($attempts:expr) => {
+                // Set before the event is published: a consumer reading the
+                // status after seeing the event must never find it unset,
+                // and the publish can fail on a full ring.
+                reconnects_exhausted.store(true, Ordering::Release);
                 if producer
                     .try_publish(|slot| {
                         slot.event =
