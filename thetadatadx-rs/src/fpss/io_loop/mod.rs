@@ -4003,6 +4003,26 @@ mod tests {
     /// replay/drain region and asserts each is immediately preceded by a
     /// `pending_reason = Some(reason)` assignment.
     #[test]
+    fn the_terminal_event_has_one_construction_site() {
+        // `publish_exhausted!` stores the flag before it publishes, so a full
+        // ring cannot lose it. A second place that builds the event by hand
+        // publishes it without the store, and a consumer reading the status
+        // afterwards sees a session still trying when it has stopped. That is
+        // what happened; this pins it not to happen again.
+        let src = include_str!("mod.rs");
+        let cut = src
+            .find("#[cfg(test)]\nmod tests")
+            .expect("test module marker present");
+        assert_eq!(
+            src[..cut]
+                .matches("StreamControl::ReconnectsExhausted {")
+                .count(),
+            1,
+            "the terminal event is built only inside `publish_exhausted!`"
+        );
+    }
+
+    #[test]
     fn reconnect_replay_failures_set_pending_reason_before_continue() {
         let src = include_str!("mod.rs");
         let cfg_test_pos = src
