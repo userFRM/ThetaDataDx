@@ -73,6 +73,33 @@ pub fn wait_for_login(
 /// reset the deadline forever. A supplied `shutdown` flag adds a per-frame
 /// cancellation check; shutdown wins over the wall-clock timeout so teardown
 /// still reports a user-initiated abort rather than a timeout.
+/// Say what a read timeout during login means, keeping the kind the reconnect
+/// path classifies on.
+///
+/// A peer that accepts the connection and then sends nothing surfaces here as
+/// a bare `WouldBlock` or `TimedOut`, which reaches a caller as `Resource
+/// temporarily unavailable` and nothing else: no hint that the server took
+/// the connection, that the login was sent, or that the wait was bounded. The
+/// error keeps its `ErrorKind`, so `is_transient_read` and every reconnect
+/// decision above behave exactly as before, and carries the sentence a caller
+/// needs.
+fn mute_peer_context(e: Error, waited: Duration) -> Error {
+    let Error::Io(io_err) = &e else {
+        return e;
+    };
+    if !crate::fpss::framing::is_transient_read(io_err) {
+        return e;
+    }
+    Error::Io(std::io::Error::new(
+        io_err.kind(),
+        format!(
+            "the server accepted the connection and sent no login response \
+             within {}ms: {io_err}",
+            waited.as_millis()
+        ),
+    ))
+}
+
 fn wait_for_login_generic<R>(
     stream: &mut R,
     pending_control: &mut Vec<StreamControl>,
@@ -106,7 +133,9 @@ where
             });
         }
         let (code, payload_len) =
-            match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout)? {
+            match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout)
+                .map_err(|e| mute_peer_context(e, stall_timeout))?
+            {
                 FrameRead::Frame(code, len) => (code, len),
                 FrameRead::SkippedUnknown => continue,
                 FrameRead::Eof => {
@@ -437,7 +466,22 @@ mod tests {
             match result {
                 // A pre-header transient surfaces as `Error::Io`; the io_loop
                 // reconnect path treats any login `Err` as a failed attempt.
-                Err(Error::Io(_)) => {}
+                Err(Error::Io(ref io_err)) => {
+                    // And it says which silence this was. A bare errno reaches
+                    // a caller as `Resource temporarily unavailable` and
+                    // nothing else, with no hint that the server took the
+                    // connection and then said nothing.
+                    let said = io_err.to_string();
+                    assert!(
+                        said.contains("sent no login response") && said.contains("10000ms"),
+                        "a mute peer says what it did and how long it was given: {said}"
+                    );
+                    // The kind is what every reconnect decision above reads.
+                    assert!(
+                        crate::fpss::framing::is_transient_read(io_err),
+                        "and it is still classified as a transient read ({kind:?})"
+                    );
+                }
                 Ok(_) => panic!(
                     "a mute peer that sends no login response must error, not succeed ({kind:?})"
                 ),
