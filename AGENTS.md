@@ -164,6 +164,19 @@ Four gates need built artefacts and **fail on a clean checkout even with no chan
 your failure, confirm it fails the same way on the base commit. That is the single most common false
 alarm here.
 
+Three of them pass once their artefact exists, and the whole suite then comes back clean:
+
+```sh
+cargo build -p thetadatadx-ffi --release                                        # c_abi_completeness
+cargo bench -p thetadatadx-rs --features __internal --bench bench_decode_allocations  # perf_gate
+cargo bench -p thetadatadx-rs --bench streaming_channels                        # bench_regression
+```
+
+`perf_gate` compares allocations per decoded row against a committed baseline, so it is deterministic
+and a rise is a real regression. `bench_regression` compares wall-clock times on whatever machine ran
+them, so a local delta inside the threshold says little and one outside it is worth a second run
+before believing.
+
 ### Tests, per surface
 
 ```sh
