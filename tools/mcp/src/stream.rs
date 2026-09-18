@@ -633,13 +633,21 @@ impl ContractState {
     /// call, so the call that reopens the quote buffer has sealed everything
     /// from before the reopening first.
     fn close(&mut self, mut gone: impl FnMut(SubscriptionKind, &Buffer) -> bool) {
+        let quote = |s: &Self| s.buffers.iter().any(|(k, _)| *k == SubscriptionKind::Quote);
+        let had_quote = quote(self);
         self.buffers.retain(|(k, b)| !gone(*k, b));
-        if !self
-            .buffers
-            .iter()
-            .any(|(k, _)| *k == SubscriptionKind::Quote)
-        {
+        if !quote(self) {
             self.seal();
+            // The quotes stop here. Prints keep accruing on the trade leg
+            // while the quote leg is gone and come back with no quote beside
+            // them, which reads exactly like a contract that was quiet.
+            // Counted so the next prints answer says an interval went
+            // unwatched; not holed, because the prints themselves are all
+            // there. A contract losing its last buffer is dropped by the
+            // caller of this, so a count left on one owes nobody anything.
+            if had_quote {
+                self.gaps += 1;
+            }
         }
     }
 
@@ -5954,6 +5962,54 @@ mod tests {
         assert!(
             marked.clipped,
             "the same window, asked once the mark is in, is not whole"
+        );
+    }
+
+    #[test]
+    fn a_quote_leg_that_was_released_says_so_on_the_prints_that_lost_it() {
+        // A print with no quote before it reads the same whether the contract
+        // was quiet or this server was not holding the quote leg when it
+        // traded. The prints themselves are all there, so the answer is not
+        // clipped; what it has to say is that an interval went unwatched.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let (first, _) = prints(&reg, &c, 10, 0);
+        assert!(!first.gap, "the first look has lost nothing");
+        reg.ingest(quote(&c, 1.0, 1.1));
+        reg.ingest(trade(&c, 1.05, MS));
+
+        // The quote leg goes, the trade leg stays, and trades keep coming.
+        reg.forget(&subscription(SubscriptionKind::Quote, &c));
+        reg.ingest(trade(&c, 1.06, 2 * MS));
+
+        let after = reg.prints(&c, 10, 0, 3).expect("nothing to refuse");
+        assert!(
+            after.gap,
+            "the quote leg was gone while that print arrived, and nothing else says so"
+        );
+        assert!(
+            !after.holed,
+            "but the prints are all here; it is their quotes that are not"
+        );
+        assert!(
+            after.rows[1].quote_before.is_none(),
+            "which is what the interval cost"
+        );
+        reg.commit_prints_read(&c, after.received, after.feed_drops_seen, after.gaps_seen);
+        let settled = reg.prints(&c, 10, 0, 4).expect("nothing to refuse");
+        assert!(!settled.gap, "disclosed once, not for ever");
+
+        // Closing a contract outright owes nothing: there is no later answer
+        // about it, and the next read of one opens a buffer that says so.
+        let gone = stock("MSFT");
+        prints(&reg, &gone, 10, 0);
+        reg.forget(&subscription(SubscriptionKind::Quote, &gone));
+        reg.forget(&subscription(SubscriptionKind::Trade, &gone));
+        let reopened = reg.prints(&gone, 10, 0, 5).expect("nothing to refuse");
+        assert_eq!(
+            reopened.opened,
+            vec![SubscriptionKind::Trade, SubscriptionKind::Quote],
+            "both legs are new, which is what subscribed_now reports"
         );
     }
 
