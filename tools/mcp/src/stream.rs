@@ -3442,7 +3442,10 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         };
         if let Err(e) = landed {
             // The caller receives nothing, so the selection this read took
-            // goes back and its rows reach whoever asks next.
+            // goes back and its rows reach whoever asks next. Except when
+            // the feed dropped the subscription, which releases the market:
+            // there is no longer anything for a selection to be installed
+            // on, and the error returned says the buffer is gone.
             reg.restore_market(sec, m.settle.outgoing.take());
             return Err(e);
         }
