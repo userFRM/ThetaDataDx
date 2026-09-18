@@ -1834,7 +1834,6 @@ impl Registry {
         match shape(sub) {
             Some(Shape::Contract(contract, kind)) => {
                 let state = held.contracts.entry(contract.clone()).or_default();
-                let had_prints = !state.prints.is_empty();
                 let (buffer, first) = state.open(kind, now);
                 if first {
                     // Idle as far as the sweep is concerned, so the next one
@@ -1850,7 +1849,11 @@ impl Registry {
                     buffer.gaps += 1;
                     buffer.incomplete_at_ms = now;
                     buffer.awaiting_resume = true;
-                    if kind == SubscriptionKind::Trade && had_prints {
+                    if kind == SubscriptionKind::Trade {
+                        // Whether or not any print is held: the leg was gone
+                        // while the feed kept delivering, so the prints from
+                        // that interval are missing, and an empty list is the
+                        // one shape where nothing else would ever say so.
                         state.gaps += 1;
                         state.prints_holed_before =
                             Some(state.prints_dropped + state.prints.len() as u64);
@@ -2015,6 +2018,13 @@ impl Registry {
         // short. The feed is delivering, so nothing waits on proof.
         if seen_ms(&data).is_some_and(|seen| seen < buffer.opened_ms) {
             buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now_ms());
+            // A refused trade is a print that will not be in the list, and a
+            // prints answer reads the state's marks rather than a buffer's,
+            // so marking only the buffer leaves the prints on either side of
+            // it served as though they were next to each other.
+            if msg == SubscriptionKind::Trade.subscribe_code() {
+                state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
+            }
             return;
         }
         buffer.received += 1;
@@ -6050,6 +6060,62 @@ mod tests {
             "the row stamped before the market opened is not one of its own"
         );
         assert!(refused.gap, "and the interval it fell in is disclosed");
+    }
+
+    #[test]
+    fn a_trade_the_admission_gate_refuses_holes_the_prints_around_it() {
+        // A refused trade is a print that will not be in the list. The prints
+        // answer reads the marks on the contract rather than on a buffer, so
+        // marking only the buffer serves the prints on either side of the
+        // missing one as though they were next to each other, while a read of
+        // the same contract says its window is short.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let t0 = now_ms();
+        let (opened, _) = prints(&reg, &c, 10, t0 - 10_000);
+        assert!(!opened.holed, "nothing has been refused yet");
+        reg.ingest(trade(&c, 1.0, (t0 - 5_000) * MS));
+
+        // Stamped before the trade buffer opened, which a backwards clock
+        // does to a live row.
+        reg.ingest(trade(&c, 2.0, (t0 - 20_000) * MS));
+        reg.ingest(trade(&c, 3.0, (t0 - 4_000) * MS));
+
+        let (after, _) = prints(&reg, &c, 10, t0 - 3_000);
+        assert_eq!(after.rows.len(), 2, "the refused trade is in no list");
+        assert!(
+            after.holed,
+            "and the two that came back are not next to each other"
+        );
+    }
+
+    #[test]
+    fn a_trade_leg_put_back_holes_a_prints_history_it_holds_none_of() {
+        // The leg was gone while the feed kept delivering, so the prints from
+        // that interval are missing. An empty list is the one shape where
+        // nothing else would ever say so: no print spans the loss, and the
+        // buffer's own mark reaches no prints answer.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 0).expect("nothing to refuse");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        // An answered prints read first, so the baseline that would otherwise
+        // carry the buffer's own mark into this history is already set. After
+        // it, only the state's marks reach a prints answer.
+        let (opening, _) = prints(&reg, &c, 10, 100);
+        assert!(!opening.holed, "nothing has been lost yet");
+        let sub = subscription(SubscriptionKind::Trade, &c);
+
+        // Swept, and the feed would not let it go, so it comes back marked.
+        reg.forget(&sub);
+        reg.reinstate(&sub, 1_000);
+
+        let (p, _) = prints(&reg, &c, 10, 2_000);
+        assert_eq!(p.held, 0, "it holds no print at all");
+        assert!(
+            p.holed,
+            "and asking for prints reaches back into the interval it lost"
+        );
     }
 
     #[test]
