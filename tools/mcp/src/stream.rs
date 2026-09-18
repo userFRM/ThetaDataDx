@@ -4774,6 +4774,169 @@ mod tests {
     }
 
     #[test]
+    fn opening_a_second_kind_on_a_held_contract_is_a_first_read_of_that_kind() {
+        // `first` decides whether the caller subscribes or reconciles. Read
+        // as false for a kind never opened, the subscribe is never sent, the
+        // leg is then absent from the feed's own list, and the answer says
+        // the feed accepted and dropped it while releasing the buffer, so
+        // every retry repeats.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let q = read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        assert!(q.first, "the quote leg was not held");
+        let t = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 2_000)
+            .expect("nothing to refuse");
+        assert!(
+            t.first,
+            "the trade leg is new to this contract, though the contract is held"
+        );
+        let again = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        assert!(!again.first, "and the second read of it is not");
+    }
+
+    #[test]
+    fn a_row_lands_in_the_buffer_for_its_own_subscription() {
+        // Filed by whichever buffer comes first, a quote reaches the trade
+        // buffer and is served under the trade's column header: a row of
+        // bids and asks beneath `price, size, condition`.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(quote(&c, 10.0, 11.0));
+
+        let t = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 2_000)
+            .expect("nothing to refuse");
+        assert_eq!(t.count, 0, "a quote is not a row on the trade buffer");
+        let q = read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 2_000)
+            .expect("nothing to refuse");
+        assert_eq!(q.count, 1, "it belongs to the quote buffer");
+        assert!(
+            matches!(q.tail.first(), Some(StreamData::Quote { bid, .. }) if *bid == 10.0),
+            "and it is the quote that was sent: {:?}",
+            q.tail.first()
+        );
+    }
+
+    #[test]
+    fn prints_evicted_before_the_caller_asked_clip_the_answer() {
+        // Asking for more prints than are held, when older ones were pushed
+        // out, is an answer that does not reach as far back as it was asked
+        // to. Both halves matter: evicted and short of the count.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.prints(&c, 20, 0, 1_000).expect("nothing to refuse");
+        for i in 0..(PRINTS + 5) {
+            reg.ingest(trade(&c, 1.0, (2_000 + i as u64) * MS));
+        }
+        let p = reg
+            .prints(&c, PRINTS + 5, 0, 9_000)
+            .expect("nothing to refuse");
+        assert_eq!(p.held, PRINTS, "the ring holds its budget and no more");
+        assert!(p.dropped > 0, "and pushed the older ones out");
+        assert!(!p.holed, "with no hole and nothing discarded");
+        assert_eq!(
+            prints_response(&c, "Connected".into(), PRINTS + 5, false, &p, 9_000)["clipped"]
+                .as_bool(),
+            Some(true),
+            "so the answer does not reach as far back as it was asked to"
+        );
+        // Asking for exactly what is held is a complete answer, though rows
+        // were evicted before it. That count is the only one separating
+        // "fewer than asked for" from "no more than asked for".
+        let exact = reg.prints(&c, PRINTS, 0, 9_100).expect("nothing to refuse");
+        assert_eq!(exact.held, PRINTS, "every print held comes back");
+        assert!(exact.dropped > 0, "rows were still evicted at some point");
+        assert_eq!(
+            prints_response(&c, "Connected".into(), PRINTS, false, &exact, 9_100)["clipped"]
+                .as_bool(),
+            Some(false),
+            "but none of them is missing from this answer"
+        );
+
+        // And asking for more than a quiet contract has ever produced is a
+        // complete answer too: fewer rows than asked for only clips when
+        // rows were evicted to make it so.
+        let quiet = stock("MSFT");
+        reg.prints(&quiet, 20, 0, 1_000).expect("nothing to refuse");
+        for at in [2_000u64, 3_000, 4_000] {
+            reg.ingest(trade(&quiet, 1.0, at * MS));
+        }
+        let few = reg.prints(&quiet, 20, 0, 5_000).expect("nothing to refuse");
+        assert_eq!(few.held, 3, "three prints, and twenty asked for");
+        assert_eq!(few.dropped, 0, "with nothing evicted");
+        assert_eq!(
+            prints_response(&quiet, "Connected".into(), 20, false, &few, 5_000)["clipped"]
+                .as_bool(),
+            Some(false),
+            "so the answer is everything there is"
+        );
+    }
+
+    #[test]
+    fn reading_prints_keeps_its_buffers_from_being_swept() {
+        // A caller polling only `live_prints` touches the trade and quote
+        // legs through it. Without that, both are swept at the TTL and every
+        // call re-subscribes and discloses a gap it created itself.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        // Read just short of the TTL. Without the touch the legs still carry
+        // the moment they opened, and the sweep a millisecond later takes
+        // them; with it they are a millisecond old and stay.
+        reg.prints(&c, 10, 0, PAST_TTL - 1)
+            .expect("nothing to refuse");
+        let expired = reg.expire(PAST_TTL);
+        assert!(
+            expired.is_empty(),
+            "reading the prints kept both legs alive: {expired:?}"
+        );
+    }
+
+    #[test]
+    fn a_contract_buffer_takes_rows_while_a_market_buffer_is_held() {
+        // Open interest and market value do not overlap the whole-market
+        // stream, so a contract may hold one beside a market buffer. Filing
+        // the row only with the market leaves that buffer empty for ever on
+        // a live subscription.
+        let reg = Registry::default();
+        let c = option("550", "C");
+        market_now(&reg, SecType::Option, query(5), 0, 1_000).expect("nothing to refuse");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::OpenInterest,
+            None,
+            TAIL,
+            0,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(StreamData::OpenInterest {
+            contract: Arc::new(c.clone()),
+            ms_of_day: 1,
+            open_interest: 42,
+            date: 20260918,
+            received_at_ns: 2_000 * MS,
+        });
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::OpenInterest,
+            None,
+            TAIL,
+            0,
+            3_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(r.count, 1, "the row reached the contract's own buffer");
+    }
+
+    #[test]
     fn a_tool_offers_only_the_security_types_it_can_serve() {
         // A type offered in the schema and refused on every call is a call
         // a model will make and an answer it will never get.
