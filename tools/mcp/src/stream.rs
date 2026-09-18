@@ -1306,7 +1306,6 @@ impl Registry {
         // caller.
         buffer.touched_ms = now;
         let new = buffer.received - buffer.read_seq;
-        let received = buffer.received;
         let feed_dropped = buffer
             .feed_drops_at_read
             .map_or(0, |at| feed_drops.saturating_sub(at));
@@ -1315,6 +1314,17 @@ impl Registry {
         let mut count = 0u64;
         let mut rows = Vec::new();
         let mut oldest = None;
+        // How many of the rows this read is about to consume it actually
+        // serves. The cursor counts arrivals, and a named window chooses by
+        // stamp, so the two part whenever the window leaves a new row out: a
+        // row that landed between this answer's clock being read and the lock
+        // being taken carries a later stamp than `now` and falls outside
+        // every window this answer can name. Stepping the cursor past it
+        // would leave it new to nobody, and nothing on either answer would
+        // say so. Counted from the oldest new row forwards, because that is
+        // the end the cursor moves from.
+        let in_ring_new = new.min(buffer.ring.len() as u64);
+        let mut served_from_oldest = 0u64;
         // Newest first. Without a window the rows are the `new` newest;
         // with one they are those stamped at or after the floor. Either set
         // is a run from the back, so the walk stops at the first row outside
@@ -1327,6 +1337,13 @@ impl Registry {
                 // outside the window does not mean the rest are.
                 Some(_) => seen_ms(d).is_none_or(|s| s >= floor && s <= now),
             };
+            if (i as u64) < in_ring_new {
+                if inside {
+                    served_from_oldest += 1;
+                } else {
+                    served_from_oldest = 0;
+                }
+            }
             if !inside {
                 // The default window counts arrivals, which are in order, so
                 // the first row outside it ends the walk. A named window
@@ -1344,6 +1361,11 @@ impl Registry {
             }
         }
         let oldest = oldest.cloned();
+        // A new row the ring has already pushed out can never be served, and
+        // the loss is disclosed by `new > held`, so the cursor steps past
+        // those and stops at the first new row still held that this answer
+        // left out.
+        let consumed = buffer.read_seq + new.saturating_sub(in_ring_new) + served_from_oldest;
         // The age this answer reports is of the newest row it hands back, not
         // of the newest the buffer holds nor the newest the window covers. An
         // answer returning nothing has no age: taking a held row's would date
@@ -1404,7 +1426,7 @@ impl Registry {
             tail: rows,
             ohlcvc: state.ohlcvc.clone(),
             settle: Settle {
-                received,
+                received: consumed,
                 feed_drops: feed_drops.max(drops_at_read),
                 feed_dropped,
                 gaps: gaps_seen,
@@ -6298,6 +6320,119 @@ mod tests {
             reopened.opened,
             vec![SubscriptionKind::Trade, SubscriptionKind::Quote],
             "both legs are new, which is what subscribed_now reports"
+        );
+    }
+
+    #[test]
+    fn a_named_window_leaves_new_a_row_it_could_not_serve() {
+        // A read samples its clock before it takes the lock. A row delivered
+        // in that gap is stamped after that clock, so no window this answer
+        // can name contains it. The cursor counts arrivals, not the rows
+        // served, so stepping it past that row would leave it new to nobody
+        // and nothing on either answer would say so.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        reg.ingest(trade(&c, 2.0, 9_000 * MS));
+
+        let named = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(5_000),
+            TAIL,
+            0,
+            3_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            named.count, 1,
+            "the row stamped after this answer's clock is in no window it can name"
+        );
+        assert_eq!(
+            named.new_since_last_read, 2,
+            "though both arrived since the last read"
+        );
+
+        let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 10_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            after.new_since_last_read, 1,
+            "so the one it could not serve is still owed"
+        );
+        assert_eq!(
+            after.tail.iter().map(price).collect::<Vec<_>>(),
+            vec![2.0],
+            "and it is the row itself that comes back"
+        );
+        let settled = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 11_000)
+            .expect("nothing to refuse");
+        assert_eq!(settled.new_since_last_read, 0, "served once, not twice");
+
+        // An excluded row in the middle of the new ones stops the cursor
+        // there, whatever the newer ones did. A clock that stepped back for
+        // one row puts it below the floor while the rows either side of it
+        // sit inside.
+        let b = stock("MSFT");
+        // Opened at nought, because a row stamped before its buffer opened is
+        // refused at the door and never reaches the window at all.
+        read_now(&reg, &b, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&b, 1.0, 5_000 * MS));
+        reg.ingest(trade(&b, 2.0, 100 * MS));
+        reg.ingest(trade(&b, 3.0, 6_000 * MS));
+        let straddle = read_now(
+            &reg,
+            &b,
+            SubscriptionKind::Trade,
+            Some(6_000),
+            TAIL,
+            0,
+            7_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(straddle.count, 2, "the one stamped below the floor is out");
+        let owed = read_now(&reg, &b, SubscriptionKind::Trade, None, TAIL, 0, 8_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            owed.new_since_last_read, 2,
+            "the excluded row and everything that arrived after it are still owed"
+        );
+
+        // A new row the ring has already pushed out can never be served, and
+        // `new > held` is what discloses it, so the cursor does step past
+        // those rather than reporting them new for ever.
+        let d = stock("TSLA");
+        read_now(&reg, &d, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        for i in 0..(RING as u64 + 2) {
+            reg.ingest(trade(&d, 1.0, (100 + i) * MS));
+        }
+        let over = read_now(
+            &reg,
+            &d,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            0,
+            20_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(over.new_since_last_read, RING as u64 + 2);
+        assert!(over.clipped, "two of them are gone, and it says so");
+        let done = read_now(
+            &reg,
+            &d,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            0,
+            21_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            done.new_since_last_read, 0,
+            "including the two the ring pushed out, which nothing can serve"
         );
     }
 
