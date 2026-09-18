@@ -2362,7 +2362,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 never how long ago the feed last carried anything: an index reports \
                 about once a second, so seconds of age are normal there and stale on an option \
                 quote. Rows are held within a memory budget, not for a length of time: \
-                covers_seconds is how far back the rows held reach right now. clipped means \
+                covers_seconds is how far back this buffer is known to have seen everything: \
+                the oldest row it still holds once its ring has pushed rows out, and the \
+                moment it opened before that, because a buffer that has dropped nothing has \
+                missed nothing since it opened however quiet the contract was. clipped means \
                 this answer is not the whole of the window you asked for: either it reaches \
                 further back than the rows held, which a liquid buffer can hit within seconds, \
                 or the feed was interrupted, or events were discarded, inside it. Treat it as \
@@ -2370,7 +2373,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 speaks for what this server has received: a row the feed has sent and not yet \
                 delivered is in no answer and behind no flag, so a window ending now is a claim \
                 about rows in hand rather than about the market. \
-                rows_in_window is how many rows the window held, which is not how \
+                rows_in_window is how many rows of the window this buffer still holds, which is not how \
                 many came back: the tail is capped, so a larger count means you are seeing the \
                 newest of more. The tail is the vendor's messages as sent, condition and \
                 exchange codes intact. A row carried inside this answer has its own age_ms \
@@ -2380,15 +2383,18 @@ pub fn tool_definitions() -> Vec<Value> {
                 condition, cancel and size rules are yours to choose, and nothing here \
                 summarises them. subscribed_now says whether this call opened the \
                 subscription, and new_since_last_read counts rows that arrived since your last \
-                live_read of this buffer, which under the default window is what the window \
-                holds. dropped counts rows this buffer's ring has pushed out since \
+                live_read of this buffer, counted as they arrived, so it is larger than \
+                rows_in_window whenever the ring pushed some of them out again, and clipped \
+                says so when it does. dropped counts rows this buffer's ring has pushed out since \
                 it opened, a running total rather than a count since your last read. \
                 feed_dropped_since_last_read counts events the SDK discarded \
                 because this server fell behind; while it is not zero any buffer may be missing \
                 rows, and clipped says so. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
-                are Eastern. A buffer goes 15 minutes unread and the next call to any of these \
+                are Eastern. A buffer goes 15 minutes without any of these tools using it, \
+                which live_prints does to the legs it reads from without reading them, and \
+                the next call to any of these \
                 tools closes it; live_stop closes it now. A read that finds \
                 the feed refused the subscription after accepting it says so and releases the \
                 buffer; reading again re-subscribes. In the answer: window_from says whether the \
@@ -2426,9 +2432,12 @@ pub fn tool_definitions() -> Vec<Value> {
                 read, so asking twice in a row serves the same ones again. live_read keeps \
                 its own count of trades. age_ms is the age of the \
                 newest print returned, never of the feed, and covers_seconds is how far back \
-                the prints held reach. Prints are held within a memory budget. clipped means \
-                this answer is not the whole of what happened: prints older than the ones \
-                returned were discarded before you asked, or the history has a hole in it, or \
+                this buffer is known to have seen everything, which is the oldest print held \
+                once prints have been discarded and the moment the trade leg opened before \
+                that. Prints are held within a memory budget. clipped means \
+                this answer is not the whole of what you asked for: you asked for more prints \
+                than are held and older ones had been discarded, or the history has a hole in \
+                it, or \
                 the SDK discarded events, which feed_dropped_since_last_read counts. Treat it \
                 as the one field that says whether anything is missing, whatever the cause, \
                 among the prints this server has received. \
@@ -2490,7 +2499,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 the subscription and returns nothing yet; call again a second or two later. A \
                 market buffer is not held alongside per-contract trade or quote buffers on the same \
                 security type, because the feed would deliver those contracts twice; live_stop \
-                one side. Once 15 minutes unread, the next call to any of these tools closes \
+                one side. Once 15 minutes without any of these tools using it, the next call \
+                to any of them closes \
                 it; live_stop with sec_type alone closes it now. Times are Eastern.",
             "inputSchema": {
                 "type": "object",
@@ -2552,7 +2562,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 an index does not have, so an index is closed by its root. subscriptions_closed \
                 counts what the feed released and failed_to_close names what it would not. A \
                 subscription the feed did not release stays held; the buffer is kept so a \
-                later stop, or the sweep once it is idle again, tries to release it. A buffer 15 minutes unread is closed by the next call to any of these \
+                later stop, or the sweep once it is idle again, tries to release it. A buffer \
+                15 minutes without any of these tools using it is closed by the next call to any of these \
                 tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
