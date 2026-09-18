@@ -5,16 +5,16 @@
 //! about it — what is the value now, what did the window look like, what
 //! printed and where the market was around it.
 //!
-//! A book is named by its contract and kind, the same way the vendor names a
+//! A buffer is named by its contract and kind, the same way the vendor names a
 //! subscription. The first read opens it; a read every so often keeps it;
 //! fifteen idle minutes or `live_stop` close it. There is no handle to
-//! mint, pass back or lose. A whole-market book is named by its security
+//! mint, pass back or lose. A whole-market buffer is named by its security
 //! type alone, the way the vendor names a full-stream subscription.
 //!
 //! The feed answers a subscribe after accepting it, and can refuse it then.
 //! The SDK's active set is the only record of what the feed kept, so every
-//! read checks the book it is about against that set rather than trusting
-//! the subscribe that opened it, and every close keeps the book until the
+//! read checks the buffer it is about against that set rather than trusting
+//! the subscribe that opened it, and every close keeps the buffer until the
 //! feed has let go.
 //!
 //! This layer stores what the feed sends and serves it back. Nothing is
@@ -45,9 +45,9 @@ use thetadatadx::{
 
 use crate::{sanitize_error, ToolError};
 
-/// Memory a book's ring may hold: 13,107 rows at the 80-byte row measured
+/// Memory a buffer's ring may hold: 13,107 rows at the 80-byte row measured
 /// on this build. Capacity in rows follows from the row size, so the
-/// number says what a full book costs; what it covers in time depends on
+/// number says what a full buffer costs; what it covers in time depends on
 /// the rate, and `covers_seconds` reports that at each read.
 ///
 /// Measured on the production feed at the open of 2026-09-16
@@ -55,12 +55,12 @@ use crate::{sanitize_error, ToolError};
 /// peaked at 672,350 msg/s over 100 ms and averaged 3,366 msg/s over the
 /// session; the whole option market peaked at 121,630 msg/s and averaged
 /// 1,113 msg/s. The peak was 41 times the mean of the minute that held
-/// it. No single book sees more than its whole market, so this budget
+/// it. No single buffer sees more than its whole market, so this budget
 /// covered at least 20 ms at that stock burst and about 4 s at that
 /// session mean — two figures two hundred times apart, both true, which
 /// is why nothing here promises a length of time.
-const BOOK_BUDGET: usize = 1 << 20;
-const RING: usize = BOOK_BUDGET / size_of::<StreamData>();
+const BUFFER_BUDGET: usize = 1 << 20;
+const RING: usize = BUFFER_BUDGET / size_of::<StreamData>();
 /// Memory a contract's prints may hold: 762 prints at the sizes measured
 /// on this build. A print carries its trade and up to three quotes, one
 /// inline and two on the heap. The rates above bound what it covers: a
@@ -76,7 +76,7 @@ const MAX_CLAUSES: usize = 8;
 /// session replaces it. Long enough for a queue to drain, short enough that
 /// a caller hears about it rather than waiting.
 const DRAIN: Duration = Duration::from_secs(2);
-/// How long a book survives without a read. Stated in the tool descriptions,
+/// How long a buffer survives without a read. Stated in the tool descriptions,
 /// since that is where a model reads it.
 const TTL: Duration = Duration::from_secs(900);
 /// Newest rows served verbatim on a read, unless asked otherwise.
@@ -307,7 +307,7 @@ impl Op {
 }
 
 /// The right-hand side of a comparison: a number, or another field of the
-/// same row, which is how a crossed book (`bid >= ask`) is asked for.
+/// same row, which is how a crossed buffer (`bid >= ask`) is asked for.
 #[derive(Clone, Debug, PartialEq)]
 enum Rhs {
     Number(f64),
@@ -491,16 +491,16 @@ fn print_field(trade: &StreamData, quote: Option<&StreamData>, name: &str) -> Op
 }
 
 #[derive(Debug)]
-struct Book {
+struct Buffer {
     ring: VecDeque<StreamData>,
     received: u64,
     dropped: u64,
     opened_ms: u64,
-    /// When this book was last READ: the floor of a default window, which
+    /// When this buffer was last READ: the floor of a default window, which
     /// is everything since the caller last looked at it.
     read_ms: u64,
-    /// When this book was last USED for anything, which is what keeps it
-    /// alive. `live_prints` needs the trade and quote books it reads from
+    /// When this buffer was last USED for anything, which is what keeps it
+    /// alive. `live_prints` needs the trade and quote buffers it reads from
     /// to survive, but it is not a read OF them: moving the window floor
     /// would shorten a later read's window without moving the cursor that
     /// decides which rows it returns, and the read would then report a
@@ -512,21 +512,21 @@ struct Book {
     /// after, is new exactly once.
     read_seq: u64,
     /// The SDK's count of events it discarded, as of the last read. Rows
-    /// this book never saw are not in `received`, and the only record of
+    /// this buffer never saw are not in `received`, and the only record of
     /// them is that counter.
     feed_drops_at_read: Option<u64>,
-    /// The feed was interrupted while this book was open, so rows it never
+    /// The feed was interrupted while this buffer was open, so rows it never
     /// received are missing from the ring with nothing else to record them:
     /// the SDK's discard count covers what it threw away, not what never
     /// arrived. Set on every interruption, cleared by the read that
     /// discloses it.
-    /// Interruptions this book has seen, and how many the last answer
+    /// Interruptions this buffer has seen, and how many the last answer
     /// disclosed. Counted rather than flagged: the feed can break between a
     /// read and the commit that settles it, and clearing a flag would
     /// discharge an interruption nobody was ever shown.
     gaps: u64,
     gaps_at_read: u64,
-    /// The latest moment up to which this book is known to have lost rows.
+    /// The latest moment up to which this buffer is known to have lost rows.
     ///
     /// Dated to the read that learns of the loss, not to when the loss
     /// began: a feed that broke at t=10 and resumed at t=20 was not
@@ -542,7 +542,7 @@ struct Book {
     awaiting_resume: bool,
 }
 
-impl Book {
+impl Buffer {
     fn open(now: u64) -> Self {
         Self {
             ring: VecDeque::new(),
@@ -561,24 +561,24 @@ impl Book {
     }
 }
 
-/// Everything held for one contract: a book per subscription kind, and the
+/// Everything held for one contract: a buffer per subscription kind, and the
 /// print correlation that spans two of them. Living together, the correlation
-/// cannot outlive the last book or be dropped while one remains.
+/// cannot outlive the last buffer or be dropped while one remains.
 #[derive(Debug, Default)]
 struct ContractState {
-    /// At most one book per kind. Four kinds exist, so a scan beats a hash
+    /// At most one buffer per kind. Four kinds exist, so a scan beats a hash
     /// and the kind is kept alongside for reopening on a fresh session.
-    books: Vec<(SubscriptionKind, Book)>,
+    buffers: Vec<(SubscriptionKind, Buffer)>,
     last_quote: Option<StreamData>,
     prints: VecDeque<Print>,
     prints_dropped: u64,
     /// Prints received as of the last `live_prints` that was answered, the
-    /// same cursor a book keeps. Advanced only once the call succeeds, so
+    /// same cursor a buffer keeps. Advanced only once the call succeeds, so
     /// a call that failed leaves its prints new for the next one.
     prints_read: u64,
-    /// See [`Book::feed_drops_at_read`].
+    /// See [`Buffer::feed_drops_at_read`].
     feed_drops_at_prints_read: Option<u64>,
-    /// See [`Book::gaps`]; the print list loses rows the same way.
+    /// See [`Buffer::gaps`]; the print list loses rows the same way.
     /// Counted rather than flagged: a read discloses the interruptions it
     /// saw, and the commit that settles it must not clear one that arrived
     /// while the answer was being assembled.
@@ -590,9 +590,9 @@ struct ContractState {
     /// The hole leaves when the prints on either side of it do.
     prints_holed_before: Option<u64>,
     /// Position, counted from the first print ever, before which no print
-    /// takes another quote. Quotes seen while the quote book was away, or
+    /// takes another quote. Quotes seen while the quote buffer was away, or
     /// after it came back, belong to an interval the correlation did not
-    /// observe; sealing what was open when the book went keeps a print
+    /// observe; sealing what was open when the buffer went keeps a print
     /// from before the gap from claiming them.
     unsealed_from: u64,
     /// The vendor's own bar for this contract, as last sent. The feed sends
@@ -602,25 +602,25 @@ struct ContractState {
 }
 
 impl ContractState {
-    /// The book for `kind`, opened now if absent. `true` when it was.
-    fn open(&mut self, kind: SubscriptionKind, now: u64) -> (&mut Book, bool) {
-        let pos = self.books.iter().position(|(k, _)| *k == kind);
+    /// The buffer for `kind`, opened now if absent. `true` when it was.
+    fn open(&mut self, kind: SubscriptionKind, now: u64) -> (&mut Buffer, bool) {
+        let pos = self.buffers.iter().position(|(k, _)| *k == kind);
         let first = pos.is_none();
         if first {
-            self.books.push((kind, Book::open(now)));
+            self.buffers.push((kind, Buffer::open(now)));
         }
-        let i = pos.unwrap_or(self.books.len() - 1);
-        (&mut self.books[i].1, first)
+        let i = pos.unwrap_or(self.buffers.len() - 1);
+        (&mut self.buffers[i].1, first)
     }
 
-    /// Drop the books `gone` names, and close the print correlation while
-    /// the quote book is not among those left. The sweep runs this on every
-    /// call, so the call that reopens the quote book has sealed everything
+    /// Drop the buffers `gone` names, and close the print correlation while
+    /// the quote buffer is not among those left. The sweep runs this on every
+    /// call, so the call that reopens the quote buffer has sealed everything
     /// from before the reopening first.
-    fn close(&mut self, mut gone: impl FnMut(SubscriptionKind, &Book) -> bool) {
-        self.books.retain(|(k, b)| !gone(*k, b));
+    fn close(&mut self, mut gone: impl FnMut(SubscriptionKind, &Buffer) -> bool) {
+        self.buffers.retain(|(k, b)| !gone(*k, b));
         if !self
-            .books
+            .buffers
             .iter()
             .any(|(k, _)| *k == SubscriptionKind::Quote)
         {
@@ -645,20 +645,20 @@ impl ContractState {
 /// and what it keeps is what a read returns.
 #[derive(Debug)]
 struct Market {
-    /// The standing selection; none while the book only holds a
+    /// The standing selection; none while the buffer only holds a
     /// subscription the feed would not release.
     selection: Option<Selection>,
     received: u64,
     opened_ms: u64,
     read_ms: u64,
-    /// Prints received as of the last read; see [`Book::read_seq`].
+    /// Prints received as of the last read; see [`Buffer::read_seq`].
     read_seq: u64,
-    /// See [`Book::touched_ms`]: what keeps this book alive, kept apart
+    /// See [`Buffer::touched_ms`]: what keeps this buffer alive, kept apart
     /// from the floor a default window reads from.
     touched_ms: u64,
-    /// See [`Book::feed_drops_at_read`].
+    /// See [`Buffer::feed_drops_at_read`].
     feed_drops_at_read: Option<u64>,
-    /// See [`Book::gaps`]. A selection has no ring to fall short,
+    /// See [`Buffer::gaps`]. A selection has no ring to fall short,
     /// so without this its only loss signal is the SDK's discard count, and
     /// rows that never arrived are not in it.
     gaps: u64,
@@ -689,7 +689,7 @@ impl Market {
     }
 
     fn ingest(&mut self, data: &StreamData) {
-        // The dispatcher can deliver a row captured before this book was
+        // The dispatcher can deliver a row captured before this buffer was
         // opened: a per-contract subscription swept moments earlier still
         // has rows in flight, and they route here by security type. They
         // belong to a subscription this selection never had.
@@ -833,13 +833,13 @@ impl Selection {
 #[derive(Debug, Default)]
 struct Held {
     contracts: HashMap<Contract, ContractState>,
-    /// At most one market book per security type, keyed the way the SDK
+    /// At most one market buffer per security type, keyed the way the SDK
     /// keys its full-stream snapshot.
     markets: Vec<(SecType, Market)>,
     /// The feed's most recent refusal of a subscribe, with when it was
     /// seen. The wire answers by request id and nothing outside the SDK
     /// maps that back to a contract, so this is the nearest thing to a
-    /// reason a dropped book can be given.
+    /// reason a dropped buffer can be given.
     last_rejection: Option<(StreamResponseType, u64)>,
 }
 
@@ -851,11 +851,11 @@ impl Held {
             .map(|(_, m)| m)
     }
 
-    /// How many contracts of `sec` hold a trade or quote book.
+    /// How many contracts of `sec` hold a trade or quote buffer.
     fn per_contract_feed_on(&self, sec: SecType) -> usize {
         self.contracts
             .iter()
-            .filter(|(c, s)| c.sec_type == sec && s.books.iter().any(|(k, _)| overlaps(*k)))
+            .filter(|(c, s)| c.sec_type == sec && s.buffers.iter().any(|(k, _)| overlaps(*k)))
             .count()
     }
 }
@@ -888,13 +888,13 @@ struct Reading {
     floor: u64,
     dropped: u64,
     /// Where coverage starts: the oldest row held once the ring has
-    /// overflowed, else the moment the book opened. A quiet book has seen
+    /// overflowed, else the moment the buffer opened. A quiet buffer has seen
     /// everything since it opened, rows or not.
     covered_since_ms: u64,
     newest_ms: Option<u64>,
     /// The window reaches back before coverage starts, so the result is not
     /// the whole window asked for — because the ring overflowed, or because
-    /// the book is younger than the window.
+    /// the buffer is younger than the window.
     clipped: bool,
     new_since_last_read: u64,
     /// Rows the window held, which is not how many came back: the tail is
@@ -907,27 +907,27 @@ struct Reading {
     tail: Vec<StreamData>,
     ohlcvc: Option<StreamData>,
     /// Events the SDK discarded since the last read because this server
-    /// fell behind. They belong to no book in particular, so every book
+    /// fell behind. They belong to no buffer in particular, so every buffer
     /// reports them and counts its window clipped while they are not zero.
     feed_dropped_since_last_read: u64,
 }
 
-/// What a book knows about its own completeness at the moment of a read.
+/// What a buffer knows about its own completeness at the moment of a read.
 struct Coverage {
     /// Rows the ring no longer holds but the cursor still counts.
     new: u64,
     held: usize,
     dropped: u64,
     covered_since_ms: u64,
-    /// Events the SDK discarded since this book last settled.
+    /// Events the SDK discarded since this buffer last settled.
     feed_dropped: u64,
-    /// The feed was interrupted since this book last settled.
+    /// The feed was interrupted since this buffer last settled.
     gap: bool,
-    /// When this book last lost rows, or zero if it never has.
+    /// When this buffer last lost rows, or zero if it never has.
     incomplete_at_ms: u64,
     /// This read's clock, which dates a loss with no end yet proven.
     now: u64,
-    /// See [`Book::awaiting_resume`].
+    /// See [`Buffer::awaiting_resume`].
     awaiting_resume: bool,
 }
 
@@ -1088,10 +1088,10 @@ struct Holding {
     held: usize,
     dropped: u64,
     opened_ms: u64,
-    /// When this book was last read, or `None` for one the sweep has marked
+    /// When this buffer was last read, or `None` for one the sweep has marked
     /// idle so the next call hands its subscription back. Nought is that
     /// mark, not a moment, and reading it as one reports decades of idleness
-    /// for a book put back a moment ago.
+    /// for a buffer put back a moment ago.
     read_ms: Option<u64>,
     newest_ms: Option<u64>,
 }
@@ -1150,26 +1150,26 @@ impl Registry {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Close books nobody has read inside the TTL and hand back their
+    /// Close buffers nobody has read inside the TTL and hand back their
     /// subscriptions. Every tool call runs this first and closes what it
-    /// returns before doing anything else, so a book that outlived its idle
+    /// returns before doing anything else, so a buffer that outlived its idle
     /// window is buried before the read that would otherwise have revived
     /// it, a call the registry refuses cannot strand what the sweep freed,
-    /// and a book put back because the feed would not let it go is in
+    /// and a buffer put back because the feed would not let it go is in
     /// place before any conflict is judged.
     fn expire(&self, now: u64) -> Subs {
         let mut held = self.lock();
         let ttl = TTL.as_millis() as u64;
         let mut freed = Vec::new();
         held.contracts.retain(|contract, state| {
-            state.close(|kind, book| {
-                let dead = now.saturating_sub(book.touched_ms) > ttl;
+            state.close(|kind, buffer| {
+                let dead = now.saturating_sub(buffer.touched_ms) > ttl;
                 if dead {
                     freed.push(subscription(kind, contract));
                 }
                 dead
             });
-            !state.books.is_empty()
+            !state.buffers.is_empty()
         });
         held.markets.retain(|(sec, market)| {
             let live = now.saturating_sub(market.touched_ms) <= ttl;
@@ -1181,7 +1181,7 @@ impl Registry {
         freed
     }
 
-    /// Refuse a per-contract book the market book on its security type
+    /// Refuse a per-contract buffer the market buffer on its security type
     /// would double, and say what to close.
     fn without_market(
         held: &Held,
@@ -1190,9 +1190,9 @@ impl Registry {
     ) -> Result<(), ToolError> {
         if overlaps(kind) && held.markets.iter().any(|(s, _)| *s == contract.sec_type) {
             return Err(ToolError::InvalidParams(format!(
-                "the whole-market book on {} (live_market) already carries every {} on it, and \
+                "the whole-market buffer on {} (live_market) already carries every {} on it, and \
                  the feed would deliver {contract} twice if both were held; live_stop with \
-                 sec_type alone closes the market book",
+                 sec_type alone closes the market buffer",
                 contract.sec_type.as_str(),
                 kind.kind_str()
             )));
@@ -1200,7 +1200,7 @@ impl Registry {
         Ok(())
     }
 
-    /// Read a book, opening it if this is the first look. `window` is a
+    /// Read a buffer, opening it if this is the first look. `window` is a
     /// lookback in milliseconds; without one the window is everything since
     /// the previous read.
     /// `feed_drops` is the SDK's count of discarded events now.
@@ -1228,7 +1228,7 @@ impl Registry {
         // feed stopped carrying this contract in between, and prints or
         // quotes from that interval are simply absent.
         let held_prints = !state.prints.is_empty();
-        let first = !state.books.iter().any(|(k, _)| *k == kind);
+        let first = !state.buffers.iter().any(|(k, _)| *k == kind);
         if first && kind == SubscriptionKind::Quote {
             state_seal = true;
         }
@@ -1245,29 +1245,34 @@ impl Registry {
         let inherited = state
             .feed_drops_at_prints_read
             .into_iter()
-            .chain(state.books.iter().filter_map(|(_, b)| b.feed_drops_at_read))
+            .chain(
+                state
+                    .buffers
+                    .iter()
+                    .filter_map(|(_, b)| b.feed_drops_at_read),
+            )
             .min();
         let holed_elsewhere = state.prints_holed_before.is_some();
-        let (book, _) = state.open(kind, now);
-        if book.feed_drops_at_read.is_none() {
+        let (buffer, _) = state.open(kind, now);
+        if buffer.feed_drops_at_read.is_none() {
             // Another view of this contract has been watching, so what the
-            // feed discarded since is this book's to report too, and so is
+            // feed discarded since is this buffer's to report too, and so is
             // the loss that number already stands for. With no other view,
-            // this book starts counting from what this call was handed.
-            book.feed_drops_at_read = Some(inherited.unwrap_or(feed_drops));
+            // this buffer starts counting from what this call was handed.
+            buffer.feed_drops_at_read = Some(inherited.unwrap_or(feed_drops));
             if inherited.is_some() && holed_elsewhere {
-                book.incomplete_at_ms = book.incomplete_at_ms.max(now);
+                buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now);
             }
         }
-        let previous = book.read_ms;
-        // Using the book is what keeps it alive, and that is true even of a
+        let previous = buffer.read_ms;
+        // Using the buffer is what keeps it alive, and that is true even of a
         // call that goes on to fail. Everything else this read observes is
         // settled by `commit_read`, once the answer is going to reach the
         // caller.
-        book.touched_ms = now;
-        let new = book.received - book.read_seq;
-        let received = book.received;
-        let feed_dropped = book
+        buffer.touched_ms = now;
+        let new = buffer.received - buffer.read_seq;
+        let received = buffer.received;
+        let feed_dropped = buffer
             .feed_drops_at_read
             .map_or(0, |at| feed_drops.saturating_sub(at));
         let floor = window.map_or(previous, |w| now.saturating_sub(w));
@@ -1279,7 +1284,7 @@ impl Registry {
         // with one they are those stamped at or after the floor. Either set
         // is a run from the back, so the walk stops at the first row outside
         // it and never touches the rest.
-        for (i, d) in book.ring.iter().rev().enumerate() {
+        for (i, d) in buffer.ring.iter().rev().enumerate() {
             let inside = match window {
                 None => (i as u64) < new,
                 // A zero stamp is the SDK's fallback for a clock it could
@@ -1306,24 +1311,24 @@ impl Registry {
         let oldest = oldest.cloned();
         rows.reverse();
 
-        // Where coverage starts. A quiet book has seen everything since it
+        // Where coverage starts. A quiet buffer has seen everything since it
         // opened. Once rows have been evicted it starts at the oldest one
         // still held, and if that row carries no stamp there is nothing to
         // place it by, so nothing before this read is proven covered.
-        let covered_since_ms = if book.dropped > 0 {
-            book.ring.front().and_then(seen_ms).unwrap_or(now)
+        let covered_since_ms = if buffer.dropped > 0 {
+            buffer.ring.front().and_then(seen_ms).unwrap_or(now)
         } else {
-            book.opened_ms
+            buffer.opened_ms
         };
-        let dropped = book.dropped;
-        let newest_ms = book.ring.back().and_then(seen_ms);
-        // Everything the book has to say, read out before the borrow ends.
-        let gap = book.gaps > book.gaps_at_read;
-        let gaps_seen = book.gaps;
-        let awaiting_resume = book.awaiting_resume;
-        let incomplete_at = book.incomplete_at_ms;
-        let held_rows = book.ring.len();
-        let drops_at_read = book.feed_drops_at_read.unwrap_or(0);
+        let dropped = buffer.dropped;
+        let newest_ms = buffer.ring.back().and_then(seen_ms);
+        // Everything the buffer has to say, read out before the borrow ends.
+        let gap = buffer.gaps > buffer.gaps_at_read;
+        let gaps_seen = buffer.gaps;
+        let awaiting_resume = buffer.awaiting_resume;
+        let incomplete_at = buffer.incomplete_at_ms;
+        let held_rows = buffer.ring.len();
+        let drops_at_read = buffer.feed_drops_at_read.unwrap_or(0);
         let reading = Reading {
             first,
             floor,
@@ -1363,7 +1368,7 @@ impl Registry {
     }
 
     /// The newest `count` prints, oldest first. Opens the trade and quote
-    /// books a print is built from when they are not already held. The
+    /// buffers a print is built from when they are not already held. The
     /// cursor is not advanced here: [`Self::commit_prints_read`] does that
     /// once the call has succeeded.
     fn prints(
@@ -1383,14 +1388,14 @@ impl Registry {
         let mut gaps_from_reopen = 0u64;
         let mut needs_seal = false;
         for kind in [SubscriptionKind::Trade, SubscriptionKind::Quote] {
-            let (book, first) = state.open(kind, now);
+            let (buffer, first) = state.open(kind, now);
             if first {
                 opened.push(kind);
             }
             if kind == SubscriptionKind::Trade {
-                opened_ms = book.opened_ms;
+                opened_ms = buffer.opened_ms;
             }
-            book.touched_ms = now;
+            buffer.touched_ms = now;
             // A quote leg coming back has been away, and a print that
             // arrived while it was gone saw none of the quotes from that
             // interval. Sealing on the way out is not enough: a trade can
@@ -1398,8 +1403,8 @@ impl Registry {
             if first && kind == SubscriptionKind::Quote {
                 needs_seal = true;
             }
-            // Prints accrue only while the trade book exists, so a trade
-            // book being created while prints from before it are still held
+            // Prints accrue only while the trade buffer exists, so a trade
+            // buffer being created while prints from before it are still held
             // means it expired and the feed stopped carrying this contract
             // in between. Nothing else records that interval.
             if first && kind == SubscriptionKind::Trade && held_prints {
@@ -1439,7 +1444,7 @@ impl Registry {
             // and a discard after that is this contract's to report.
             state.feed_drops_at_prints_read = Some(
                 state
-                    .books
+                    .buffers
                     .iter()
                     .filter_map(|(_, b)| b.feed_drops_at_read)
                     .min()
@@ -1447,8 +1452,8 @@ impl Registry {
             );
             // The baseline carries what it has already counted. Taking the
             // number without the loss behind it would start these prints
-            // from a clean history the book knows is holed.
-            if state.books.iter().any(|(_, b)| b.incomplete_at_ms > 0)
+            // from a clean history the buffer knows is holed.
+            if state.buffers.iter().any(|(_, b)| b.incomplete_at_ms > 0)
                 && state.prints_holed_before.is_none()
             {
                 state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
@@ -1491,7 +1496,7 @@ impl Registry {
             gaps_seen: state.gaps,
             feed_drops_seen: feed_drops,
             // Coverage starts at the oldest print held, or where the trade
-            // book opened when none was dropped. A book reopened after the
+            // buffer opened when none was dropped. A buffer reopened after the
             // prints it holds opened later than they arrived, and taking its
             // clock would claim coverage that starts after rows it is
             // already showing, so the oldest print wins whenever it is older.
@@ -1514,7 +1519,7 @@ impl Registry {
         Ok(prints)
     }
 
-    /// Settle a book read: advance its cursors and discharge the
+    /// Settle a buffer read: advance its cursors and discharge the
     /// interruption it disclosed. Runs only once the answer is going to
     /// reach the caller, so a call that fails on the feed leaves both for
     /// the next read.
@@ -1523,20 +1528,20 @@ impl Registry {
         let Some(state) = held.contracts.get_mut(contract) else {
             return;
         };
-        let Some((_, book)) = state.books.iter_mut().find(|(k, _)| *k == kind) else {
+        let Some((_, buffer)) = state.buffers.iter_mut().find(|(k, _)| *k == kind) else {
             return;
         };
-        book.read_ms = now;
-        book.read_seq = settle.received;
+        buffer.read_ms = now;
+        buffer.read_seq = settle.received;
         // A loss with no proof of resumption is dated here, because nothing
         // between it and this read is proven. One a row has already proven
         // the end of keeps that row's stamp: moving it forward would clip
         // windows that sit entirely after the feed came back.
-        if (settle.gap && book.awaiting_resume) || settle.feed_dropped > 0 {
-            book.incomplete_at_ms = book.incomplete_at_ms.max(now);
+        if (settle.gap && buffer.awaiting_resume) || settle.feed_dropped > 0 {
+            buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now);
         }
-        book.gaps_at_read = settle.gaps;
-        book.feed_drops_at_read = Some(settle.feed_drops);
+        buffer.gaps_at_read = settle.gaps;
+        buffer.feed_drops_at_read = Some(settle.feed_drops);
     }
 
     /// Settle a whole-market read: advance its cursors and discharge the
@@ -1603,14 +1608,14 @@ impl Registry {
     /// per session and the new one starts at zero, so a cursor left at the
     /// old session's count would hide every discard until the new count
     /// passed it; everything the new session discards is new to every
-    /// book, so the cursors start at zero too. Not for the SDK's own
+    /// buffer, so the cursors start at zero too. Not for the SDK's own
     /// reconnects: the session and its count survive those.
     fn restarted(&self) {
         let mut held = self.lock();
         for state in held.contracts.values_mut() {
             state.feed_drops_at_prints_read = Some(0);
-            for (_, book) in &mut state.books {
-                book.feed_drops_at_read = Some(0);
+            for (_, buffer) in &mut state.buffers {
+                buffer.feed_drops_at_read = Some(0);
             }
         }
         for (_, market) in &mut held.markets {
@@ -1628,10 +1633,10 @@ impl Registry {
             state.seal();
             state.gaps += 1;
             state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
-            for (_, book) in &mut state.books {
-                book.gaps += 1;
-                book.incomplete_at_ms = now;
-                book.awaiting_resume = true;
+            for (_, buffer) in &mut state.buffers {
+                buffer.gaps += 1;
+                buffer.incomplete_at_ms = now;
+                buffer.awaiting_resume = true;
             }
         }
         for (_, market) in &mut held.markets {
@@ -1640,7 +1645,7 @@ impl Registry {
         }
     }
 
-    /// Read the whole-market book for `sec`, opening it on the first look,
+    /// Read the whole-market buffer for `sec`, opening it on the first look,
     /// and install `q` as its selection from here on. What comes back was
     /// kept by the selection that stood until now.
     fn market(
@@ -1654,8 +1659,8 @@ impl Registry {
         let doubled = held.per_contract_feed_on(sec);
         if doubled > 0 {
             return Err(ToolError::InvalidParams(format!(
-                "{doubled} {} contract(s) hold a trade or quote book, and the feed would deliver \
-                 them twice alongside a whole-market book; live_list shows them and live_stop \
+                "{doubled} {} contract(s) hold a trade or quote buffer, and the feed would deliver \
+                 them twice alongside a whole-market buffer; live_list shows them and live_stop \
                  closes them",
                 sec.as_str()
             )));
@@ -1721,14 +1726,14 @@ impl Registry {
         Ok(reading)
     }
 
-    /// Every subscription a contract's books hold, for `live_stop` to close
-    /// on the feed before the books go.
+    /// Every subscription a contract's buffers hold, for `live_stop` to close
+    /// on the feed before the buffers go.
     fn held_for(&self, contract: &Contract) -> Subs {
         self.lock()
             .contracts
             .get(contract)
             .map_or_else(Vec::new, |s| {
-                s.books
+                s.buffers
                     .iter()
                     .map(|(k, _)| subscription(*k, contract))
                     .collect()
@@ -1739,7 +1744,7 @@ impl Registry {
         self.lock().markets.iter().any(|(s, _)| *s == sec)
     }
 
-    /// Drop a book the feed does not carry: one whose subscribe was refused
+    /// Drop a buffer the feed does not carry: one whose subscribe was refused
     /// after being accepted, or one whose unsubscribe landed. Leaving it
     /// would make the next read skip subscribing too.
     fn forget(&self, sub: &Subscription) {
@@ -1748,7 +1753,7 @@ impl Registry {
             Some(Shape::Contract(contract, kind)) => {
                 if let Some(state) = held.contracts.get_mut(contract) {
                     state.close(|k, _| k == kind);
-                    if state.books.is_empty() {
+                    if state.buffers.is_empty() {
                         held.contracts.remove(contract);
                     }
                 }
@@ -1759,8 +1764,8 @@ impl Registry {
     }
 
     /// Keep a reference to a subscription the feed still holds after its
-    /// book was swept: an empty book already past its TTL, so the next
-    /// sweep hands it back to be closed again. A book reopened meanwhile is
+    /// buffer was swept: an empty buffer already past its TTL, so the next
+    /// sweep hands it back to be closed again. A buffer reopened meanwhile is
     /// left as it is.
     fn reinstate(&self, sub: &Subscription, now: u64) {
         let mut held = self.lock();
@@ -1768,21 +1773,21 @@ impl Registry {
             Some(Shape::Contract(contract, kind)) => {
                 let state = held.contracts.entry(contract.clone()).or_default();
                 let had_prints = !state.prints.is_empty();
-                let (book, first) = state.open(kind, now);
+                let (buffer, first) = state.open(kind, now);
                 if first {
                     // Idle as far as the sweep is concerned, so the next one
                     // hands the subscription back to be released again.
                     // `read_ms` is the floor of a default window and is left
                     // where it is: zeroing it would date the next read's
                     // window to the epoch.
-                    book.touched_ms = 0;
-                    // The book was gone while the feed kept delivering, and
+                    buffer.touched_ms = 0;
+                    // The buffer was gone while the feed kept delivering, and
                     // putting it back is not the same as never having lost
                     // it. A later read must not find an intact leg and
                     // conclude nothing was missed.
-                    book.gaps += 1;
-                    book.incomplete_at_ms = now;
-                    book.awaiting_resume = true;
+                    buffer.gaps += 1;
+                    buffer.incomplete_at_ms = now;
+                    buffer.awaiting_resume = true;
                     if kind == SubscriptionKind::Trade && had_prints {
                         state.gaps += 1;
                         state.prints_holed_before =
@@ -1818,7 +1823,7 @@ impl Registry {
             .contracts
             .iter()
             .flat_map(|(c, s)| {
-                s.books.iter().map(move |(k, b)| Holding {
+                s.buffers.iter().map(move |(k, b)| Holding {
                     sub: subscription(*k, c),
                     label: c.to_string(),
                     received: b.received,
@@ -1844,14 +1849,14 @@ impl Registry {
         rows
     }
 
-    /// Every subscription the books hold, once each, in the two shapes the
+    /// Every subscription the buffers hold, once each, in the two shapes the
     /// SDK's restore takes: what a fresh session must reopen.
     fn subscriptions(&self) -> Restore {
         let held = self.lock();
         (
             held.contracts
                 .iter()
-                .flat_map(|(c, s)| s.books.iter().map(move |(k, _)| (*k, c.clone())))
+                .flat_map(|(c, s)| s.buffers.iter().map(move |(k, _)| (*k, c.clone())))
                 .collect(),
             held.markets
                 .iter()
@@ -1860,8 +1865,8 @@ impl Registry {
         )
     }
 
-    /// Store a row. Unknown books are ignored rather than created: the feed
-    /// can deliver a contract after its unsubscribe, and inventing a book for
+    /// Store a row. Unknown buffers are ignored rather than created: the feed
+    /// can deliver a contract after its unsubscribe, and inventing a buffer for
     /// one would leak.
     pub fn ingest(&self, data: StreamData) {
         let Some(contract) = contract_of(&data) else {
@@ -1878,20 +1883,20 @@ impl Registry {
         // the trade, and a held contract keeps the newest one.
         if let StreamData::Ohlcvc { .. } = data {
             // Through the same gate as every other row: a bar queued by a
-            // subscription that has since closed is not this book's.
+            // subscription that has since closed is not this buffer's.
             //
-            // Measured against the trade book where there is one, because a
+            // Measured against the trade buffer where there is one, because a
             // bar rides ahead of a trade and that is the subscription that
             // produced it. Letting an older sibling vouch instead admits a
-            // bar the previous trade subscription queued: a quote book open
+            // bar the previous trade subscription queued: a quote buffer open
             // since before the trade leg was dropped and reopened would date
             // the bar to itself and call it current.
             //
-            // With no trade book there is nothing here it can belong to: the
+            // With no trade buffer there is nothing here it can belong to: the
             // subscription that produces bars is not held, so a bar in hand
             // was queued by one that has closed.
             let fresh = state
-                .books
+                .buffers
                 .iter()
                 .find(|(kind, _)| *kind == SubscriptionKind::Trade)
                 .is_some_and(|(_, b)| seen_ms(&data).is_none_or(|seen| seen >= b.opened_ms));
@@ -1903,36 +1908,36 @@ impl Registry {
         let Some(msg) = msg_type_of(&data) else {
             return;
         };
-        let Some((_, book)) = state
-            .books
+        let Some((_, buffer)) = state
+            .buffers
             .iter_mut()
             .find(|(k, _)| k.subscribe_code() == msg)
         else {
             return;
         };
-        // A book reopened after an expiry or a stop can still be handed
+        // A buffer reopened after an expiry or a stop can still be handed
         // rows the previous subscription queued. They belong to the feed
-        // this book was not on. A zero stamp is the SDK's fallback for a
+        // this buffer was not on. A zero stamp is the SDK's fallback for a
         // clock it could not read and means unknown, so those are kept.
-        if seen_ms(&data).is_some_and(|seen| seen < book.opened_ms) {
+        if seen_ms(&data).is_some_and(|seen| seen < buffer.opened_ms) {
             return;
         }
-        book.received += 1;
-        if book.awaiting_resume {
+        buffer.received += 1;
+        if buffer.awaiting_resume {
             // Delivery is proven again. A row whose clock could not be read
             // proves that much and dates nothing, so the loss keeps the
             // moment it already had rather than being moved to zero, which
             // would erase it.
             if let Some(seen) = seen_ms(&data) {
-                book.incomplete_at_ms = seen;
-                book.awaiting_resume = false;
+                buffer.incomplete_at_ms = seen;
+                buffer.awaiting_resume = false;
             }
         }
-        if book.ring.len() == RING {
-            book.ring.pop_front();
-            book.dropped += 1;
+        if buffer.ring.len() == RING {
+            buffer.ring.pop_front();
+            buffer.dropped += 1;
         }
-        book.ring.push_back(data.clone());
+        buffer.ring.push_back(data.clone());
 
         match &data {
             StreamData::Quote { .. } => {
@@ -1997,7 +2002,7 @@ fn kinds_for(sec: SecType) -> &'static [SubscriptionKind] {
             SubscriptionKind::OpenInterest,
         ],
         // Open interest is a count of contracts outstanding, which a stock
-        // does not have. Offering it opens a book that can never publish.
+        // does not have. Offering it opens a buffer that can never publish.
         SecType::Stock => &[
             SubscriptionKind::Quote,
             SubscriptionKind::Trade,
@@ -2055,7 +2060,7 @@ fn pro_required(sec: SecType, tier: Option<SubscriptionTier>) -> Result<(), Tool
 }
 
 /// The vendor's own definition of each subscribe response, from its
-/// stream-verification page, so a dropped book can say what the code means.
+/// stream-verification page, so a dropped buffer can say what the code means.
 fn rejection_meaning(code: StreamResponseType) -> &'static str {
     match code {
         StreamResponseType::Subscribed => "the request to subscribe was successful",
@@ -2223,18 +2228,18 @@ pub fn tool_definitions() -> Vec<Value> {
                 option_snapshot_trade and their siblings answer in one call, hold nothing, \
                 and are the right tool for a price. This one holds a subscription on the \
                 account and its first read returns nothing, so reaching for it to read a \
-                single value costs two calls and leaves a book open for fifteen minutes. \
+                single value costs two calls and leaves a buffer open for fifteen minutes. \
                 Reach for it when the gap between two looks is the thing you care about: it \
                 serves every row in that gap, and says so when it could not see them all, \
                 which is what no snapshot can tell you. The first read opens the \
                 subscription and returns nothing yet; read again a second or two later. After \
-                that the window defaults to everything since your last read of this book; pass \
+                that the window defaults to everything since your last read of this buffer; pass \
                 seconds for a fixed lookback. age_ms is how old the newest row returned is, \
                 never how long ago the feed last carried anything: an index reports \
                 about once a second, so seconds of age are normal there and stale on an option \
                 quote. Rows are held within a memory budget, not for a length of time: \
                 covers_seconds is how far back the rows held reach right now, and clipped means \
-                the window you asked for reaches further, which a liquid book can hit within \
+                the window you asked for reaches further, which a liquid buffer can hit within \
                 seconds. rows_in_window is how many rows the window held, which is not how \
                 many came back: the tail is capped, so a larger count means you are seeing the \
                 newest of more. The tail is the vendor's messages as sent, condition and \
@@ -2242,14 +2247,14 @@ pub fn tool_definitions() -> Vec<Value> {
                 as last sent, served as is; nothing here builds a bar from trades, because \
                 condition, cancel and size rules are yours to choose, and nothing here \
                 summarises them. feed_dropped_since_last_read counts events the SDK discarded \
-                because this server fell behind; while it is not zero any book may be missing \
+                because this server fell behind; while it is not zero any buffer may be missing \
                 rows, and clipped says so. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
-                are Eastern. A book goes 15 minutes unread and the next call to any of these \
+                are Eastern. A buffer goes 15 minutes unread and the next call to any of these \
                 tools closes it; live_stop closes it now. A read that finds \
                 the feed refused the subscription after accepting it says so and releases the \
-                book; reading again re-subscribes. In the answer: window_from says whether the \
+                buffer; reading again re-subscribes. In the answer: window_from says whether the \
                 window came from your seconds or from your last read, window_seconds is how far \
                 back it reaches, columns names the fields of each tail row in order, and date is \
                 the trading date they share, absent and carried on each row instead when they \
@@ -2311,7 +2316,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 selected_by. Needs an Options Pro or Stocks Pro subscription; the error says \
                 which when the account lacks it. The first call installs the selection, opens \
                 the subscription and returns nothing yet; call again a second or two later. A \
-                market book is not held alongside per-contract trade or quote books on the same \
+                market buffer is not held alongside per-contract trade or quote buffers on the same \
                 security type, because the feed would deliver those contracts twice; live_stop \
                 one side. Once 15 minutes unread, the next call to any of these tools closes \
                 it; live_stop with sec_type alone closes it now. Times are Eastern.",
@@ -2347,11 +2352,11 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "live_list",
-            "description": "Every book this server holds: rows received and held, the age of \
+            "description": "Every buffer this server holds: rows received and held, the age of \
                 the newest, how long since it was read and when it expires, plus the feed's \
                 state. on_feed is whether the feed itself still carries the subscription; a \
-                book the feed dropped is released on its next read. on_feed_not_held lists \
-                subscriptions the feed carries for no book. last_rejection is the feed's most \
+                buffer the feed dropped is released on its next read. on_feed_not_held lists \
+                subscriptions the feed carries for no buffer. last_rejection is the feed's most \
                 recent refusal of a subscribe, with the vendor's meaning. feed_dropped_events is \
                 the SDK's running count of events it discarded because this server fell behind. \
                 An age that keeps \
@@ -2362,10 +2367,10 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "live_stop",
-            "description": "Close every book held for a contract and release its subscriptions; \
-                with sec_type alone, close the whole-market book for that security type. A \
-                subscription the feed did not release stays held; the book is kept so a \
-                later stop, or the sweep once it is idle again, tries to release it. A book 15 minutes unread is closed by the next call to any of these \
+            "description": "Close every buffer held for a contract and release its subscriptions; \
+                with sec_type alone, close the whole-market buffer for that security type. A \
+                subscription the feed did not release stays held; the buffer is kept so a \
+                later stop, or the sweep once it is idle again, tries to release it. A buffer 15 minutes unread is closed by the next call to any of these \
                 tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
@@ -2598,7 +2603,7 @@ fn feed_state(client: &Client) -> String {
 /// The SDK reconnects on its own after a drop, and says so in its status
 /// while it is trying. A budget it has given up on and a dispatcher fault
 /// both read as terminal, and both need the dead session retired and a new
-/// one started; a new session knows nothing of the books this process still
+/// one started; a new session knows nothing of the buffers this process still
 /// holds, so they are reopened from the registry rather than from what the
 /// old session tracked.
 fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, ToolError> {
@@ -2623,7 +2628,7 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
         )));
     }
     // A session that died or was never started delivered nothing since the
-    // books last saw the feed; the correlation across that interval closes,
+    // buffers last saw the feed; the correlation across that interval closes,
     // and the new session's discard count starts from nothing.
     reg.gap(now_ms());
     reg.restarted();
@@ -2647,7 +2652,7 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
     match stream.restore_subscriptions(&per_contract, &full) {
         Ok(()) => Ok(stream.dropped_event_count()),
         // The session is up and reads as Connected from here on, so nothing
-        // later would notice a book the restore left behind. Release those
+        // later would notice a buffer the restore left behind. Release those
         // now and say which: the next read of each opens it afresh.
         Err(Error::PartialReconnect { failed }) => Err(ToolError::ServerError(format!(
             "the feed session restarted and could not reopen {}; released, and reading each \
@@ -2658,7 +2663,7 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
     }
 }
 
-/// Drop the books whose subscriptions a restore could not reopen, and name
+/// Drop the buffers whose subscriptions a restore could not reopen, and name
 /// them. A full-stream failure comes back under the SDK's marker contract,
 /// an empty symbol carrying only the security type.
 fn release_unrestored(reg: &Registry, failed: &[(SubscriptionKind, Contract)]) -> Vec<String> {
@@ -2698,7 +2703,7 @@ fn on_feed(client: &Client) -> Result<Subs, ToolError> {
     Ok(subs)
 }
 
-/// Release a book the feed does not carry and say so in words, with the
+/// Release a buffer the feed does not carry and say so in words, with the
 /// feed's most recent refusal and what the vendor says it means.
 fn dropped_by_feed(reg: &Registry, sub: &Subscription, now: u64) -> ToolError {
     reg.forget(sub);
@@ -2721,9 +2726,9 @@ fn dropped_by_feed(reg: &Registry, sub: &Subscription, now: u64) -> ToolError {
     ))
 }
 
-/// Fail a read whose book the feed no longer carries. Runs on every read
+/// Fail a read whose buffer the feed no longer carries. Runs on every read
 /// after the first: the feed answers a subscribe after the call that sent
-/// it returns, so the read that opened the book cannot know yet.
+/// it returns, so the read that opened the buffer cannot know yet.
 fn reconcile(
     client: &Client,
     reg: &Registry,
@@ -2920,14 +2925,14 @@ fn query_json(q: &MarketQuery) -> Value {
     })
 }
 
-/// Close what the sweep freed, so a forgotten book cannot hold an allowance
+/// Close what the sweep freed, so a forgotten buffer cannot hold an allowance
 /// the next caller needs. Nobody is waiting on these, so a failure is logged
-/// rather than returned — and the book put back, expired, so the next sweep
+/// rather than returned — and the buffer put back, expired, so the next sweep
 /// tries the close again instead of leaving the feed holding it.
 fn close_expired(client: &Client, reg: &Registry, expired: Subs, now: u64) {
     for sub in expired {
         if let Err(e) = client.stream().unsubscribe(sub.clone()) {
-            tracing::warn!(sub = %label(&sub), error = %e, "expired book left its subscription open; will retry");
+            tracing::warn!(sub = %label(&sub), error = %e, "expired buffer left its subscription open; will retry");
             reg.reinstate(&sub, now);
         }
     }
@@ -2948,8 +2953,8 @@ fn open_on_feed(client: &Client, reg: &Registry, subs: &[Subscription]) -> Resul
     Ok(())
 }
 
-/// Drop the book whose subscribe failed and every one after it that was
-/// never attempted. A book left recorded but never subscribed would look
+/// Drop the buffer whose subscribe failed and every one after it that was
+/// never attempted. A buffer left recorded but never subscribed would look
 /// held to the next call, which would skip subscribing it and read nothing.
 fn roll_back(reg: &Registry, subs: &[Subscription], failed_at: usize) {
     for sub in &subs[failed_at..] {
@@ -2957,7 +2962,7 @@ fn roll_back(reg: &Registry, subs: &[Subscription], failed_at: usize) {
     }
 }
 
-/// Close subscriptions on the feed, dropping each book only once the feed
+/// Close subscriptions on the feed, dropping each buffer only once the feed
 /// has let its subscription go. What the feed kept stays held and is named,
 /// so the caller is not told an allowance came back while the feed holds it.
 fn close_on_feed(client: &Client, reg: &Registry, subs: Subs) -> (usize, Vec<String>) {
@@ -3039,7 +3044,7 @@ fn only_declared_arguments(name: &str, args: &Value) -> Result<(), ToolError> {
 /// A value that is present and cannot be read is refused, never replaced by
 /// the default. Replacing it answers a different question from the one
 /// asked, and says nothing: `ascending: "true"` would rank the wrong way,
-/// `kind: 123` would read the wrong book, `quotes_after: "true"` would drop
+/// `kind: 123` would read the wrong buffer, `quotes_after: "true"` would drop
 /// the quotes the caller asked for, and a negative count would silently
 /// become twenty.
 fn arg<T>(
@@ -3150,7 +3155,7 @@ fn market_response(
 ///
 /// Pulled out of the request arm so which value lands in which field is
 /// reachable by a test. A listing is what a caller reads to decide whether a
-/// book is still on the feed and when it will be released, and both of those
+/// buffer is still on the feed and when it will be released, and both of those
 /// were assigned where nothing could check them.
 fn list_response(
     feed: String,
@@ -3187,7 +3192,7 @@ fn list_response(
             "dropped": h.dropped,
             "age_ms": h.newest_ms.map(|s| now.saturating_sub(s)),
             "open_for_seconds": seconds(now.saturating_sub(h.opened_ms)),
-            // A book the sweep has marked has no idle time to report and is
+            // A buffer the sweep has marked has no idle time to report and is
             // due for release now, which is what the caller acts on.
             "idle_seconds": h.read_ms.map(|r| seconds(now.saturating_sub(r))),
             "expires_in_seconds": h.read_ms.map_or(0.0, |r| {
@@ -3257,7 +3262,7 @@ fn prints_response(
     })
 }
 
-/// The answer a book read hands back.
+/// The answer a buffer read hands back.
 ///
 /// Pulled out of the request arm so which value lands in which field is
 /// reachable by a test. The arm around it needs a live client, and an
@@ -3404,7 +3409,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         let sec = whole_market_target(name, args)?;
         if !reg.market_held(sec) {
             return Err(ToolError::InvalidParams(format!(
-                "no whole-market book is held on {}; live_list shows what is",
+                "no whole-market buffer is held on {}; live_list shows what is",
                 sec.as_str().to_ascii_lowercase()
             )));
         }
@@ -3697,7 +3702,7 @@ mod tests {
     const PAST_TTL: u64 = TTL.as_millis() as u64 + 1;
 
     #[test]
-    fn the_first_read_opens_the_book_and_the_next_does_not() {
+    fn the_first_read_opens_the_buffer_and_the_next_does_not() {
         let reg = Registry::default();
         let c = stock("AAPL");
         let (a, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 1_000);
@@ -3707,7 +3712,7 @@ mod tests {
         assert_eq!(
             reg.subscriptions(),
             (vec![(SubscriptionKind::Trade, c)], vec![]),
-            "one book, one subscription"
+            "one buffer, one subscription"
         );
     }
 
@@ -3730,7 +3735,7 @@ mod tests {
             "rows since the last read, oldest first"
         );
         assert_eq!(r.new_since_last_read, 2);
-        assert!(!r.clipped, "the book was open for the whole window");
+        assert!(!r.clipped, "the buffer was open for the whole window");
 
         // A fixed lookback does not change what "new" means.
         reg.ingest(trade(&c, 3_500.0, 3_500 * MS));
@@ -3934,7 +3939,7 @@ mod tests {
         );
         assert!(
             !reg.market_held(SecType::Option),
-            "a full-stream failure arrives as the marker contract and releases the market book"
+            "a full-stream failure arrives as the marker contract and releases the market buffer"
         );
     }
 
@@ -3949,7 +3954,11 @@ mod tests {
         market_now(&reg, SecType::Option, query(1), 0, PAST_TTL - 1).expect("nothing to refuse");
 
         let expired = reg.expire(PAST_TTL);
-        assert_eq!(expired, vec![aapl.trade()], "the idle stock book is freed");
+        assert_eq!(
+            expired,
+            vec![aapl.trade()],
+            "the idle stock buffer is freed"
+        );
         let why = refused(read_now(
             &reg,
             &option("550", "C"),
@@ -3971,12 +3980,12 @@ mod tests {
     }
 
     #[test]
-    fn a_book_the_feed_would_not_release_still_bars_the_market() {
+    fn a_buffer_the_feed_would_not_release_still_bars_the_market() {
         let reg = Registry::default();
         let c = option("550", "C");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         assert_eq!(reg.expire(PAST_TTL), vec![c.trade()]);
-        // The close failed, so the book is put back before any conflict is
+        // The close failed, so the buffer is put back before any conflict is
         // judged; the feed still delivers that contract.
         reg.reinstate(&c.trade(), PAST_TTL);
         let why = refused(market_now(&reg, SecType::Option, query(1), 0, PAST_TTL));
@@ -4039,7 +4048,7 @@ mod tests {
         );
         assert!(
             r.clipped,
-            "it may have been this book's, so the window is not whole"
+            "it may have been this buffer's, so the window is not whole"
         );
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 6, 2)
             .expect("nothing to refuse");
@@ -4107,8 +4116,8 @@ mod tests {
     }
 
     #[test]
-    fn reading_prints_keeps_a_book_alive_without_moving_its_window() {
-        // live_prints needs the trade and quote books to survive, but it is
+    fn reading_prints_keeps_a_buffer_alive_without_moving_its_window() {
+        // live_prints needs the trade and quote buffers to survive, but it is
         // not a read of them: moving the window floor would shorten a later
         // read's window without moving the cursor that picks its rows, and
         // the read would report a window shorter than what it returned.
@@ -4122,7 +4131,7 @@ mod tests {
         assert_eq!(r.new_since_last_read, 1, "the trade is new to this read");
         assert_eq!(
             r.floor, 0,
-            "the window still starts at the last read of this book, not at the prints call"
+            "the window still starts at the last read of this buffer, not at the prints call"
         );
     }
 
@@ -4185,10 +4194,10 @@ mod tests {
     }
 
     #[test]
-    fn a_book_the_sweep_has_marked_reports_no_idle_time() {
-        // `reinstate` marks a book idle with nought so the next sweep hands
+    fn a_buffer_the_sweep_has_marked_reports_no_idle_time() {
+        // `reinstate` marks a buffer idle with nought so the next sweep hands
         // its subscription back. Nought is that mark, not a moment, and read
-        // as one it reports decades of idleness for a book put back now.
+        // as one it reports decades of idleness for a buffer put back now.
         let reg = Registry::default();
         let c = stock("AAPL");
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
@@ -4197,8 +4206,11 @@ mod tests {
         reg.reinstate(&subscription(SubscriptionKind::Trade, &c), 2_000);
 
         let held = reg.list();
-        let h = held.first().expect("the book was put back");
-        assert_eq!(h.read_ms, None, "a marked book has no read time to report");
+        let h = held.first().expect("the buffer was put back");
+        assert_eq!(
+            h.read_ms, None,
+            "a marked buffer has no read time to report"
+        );
 
         // And one that has been read carries its own.
         let reg = Registry::default();
@@ -4207,7 +4219,7 @@ mod tests {
         assert_eq!(
             reg.list().first().expect("held").read_ms,
             Some(5_000),
-            "a book that was read reports when"
+            "a buffer that was read reports when"
         );
     }
 
@@ -4377,7 +4389,7 @@ mod tests {
         assert_eq!(
             get("covers_seconds").as_f64(),
             Some(8.0),
-            "back to when the book opened"
+            "back to when the buffer opened"
         );
 
         // A named window is labelled as the caller's and measured from the
@@ -4409,14 +4421,14 @@ mod tests {
             Some(2.0)
         );
         // Coverage is how far back the rows held reach, and it is not the
-        // window: this book has been open nine seconds, so a two-second
-        // window covers less than the book does. Asserting the two equal
+        // window: this buffer has been open nine seconds, so a two-second
+        // window covers less than the buffer does. Asserting the two equal
         // proves neither, and computing one from the other would then be a
-        // book two seconds old claiming an hour of coverage.
+        // buffer two seconds old claiming an hour of coverage.
         assert_eq!(
             named.get("covers_seconds").and_then(|v| v.as_f64()),
             Some(9.0),
-            "back to when the book opened, whatever window was asked for"
+            "back to when the buffer opened, whatever window was asked for"
         );
     }
 
@@ -4463,7 +4475,7 @@ mod tests {
     fn every_tool_a_description_sends_a_model_to_exists() {
         // These descriptions route a caller to a snapshot for the current
         // value, because holding a subscription to read one costs two calls
-        // and leaves a book open. A name that no longer exists sends the
+        // and leaves a buffer open. A name that no longer exists sends the
         // model nowhere and it comes back here, which is the failure the
         // routing was added to prevent.
         use thetadatadx::ENDPOINTS;
@@ -4699,7 +4711,7 @@ mod tests {
     }
 
     #[test]
-    fn a_listing_says_which_books_are_still_on_the_feed() {
+    fn a_listing_says_which_buffers_are_still_on_the_feed() {
         // `on_feed` and `expires_in_seconds` are what a caller acts on, and
         // both were assigned where nothing could check them.
         let reg = Registry::default();
@@ -4720,7 +4732,7 @@ mod tests {
         let v = list_response("Connected".into(), 9, None, &rows, Some(&on_feed), 5_000);
 
         let listed = v["held"].as_array().cloned().unwrap_or_default();
-        assert_eq!(listed.len(), 2, "both books are listed");
+        assert_eq!(listed.len(), 2, "both buffers are listed");
         let flag = |label: &str| {
             listed
                 .iter()
@@ -4737,7 +4749,7 @@ mod tests {
         let row = listed
             .iter()
             .find(|h| h["contract"].as_str() == Some(held.to_string().as_str()))
-            .expect("the held book is listed");
+            .expect("the held buffer is listed");
         assert_eq!(
             row["received"].as_u64(),
             Some(RING as u64 + 2),
@@ -5071,16 +5083,16 @@ mod tests {
 
     #[test]
     fn a_reopened_trade_leg_does_not_take_a_bar_the_closed_one_queued() {
-        // An older quote book keeps the contract alive across the drop, so
-        // measuring the bar against the earliest book this contract holds
-        // dates it to that quote book and calls a bar from the closed trade
+        // An older quote buffer keeps the contract alive across the drop, so
+        // measuring the bar against the earliest buffer this contract holds
+        // dates it to that quote buffer and calls a bar from the closed trade
         // subscription current.
         let reg = Registry::default();
         let c = stock("AAPL");
         read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 0).expect("nothing to refuse");
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
             .expect("nothing to refuse");
-        // The feed drops the trade leg; the quote book keeps the contract.
+        // The feed drops the trade leg; the quote buffer keeps the contract.
         reg.forget(&subscription(SubscriptionKind::Trade, &c));
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_400)
             .expect("nothing to refuse");
@@ -5101,10 +5113,10 @@ mod tests {
     }
 
     #[test]
-    fn a_bar_with_no_book_to_measure_it_against_is_not_kept() {
+    fn a_bar_with_no_buffer_to_measure_it_against_is_not_kept() {
         // A bar queued by a subscription that has closed is not the next
-        // one's. With the trade book gone it has nothing to be measured
-        // against except the books that remain.
+        // one's. With the trade buffer gone it has nothing to be measured
+        // against except the buffers that remain.
         let reg = Registry::default();
         let c = stock("AAPL");
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
@@ -5117,7 +5129,7 @@ mod tests {
             .expect("nothing to refuse");
         assert!(
             r.ohlcvc.is_none(),
-            "the previous subscription's bar is not this book's"
+            "the previous subscription's bar is not this buffer's"
         );
     }
 
@@ -5202,8 +5214,8 @@ mod tests {
     }
 
     #[test]
-    fn a_book_put_back_and_read_at_once_does_not_date_its_window_to_the_epoch() {
-        // Reinstating marks a book idle so the next sweep hands its
+    fn a_buffer_put_back_and_read_at_once_does_not_date_its_window_to_the_epoch() {
+        // Reinstating marks a buffer idle so the next sweep hands its
         // subscription back. The floor a default window reads from is a
         // different thing, and zeroing it dates the window to 1970.
         let reg = Registry::default();
@@ -5214,12 +5226,12 @@ mod tests {
         reg.reinstate(&subscription(SubscriptionKind::Trade, &c), 2_000);
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
             .expect("nothing to refuse");
-        // Stated as the moment the book was put back, not as a bound that
+        // Stated as the moment the buffer was put back, not as a bound that
         // `saturating_sub` would satisfy for a floor of nought as readily as
         // for the right one.
         assert_eq!(
             r.floor, 2_000,
-            "the window starts when the book was put back, not at the epoch"
+            "the window starts when the buffer was put back, not at the epoch"
         );
     }
 
@@ -5248,8 +5260,8 @@ mod tests {
     }
 
     #[test]
-    fn a_book_put_back_after_a_failed_release_is_not_an_unbroken_one() {
-        // The feed would not let the subscription go, so the book is kept
+    fn a_buffer_put_back_after_a_failed_release_is_not_an_unbroken_one() {
+        // The feed would not let the subscription go, so the buffer is kept
         // to try again. It was gone while the feed kept delivering, and a
         // later read must not find an intact leg and conclude nothing was
         // missed.
@@ -5382,17 +5394,17 @@ mod tests {
 
     #[test]
     fn prints_inherit_the_losses_behind_the_baseline_they_take() {
-        // A book that already counted a discard hands on its number. Taking
+        // A buffer that already counted a discard hands on its number. Taking
         // it without the loss behind it would start these prints from a
-        // clean history the book knows is holed.
+        // clean history the buffer knows is holed.
         let reg = Registry::default();
         let c = stock("AAPL");
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, MS));
-        // The book learns of a discard and advances its own baseline.
+        // The buffer learns of a discard and advances its own baseline.
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 3, 2 * MS)
             .expect("nothing to refuse");
-        assert_eq!(r.feed_dropped_since_last_read, 3, "the book counted them");
+        assert_eq!(r.feed_dropped_since_last_read, 3, "the buffer counted them");
         reg.ingest(trade(&c, 2.0, 3 * MS));
         // The first prints call inherits that baseline.
         let p = reg.prints(&c, 10, 3, 4 * MS).expect("nothing to refuse");
@@ -5542,15 +5554,15 @@ mod tests {
     }
 
     #[test]
-    fn a_row_captured_before_a_book_reopened_is_not_its_own() {
-        // A book reopened after an expiry can still be handed rows the
-        // previous subscription queued. They belong to a feed this book was
-        // not on, and counting them makes a fresh book look busy.
+    fn a_row_captured_before_a_buffer_reopened_is_not_its_own() {
+        // A buffer reopened after an expiry can still be handed rows the
+        // previous subscription queued. They belong to a feed this buffer was
+        // not on, and counting them makes a fresh buffer look busy.
         let reg = Registry::default();
         let c = stock("AAPL");
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
         reg.expire(PAST_TTL);
-        // Reopened long after the first book went.
+        // Reopened long after the first buffer went.
         let r = read_now(
             &reg,
             &c,
@@ -5561,7 +5573,7 @@ mod tests {
             PAST_TTL + 1,
         )
         .expect("nothing to refuse");
-        assert!(r.first, "a fresh book");
+        assert!(r.first, "a fresh buffer");
         // Queued by the subscription that closed.
         reg.ingest(trade(&c, 1.0, MS));
         // Delivered by the one that opened.
@@ -5578,7 +5590,7 @@ mod tests {
         .expect("nothing to refuse");
         assert_eq!(
             next.new_since_last_read, 1,
-            "only the row this book was open for"
+            "only the row this buffer was open for"
         );
     }
 
@@ -5620,7 +5632,7 @@ mod tests {
     #[test]
     fn a_stock_is_not_offered_a_count_of_contracts_outstanding() {
         // Open interest is a number of option contracts. A stock has none,
-        // and the book would never publish.
+        // and the buffer would never publish.
         assert!(!kinds_for(SecType::Stock).contains(&SubscriptionKind::OpenInterest));
         assert!(kinds_for(SecType::Option).contains(&SubscriptionKind::OpenInterest));
         let why = refused(resolve_kind(SecType::Stock, Some("open_interest")));
@@ -5628,14 +5640,14 @@ mod tests {
     }
 
     #[test]
-    fn a_row_captured_before_a_market_book_existed_is_not_its_own() {
+    fn a_row_captured_before_a_market_buffer_existed_is_not_its_own() {
         // A per-contract subscription swept a moment earlier still has rows
-        // in flight, and they route to a market book by security type. They
+        // in flight, and they route to a market buffer by security type. They
         // belong to a subscription this selection never had.
         let reg = Registry::default();
         let call = option("550000", "C");
         market_now(&reg, SecType::Option, query(5), 0, 10_000).expect("nothing to refuse");
-        // Captured before the book opened.
+        // Captured before the buffer opened.
         reg.ingest(trade(&call, 1.0, 5_000 * MS));
         // Captured after it.
         reg.ingest(trade(&call, 2.0, 11_000 * MS));
@@ -5655,11 +5667,11 @@ mod tests {
         let reg = Registry::default();
         let c = stock("AAPL");
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
-        // The feed discards three while only the trade book is watching.
+        // The feed discards three while only the trade buffer is watching.
         let p = reg.prints(&c, 10, 3, MS).expect("nothing to refuse");
         assert_eq!(
             p.feed_dropped_since_last_read, 3,
-            "prints start where the book already was, not from nothing"
+            "prints start where the buffer already was, not from nothing"
         );
     }
 
@@ -5778,7 +5790,7 @@ mod tests {
         let c = stock("AAPL");
         let now = 100 * MS / 1_000;
 
-        // Open the books first: ingest before that has nowhere to land.
+        // Open the buffers first: ingest before that has nowhere to land.
         reg.prints(&c, 10, 0, now).expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, 0));
         let p = reg.prints(&c, 10, 0, now).expect("nothing to refuse");
@@ -5790,10 +5802,10 @@ mod tests {
         );
         assert_eq!(
             p.covered_since_ms, now,
-            "coverage starts when the book opened, not at the epoch"
+            "coverage starts when the buffer opened, not at the epoch"
         );
 
-        // And on a book read, where an epoch coverage start also unsets
+        // And on a buffer read, where an epoch coverage start also unsets
         // `clipped`: nought is below every floor, so every test for a loss
         // inside the window answers no and the window reads as whole.
         //
@@ -5823,13 +5835,13 @@ mod tests {
         );
         assert!(
             r.clipped,
-            "a window reaching back before the book opened is not whole"
+            "a window reaching back before the buffer opened is not whole"
         );
     }
 
     #[test]
     fn prints_coverage_never_starts_after_a_print_it_returns() {
-        // A trade book reopened after the prints it holds opened later than
+        // A trade buffer reopened after the prints it holds opened later than
         // they arrived. Taking its clock would claim coverage beginning
         // after rows the same answer is showing.
         let reg = Registry::default();
@@ -5839,7 +5851,7 @@ mod tests {
         // against, so the property this test states would be vacuous.
         reg.ingest(trade(&c, 1.0, MS));
         // The quote leg is kept alive while the trade leg goes idle, so the
-        // trade book expires on its own and the print it produced survives.
+        // trade buffer expires on its own and the print it produced survives.
         read_now(
             &reg,
             &c,
@@ -5851,7 +5863,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         reg.expire(PAST_TTL);
-        // A later prints call reopens the trade book, long after the print.
+        // A later prints call reopens the trade buffer, long after the print.
         let p = reg
             .prints(&c, 10, 0, PAST_TTL + 1)
             .expect("nothing to refuse");
@@ -5929,7 +5941,7 @@ mod tests {
 
     #[test]
     fn naming_an_option_leg_on_something_that_has_none_is_refused() {
-        // Acting on the stock instead would close a book the caller never
+        // Acting on the stock instead would close a buffer the caller never
         // named, which is the wrong answer to a clear question.
         for key in OPTION_LEG {
             let why = refused(parse_contract(
@@ -6148,7 +6160,7 @@ mod tests {
         assert_eq!(
             (r.feed_dropped_since_last_read, r.clipped),
             (300, true),
-            "everything the new session discarded is new to the book"
+            "everything the new session discarded is new to the buffer"
         );
         assert_eq!(
             reg.prints(&c, 10, 300, 4)
@@ -6274,7 +6286,7 @@ mod tests {
         );
         assert!(!r.clipped, "a window inside coverage is whole");
 
-        // A book younger than the window is clipped too, with nothing dropped.
+        // A buffer younger than the window is clipped too, with nothing dropped.
         let young = stock("MSFT");
         read(&reg, &young, SubscriptionKind::Trade, None, TAIL, now);
         reg.ingest(trade(&young, 1.0, (now + 1) * MS));
@@ -6289,7 +6301,7 @@ mod tests {
         assert_eq!(r.dropped, 0);
         assert_eq!(
             r.covered_since_ms, now,
-            "nothing dropped, so coverage starts where the book opened, not at its first row"
+            "nothing dropped, so coverage starts where the buffer opened, not at its first row"
         );
         assert!(r.clipped, "two milliseconds of life cannot cover a minute");
     }
@@ -6431,8 +6443,8 @@ mod tests {
     }
 
     #[test]
-    fn an_idle_book_is_buried_before_the_read_and_reopened() {
-        // The sweep runs first, so a book that outlived its window is not
+    fn an_idle_buffer_is_buried_before_the_read_and_reopened() {
+        // The sweep runs first, so a buffer that outlived its window is not
         // revived by the read that noticed: the read gets a fresh one and the
         // old subscription comes back to be closed.
         let reg = Registry::default();
@@ -6441,13 +6453,13 @@ mod tests {
         reg.ingest(trade(&c, 1.0, 0));
 
         let (r, expired) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, PAST_TTL);
-        assert!(r.first, "a fresh book");
+        assert!(r.first, "a fresh buffer");
         assert_eq!(expired, vec![c.trade()]);
         assert_eq!(r.count, 0, "and nothing carried over");
     }
 
     #[test]
-    fn stopping_a_contract_closes_each_kind_on_the_feed_before_the_book_goes() {
+    fn stopping_a_contract_closes_each_kind_on_the_feed_before_the_buffer_goes() {
         let reg = Registry::default();
         let c = stock("AAPL");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
@@ -6481,11 +6493,11 @@ mod tests {
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         reg.forget(&c.trade());
         let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 1);
-        assert!(r.first, "a book the feed refused must not look held");
+        assert!(r.first, "a buffer the feed refused must not look held");
     }
 
     #[test]
-    fn a_book_the_feed_dropped_is_released_with_the_feeds_last_word_on_why() {
+    fn a_buffer_the_feed_dropped_is_released_with_the_feeds_last_word_on_why() {
         let reg = Registry::default();
         let c = stock("AAPL");
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
@@ -6503,7 +6515,7 @@ mod tests {
         let (r, _) = read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 1_701);
         assert!(
             r.first,
-            "the book is released, so the next read re-subscribes"
+            "the buffer is released, so the next read re-subscribes"
         );
 
         let fresh = Registry::default();
@@ -6548,7 +6560,7 @@ mod tests {
         );
         assert_eq!(expired, vec![c.trade()], "retried");
 
-        // A book someone reopened meanwhile is not reset to expired.
+        // A buffer someone reopened meanwhile is not reset to expired.
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, PAST_TTL + 2);
         reg.reinstate(&c.trade(), PAST_TTL + 3);
         let (_, expired) = read(
@@ -6559,9 +6571,9 @@ mod tests {
             TAIL,
             PAST_TTL + 4,
         );
-        assert!(expired.is_empty(), "the live book keeps its read time");
+        assert!(expired.is_empty(), "the live buffer keeps its read time");
 
-        // The same for a market book.
+        // The same for a market buffer.
         reg.reinstate(&SecType::Option.full_trades(), PAST_TTL + 5);
         let (_, expired) = read(
             &reg,
@@ -6596,7 +6608,7 @@ mod tests {
         assert_eq!(
             full,
             vec![(SubscriptionKind::Trade, SecType::Option)],
-            "the market book restores as the SDK's full-stream tuple"
+            "the market buffer restores as the SDK's full-stream tuple"
         );
     }
 
@@ -6632,7 +6644,7 @@ mod tests {
         // request stall the feed for as long as cloning the ring takes.
         let reg = Registry::default();
         let c = stock("AAPL");
-        // Open the book first: ingest drops a tick for a contract nobody
+        // Open the buffer first: ingest drops a tick for a contract nobody
         // holds, so ingesting before the read would leave an empty tail and
         // an assertion that cannot fail.
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
@@ -6684,7 +6696,7 @@ mod tests {
             close, 1.7,
             "the newest bar the vendor sent, whichever kind is read"
         );
-        assert_eq!(r.count, 0, "a bar is not a row on the quote book");
+        assert_eq!(r.count, 0, "a bar is not a row on the quote buffer");
         assert!(
             !reg.lock().contracts.contains_key(&stock("MSFT")),
             "a bar for an unheld contract creates nothing"
@@ -6698,15 +6710,15 @@ mod tests {
     }
 
     #[test]
-    fn a_row_for_an_unheld_book_creates_nothing() {
+    fn a_row_for_an_unheld_buffer_creates_nothing() {
         let reg = Registry::default();
         read(&reg, &stock("AAPL"), SubscriptionKind::Trade, None, TAIL, 0);
         reg.ingest(trade(&stock("MSFT"), 5.0, 0));
         reg.ingest(quote(&stock("AAPL"), 1.0, 1.1));
         let held = reg.lock();
-        assert_eq!(held.contracts.len(), 1, "no book invented for MSFT");
+        assert_eq!(held.contracts.len(), 1, "no buffer invented for MSFT");
         assert_eq!(
-            held.contracts[&stock("AAPL")].books.len(),
+            held.contracts[&stock("AAPL")].buffers.len(),
             1,
             "nor for an unread kind"
         );
@@ -6861,7 +6873,7 @@ mod tests {
     }
 
     #[test]
-    fn the_market_book_takes_every_trade_on_its_security_type_with_the_quote_sent_ahead() {
+    fn the_market_buffer_takes_every_trade_on_its_security_type_with_the_quote_sent_ahead() {
         let reg = Registry::default();
         let call = option("550", "C");
         let put = option("540", "P");
@@ -6875,7 +6887,7 @@ mod tests {
         // Another contract's quote in between: the trade does not claim it.
         reg.ingest(quote(&put, 2.0, 2.1));
         reg.ingest(trade(&call, 1.06, 2 * MS));
-        // A stock trade belongs to a market book this registry does not hold.
+        // A stock trade belongs to a market buffer this registry does not hold.
         reg.ingest(trade(&stock("AAPL"), 150.0, 3 * MS));
 
         let m = market_now(&reg, SecType::Option, query(10), 0, 10).expect("nothing to refuse");
@@ -6902,7 +6914,7 @@ mod tests {
         );
         assert!(
             reg.lock().contracts.is_empty(),
-            "a market row opens no per-contract book"
+            "a market row opens no per-contract buffer"
         );
 
         // A read takes what was kept: the next has nothing until more prints.
@@ -6939,7 +6951,7 @@ mod tests {
         )
         .expect("a valid contract");
         // Rows arrive after the selection is installed, as they do on a
-        // feed: a book cannot be shown prints from before it existed.
+        // feed: a buffer cannot be shown prints from before it existed.
         let feed = |reg: &Registry, t: u64| {
             reg.ingest(quote(&c550, 1.0, 1.5));
             reg.ingest(trade_sized(&c550, 1.2, 10, 0, (t + 1) * MS));
@@ -7046,7 +7058,7 @@ mod tests {
     }
 
     #[test]
-    fn a_market_book_and_a_per_contract_book_on_the_same_class_are_not_held_together() {
+    fn a_market_buffer_and_a_per_contract_buffer_on_the_same_class_are_not_held_together() {
         let reg = Registry::default();
         let c = option("550", "C");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
@@ -7087,13 +7099,13 @@ mod tests {
             reg.lock()
                 .contracts
                 .get(&c)
-                .is_some_and(|s| s.books.len() == 1),
+                .is_some_and(|s| s.buffers.len() == 1),
             "kinds the full stream does not carry are held alongside it, as is another class"
         );
     }
 
     #[test]
-    fn an_idle_market_book_is_swept_and_stopped_by_its_class() {
+    fn an_idle_market_buffer_is_swept_and_stopped_by_its_class() {
         let reg = Registry::default();
         market_now(&reg, SecType::Stock, query(1), 0, 0).expect("nothing to refuse");
         let spx = Contract::index("SPX");

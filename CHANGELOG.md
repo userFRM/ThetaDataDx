@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The MCP server can hold the live tape and answer questions about it.** Five tools. `live_read` gives one contract in one call: the feed's state, what it is now, what arrived since your last read, and the newest rows verbatim. `live_market` reads the whole market at once over the vendor's bulk trade stream, filtering on contract attributes and ranking on the vendor's own fields, which is the only way a stream of every print in the market is usable by a caller that reads text. `live_prints` pairs each trade with the quote that stood before it. `live_list` says what is held and whether each book is still on the feed. `live_stop` closes one.
+- **The MCP server can hold the live tape and answer questions about it.** Five tools. `live_read` gives one contract in one call: the feed's state, what it is now, what arrived since your last read, and the newest rows verbatim. `live_market` reads the whole market at once over the vendor's bulk trade stream, filtering on contract attributes and ranking on the vendor's own fields, which is the only way a stream of every print in the market is usable by a caller that reads text. `live_prints` pairs each trade with the quote that stood before it. `live_list` says what is held and whether each buffer is still on the feed. `live_stop` closes one.
 
-  There are no handles: a book is a contract and a kind, opened on the first read and closed after fifteen minutes unread. The window defaults to everything since your last read of that book, so a caller never has to remember when it last asked.
+  There are no handles: a buffer is a contract and a kind, opened on the first read and closed after fifteen minutes unread. The window defaults to everything since your last read of that buffer, so a caller never has to remember when it last asked.
 
   A snapshot is a round trip and has already moved by the time it is read, so every read carries the age of what it returns, how far back the rows held actually reach, and whether the window asked for reaches further than that. The feed's own state is reported alongside, because a dead feed and a quiet contract look identical from age alone.
 
