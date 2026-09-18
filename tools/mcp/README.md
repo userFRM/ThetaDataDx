@@ -124,7 +124,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live-tape tools, 6 flat-file tools and `entitlements`. The counts below are the full surface; what a given account is shown depends on the tiers it holds.
+Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live tools, 6 flat-file tools and `entitlements`. The counts below are the full surface; what a given account is shown depends on the tiers it holds.
 
 ### Offline (1 total: `ping`)
 
@@ -170,7 +170,7 @@ This matches the current JVM terminal behavior. The v3 REST surface uses `*` for
 - `calendar_open_today`, `calendar_on_date`, `calendar_year`
 - `interest_rate_history_eod`
 
-### Live Tape (5 tools)
+### Live Feed (5 tools)
 
 Advertised only when a client is connected. The endpoint tools return what the vendor serves at the moment you ask; these hold live subscriptions and answer what happened between two moments.
 

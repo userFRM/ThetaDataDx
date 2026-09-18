@@ -1923,7 +1923,7 @@ impl Registry {
                     read_ms: Some(m.touched_ms).filter(|t| *t > 0),
                     // The newest print this row is holding, which is not the
                     // newest the market received: a narrow selection keeps an old
-                    // one while the tape stays busy, and the listing's age is of
+                    // one while the market stays busy, and the listing's age is of
                     // what it holds, the same as a contract row's. The other
                     // number is `feed_age_ms`, and only a market read returns it.
                     newest_ms: m
@@ -2484,7 +2484,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 a print with no quote ahead of it. age_ms is the age of the newest print \
                 returned; feed_age_ms is the age of the newest print on the whole market, \
                 which is a different number whenever a narrow selection holds an old row \
-                while the tape stays busy. A print can go missing two ways and both \
+                while the market stays busy. A print can go missing two ways and both \
                 are reported: feed_dropped_since_last_read counts what the feed threw away, \
                 and feed_interrupted means there was an interval before this read that no \
                 selection was watching, so prints from it were never counted at all. The \
@@ -2745,7 +2745,7 @@ fn one_date<'a>(rows: impl Iterator<Item = &'a StreamData>) -> Option<i32> {
 }
 
 /// How old the newest row a selection is returning is, which is not how old
-/// the tape is: a narrow selection holds an old print while the market
+/// the market is: a narrow selection holds an old print while the market
 /// carries on, and calling that fresh is the one thing this surface exists
 /// not to do.
 fn rows_age_ms(rows: &[Print], now: u64) -> Option<u64> {
@@ -3427,7 +3427,7 @@ fn market_response(
         "feed_dropped_since_last_read": m.feed_dropped_since_last_read,
         "feed_interrupted": m.gap,
         // The age of what came back, not of the newest print on the market: a
-        // narrow selection can hold an old row while the tape is busy, and
+        // narrow selection can hold an old row while the market is busy, and
         // calling that fresh is the one thing this surface exists not to do.
         "age_ms": rows_age_ms(&m.rows, now),
         "feed_age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
@@ -4998,7 +4998,7 @@ mod tests {
     fn a_market_answer_ages_its_rows_and_not_the_market() {
         // The age of what came back and the age of the market are two
         // numbers a line apart. A narrow selection holding an old print
-        // while the tape stays busy is the case that separates them, and
+        // while the market stays busy is the case that separates them, and
         // both were assigned where no test reached.
         let reg = Registry::default();
         let mine = stock("AAPL");
@@ -5012,7 +5012,7 @@ mod tests {
         reg.ingest(trade(&mine, 1.0, 1_050 * MS));
         reg.ingest(quote(&mine, 12.0, 13.0));
         reg.ingest(trade(&mine, 1.0, 1_100 * MS));
-        // The tape carries on, none of it this selection's.
+        // The market carries on, none of it this selection's.
         reg.ingest(trade(&other, 2.0, 5_000 * MS));
         let m = market_now(&reg, SecType::Stock, q.clone(), 0, 6_000).expect("nothing to refuse");
 
@@ -6340,7 +6340,7 @@ mod tests {
 
     #[test]
     fn a_listing_ages_a_market_by_the_rows_it_is_holding() {
-        // A narrow selection holds an old print while the tape stays busy.
+        // A narrow selection holds an old print while the market stays busy.
         // The listing's age is of the rows a holding holds, the same for a
         // market as for a contract; the age of the market itself is a
         // different number, and only a market read returns it.
@@ -6373,7 +6373,7 @@ mod tests {
         assert_eq!(
             market["age_ms"].as_u64(),
             Some(4_900),
-            "aged by the print it holds, stamped 1_100, not by the tape's newest at 5_000"
+            "aged by the print it holds, stamped 1_100, not by the market's newest at 5_000"
         );
     }
 
@@ -6555,7 +6555,7 @@ mod tests {
         .expect("nothing to refuse");
         assert!(
             !r.clipped,
-            "this second of tape is nowhere near the interruption"
+            "this second of market is nowhere near the interruption"
         );
     }
 
@@ -6762,7 +6762,7 @@ mod tests {
         assert_eq!(next.new_since_last_read, 1, "but it did arrive");
         assert!(
             next.gap,
-            "and the answer says its view of the tape was broken"
+            "and the answer says its view of the market was broken"
         );
     }
 
@@ -7335,9 +7335,9 @@ mod tests {
     }
 
     #[test]
-    fn a_market_read_ages_the_rows_it_returns_not_the_tape() {
-        // A narrow selection holds an old row while the tape stays busy.
-        // Reporting the tape's age as the row's is the one thing this
+    fn a_market_read_ages_the_rows_it_returns_not_the_market() {
+        // A narrow selection holds an old row while the market stays busy.
+        // Reporting the market's age as the row's is the one thing this
         // surface exists not to do.
         let reg = Registry::default();
         let mine = stock("AAPL");
@@ -7346,7 +7346,7 @@ mod tests {
         q.root = Some("AAPL".into());
         market_now(&reg, SecType::Stock, q.clone(), 0, 1_000).expect("nothing to refuse");
         reg.ingest(trade(&mine, 1.0, 1_100 * MS));
-        // The tape carries on, none of it this selection's.
+        // The market carries on, none of it this selection's.
         reg.ingest(trade(&other, 2.0, 5_000 * MS));
         let m = market_now(&reg, SecType::Stock, q, 0, 6_000).expect("nothing to refuse");
         assert_eq!(m.rows.len(), 1, "the one print that matched");
@@ -7360,12 +7360,12 @@ mod tests {
         assert_eq!(
             m.newest_ms,
             Some(5_000),
-            "the tape moved on without this selection"
+            "the market moved on without this selection"
         );
         assert_eq!(
             rows_age_ms(&m.rows, 6_000),
             Some(4_900),
-            "the age of the print returned, not of the tape"
+            "the age of the print returned, not of the market"
         );
     }
 
