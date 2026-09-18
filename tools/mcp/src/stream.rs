@@ -890,7 +890,6 @@ fn overlaps(kind: SubscriptionKind) -> bool {
     matches!(kind, SubscriptionKind::Trade | SubscriptionKind::Quote)
 }
 
-/// What one read saw, copied out from under the lock.
 /// What a read observed and what settling it costs, handed back so the
 /// call can settle only once its answer is going to reach the caller.
 #[derive(Clone)]
@@ -964,12 +963,6 @@ fn span(acc: Option<(f64, f64)>, v: f64) -> Option<(f64, f64)> {
     Some(acc.map_or((v, v), |(lo, hi)| (lo.min(v), hi.max(v))))
 }
 
-/// Whether a window is missing rows. Anything the feed discarded before
-/// this server saw it may have belonged here. Otherwise, without a window,
-/// rows arrived since the last read that the ring no longer holds. With
-/// one, coverage starting after the floor — or on it while rows were
-/// discarded: rows discarded ahead of the oldest held may share its stamp,
-/// so a floor the oldest held row sits on is not proven covered.
 /// What a book knows about its own completeness at the moment of a read.
 struct Coverage {
     /// Rows the ring no longer holds but the cursor still counts.
@@ -989,6 +982,12 @@ struct Coverage {
     awaiting_resume: bool,
 }
 
+/// Whether a window is missing rows. Anything the feed discarded before
+/// this server saw it may have belonged here. Otherwise, without a window,
+/// rows arrived since the last read that the ring no longer holds. With
+/// one, coverage starting after the floor — or on it while rows were
+/// discarded: rows discarded ahead of the oldest held may share its stamp,
+/// so a floor the oldest held row sits on is not proven covered.
 fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
     match window {
         // Since your last read: anything lost in that interval counts, and
@@ -1604,11 +1603,6 @@ impl Registry {
         Ok(prints)
     }
 
-    /// Advance the prints cursor to what a successful `tape_prints` served.
-    /// Settle what the answer just delivered. The interruption count is
-    /// the one that answer saw, not the one standing now: the feed can
-    /// break between the read and this call, and an interruption the
-    /// caller was never shown is still owed to the next read.
     /// Settle a book read: advance its cursors, install the predicate it
     /// brought, and discharge the interruption it disclosed. Runs only once
     /// the answer is going to reach the caller, so a call that fails on the
@@ -1722,6 +1716,12 @@ impl Registry {
         }
     }
 
+    /// Advance the prints cursor to what a successful `tape_prints` served.
+    ///
+    /// Settle what the answer just delivered. The interruption count is
+    /// the one that answer saw, not the one standing now: the feed can
+    /// break between the read and this call, and an interruption the
+    /// caller was never shown is still owed to the next read.
     fn commit_prints_read(&self, contract: &Contract, received: u64, feed_drops: u64, gaps: u64) {
         if let Some(state) = self.lock().contracts.get_mut(contract) {
             state.prints_read = received;
@@ -2207,8 +2207,6 @@ fn rejection_meaning(code: StreamResponseType) -> &'static str {
     }
 }
 
-/// The contract properties shared by every tool that names one, plus
-/// whatever the tool adds.
 /// The security types a tool can serve, which is not everything the vendor
 /// has. A type offered and refused on every call is a call a model will
 /// make and an answer it will never get, so this is the one list: the
@@ -2240,6 +2238,8 @@ fn with_index_kinds(mut schema: Value) -> Value {
     schema
 }
 
+/// The contract properties shared by every tool that names one, plus
+/// whatever the tool adds.
 fn contract_schema(sec_types: &[&str], extra: Value) -> Value {
     let mut props = json!({
         "sec_type": {"type": "string", "enum": sec_types},
@@ -2590,8 +2590,6 @@ fn object(data: &StreamData) -> Value {
     out
 }
 
-/// A row as an object with how old it is, for rows served out of time
-/// order where the tail's implicit ordering does not say.
 /// A row with how long ago it arrived. `dated` also carries its trading
 /// date, for a response whose rows do not share one and so cannot name a
 /// date for the collection.
@@ -3138,10 +3136,6 @@ fn only_declared_arguments(name: &str, args: &Value) -> Result<(), ToolError> {
     )))
 }
 
-/// Tool calls arrive one at a time (the JSON-RPC loop awaits each before
-/// reading the next), so a registry mutation and the feed call that follows
-/// it are never interleaved with another tool call. That ordering is what
-/// lets a read hand back subscriptions to open or close outside the lock.
 /// An argument the caller supplied, or the default when absent.
 ///
 /// A value that is present and cannot be read is refused, never replaced by
@@ -3170,6 +3164,10 @@ fn count_arg(args: &Value, key: &str, what: &str, default: usize) -> Result<usiz
     Ok(arg(args, key, what, |v| v.as_u64().map(|n| n as usize))?.unwrap_or(default))
 }
 
+/// Tool calls arrive one at a time (the JSON-RPC loop awaits each before
+/// reading the next), so a registry mutation and the feed call that follows
+/// it are never interleaved with another tool call. That ordering is what
+/// lets a read hand back subscriptions to open or close outside the lock.
 fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError> {
     let reg = registry();
     let now = now_ms();
