@@ -738,6 +738,39 @@ where
         "io_loop received unvalidated ring_size {ring_size}; check upstream StreamingClientBuilder",
     );
 
+    // Helper shape: publish the terminal "auto-recovery has
+    // stopped" event before every break that is not a
+    // user-initiated shutdown, so operators can distinguish
+    // budget exhaustion from a clean `shutdown()` call.
+    macro_rules! publish_exhausted {
+        // `reason` is an argument rather than a free name: a name the body
+        // reads resolves where the macro is defined, not where it is
+        // called, so a caller standing inside a shadowing binding would
+        // silently publish the outer value instead of its own.
+        ($reason:expr, $attempts:expr) => {
+            // Set before the event is published: a consumer reading the
+            // status after seeing the event must never find it unset,
+            // and the publish can fail on a full ring.
+            reconnects_exhausted.store(true, Ordering::Release);
+            if producer
+                .try_publish(|slot| {
+                    slot.event =
+                        FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
+                            reason: $reason,
+                            attempts: $attempts,
+                        });
+                })
+                .is_err()
+            {
+                dropped.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!(
+                    target: "thetadatadx::fpss::io_loop",
+                    "ring full while publishing ReconnectsExhausted; dropped",
+                );
+            }
+        };
+    }
+
     // The producer was built by the caller via
     // [`build_poller_producer`]. From here on the io_loop only
     // publishes into the ring via [`RingProducer::try_publish`]; the
@@ -975,6 +1008,25 @@ where
                             );
                         }
 
+                        // A permanent disconnect decided by the decoder ends
+                        // this session: it sets `shutdown`, and the reason is
+                        // one `reconnect_delay` will not retry, so the loop
+                        // leaves through the shutdown check above without
+                        // entering the reconnect decision. That check cannot
+                        // tell a server-initiated end from a user-initiated
+                        // one, so the terminal event is published here, where
+                        // the reason is still in hand. Without it a consumer
+                        // reads the session as still trying, for ever.
+                        if let Some(FpssEventInternal::Control(StreamControl::Disconnected {
+                            reason,
+                        })) = &primary
+                        {
+                            let reason = *reason;
+                            if reconnect_delay(reason).is_none() {
+                                publish_exhausted!(reason, 0);
+                            }
+                        }
+
                         if let Some(evt) = primary {
                             let reconnect_reason = reconnect_reason_for_decoded_event(&evt);
                             if producer
@@ -1151,39 +1203,6 @@ where
 
         // --- Reconnection decision ---
         let reason = disconnect_reason;
-
-        // Helper shape: publish the terminal "auto-recovery has
-        // stopped" event before every break that is not a
-        // user-initiated shutdown, so operators can distinguish
-        // budget exhaustion from a clean `shutdown()` call.
-        macro_rules! publish_exhausted {
-            // `reason` is an argument rather than a free name: a name the body
-            // reads resolves where the macro is defined, not where it is
-            // called, so a caller standing inside a shadowing binding would
-            // silently publish the outer value instead of its own.
-            ($reason:expr, $attempts:expr) => {
-                // Set before the event is published: a consumer reading the
-                // status after seeing the event must never find it unset,
-                // and the publish can fail on a full ring.
-                reconnects_exhausted.store(true, Ordering::Release);
-                if producer
-                    .try_publish(|slot| {
-                        slot.event =
-                            FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
-                                reason: $reason,
-                                attempts: $attempts,
-                            });
-                    })
-                    .is_err()
-                {
-                    dropped.fetch_add(1, Ordering::Relaxed);
-                    tracing::warn!(
-                        target: "thetadatadx::fpss::io_loop",
-                        "ring full while publishing ReconnectsExhausted; dropped",
-                    );
-                }
-            };
-        }
 
         let (delay, reconnect_attempt) = match &policy {
             ReconnectPolicy::Manual => {
@@ -4028,6 +4047,14 @@ mod tests {
         );
         let calls = prod.matches("publish_exhausted!(").count();
         assert!(calls > 1, "the macro is called, so the pin means something");
+        // Every path that ends a session for a cause the user did not ask
+        // for goes through it, including the one the decoder decides: a
+        // permanent reason there sets `shutdown`, and the loop then leaves
+        // through a check that cannot tell that from a user teardown.
+        assert!(
+            prod.contains("if reconnect_delay(reason).is_none() {\n                                publish_exhausted!(reason, 0);"),
+            "the decoder's permanent disconnect publishes the terminal event"
+        );
         assert_eq!(
             prod.matches("publish_exhausted!(reason, ").count(),
             calls,

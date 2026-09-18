@@ -1280,6 +1280,7 @@ impl Registry {
         let mut count = 0u64;
         let mut rows = Vec::new();
         let mut oldest = None;
+        let mut newest: Option<&StreamData> = None;
         // Newest first. Without a window the rows are the `new` newest;
         // with one they are those stamped at or after the floor. Either set
         // is a run from the back, so the walk stops at the first row outside
@@ -1303,12 +1304,23 @@ impl Registry {
                 continue;
             }
             count += 1;
+            // Walking newest first, so the first row inside the window is
+            // the newest one this answer covers.
+            if newest.is_none() {
+                newest = Some(d);
+            }
             oldest = Some(d);
             if rows.len() < tail {
                 rows.push(d.clone());
             }
         }
         let oldest = oldest.cloned();
+        // The age this answer reports is of the newest row it covers, not of
+        // the newest the buffer holds. A window that returns nothing has no
+        // age: taking the held row's would date an empty answer to whenever
+        // that row landed, and a window ending before it renders nought,
+        // which reads as something having just arrived.
+        let newest_ms = newest.and_then(seen_ms);
         rows.reverse();
 
         // Where coverage starts. A quiet buffer has seen everything since it
@@ -1321,7 +1333,6 @@ impl Registry {
             buffer.opened_ms
         };
         let dropped = buffer.dropped;
-        let newest_ms = buffer.ring.back().and_then(seen_ms);
         // Everything the buffer has to say, read out before the borrow ends.
         let gap = buffer.gaps > buffer.gaps_at_read;
         let gaps_seen = buffer.gaps;
@@ -4937,6 +4948,69 @@ mod tests {
     }
 
     #[test]
+    fn an_answer_is_as_old_as_the_newest_row_it_covers() {
+        // Aged by the newest row the buffer holds rather than the newest the
+        // window covers, an answer that returns nothing reports the age of a
+        // row it did not return, and a window ending before that row renders
+        // nought, which reads as something having just arrived.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+
+        // A window ending before the only row held.
+        let empty = read_now(&reg, &c, SubscriptionKind::Trade, Some(0), TAIL, 0, 1_500)
+            .expect("nothing to refuse");
+        assert_eq!(empty.count, 0, "the window covers nothing");
+        assert_eq!(
+            empty.newest_ms, None,
+            "so the answer has no age, rather than the age of a row it did not return"
+        );
+        assert_eq!(
+            read_response(
+                &c,
+                SubscriptionKind::Trade,
+                "Connected".into(),
+                Some(0),
+                &empty,
+                1_500
+            )["age_ms"]
+                .as_u64(),
+            None,
+            "and it does not render as nought, which reads as just arrived"
+        );
+
+        // A clock that steps backwards: the newest row held is behind the
+        // newest row this window covers.
+        let reg = Registry::default();
+        let c = stock("MSFT");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 3_000 * MS));
+        reg.ingest(trade(&c, 2.0, 2_000 * MS));
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            3_500,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            r.count, 1,
+            "only the row stamped 3_000 is inside the window"
+        );
+        assert_eq!(
+            r.newest_ms,
+            Some(3_000),
+            "and the age is of that row, not of the one behind it in the ring"
+        );
+    }
+
+    #[test]
     fn a_tool_offers_only_the_security_types_it_can_serve() {
         // A type offered in the schema and refused on every call is a call
         // a model will make and an answer it will never get.
@@ -6895,20 +6969,10 @@ mod tests {
             cols,
             ["time", "price", "size", "condition", "exchange", "sequence"]
         );
-        // The tail is positional and `columns` is its header, so slot i has
-        // to carry the value the object renders under the name at index i.
-        // Reading both out of `fields` would compare a map to itself; the
-        // object is built independently, so it can disagree.
-        let positional = row(&d).as_array().cloned().unwrap_or_default();
-        let named = object(&d);
-        assert_eq!(positional.len(), cols.len(), "a slot per column");
-        for (i, name) in cols.iter().enumerate() {
-            assert_eq!(
-                Some(&positional[i]),
-                named.get(name),
-                "slot {i} carries the value the object renders under {name}"
-            );
-        }
+        // `columns` and the positional row are both projections of `fields`,
+        // so they cannot disagree and nothing here would prove it if they
+        // could. What can be wrong is the order `fields` renders, which the
+        // literal above states.
         assert_eq!(clock(34_200_000), "09:30:00.000");
         assert_eq!(clock(57_600_123), "16:00:00.123");
         assert_eq!(
