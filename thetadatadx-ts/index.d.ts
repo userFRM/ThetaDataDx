@@ -7445,8 +7445,6 @@ export interface TradeTick {
   priceConditionSetLast: boolean
   /** True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively. */
   isIncrementalVolume: boolean
-  /** True when the trade is seller-initiated (ext_condition1 == 12). */
-  isSeller: boolean
   /**
    * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
    * `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when

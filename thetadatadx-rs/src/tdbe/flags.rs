@@ -7,9 +7,6 @@
 pub mod trade {
     /// Cancelled trade condition range (40..=44).
     pub const CANCELLED_RANGE: std::ops::RangeInclusive<i32> = 40..=44;
-
-    /// Seller-initiated trade (`ext_condition1` == 12).
-    pub const SELLER_CONDITION: i32 = 12;
 }
 
 /// Condition flags (bit fields in `condition_flags`).

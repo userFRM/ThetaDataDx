@@ -75,7 +75,6 @@ describe('TradeTick flag-word accessor fields', () => {
       'tradeConditionNoLast',
       'priceConditionSetLast',
       'isIncrementalVolume',
-      'isSeller',
     ]) {
       assert.match(
         body,

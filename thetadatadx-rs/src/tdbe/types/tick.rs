@@ -4,7 +4,7 @@
 //! * `impl_contract_id!` macro applications -- the `is_call` / `is_put` /
 //!   `has_contract_id` helpers shared by every tick type that injects a
 //!   `(expiration, strike, right)` triple from `contract_id = true`.
-//! * `impl TradeTick` flag helpers (`is_cancelled`, `is_seller`, ...).
+//! * `impl TradeTick` flag helpers (`is_cancelled`, ...).
 //!   These read `flags::*` constants and don't fit the schema's
 //!   field-only model.
 //! * `impl OptionContract` for `is_call` / `is_put` -- a non-`Copy` struct
@@ -90,12 +90,6 @@ impl TradeTick {
     #[must_use]
     pub fn is_incremental_volume(&self) -> bool {
         self.volume_type == flags::volume::INCREMENTAL
-    }
-
-    /// `true` when the extended condition marks this trade as seller-initiated.
-    #[must_use]
-    pub fn is_seller(&self) -> bool {
-        self.ext_condition1 == flags::trade::SELLER_CONDITION
     }
 }
 

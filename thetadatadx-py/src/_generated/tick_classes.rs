@@ -1658,12 +1658,6 @@ impl TradeTick {
     fn is_incremental_volume(&self) -> bool {
         self.volume_type == 0
     }
-
-    /// True when the trade is seller-initiated (ext_condition1 == 12).
-    #[getter]
-    fn is_seller(&self) -> bool {
-        self.ext_condition1 == 12
-    }
 }
 
 /// Typed list of `CalendarDay` returned by every market-data endpoint

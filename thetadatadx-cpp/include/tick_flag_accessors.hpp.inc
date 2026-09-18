@@ -20,8 +20,3 @@ inline bool is_incremental_volume(const TradeTick& c) noexcept {
     return c.volume_type == 0;
 }
 
-/// True when the trade is seller-initiated (ext_condition1 == 12).
-inline bool is_seller(const TradeTick& c) noexcept {
-    return c.ext_condition1 == 12;
-}
-
