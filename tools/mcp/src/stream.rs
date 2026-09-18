@@ -6005,6 +6005,15 @@ mod tests {
             still.clipped,
             "the interruption is spent, but nothing has arrived to show the feed is back"
         );
+        // And the other shape with it: a named window ending now ends inside
+        // an interval the feed is not known to have been delivering in,
+        // however short it is.
+        let named = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        assert!(
+            named.clipped,
+            "not even a one-millisecond window can be shown whole while the feed is unproven"
+        );
         // A row is that evidence.
         reg.ingest(trade(&c, 1.0, 4_000 * MS));
         let proven = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
@@ -6016,6 +6025,34 @@ mod tests {
         let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 6_000)
             .expect("nothing to refuse");
         assert!(!after.clipped, "and this one begins after it");
+        // Named windows answer the same way once delivery is proven: one
+        // reaching back over where the loss ended is not whole, one
+        // beginning after it is.
+        let over = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(3_000),
+            TAIL,
+            0,
+            6_500,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            over.clipped,
+            "this one starts at 3_500, before the loss ended"
+        );
+        let clear = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            6_500,
+        )
+        .expect("nothing to refuse");
+        assert!(!clear.clipped, "and this one starts at 5_500, after it");
     }
 
     #[test]
@@ -7106,8 +7143,10 @@ mod tests {
 
         let (r, _) = read(&reg, &c, SubscriptionKind::Trade, Some(20), TAIL, now);
         assert_eq!(
-            r.count, 11,
-            "rows from 4096 to 4106 lie inside the last 20 ms"
+            r.count,
+            11,
+            "the rows stamped {RING} to {} lie inside the last 20 ms",
+            RING as u64 + 10
         );
         assert!(!r.clipped, "a window inside coverage is whole");
 
