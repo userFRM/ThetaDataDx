@@ -1399,12 +1399,15 @@ impl Registry {
         let in_force = watch.clone().unwrap_or_else(|| matched_by.clone());
         let incoming = watch;
 
-        let covered_since_ms = book
-            .ring
-            .front()
-            .and_then(seen_ms)
-            .filter(|_| book.dropped > 0)
-            .unwrap_or(book.opened_ms);
+        // Where coverage starts. A quiet book has seen everything since it
+        // opened. Once rows have been evicted it starts at the oldest one
+        // still held, and if that row carries no stamp there is nothing to
+        // place it by, so nothing before this read is proven covered.
+        let covered_since_ms = if book.dropped > 0 {
+            book.ring.front().and_then(seen_ms).unwrap_or(now)
+        } else {
+            book.opened_ms
+        };
         let dropped = book.dropped;
         let newest_ms = book.ring.back().and_then(seen_ms);
         // Everything the book has to say, read out before the borrow ends.
@@ -2028,20 +2031,14 @@ impl Registry {
             // since before the trade leg was dropped and reopened would date
             // the bar to itself and call it current.
             //
-            // With no trade book, the earliest book still stands in, since
-            // the contract is held and this is the newest bar the vendor sent
-            // for it. A bar from a trade leg that closed and was not reopened
-            // is still admitted that way; it is served with its age, which
-            // grows, rather than as something that just arrived.
-            //
-            // With no books at all there is nothing it can belong to.
+            // With no trade book there is nothing here it can belong to: the
+            // subscription that produces bars is not held, so a bar in hand
+            // was queued by one that has closed.
             let fresh = state
                 .books
                 .iter()
                 .find(|(kind, _)| *kind == SubscriptionKind::Trade)
-                .map(|(_, b)| b.opened_ms)
-                .or_else(|| state.books.iter().map(|(_, b)| b.opened_ms).min())
-                .is_some_and(|opened| seen_ms(&data).is_none_or(|seen| seen >= opened));
+                .is_some_and(|(_, b)| seen_ms(&data).is_none_or(|seen| seen >= b.opened_ms));
             if fresh {
                 state.ohlcvc = Some(data);
             }
@@ -5936,14 +5933,39 @@ mod tests {
             "coverage starts when the book opened, not at the epoch"
         );
 
-        // And on a book read, where an epoch coverage start also unsets the
-        // clipped flag: a window is not shown whole because the stamp that
-        // would have limited it was unreadable.
-        let r = read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, None, 0, now)
+        // And on a book read, where an epoch coverage start also unsets
+        // `clipped`: nought is below every floor, so every test for a loss
+        // inside the window answers no and the window reads as whole.
+        //
+        // Coverage only consults the oldest held row once the ring has
+        // overflowed, so the ring is pushed past it with unstamped rows.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, None, 0, 1)
             .expect("nothing to refuse");
+        for _ in 0..=RING {
+            reg.ingest(trade(&c, 1.0, 0));
+        }
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            None,
+            0,
+            now,
+        )
+        .expect("nothing to refuse");
+        assert!(r.dropped > 0, "the ring overflowed, so rows were lost");
+        assert_eq!(
+            r.covered_since_ms, now,
+            "rows were evicted and no held row can be placed, so nothing before \
+             this read is proven covered"
+        );
         assert!(
-            r.covered_since_ms > 0,
-            "a book's coverage starts when it opened, not at the epoch"
+            r.clipped,
+            "a window reaching back before the book opened is not whole"
         );
     }
 
@@ -6943,6 +6965,10 @@ mod tests {
     fn the_vendors_bar_is_kept_for_a_held_contract_and_served_as_sent() {
         let reg = Registry::default();
         let c = stock("AAPL");
+        // The trade leg is what the vendor broadcasts a bar ahead of, so it
+        // is held here; the point of the test is that a quote read still gets
+        // the bar.
+        read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
         read(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0);
         reg.ingest(bar(&c, 1.5, 10 * MS));
         reg.ingest(bar(&c, 1.7, 20 * MS));
@@ -6993,7 +7019,12 @@ mod tests {
             cols,
             ["time", "price", "size", "condition", "exchange", "sequence"]
         );
-        assert_eq!(row(&d).as_array().map(|a| a.len()), Some(cols.len()));
+        // The tail is positional and `columns` is its header, so each slot
+        // carries the value of the column at that index. A length against a
+        // length cannot say that: `row` is a map over `fields`.
+        let by_name: Vec<Value> = fields(&d).into_iter().map(|(_, v)| v).collect();
+        let positional = row(&d).as_array().cloned().unwrap_or_default();
+        assert_eq!(positional, by_name, "columns {cols:?} line up with the row");
         assert_eq!(clock(34_200_000), "09:30:00.000");
         assert_eq!(clock(57_600_123), "16:00:00.123");
         assert_eq!(
