@@ -4901,6 +4901,25 @@ mod tests {
         );
         assert_eq!(row["dropped"].as_u64(), Some(2), "and what it pushed out");
         assert!(row["sec_type"].is_null(), "a contract is not a market");
+        assert_eq!(row["kind"].as_str(), Some("trade"));
+        assert_eq!(
+            row["age_ms"].as_u64(),
+            Some(3_000),
+            "the newest row it holds is stamped 2_000"
+        );
+        // Three clocks a line apart: the open at 1_000, the last read at
+        // 3_000, and the release that follows the read. Each reads a
+        // different number here, so a swap between any two is visible.
+        assert_eq!(
+            row["open_for_seconds"].as_f64(),
+            Some(4.0),
+            "open since 1_000"
+        );
+        assert_eq!(
+            row["idle_seconds"].as_f64(),
+            Some(2.0),
+            "but unread only since 3_000"
+        );
         assert_eq!(
             row["expires_in_seconds"].as_f64(),
             Some(seconds(TTL.as_millis() as u64 - 2_000)),
