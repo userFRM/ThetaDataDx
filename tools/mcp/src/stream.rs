@@ -2460,9 +2460,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 connection breaking is one cause; the others are this market having been \
                 released and reopened, and a replaced selection having examined prints the \
                 one before it never saw. since_seconds is how long the selection stood before \
-                this read took it. Sending different parameters replaces the \
-                selection; the rows that come back were kept under the previous one, shown as \
-                selected_by. Needs an Options Pro or Stocks Pro subscription; the error says \
+                this read took it. Sending different parameters replaces the selection, and \
+                the answer echoes both: selection is the one in force from here, and \
+                selected_by the one that kept the rows this call returns, present only when \
+                they differ, because the rows came back under that one and not this. Needs an Options Pro or Stocks Pro subscription; the error says \
                 which when the account lacks it. The first call installs the selection, opens \
                 the subscription and returns nothing yet; call again a second or two later. A \
                 market buffer is not held alongside per-contract trade or quote buffers on the same \
@@ -4818,6 +4819,11 @@ mod tests {
         // gets wrong. Read off the source rather than off a built response,
         // because a fixture that happens not to produce a nested field would
         // pass while saying nothing about it.
+        // Matched on whole words, so a field name is not satisfied by
+        // appearing inside a longer one. What this cannot catch is a name
+        // that reads as ordinary prose: `selection` sat in a sentence about
+        // replacing one for a while before anything said it comes back on
+        // the answer.
         let src = include_str!("stream.rs");
         let body = |signature: &str| -> String {
             let at = src
@@ -4865,7 +4871,9 @@ mod tests {
             );
             for field in fields {
                 assert!(
-                    description.contains(field),
+                    description
+                        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                        .any(|word| word == field),
                     "{tool} returns {field} and its description never names it"
                 );
                 checked += 1;
