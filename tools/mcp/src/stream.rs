@@ -2652,15 +2652,54 @@ fn feed_state(client: &Client) -> String {
 /// one started; a new session knows nothing of the buffers this process still
 /// holds, so they are reopened from the registry rather than from what the
 /// old session tracked.
+/// What a call has to do about the feed before it can answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FeedAction {
+    /// Nothing has run yet: open a session.
+    Start,
+    /// A dead session still occupies the slot; it has to go before another
+    /// can take it.
+    StopThenStart,
+    /// The session is up. Answer from it.
+    Deliver,
+    /// The session is down and recovering, and the registry has not been
+    /// told. Mark the interruption before answering.
+    MarkInterrupted,
+}
+
+/// What the feed's own state means for the call about to be answered.
+///
+/// Pulled out of the call that needs a live client so the decision is
+/// reachable by a test. The one that matters is `Reconnecting`: the SDK
+/// clears the authenticated flag on the thread reading the socket, and the
+/// event that tells this registry so is queued behind every row already in
+/// the ring, which at a market open is a great many. A read that waits for
+/// that event to drain before believing the status answers that a window
+/// spanning an outage already in progress is whole. Any state that is not
+/// connected is a feed that is not delivering, and a state a later SDK adds
+/// is treated the same way, because over-marking costs a caller far less
+/// than a window that claims to be whole and is not.
+fn feed_action(status: ConnectionStatus) -> FeedAction {
+    match status {
+        ConnectionStatus::NotStarted => FeedAction::Start,
+        ConnectionStatus::Disconnected | ConnectionStatus::ReconnectsExhausted => {
+            FeedAction::StopThenStart
+        }
+        ConnectionStatus::Connected => FeedAction::Deliver,
+        _ => FeedAction::MarkInterrupted,
+    }
+}
+
 fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, ToolError> {
     let stream = client.stream();
-    match stream.connection_status() {
-        ConnectionStatus::NotStarted => {}
-        // A dead session still occupies the slot until it is stopped.
-        ConnectionStatus::Disconnected | ConnectionStatus::ReconnectsExhausted => {
-            stream.stop_streaming();
+    match feed_action(stream.connection_status()) {
+        FeedAction::Start => {}
+        FeedAction::StopThenStart => stream.stop_streaming(),
+        FeedAction::Deliver => return Ok(stream.dropped_event_count()),
+        FeedAction::MarkInterrupted => {
+            reg.gap(now_ms());
+            return Ok(stream.dropped_event_count());
         }
-        _ => return Ok(stream.dropped_event_count()),
     }
     // Stopping is asynchronous: the retired dispatcher can still be
     // running, and a row it delivers after the reset would be recorded as
@@ -5576,6 +5615,53 @@ mod tests {
         // stop both work.
         assert_eq!(types("live_read"), ["option", "stock", "index"]);
         assert_eq!(types("live_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
+    fn a_feed_that_is_not_connected_is_marked_before_the_answer_is_built() {
+        // The status flag is set on the thread reading the socket; the event
+        // that tells the registry is queued behind every row in the ring. A
+        // read that trusts delivery order over the flag answers that a window
+        // spanning an outage in progress is whole.
+        assert_eq!(
+            feed_action(ConnectionStatus::Reconnecting),
+            FeedAction::MarkInterrupted,
+            "recovering is not delivering"
+        );
+        assert_eq!(
+            feed_action(ConnectionStatus::Connected),
+            FeedAction::Deliver,
+            "and a live session is not an interruption"
+        );
+        assert_eq!(feed_action(ConnectionStatus::NotStarted), FeedAction::Start);
+        assert_eq!(
+            feed_action(ConnectionStatus::Disconnected),
+            FeedAction::StopThenStart,
+            "a dead session holds the slot until it is stopped"
+        );
+        assert_eq!(
+            feed_action(ConnectionStatus::ReconnectsExhausted),
+            FeedAction::StopThenStart,
+            "and one that gave up holds it the same way"
+        );
+
+        // What the mark buys: a window asked for while the feed is down does
+        // not come back whole. Without the mark this read has nothing to go
+        // on, because the interruption is still in the ring.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        let whole = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        assert!(!whole.clipped, "nothing is wrong yet");
+        reg.gap(2_000);
+        let marked = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_000)
+            .expect("nothing to refuse");
+        assert!(
+            marked.clipped,
+            "the same window, asked once the mark is in, is not whole"
+        );
     }
 
     #[test]
