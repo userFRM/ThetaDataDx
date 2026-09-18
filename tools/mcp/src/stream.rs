@@ -533,6 +533,12 @@ struct Buffer {
     /// can sit inside a window the held rows all start after. Without this,
     /// that window reports itself whole.
     dropped_newest_ms: u64,
+    /// The ring has evicted a row whose clock could not be read. A row with
+    /// no stamp is held in every named window, because nothing places it
+    /// outside one; losing it is therefore a loss from every named window,
+    /// and there is no moment to date it to. Coverage collapses to the read
+    /// that finds it, exactly as it does for an unstamped row still held.
+    dropped_unstamped: bool,
     /// The latest moment up to which this buffer is known to have lost rows.
     ///
     /// Dated to the read that learns of the loss, not to when the loss
@@ -556,6 +562,7 @@ impl Buffer {
             received: 0,
             dropped: 0,
             dropped_newest_ms: 0,
+            dropped_unstamped: false,
             opened_ms: now,
             read_ms: now,
             touched_ms: now,
@@ -1336,7 +1343,12 @@ impl Registry {
         // opened. Once rows have been evicted it starts at the oldest one
         // still held, and if that row carries no stamp there is nothing to
         // place it by, so nothing before this read is proven covered.
-        let covered_since_ms = if buffer.dropped > 0 {
+        let covered_since_ms = if buffer.dropped_unstamped {
+            // A row with no stamp sits inside every named window, so one the
+            // ring pushed out was lost from every one of them and there is
+            // no moment to date the loss to.
+            now
+        } else if buffer.dropped > 0 {
             buffer.ring.front().and_then(seen_ms).unwrap_or(now)
         } else {
             buffer.opened_ms
@@ -1989,8 +2001,9 @@ impl Registry {
         if buffer.ring.len() == RING {
             if let Some(evicted) = buffer.ring.pop_front() {
                 buffer.dropped += 1;
-                if let Some(ms) = seen_ms(&evicted) {
-                    buffer.dropped_newest_ms = buffer.dropped_newest_ms.max(ms);
+                match seen_ms(&evicted) {
+                    Some(ms) => buffer.dropped_newest_ms = buffer.dropped_newest_ms.max(ms),
+                    None => buffer.dropped_unstamped = true,
                 }
             }
         }
@@ -2306,7 +2319,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 exchange codes intact. vendor_ohlcvc is the vendor's own bar for the contract \
                 as last sent, served as is; nothing here builds a bar from trades, because \
                 condition, cancel and size rules are yours to choose, and nothing here \
-                summarises them. dropped counts rows this buffer's ring has pushed out since \
+                summarises them. subscribed_now says whether this call opened the \
+                subscription, and new_since_last_read counts rows that arrived since your last \
+                live_read of this buffer, which under the default window is what the window \
+                holds. dropped counts rows this buffer's ring has pushed out since \
                 it opened, a running total rather than a count since your last read. \
                 feed_dropped_since_last_read counts events the SDK discarded \
                 because this server fell behind; while it is not zero any buffer may be missing \
@@ -2344,6 +2360,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 watched; prints from after this call have them. \
                 count is how many prints came back and held is how many this server holds, \
                 so a count short of held means you asked for fewer than there were. \
+                subscribed_now names the legs this call opened, and is empty when it opened \
+                none. \
                 new_since_last_read counts prints that arrived since your last live_prints on \
                 this contract, which is not what the rows are: the prints held survive a \
                 read, so asking twice in a row serves the same ones again. live_read keeps \
@@ -2380,6 +2398,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 selection saw and how many passed since your last read; returned is what you \
                 got; received is every print this market has taken since it opened, a running \
                 total rather than a count since your last read; \
+                subscribed_now says whether this call opened the subscription, \
+                new_since_last_read counts prints taken since your last read, and each print \
+                carries the contract it traded on, because a whole market spans all of them. \
                 unranked counts matches without the rank field, such as a quote field on \
                 a print with no quote ahead of it. age_ms is the age of the newest print \
                 returned; feed_age_ms is the age of the newest print on the whole market, \
@@ -2434,10 +2455,15 @@ pub fn tool_definitions() -> Vec<Value> {
             "name": "live_list",
             "description": "Every buffer this server holds: rows received and held, the age of \
                 the newest, how long since it was read and when it expires, plus the feed's \
-                state. on_feed is whether the feed itself still carries the subscription; a \
+                state. dropped counts rows a buffer's ring has pushed out since it opened, and \
+                open_for_seconds is how long ago it opened, which is not idle_seconds: a busy \
+                buffer is old and never idle. on_feed is whether the feed itself still carries \
+                the subscription; a \
                 buffer the feed dropped is released on its next read. on_feed_not_held lists \
-                subscriptions the feed carries for no buffer. last_rejection is the feed's most \
-                recent refusal of a subscribe, with the vendor's meaning. feed_dropped_events is \
+                subscriptions the feed carries for no buffer. last_rejection is the most recent \
+                refusal of a subscribe this server has recorded, with the vendor's meaning; a \
+                refusal travels the same path as the rows, so a newer one may not have arrived \
+                yet. feed_dropped_events is \
                 the SDK's running count of events it discarded because this server fell behind. \
                 An age that keeps \
                 growing while the feed says Connected is a contract that has gone quiet, not a \
@@ -2448,7 +2474,9 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({
             "name": "live_stop",
             "description": "Close every buffer held for a contract and release its subscriptions; \
-                with sec_type alone, close the whole-market buffer for that security type. A \
+                with sec_type alone, close the whole-market buffer for that security type, which \
+                an index does not have, so an index is closed by its root. subscriptions_closed \
+                counts what the feed released and failed_to_close names what it would not. A \
                 subscription the feed did not release stays held; the buffer is kept so a \
                 later stop, or the sweep once it is idle again, tries to release it. A buffer 15 minutes unread is closed by the next call to any of these \
                 tools, so nothing is released while the server sits idle.",
@@ -5798,6 +5826,68 @@ mod tests {
     }
 
     #[test]
+    fn a_row_the_ring_evicted_with_no_stamp_leaves_no_window_whole() {
+        // A row whose clock could not be read is held in every named window,
+        // because nothing places it outside one. Losing it is a loss from
+        // every named window, and there is no moment to date that to, so
+        // coverage collapses the way it does for an unstamped row still
+        // held. Without that, the rows left behind are all stamped and the
+        // answer reads whole.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 0));
+        for _ in 0..RING {
+            reg.ingest(trade(&c, 2.0, 100 * MS));
+        }
+
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(5_000),
+            TAIL,
+            0,
+            10_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(r.dropped, 1, "the unstamped row is the one pushed out");
+        assert_eq!(
+            r.covered_since_ms, 10_000,
+            "nothing before this read is proven covered"
+        );
+        assert!(
+            r.clipped,
+            "and no named window can be shown whole while a row nothing could place is gone"
+        );
+
+        // A buffer that evicted only stamped rows still says how far back it
+        // reaches, so the collapse above is about the unstamped one and not
+        // about eviction.
+        let other = stock("MSFT");
+        read_now(&reg, &other, SubscriptionKind::Trade, None, TAIL, 0, 0)
+            .expect("nothing to refuse");
+        for i in 0..(RING as u64 + 1) {
+            reg.ingest(trade(&other, 3.0, (100 + i) * MS));
+        }
+        let stamped = read_now(
+            &reg,
+            &other,
+            SubscriptionKind::Trade,
+            Some(5_000),
+            TAIL,
+            0,
+            10_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(stamped.dropped, 1);
+        assert_eq!(
+            stamped.covered_since_ms, 101,
+            "coverage starts at the oldest row still held"
+        );
+    }
+
+    #[test]
     fn a_window_over_a_row_the_ring_evicted_is_not_whole_whatever_the_clock_did() {
         // Coverage starts at the oldest row still held, which is the oldest by
         // arrival. A host clock that steps backwards puts a later stamp on an
@@ -7658,12 +7748,24 @@ mod tests {
             "the buffer is released, so the next read re-subscribes"
         );
 
+        // A registry that has recorded nothing says nothing about a
+        // rejection. Compared against the one above rather than against a
+        // phrase: keyed to wording, this stops testing anything the day the
+        // wording changes, and says so by passing.
         let fresh = Registry::default();
         read(&fresh, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        let why = format!("{:?}", dropped_by_feed(&fresh, &c.quote(), 1));
         assert!(
-            !why.contains("most recent rejection"),
-            "no rejection seen, none claimed: {why}"
+            reg.last_rejection().is_some() && fresh.last_rejection().is_none(),
+            "one has seen a rejection and the other has not"
+        );
+        // A release that names no rejection cannot be dated by one, so the
+        // clock cannot change what it says. Read twice, far apart: a claim
+        // about a rejection that was never seen would move with the clock.
+        let silent = format!("{:?}", dropped_by_feed(&fresh, &c.quote(), 1_700));
+        let later = format!("{:?}", dropped_by_feed(&fresh, &c.quote(), 9_000));
+        assert_eq!(
+            silent, later,
+            "nothing was recorded, so nothing in this answer is dated"
         );
     }
 
