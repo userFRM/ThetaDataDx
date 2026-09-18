@@ -7445,8 +7445,6 @@ export interface TradeTick {
   priceConditionSetLast: boolean
   /** True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively. */
   isIncrementalVolume: boolean
-  /** True when the trade is stamped between 9:30 AM and 4:00 PM Eastern, the regular session of the US equity and equity-option markets. This is one venue's calendar, not a general one: a trade from any market that keeps different hours, or none, is measured against the US session here and the answer means nothing. Use it when you know the rows are US equities or US equity options; for anything else, read ms_of_day against that market's own calendar. */
-  usRegularTradingHours: boolean
   /** True when the trade is seller-initiated (ext_condition1 == 12). */
   isSeller: boolean
   /**

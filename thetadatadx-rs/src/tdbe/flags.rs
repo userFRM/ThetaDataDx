@@ -8,13 +8,6 @@ pub mod trade {
     /// Cancelled trade condition range (40..=44).
     pub const CANCELLED_RANGE: std::ops::RangeInclusive<i32> = 40..=44;
 
-    /// The US regular session opens at 9:30 AM Eastern, in
-    /// milliseconds-of-day. One venue's calendar, not a general one.
-    pub const US_RTH_START_MS: i32 = 34_200_000;
-    /// The US regular session closes at 4:00 PM Eastern, in
-    /// milliseconds-of-day.
-    pub const US_RTH_END_MS: i32 = 57_600_000;
-
     /// Seller-initiated trade (`ext_condition1` == 12).
     pub const SELLER_CONDITION: i32 = 12;
 }

@@ -20,11 +20,6 @@ inline bool is_incremental_volume(const TradeTick& c) noexcept {
     return c.volume_type == 0;
 }
 
-/// True when the trade is stamped between 9:30 AM and 4:00 PM Eastern, the regular session of the US equity and equity-option markets. This is one venue's calendar, not a general one: a trade from any market that keeps different hours, or none, is measured against the US session here and the answer means nothing. Use it when you know the rows are US equities or US equity options; for anything else, read ms_of_day against that market's own calendar.
-inline bool us_regular_trading_hours(const TradeTick& c) noexcept {
-    return c.ms_of_day >= 34200000 && c.ms_of_day <= 57600000;
-}
-
 /// True when the trade is seller-initiated (ext_condition1 == 12).
 inline bool is_seller(const TradeTick& c) noexcept {
     return c.ext_condition1 == 12;

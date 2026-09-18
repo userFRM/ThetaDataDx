@@ -4,8 +4,8 @@
 //! * `impl_contract_id!` macro applications -- the `is_call` / `is_put` /
 //!   `has_contract_id` helpers shared by every tick type that injects a
 //!   `(expiration, strike, right)` triple from `contract_id = true`.
-//! * `impl TradeTick` flag helpers (`is_cancelled`, `us_regular_trading_hours`,
-//!   ...). These read `flags::*` constants and don't fit the schema's
+//! * `impl TradeTick` flag helpers (`is_cancelled`, `is_seller`, ...).
+//!   These read `flags::*` constants and don't fit the schema's
 //!   field-only model.
 //! * `impl OptionContract` for `is_call` / `is_put` -- a non-`Copy` struct
 //!   (because of the `String` `symbol` field) so the macro doesn't apply.
@@ -90,19 +90,6 @@ impl TradeTick {
     #[must_use]
     pub fn is_incremental_volume(&self) -> bool {
         self.volume_type == flags::volume::INCREMENTAL
-    }
-
-    /// `true` when `ms_of_day` is between 9:30 AM and 4:00 PM Eastern, the
-    /// regular session of the US equity and equity-option markets.
-    ///
-    /// This is one venue's calendar, not a general one. A trade from a
-    /// market that keeps different hours, or none at all, is still measured
-    /// against the US session here, and the answer means nothing. Use it
-    /// where you know the rows are US equities or US equity options; for
-    /// anything else read `ms_of_day` against that market's own calendar.
-    #[must_use]
-    pub fn us_regular_trading_hours(&self) -> bool {
-        (flags::trade::US_RTH_START_MS..=flags::trade::US_RTH_END_MS).contains(&self.ms_of_day)
     }
 
     /// `true` when the extended condition marks this trade as seller-initiated.
