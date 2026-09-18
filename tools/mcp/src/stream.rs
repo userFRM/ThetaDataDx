@@ -4135,6 +4135,70 @@ mod tests {
     }
 
     #[test]
+    fn a_capped_tail_keeps_the_newest_rows() {
+        // The tail is the newest rows served verbatim, and `rows_in_window`
+        // says how many it was cut from. Keeping the oldest instead serves
+        // stale prints as current, with a count beside them that reads as
+        // though they were the newest of more.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        for (price, at) in [(100.0, 10), (95.0, 20), (105.0, 30), (101.0, 40)] {
+            reg.ingest(trade(&c, price, at * MS));
+        }
+        let r =
+            read_now(&reg, &c, SubscriptionKind::Trade, None, 2, 0, 50).expect("nothing to refuse");
+        assert_eq!(r.count, 4, "the window held every row");
+        let prices: Vec<f64> = r
+            .tail
+            .iter()
+            .map(|d| match d {
+                StreamData::Trade { price, .. } => *price,
+                other => panic!("expected a trade, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(prices, vec![105.0, 101.0], "the newest two, oldest first");
+    }
+
+    #[test]
+    fn a_default_window_reaches_a_late_row_the_tail_does_not_hold() {
+        // A row decoded before the last read and dispatched after it is new
+        // to this one, and the window has to reach back far enough to hold
+        // it. Once more than `tail` rows arrive behind it, the only thing
+        // still carrying its stamp is the oldest row in the window.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        // Opened well before, so the late row is not one the previous
+        // subscription queued, which ingest drops.
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 10_000)
+            .expect("nothing to refuse");
+        // Stamped before that read, delivered after it.
+        reg.ingest(trade(&c, 1.0, 5_000 * MS));
+        for i in 0..12 {
+            reg.ingest(trade(&c, 2.0, (11_000 + i * 1_000) * MS));
+        }
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 23_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            r.count, 13,
+            "every row since the last read is in the window"
+        );
+        assert_eq!(r.tail.len(), TAIL, "and the tail is capped below that");
+        assert_eq!(
+            seen_ms(r.oldest.as_ref().expect("the window has an oldest row")),
+            Some(5_000),
+            "the oldest row in the window is the late one"
+        );
+        assert_eq!(
+            window_start(None, &r),
+            5_000,
+            "so the window stretches back over it rather than to the last read"
+        );
+    }
+
+    #[test]
     fn a_tool_offers_only_the_security_types_it_can_serve() {
         // A type offered in the schema and refused on every call is a call
         // a model will make and an answer it will never get.
