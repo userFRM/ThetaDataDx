@@ -5195,7 +5195,13 @@ mod tests {
         // were evicted before it. That count is the only one separating
         // "fewer than asked for" from "no more than asked for".
         let exact = reg.prints(&c, PRINTS, 0, 9_100).expect("nothing to refuse");
-        assert_eq!(exact.held, PRINTS, "every print held comes back");
+        assert_eq!(exact.held, PRINTS, "the ring is still full");
+        assert_eq!(
+            exact.rows.len(),
+            PRINTS,
+            "and every print it holds comes back, which is the count the answer is
+             complete against"
+        );
         assert!(exact.dropped > 0, "rows were still evicted at some point");
         assert_eq!(
             prints_response(&c, "Connected".into(), PRINTS, false, &exact, 9_100)["clipped"]
@@ -6961,19 +6967,41 @@ mod tests {
             why.contains("does not take strike") && why.contains("strike_min"),
             "names it and what it does take: {why}"
         );
-        // Every name a tool's own schema declares is one a caller may send.
-        // Stated as literals: built from the schema, the argument object
-        // would be checked against the map it came from.
+        // Every name a tool's own schema declares is one a caller may send,
+        // the option leg included: a tool that stops declaring one while the
+        // parser still reads it refuses a call it would have answered.
+        // Stated as literals, because built from the schema the argument
+        // object would be checked against the map it came from.
         for (tool, names) in [
             (
                 "live_read",
-                &["sec_type", "root", "kind", "seconds", "tail"][..],
+                &[
+                    "sec_type",
+                    "root",
+                    "expiration",
+                    "strike",
+                    "right",
+                    "kind",
+                    "seconds",
+                    "tail",
+                ][..],
             ),
             (
                 "live_prints",
-                &["sec_type", "root", "count", "quotes_after"][..],
+                &[
+                    "sec_type",
+                    "root",
+                    "expiration",
+                    "strike",
+                    "right",
+                    "count",
+                    "quotes_after",
+                ][..],
             ),
-            ("live_list", &[][..]),
+            (
+                "live_stop",
+                &["sec_type", "root", "expiration", "strike", "right"][..],
+            ),
         ] {
             let mut args = json!({});
             if let Some(o) = args.as_object_mut() {
@@ -6983,7 +7011,42 @@ mod tests {
             }
             only_declared_arguments(tool, &args)
                 .unwrap_or_else(|e| panic!("{tool} takes the names it declares: {e:?}"));
+            let mut expected: Vec<&str> = names.to_vec();
+            expected.sort_unstable();
+            assert_eq!(
+                declared_names(tool),
+                expected,
+                "{tool} declares exactly these, so the list above is the whole of it"
+            );
         }
+        // A tool that declares nothing takes nothing. Passing it an empty
+        // object proves only that an empty object has no unknown names in it.
+        assert!(declared_names("live_list").is_empty());
+        let why = refused(only_declared_arguments(
+            "live_list",
+            &json!({"root": "AAPL"}),
+        ));
+        assert!(
+            why.contains("does not take root"),
+            "and it says so by name: {why}"
+        );
+    }
+
+    /// The names a tool's own schema declares, sorted, read back off the
+    /// definition so a list written above cannot quietly fall short of it.
+    fn declared_names(tool: &str) -> Vec<String> {
+        let mut names: Vec<String> = tool_definitions()
+            .into_iter()
+            .find(|t| t["name"] == tool)
+            .map(|t| {
+                t["inputSchema"]["properties"]
+                    .as_object()
+                    .map(|props| props.iter().map(|(k, _)| k.to_string()).collect())
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
+        names.sort();
+        names
     }
 
     #[test]
