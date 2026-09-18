@@ -208,7 +208,7 @@ core_affinity = "0.8.1" # VOCAB-OK: actual dep crate name
 polars = { version = "0.55.2", optional = true, default-features = false }
 # arrow-array + arrow-schema cover RecordBatch construction for the
 # optional `frames` feature only.
-arrow-array = { version = "59.0.0", optional = true }
+arrow-array = { version = "60.0.0", optional = true }
 arrow-schema = { version = "59.0.0", optional = true }
 # JSON encoder for the FLATFILES `Format::Jsonl` output.
 serde_json = "1.0.137"
