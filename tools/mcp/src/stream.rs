@@ -6508,6 +6508,23 @@ mod tests {
                 advertised, expected,
                 "{name} is advertised exactly the kinds the call takes"
             );
+
+            // And asked of the call itself, rather than left to the two
+            // sides happening to read one list today: a schema offering a
+            // kind the call refuses is a request whose only answer is a
+            // refusal.
+            let sec = parse_sec_of(&json!({"sec_type": name}), sec_types_for("live_read"))
+                .expect("a type this tool serves");
+            for kind in &advertised {
+                resolve_kind(sec, Some(kind)).unwrap_or_else(|e| {
+                    panic!("{name} advertises {kind} and the call refuses it: {e:?}")
+                });
+            }
+            for kind in ["quote", "trade", "market_value", "open_interest"] {
+                if !advertised.iter().any(|a| a == kind) {
+                    refused(resolve_kind(sec, Some(kind)));
+                }
+            }
         }
     }
 
@@ -8365,6 +8382,30 @@ mod tests {
             cols,
             ["time", "open", "high", "low", "close", "volume", "count"],
             "served with the vendor's own fields"
+        );
+
+        // And each name against the value the vendor put under it. The names
+        // alone say nothing about which value each one carries, and the
+        // fixture's are all different, so a pair exchanged here shows.
+        let v = read_response(
+            &c,
+            SubscriptionKind::Quote,
+            "Connected".into(),
+            None,
+            &r,
+            30,
+        );
+        let served = &v["vendor_ohlcvc"];
+        assert_eq!(served["open"].as_f64(), Some(1.0));
+        assert_eq!(served["high"].as_f64(), Some(2.0));
+        assert_eq!(served["low"].as_f64(), Some(0.5));
+        assert_eq!(served["close"].as_f64(), Some(1.7), "the newest bar's");
+        assert_eq!(served["volume"].as_u64(), Some(10));
+        assert_eq!(served["count"].as_u64(), Some(3));
+        assert_eq!(
+            served["time"].as_str(),
+            Some("09:30:00.000"),
+            "the vendor's own clock, rendered"
         );
     }
 
