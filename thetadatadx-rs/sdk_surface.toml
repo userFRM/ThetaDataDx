@@ -312,7 +312,7 @@ name = "exchange_symbol"
 kind = "forwarder"
 forward_call = "thetadatadx::utils::exchange::exchange_symbol"
 forward_return = "str"
-doc = "Short ticker-tape symbol for an `exchange` code (e.g. `3` ->\n`\"NYSE\"`)."
+doc = "Short exchange symbol for an `exchange` code (e.g. `3` ->\n`\"NYSE\"`)."
 targets = ["python", "typescript"]
 params = [{ name = "code", type = "i32", doc = "Exchange code." }]
 

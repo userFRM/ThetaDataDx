@@ -3251,7 +3251,7 @@ export declare class Util {
    */
   static exchangeName(code: number): string
   /**
-   * Short ticker-tape symbol for an `exchange` code (e.g. `3` ->
+   * Short exchange symbol for an `exchange` code (e.g. `3` ->
    * `"NYSE"`).
    */
   static exchangeSymbol(code: number): string

@@ -251,7 +251,7 @@ def check_static_docs() -> None:
     expect_contains(ROOT / "README.md", "Documentation site (GitHub Pages)")
     expect_contains(
         ROOT / "README.md",
-        "MCP server exposing every market-data endpoint, plus the live tape, to AI clients",
+        "MCP server exposing every market-data endpoint, plus the live feed, to AI clients",
     )
 
     expect_contains(
@@ -260,7 +260,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live-tape tools, 6 flat-file tools and `entitlements`.",
+        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live tools, 6 flat-file tools and `entitlements`.",
     )
 
     expect_contains(
@@ -1063,7 +1063,7 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
       ``OFFLINE_TOOL_NAMES`` in ``main.rs``.
     - ``flatfile``: the flat-file tools advertised by
       ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs``.
-    - ``live``: the live-tape tools, read from ``TOOL_NAMES`` in ``stream.rs``.
+    - ``live``: the live-feed tools, read from ``TOOL_NAMES`` in ``stream.rs``.
     - ``utility``: the generated utility tools in ``utilities.rs``, which
       include the offline ones; the offline set is subtracted so a tool is
       reported under one origin only.
@@ -1203,7 +1203,7 @@ def check_mcp_tool_inventory() -> None:
     """The MCP docs must enumerate the connected `tools/list` surface.
 
     Every connection-only tool (the offline utilities, the flat-file tools, the
-    live-tape tools and the generated utilities) must appear by name in each MCP
+    live-feed tools and the generated utilities) must appear by name in each MCP
     doc's tool-listing section, so a tool advertised by the server but missing
     from the listing trips this check.
     The README also lists every registry market-data endpoint by name in its tool

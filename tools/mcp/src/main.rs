@@ -1686,7 +1686,7 @@ fn parse_args() -> Args {
 /// a fraction of a millisecond is a core taken from the person using it.
 ///
 /// `Backoff` spins while prints are arriving and sleeps once they stop,
-/// snapping back when they resume: full speed on a busy tape, near nothing
+/// snapping back when they resume: full speed on a busy feed, near nothing
 /// on a quiet one, and no latency floor while the market is active.
 fn mcp_config() -> DirectConfig {
     let mut config = DirectConfig::production();

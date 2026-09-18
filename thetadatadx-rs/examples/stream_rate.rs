@@ -8,8 +8,8 @@
 //!
 //! Every argument after the credentials is positional and optional, but
 //! they are taken in that order: sampling length in seconds, which cluster,
-//! which tape, and how often to print a line. Defaults: 60 seconds, the dev
-//! replay cluster, the option tape, a line every 5 seconds.
+//! which market, and how often to print a line. Defaults: 60 seconds, the dev
+//! replay cluster, the option market, a line every 5 seconds.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -79,7 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .next()
         .expect("usage: stream_rate <creds.txt> [secs] [prod]");
     // Every argument is checked rather than defaulted: a typo that quietly
-    // selected another cluster or another tape would produce numbers that
+    // selected another cluster or another market would produce numbers that
     // look right and describe something else.
     let secs: u64 = match args.next() {
         None => 60,
@@ -97,7 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sec_type = match args.next().as_deref() {
         None | Some("option") => SecType::Option,
         Some("stock") => SecType::Stock,
-        Some(other) => return Err(format!("tape must be option or stock, not {other}").into()),
+        Some(other) => return Err(format!("market must be option or stock, not {other}").into()),
     };
     let interval: u64 = match args.next() {
         None => 5,
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The consumer defaults to a spin wait, which holds a whole core for as
     // long as the stream is connected. Nothing here needs that: this counts
     // messages, it does not chase microseconds. Backoff spins while they
-    // arrive and sleeps when they stop, so a busy tape is measured at full
+    // arrive and sleeps when they stop, so a busy market is measured at full
     // speed and a quiet one costs nothing. `dropped` is printed on every
     // line and is the check: if the consumer ever fell behind, it would
     // show there rather than quietly flattening the numbers.
@@ -143,7 +143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    // The whole option tape: every print on every contract, the widest feed
+    // The whole option market: every print on every contract, the widest feed
     // the vendor sells.
     client.stream().subscribe(sec_type.full_trades())?;
     println!(
@@ -239,10 +239,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some((lo, hi)) = *MS_SPAN.lock().unwrap() {
         let span = (hi - lo) as f64 / 1000.0;
         println!(
-            "exchange span   : {span:.0}s of tape over {elapsed:.0}s wall  (x{:.2} real time)",
+            "exchange span   : {span:.0}s of market over {elapsed:.0}s wall  (x{:.2} real time)",
             span / elapsed
         );
-        println!("tape window     : {} -> {}", clock(lo), clock(hi));
+        println!("market window   : {} -> {}", clock(lo), clock(hi));
     }
     println!(
         "feed dropped    : {}",
