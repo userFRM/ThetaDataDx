@@ -4784,6 +4784,24 @@ mod tests {
         let with = prints_response(&c, "Connected".into(), 2, true, &p, 9_000);
         assert!(with["prints"][0].get("quotes_after").is_some(), "asked for");
 
+        // A read that takes nothing: the prints are still held and none of
+        // them is new, which is the only state that tells the two counts
+        // apart. Until this read they were the same number.
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        let quiet = reg.prints(&c, 2, 7, 10_000).expect("nothing to refuse");
+        let q = prints_response(&c, "Connected".into(), 2, false, &quiet, 10_000);
+        assert_eq!(q["held"].as_u64(), Some(3), "still holding every print");
+        assert_eq!(
+            q["new_since_last_read"].as_u64(),
+            Some(0),
+            "and not one of them arrived since the read a second ago"
+        );
+        assert_eq!(
+            q["covers_seconds"].as_f64(),
+            Some(9.0),
+            "back to when the legs opened, not to the oldest print"
+        );
+
         // Each reason to clip on its own, since a fixture that trips two of
         // them cannot tell which one the answer is reading. Here the history
         // has a hole and nothing else is wrong: no discards, nothing evicted,
