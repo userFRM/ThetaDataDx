@@ -3203,7 +3203,17 @@ fn list_response(
             "seconds_ago": seconds(now.saturating_sub(at))
         })),
         "held": rows.iter().map(|h| json!({
-            "contract": h.label,
+            // A whole market is not a contract, and naming it under one hands
+            // a caller a security type where a root belongs. `stop_response`
+            // already refuses this; so does the listing.
+            "contract": match shape(&h.sub) {
+                Some(Shape::Full(..)) | None => Value::default(),
+                Some(Shape::Contract(..)) => Value::from(h.label.as_str()),
+            },
+            "sec_type": match shape(&h.sub) {
+                Some(Shape::Full(sec, _)) => Value::from(sec.as_str().to_ascii_lowercase().as_str()),
+                _ => Value::default(),
+            },
             "kind": match shape(&h.sub) {
                 Some(Shape::Contract(_, k)) => k.kind_str(),
                 Some(Shape::Full(_, k)) => k.kind_str(),
@@ -4173,6 +4183,47 @@ mod tests {
             "one session, one date"
         );
         assert_eq!(one_date(std::iter::empty()), None, "nothing to name");
+
+        // And what the name claims: with no date for the collection, each row
+        // carries its own and the column header says so. Asserting only the
+        // aggregate leaves the carriage itself unproven.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade_on(&c, 1.0, 20260915, 2_000 * MS));
+        reg.ingest(trade_on(&c, 2.0, 20260916, 3_000 * MS));
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 4_000)
+            .expect("nothing to refuse");
+        let v = read_response(
+            &c,
+            SubscriptionKind::Trade,
+            "Connected".into(),
+            None,
+            &r,
+            4_000,
+        );
+        assert!(v["date"].is_null(), "the rows do not share one");
+        let cols: Vec<&str> = v["columns"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|x| x.as_str()).collect())
+            .unwrap_or_default();
+        assert_eq!(
+            cols.last(),
+            Some(&"date"),
+            "so the header names a date column"
+        );
+        let rows = v["tail"].as_array().cloned().unwrap_or_default();
+        assert_eq!(rows.len(), 2, "both rows come back");
+        let dates: Vec<i64> = rows
+            .iter()
+            .filter_map(|row| {
+                row.as_array()
+                    .and_then(|a| a.last())
+                    .and_then(|d| d.as_i64())
+            })
+            .collect();
+        assert_eq!(dates, vec![20260915, 20260916], "each carrying its own");
     }
 
     #[test]
@@ -4376,8 +4427,9 @@ mod tests {
         );
         let get = |k: &str| v.get(k).cloned().unwrap_or_default();
 
-        // The age is of the newest row returned, 5_000, not of anything the
-        // feed did. This is the one thing this surface exists not to do.
+        // The age is of the newest row returned, stamped 7_000, not of
+        // anything the feed did. This is what this surface exists not to get
+        // wrong.
         assert_eq!(
             get("age_ms").as_u64(),
             Some(2_000),
@@ -4801,6 +4853,7 @@ mod tests {
             "what the ring still holds"
         );
         assert_eq!(row["dropped"].as_u64(), Some(2), "and what it pushed out");
+        assert!(row["sec_type"].is_null(), "a contract is not a market");
         assert_eq!(
             row["expires_in_seconds"].as_f64(),
             Some(seconds(TTL.as_millis() as u64 - 2_000)),
@@ -5277,6 +5330,29 @@ mod tests {
     }
 
     #[test]
+    fn a_listing_names_a_market_as_a_market() {
+        // A whole market has no contract, and naming it under one hands a
+        // caller a security type where a root belongs. The close answer
+        // already refuses this.
+        let reg = Registry::default();
+        market_now(&reg, SecType::Stock, query(5), 0, 1_000).expect("nothing to refuse");
+        let v = list_response("Connected".into(), 0, None, &reg.list(), Some(&[]), 2_000);
+        let held = v["held"].as_array().cloned().unwrap_or_default();
+        let m = held.first().expect("the market is listed");
+        assert!(m["contract"].is_null(), "a market is not a contract");
+        assert_eq!(
+            m["sec_type"].as_str(),
+            Some("stock"),
+            "it is named by the type it covers"
+        );
+        assert_eq!(
+            m["kind"].as_str(),
+            Some("full_trades"),
+            "and the stream it is on"
+        );
+    }
+
+    #[test]
     fn a_tool_offers_only_the_security_types_it_can_serve() {
         // A type offered in the schema and refused on every call is a call
         // a model will make and an answer it will never get.
@@ -5506,9 +5582,10 @@ mod tests {
         // A caller composing against the schema should not be able to write
         // a request whose only possible answer is a refusal.
         for tool in ["live_read", "live_prints", "live_stop"] {
-            let Some(t) = tool_definitions().into_iter().find(|t| t["name"] == tool) else {
-                continue;
-            };
+            let t = tool_definitions()
+                .into_iter()
+                .find(|t| t["name"] == tool)
+                .unwrap_or_else(|| panic!("{tool} is advertised"));
             // Found by what it says, not by where it sits: other rules
             // share the list.
             let rules = t["inputSchema"]["allOf"]
