@@ -435,8 +435,10 @@ fn tool_asset_class(name: &str) -> Option<AssetClass> {
         return AssetClass::from_category(ep.category);
     }
     // Flat-file convenience tools encode their security type in the name (see
-    // `convenience_pair` in flatfile_tools.rs); the multi-asset
-    // `_flatfile_request` dispatcher matches neither and stays ungated.
+    // `convenience_pair` in flatfile_tools.rs). The multi-asset
+    // `_flatfile_request` dispatcher matches neither, so it has no single class
+    // to gate on here; it is gated on holding either of them where the tool
+    // list is built.
     if name.contains("_flatfile_option_") {
         Some(AssetClass::Option)
     } else if name.contains("_flatfile_stock_") {

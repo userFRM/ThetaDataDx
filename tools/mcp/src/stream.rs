@@ -2287,7 +2287,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 account and its first read returns nothing, so reaching for it to read a \
                 single value costs two calls and leaves a buffer open for fifteen minutes. \
                 Reach for it when the gap between two looks is the thing you care about: it \
-                serves every row in that gap, and says so when it could not see them all, \
+                serves the newest rows from that gap, counts the rest, and says so when it \
+                could not see them all, \
                 which is what no snapshot can tell you. The first read opens the \
                 subscription and returns nothing yet; read again a second or two later. After \
                 that the window defaults to everything since your last read of this buffer; pass \
@@ -2305,7 +2306,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 exchange codes intact. vendor_ohlcvc is the vendor's own bar for the contract \
                 as last sent, served as is; nothing here builds a bar from trades, because \
                 condition, cancel and size rules are yours to choose, and nothing here \
-                summarises them. feed_dropped_since_last_read counts events the SDK discarded \
+                summarises them. dropped counts rows this buffer's ring has pushed out since \
+                it opened, a running total rather than a count since your last read. \
+                feed_dropped_since_last_read counts events the SDK discarded \
                 because this server fell behind; while it is not zero any buffer may be missing \
                 rows, and clipped says so. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
@@ -2327,7 +2330,7 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "live_prints",
-            "description": "Trades on one contract since you last looked, newest last, each \
+            "description": "The newest trades on one contract, oldest of them first, each \
                 with the quote that stood before it; the feed also sends the two quotes after \
                 a print, and quotes_after returns them. For the last trade alone use a \
                 snapshot, stock_snapshot_trade or option_snapshot_trade; for a past interval \
@@ -2339,8 +2342,12 @@ pub fn tool_definitions() -> Vec<Value> {
                 for its trades has whatever printed since, without the quotes beside them, \
                 because a print takes only the quotes that arrived while both were being \
                 watched; prints from after this call have them. \
-                new_since_last_read counts prints since your last live_prints on this \
-                contract; live_read keeps its own count of trades. age_ms is the age of the \
+                count is how many prints came back and held is how many this server holds, \
+                so a count short of held means you asked for fewer than there were. \
+                new_since_last_read counts prints that arrived since your last live_prints on \
+                this contract, which is not what the rows are: the prints held survive a \
+                read, so asking twice in a row serves the same ones again. live_read keeps \
+                its own count of trades. age_ms is the age of the \
                 newest print returned, never of the feed, and covers_seconds is how far back \
                 the prints held reach. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. feed_interrupted means there was an interval \
@@ -2366,10 +2373,14 @@ pub fn tool_definitions() -> Vec<Value> {
                 it to every print the feed delivers and keeps the top rows, or the newest \
                 without rank_by, until your next read, which returns them and starts again. So \
                 a read answers the largest prints since you last looked exactly, whatever the \
-                rate: nothing here is windowed by a buffer. Nothing is computed: you select \
-                and rank the vendor's own fields. examined and matched say how many prints the \
+                rate: nothing here is windowed by a buffer. Nothing is computed from the \
+                rows: they are served as the vendor sent them, and the one derived value is \
+                spread, ask minus bid, which you can narrow and rank on and which is never a \
+                column on a row. examined and matched say how many prints the \
                 selection saw and how many passed since your last read; returned is what you \
-                got; unranked counts matches without the rank field, such as a quote field on \
+                got; received is every print this market has taken since it opened, a running \
+                total rather than a count since your last read; \
+                unranked counts matches without the rank field, such as a quote field on \
                 a print with no quote ahead of it. age_ms is the age of the newest print \
                 returned; feed_age_ms is the age of the newest print on the whole market, \
                 which is a different number whenever a narrow selection holds an old row \

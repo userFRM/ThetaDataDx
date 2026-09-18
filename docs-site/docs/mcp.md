@@ -25,7 +25,7 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
 }
 ```
 
-`npx -y thetadatadx-mcp-server@next` fetches a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
+`npx -y thetadatadx-mcp-server@next` fetches a prebuilt binary for your platform (Linux and macOS on x64 and arm64, Windows on x64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
 
 ```json
 {
@@ -60,9 +60,9 @@ Keep credentials in environment variables or a secrets manager — not in config
 
 Every generated market-data endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
 
-Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools, so the model never sees a tool it cannot call. FREE-tier classes stay listed because FREE grants delayed data. The account-agnostic tools (`ping`, the trading calendar, the generic flat-file request) are always offered, and each tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
+Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools, so the model never sees a tool it cannot call. FREE-tier classes stay listed because FREE grants delayed data. `ping` and the trading calendar are offered to every account. The flat-file tools follow the class in their name, and the generic flat-file request appears for any account holding a stock or option tier, since those are the only classes with flat files. Each market-data tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
 
-When credentials are present the connected surface also carries six flat-file tools. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV or JSON Lines, and returns the written path:
+When credentials are present the connected surface also carries the flat-file tools, advertised by class the way the endpoint tools are: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV or JSON Lines, and returns the written path:
 
 - `thetadatadx_flatfile_request`: generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error.
 - `thetadatadx_flatfile_option_trade_quote`: option trade-quote flat file.
@@ -79,7 +79,7 @@ A connected server also holds live subscriptions on your behalf and answers ques
 - `live_list`: what is currently held, whether each buffer is still on the feed, and when each will be released.
 - `live_stop`: close one now.
 
-There are no handles. A buffer is a contract and a kind, opened by the first read of it and closed after fifteen minutes unread, so the first call to any of these returns nothing yet and the second returns what arrived in between. Every answer reports the feed's own state alongside the rows, because a dead feed and a quiet contract look identical from an age alone. Nothing is computed from the rows: they carry the vendor's condition and exchange codes as they arrived, and the vendor's own bar is served as the vendor sent it.
+There are no handles. A buffer is a contract and a kind, opened by the first read of it and closed after fifteen minutes unread, so the first `live_read`, `live_prints` or `live_market` on something returns nothing yet and the second returns what arrived in between; `live_list` and `live_stop` answer immediately. Every answer reports the feed's own state alongside the rows, because a dead feed and a quiet contract look identical from an age alone. Nothing is computed from the rows: they carry the vendor's condition and exchange codes as they arrived, and the vendor's own bar is served as the vendor sent it. The one derived value on the surface is `spread`, ask minus bid, which `live_market` can narrow and rank on and which is never a column on a row.
 
 A stream subscription is scoped to the account, not to the connection. `live_stop` therefore stops the stream for every application on that account, not only for this server.
 

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   There are no handles: a buffer is a contract and a kind, opened on the first read and closed after fifteen minutes unread. The window defaults to everything since your last read of that buffer, so a caller never has to remember when it last asked.
 
-  A snapshot is a round trip and has already moved by the time it is read, so every read carries the age of what it returns, how far back the rows held actually reach, and whether the window asked for reaches further than that. The feed's own state is reported alongside, because a dead feed and a quiet contract look identical from age alone.
+  A snapshot is a round trip and has already moved by the time it is read, so every read carries the age of what it returns. The two contract reads add how far back the rows held actually reach and whether the window asked for reaches further than that; the whole-market read keeps a selection rather than a window, so it reports what its selection saw and what it could not. The feed's own state is reported alongside, because a dead feed and a quiet contract look identical from age alone.
 
   Nothing is aggregated. Bar construction has condition, cancel and size rules that belong to the caller, so rows are served with their condition and exchange codes intact, and a read says how many rows the window held so a caller can tell whether the rows it got back were all of them. The vendor's own bar is served as the vendor sent it, and never rebuilt from trades.
 

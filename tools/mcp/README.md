@@ -26,7 +26,7 @@ The server authenticates **once** at startup, keeps the `Client` client alive, a
 
 ## Install
 
-No install step is needed: point your MCP client at `npx -y thetadatadx-mcp-server` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it on demand.
+No install step is needed: point your MCP client at `npx -y thetadatadx-mcp-server` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux and macOS on x64 and arm64, Windows on x64) and runs it on demand.
 
 Rust users can install the binary directly instead:
 
@@ -124,7 +124,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live-tape tools, 6 flat-file tools and `entitlements`.
+Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live-tape tools, 6 flat-file tools and `entitlements`. The counts below are the full surface; what a given account is shown depends on the tiers it holds.
 
 ### Offline (1 total: `ping`)
 
@@ -180,7 +180,7 @@ Advertised only when a client is connected. The endpoint tools return what the v
 - `live_list` - what is held, whether each buffer is still on the feed, and when each will be released
 - `live_stop` - close one now
 
-A buffer is a contract and a kind, opened by the first read of it and closed after fifteen minutes unread, so the first call returns nothing yet and the second returns what arrived in between. Nothing is computed from the rows: they carry the vendor's condition and exchange codes as they arrived, and the vendor's own bar is served as the vendor sent it.
+A buffer is a contract and a kind, opened by the first read of it and closed after fifteen minutes unread, so the first `live_read`, `live_prints` or `live_market` on something returns nothing yet and the second returns what arrived in between; `live_list` and `live_stop` answer immediately. Nothing is computed from the rows: they carry the vendor's condition and exchange codes as they arrived, and the vendor's own bar is served as the vendor sent it. The one derived value on the surface is `spread`, ask minus bid, which `live_market` can narrow and rank on and which is never a column on a row.
 
 A stream subscription is scoped to the account rather than to the connection, so `live_stop` stops the stream for every application on that account.
 
@@ -192,7 +192,7 @@ Advertised only when a client is connected.
 
 ### Flat Files (6 tools)
 
-Advertised only when a client is connected. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
+Advertised only when a client is connected, and by class: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
 
 - `thetadatadx_flatfile_request` - generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error
 - `thetadatadx_flatfile_option_trade_quote` - option trade-quote flat file
