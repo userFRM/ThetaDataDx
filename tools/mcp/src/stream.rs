@@ -2367,8 +2367,12 @@ pub fn tool_definitions() -> Vec<Value> {
                 read, so asking twice in a row serves the same ones again. live_read keeps \
                 its own count of trades. age_ms is the age of the \
                 newest print returned, never of the feed, and covers_seconds is how far back \
-                the prints held reach. Prints are held within a memory budget, and clipped means older ones \
-                were discarded before you asked. feed_interrupted means there was an interval \
+                the prints held reach. Prints are held within a memory budget. clipped means \
+                this answer is not the whole of what happened: prints older than the ones \
+                returned were discarded before you asked, or the history has a hole in it, or \
+                the SDK discarded events, which feed_dropped_since_last_read counts. Treat it \
+                as the one field that says whether anything is missing, whatever the cause. \
+                feed_interrupted means there was an interval \
                 before this read that nothing was watching, so prints from it were never held: \
                 the connection broke, or a leg expired and was reopened between your calls. Each print carries quote_before, the quote that stood when it \
                 traded, and date when the prints span more than one trading date. A print is a \
@@ -2400,7 +2404,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 total rather than a count since your last read; \
                 subscribed_now says whether this call opened the subscription, \
                 new_since_last_read counts prints taken since your last read, and each print \
-                carries the contract it traded on, because a whole market spans all of them. \
+                carries the contract it traded on, because a whole market spans all of them, \
+                and quote_before, the quote that stood when it traded; date is the trading date \
+                the prints share, absent and carried on each print when they span more than \
+                one. \
                 unranked counts matches without the rank field, such as a quote field on \
                 a print with no quote ahead of it. age_ms is the age of the newest print \
                 returned; feed_age_ms is the age of the newest print on the whole market, \
@@ -2453,8 +2460,10 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "live_list",
-            "description": "Every buffer this server holds: rows received and held, the age of \
-                the newest, how long since it was read and when it expires, plus the feed's \
+            "description": "Every buffer this server holds. Each is named by contract and \
+                kind, or by sec_type when it is a whole market, with received and held rows, \
+                age_ms for the newest of them, idle_seconds since it was last used and \
+                expires_in_seconds until the sweep releases it, plus the feed's \
                 state. dropped counts rows a buffer's ring has pushed out since it opened, and \
                 open_for_seconds is how long ago it opened, which is not idle_seconds: a busy \
                 buffer is old and never idle. on_feed is whether the feed itself still carries \
@@ -2463,7 +2472,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 subscriptions the feed carries for no buffer. last_rejection is the most recent \
                 refusal of a subscribe this server has recorded, with the vendor's meaning; a \
                 refusal travels the same path as the rows, so a newer one may not have arrived \
-                yet. feed_dropped_events is \
+                yet; it carries result, the vendor's code, and seconds_ago, how long since this \
+                server saw it. feed_dropped_events is \
                 the SDK's running count of events it discarded because this server fell behind. \
                 An age that keeps \
                 growing while the feed says Connected is a contract that has gone quiet, not a \
@@ -4721,6 +4731,70 @@ mod tests {
             leaked.get("contract").is_none(),
             "a whole market has no contract"
         );
+    }
+
+    #[test]
+    fn every_field_an_answer_returns_is_one_its_description_names() {
+        // A caller reads the description, then the answer. A field the
+        // description never names is one they have to guess at, and the guess
+        // is what a running total sitting among counts since the last read
+        // gets wrong. Read off the source rather than off a built response,
+        // because a fixture that happens not to produce a nested field would
+        // pass while saying nothing about it.
+        let src = include_str!("stream.rs");
+        let body = |signature: &str| -> String {
+            let at = src
+                .find(signature)
+                .unwrap_or_else(|| panic!("{signature} is gone; this test is checking nothing"));
+            let rest = &src[at..];
+            // Every one of these is a top-level fn, so its body ends at the
+            // first line that is a lone closing brace in column one.
+            let end = rest
+                .find("\n}\n")
+                .unwrap_or_else(|| panic!("{signature} has no closed body"));
+            rest[..end].to_string()
+        };
+        let named = |tool: &str| -> String {
+            tool_definitions()
+                .into_iter()
+                .find(|t| t["name"] == tool)
+                .and_then(|t| t["description"].as_str().map(ToString::to_string))
+                .unwrap_or_else(|| panic!("{tool} has no description"))
+        };
+
+        let mut checked = 0;
+        for (signature, tool) in [
+            ("fn read_response(", "live_read"),
+            ("fn prints_response(", "live_prints"),
+            ("fn market_response(", "live_market"),
+            ("fn list_response(", "live_list"),
+            ("fn stop_response(", "live_stop"),
+        ] {
+            let answer = body(signature);
+            let description = named(tool);
+            let mut fields: Vec<&str> = answer
+                .split('"')
+                .zip(answer.split('"').skip(1))
+                .filter(|(_, after)| after.starts_with(':'))
+                .map(|(field, _)| field)
+                .filter(|f| !f.is_empty() && f.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
+                .collect();
+            fields.sort_unstable();
+            fields.dedup();
+            assert!(
+                fields.len() > 1,
+                "{signature} parsed to {} field(s); the scan is broken, not the code",
+                fields.len()
+            );
+            for field in fields {
+                assert!(
+                    description.contains(field),
+                    "{tool} returns {field} and its description never names it"
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 50, "only {checked} fields were checked");
     }
 
     #[test]
