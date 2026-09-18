@@ -2835,9 +2835,12 @@ fn on_feed(client: &Client) -> Result<Subs, ToolError> {
 /// feed's most recent refusal and what the vendor says it means.
 fn dropped_by_feed(reg: &Registry, sub: &Subscription, now: u64) -> ToolError {
     reg.forget(sub);
+    // The rejection this server has recorded, which is not necessarily the
+    // newest one the feed has sent: the event carrying it is delivered on the
+    // same path as the rows and can still be behind them.
     let why = reg.last_rejection().map_or_else(String::new, |(code, at)| {
         format!(
-            " The feed's most recent rejection was {code}, {:.1} s ago: {}.",
+            " The last rejection this server recorded was {code}, {:.1} s ago: {}.",
             seconds(now.saturating_sub(at)),
             rejection_meaning(code)
         )
