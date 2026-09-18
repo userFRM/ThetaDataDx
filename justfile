@@ -18,4 +18,4 @@ bump-version version:
 # Run the local live smoke checks (needs creds.txt in the repo root).
 smoke creds="creds.txt":
     python3 scripts/dev/live_smoke.py {{creds}}
-    python3 scripts/dev/fpss_smoke.py {{creds}}
+    python3 scripts/dev/streaming_smoke.py
