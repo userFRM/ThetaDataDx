@@ -7,7 +7,7 @@
 //!
 //! A book is named by its contract and kind, the same way the vendor names a
 //! subscription. The first read opens it; a read every so often keeps it;
-//! fifteen idle minutes or `tape_stop` close it. There is no handle to
+//! fifteen idle minutes or `live_stop` close it. There is no handle to
 //! mint, pass back or lose. A whole-market book is named by its security
 //! type alone, the way the vendor names a full-stream subscription.
 //!
@@ -198,7 +198,7 @@ const FIELDS: [&str; 18] = [
 
 /// The names a print carries: its trade's fields and its quote's. The full
 /// trade stream sends no open-interest or market-value row, so offering
-/// those to `tape_market` would invite a selection nothing can ever pass.
+/// those to `live_market` would invite a selection nothing can ever pass.
 const PRINT_FIELDS: [&str; 14] = [
     "price",
     "size",
@@ -509,7 +509,7 @@ struct Book {
     /// is everything since the caller last looked at it.
     read_ms: u64,
     /// When this book was last USED for anything, which is what keeps it
-    /// alive. `tape_prints` needs the trade and quote books it reads from
+    /// alive. `live_prints` needs the trade and quote books it reads from
     /// to survive, but it is not a read OF them: moving the window floor
     /// would shorten a later read's window without moving the cursor that
     /// decides which rows it returns, and the read would then report a
@@ -594,7 +594,7 @@ struct ContractState {
     last_quote: Option<StreamData>,
     prints: VecDeque<Print>,
     prints_dropped: u64,
-    /// Prints received as of the last `tape_prints` that was answered, the
+    /// Prints received as of the last `live_prints` that was answered, the
     /// same cursor a book keeps. Advanced only once the call succeeds, so
     /// a call that failed leaves its prints new for the next one.
     prints_read: u64,
@@ -1237,8 +1237,8 @@ impl Registry {
     ) -> Result<(), ToolError> {
         if overlaps(kind) && held.markets.iter().any(|(s, _)| *s == contract.sec_type) {
             return Err(ToolError::InvalidParams(format!(
-                "the whole-market book on {} (tape_market) already carries every {} on it, and \
-                 the feed would deliver {contract} twice if both were held; tape_stop with \
+                "the whole-market book on {} (live_market) already carries every {} on it, and \
+                 the feed would deliver {contract} twice if both were held; live_stop with \
                  sec_type alone closes the market book",
                 contract.sec_type.as_str(),
                 kind.kind_str()
@@ -1716,7 +1716,7 @@ impl Registry {
         }
     }
 
-    /// Advance the prints cursor to what a successful `tape_prints` served.
+    /// Advance the prints cursor to what a successful `live_prints` served.
     ///
     /// Settle what the answer just delivered. The interruption count is
     /// the one that answer saw, not the one standing now: the feed can
@@ -1786,7 +1786,7 @@ impl Registry {
         if doubled > 0 {
             return Err(ToolError::InvalidParams(format!(
                 "{doubled} {} contract(s) hold a trade or quote book, and the feed would deliver \
-                 them twice alongside a whole-market book; tape_list shows them and tape_stop \
+                 them twice alongside a whole-market book; live_list shows them and live_stop \
                  closes them",
                 sec.as_str()
             )));
@@ -1852,7 +1852,7 @@ impl Registry {
         Ok(reading)
     }
 
-    /// Every subscription a contract's books hold, for `tape_stop` to close
+    /// Every subscription a contract's books hold, for `live_stop` to close
     /// on the feed before the books go.
     fn held_for(&self, contract: &Contract) -> Subs {
         self.lock()
@@ -2112,11 +2112,11 @@ pub fn registry() -> &'static Registry {
 }
 
 pub const TOOL_NAMES: [&str; 5] = [
-    "tape_read",
-    "tape_prints",
-    "tape_market",
-    "tape_list",
-    "tape_stop",
+    "live_read",
+    "live_prints",
+    "live_market",
+    "live_list",
+    "live_stop",
 ];
 
 /// Kinds the vendor offers for a security type, the default first.
@@ -2171,8 +2171,8 @@ fn pro_required(sec: SecType, tier: Option<SubscriptionTier>) -> Result<(), Tool
         SecType::Stock => "Stocks",
         _ => {
             return Err(ToolError::InvalidParams(format!(
-                "tape_market covers option and stock: the vendor broadcasts every trade for \
-                 those two only. Read {} per contract with tape_read instead",
+                "live_market covers option and stock: the vendor broadcasts every trade for \
+                 those two only. Read {} per contract with live_read instead",
                 sec.as_str().to_ascii_lowercase()
             )))
         }
@@ -2181,8 +2181,8 @@ fn pro_required(sec: SecType, tier: Option<SubscriptionTier>) -> Result<(), Tool
         return Ok(());
     }
     Err(ToolError::ServerError(format!(
-        "tape_market on {} needs a {class} Pro subscription: the vendor's whole-market trade \
-         stream is Pro-only, and this account's {class} tier is {}. tape_read and tape_prints \
+        "live_market on {} needs a {class} Pro subscription: the vendor's whole-market trade \
+         stream is Pro-only, and this account's {class} tier is {}. live_read and live_prints \
          on single {} contracts work at every tier",
         sec.as_str().to_ascii_lowercase(),
         tier.map_or("not reported".to_string(), |t| format!("{t:?}")),
@@ -2197,7 +2197,7 @@ fn rejection_meaning(code: StreamResponseType) -> &'static str {
         StreamResponseType::Subscribed => "the request to subscribe was successful",
         StreamResponseType::Error => "an unknown error subscribing to the stream",
         StreamResponseType::MaxStreamsReached => {
-            "streaming too many contracts; unsubscribe some (tape_stop), upgrade the \
+            "streaming too many contracts; unsubscribe some (live_stop), upgrade the \
              subscription, or stop all streams"
         }
         StreamResponseType::InvalidPerms => {
@@ -2216,7 +2216,7 @@ fn sec_types_for(tool: &str) -> &'static [&'static str] {
         // A print is a trade with the quote that stood before it, and an
         // index has no quote stream. A whole-market stream is not offered
         // on indices at any tier.
-        "tape_prints" | "tape_market" => &["option", "stock"],
+        "live_prints" | "live_market" => &["option", "stock"],
         _ => &["option", "stock", "index"],
     }
 }
@@ -2308,7 +2308,7 @@ fn clauses_schema(description: &str, fields: &[&str]) -> Value {
 pub fn tool_definitions() -> Vec<Value> {
     vec![
         json!({
-            "name": "tape_read",
+            "name": "live_read",
             "description": "Live data for one contract in one call. The first read opens the \
                 subscription and returns nothing yet; read again a second or two later. After \
                 that each read summarises a window and serves its newest rows verbatim. The \
@@ -2335,14 +2335,14 @@ pub fn tool_definitions() -> Vec<Value> {
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
                 are Eastern. A book goes 15 minutes unread and the next call to any of these \
-                tools closes it; tape_stop closes it now. A read that finds \
+                tools closes it; live_stop closes it now. A read that finds \
                 the feed refused the subscription after accepting it says so and releases the \
                 book; reading again re-subscribes. In the answer: window_from says whether the \
                 window came from your seconds or from your last read, window_seconds is how far \
                 back it reaches, columns names the fields of each tail row in order, and date is \
                 the trading date they share, absent and carried on each row instead when they \
                 span more than one.",
-            "inputSchema": with_index_kinds(contract_schema(sec_types_for("tape_read"), json!({
+            "inputSchema": with_index_kinds(contract_schema(sec_types_for("live_read"), json!({
                 "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "minimum": 0, "description": "Fixed lookback. Default: since your last read."},
@@ -2351,7 +2351,7 @@ pub fn tool_definitions() -> Vec<Value> {
             })))
         }),
         json!({
-            "name": "tape_prints",
+            "name": "live_prints",
             "description": "Recent trades on one contract, newest last, each with the quote that \
                 stood before it; the feed also sends the two quotes after a print, and \
                 quotes_after returns them. Opens the trade and quote subscriptions if they \
@@ -2360,21 +2360,21 @@ pub fn tool_definitions() -> Vec<Value> {
                 for its trades has whatever printed since, without the quotes beside them, \
                 because a print takes only the quotes that arrived while both were being \
                 watched; prints from after this call have them. \
-                new_since_last_read counts prints since your last tape_prints on this \
-                contract; tape_read keeps its own count of trades. Prints are held within a memory budget, and clipped means older ones \
+                new_since_last_read counts prints since your last live_prints on this \
+                contract; live_read keeps its own count of trades. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. Each print carries quote_before, the quote that stood when it \
                 traded, and date when the prints span more than one trading date. A print is a \
                 trade and the quote that stood \
                 before it, and an index has no quote stream, so indices are not on this tool; \
-                tape_read with kind trade carries the index price. \
+                live_read with kind trade carries the index price. \
                 Times are Eastern.",
-            "inputSchema": contract_schema(sec_types_for("tape_prints"), json!({
+            "inputSchema": contract_schema(sec_types_for("live_prints"), json!({
                 "count": {"type": "integer", "minimum": 0, "description": "Newest prints. Default 20."},
                 "quotes_after": {"type": "boolean", "description": "Include the two quotes after each print. Default false."}
             }))
         }),
         json!({
-            "name": "tape_market",
+            "name": "live_market",
             "description": "Every trade across the whole option or stock market from one \
                 subscription, selected as it arrives. State a selection: contract filters \
                 (root, expiration, right, strike_min, strike_max), clauses over the vendor's \
@@ -2397,9 +2397,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 which when the account lacks it. The first call installs the selection, opens \
                 the subscription and returns nothing yet; call again a second or two later. A \
                 market book is not held alongside per-contract trade or quote books on the same \
-                security type, because the feed would deliver those contracts twice; tape_stop \
+                security type, because the feed would deliver those contracts twice; live_stop \
                 one side. Once 15 minutes unread, the next call to any of these tools closes \
-                it; tape_stop with sec_type alone closes it now. Times are Eastern.",
+                it; live_stop with sec_type alone closes it now. Times are Eastern.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -2431,7 +2431,7 @@ pub fn tool_definitions() -> Vec<Value> {
             }
         }),
         json!({
-            "name": "tape_list",
+            "name": "live_list",
             "description": "Every book this server holds: rows received and held, the age of \
                 the newest, how long since it was read and when it expires, plus the feed's \
                 state. on_feed is whether the feed itself still carries the subscription; a \
@@ -2442,11 +2442,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 An age that keeps \
                 growing while the feed says Connected is a contract that has gone quiet, not a \
                 fault. A feed that died or spent its reconnect budget is restarted by the \
-                next tape_read; one the SDK is still reconnecting on its own is left to it.",
+                next live_read; one the SDK is still reconnecting on its own is left to it.",
             "inputSchema": {"type": "object", "additionalProperties": false, "properties": {}}
         }),
         json!({
-            "name": "tape_stop",
+            "name": "live_stop",
             "description": "Close every book held for a contract and release its subscriptions; \
                 with sec_type alone, close the whole-market book for that security type. A \
                 subscription the feed did not release stays held; the book is kept so a \
@@ -2455,7 +2455,7 @@ pub fn tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "additionalProperties": false,
-                "properties": contract_schema(sec_types_for("tape_stop"), json!({}))
+                "properties": contract_schema(sec_types_for("live_stop"), json!({}))
                     .get("properties")
                     .cloned()
                     .unwrap_or_default(),
@@ -3180,7 +3180,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     // the call goes on to do or refuse.
     close_expired(client, reg, reg.expire(now), now);
 
-    if name == "tape_list" {
+    if name == "live_list" {
         let rows = reg.list();
         // Cumulative and display-only, so it needs no session of its own.
         let feed_drops = client.stream().dropped_event_count();
@@ -3221,8 +3221,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         }));
     }
 
-    if name == "tape_market" {
-        let sec = parse_sec_of(args, sec_types_for("tape_market"))?;
+    if name == "live_market" {
+        let sec = parse_sec_of(args, sec_types_for("live_market"))?;
         if sec != SecType::Option {
             if let Some(named) = ["expiration", "right", "strike_min", "strike_max"]
                 .iter()
@@ -3307,8 +3307,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         }));
     }
 
-    if name == "tape_stop" && args.get("root").is_none() {
-        let sec = parse_sec_of(args, sec_types_for("tape_market"))?;
+    if name == "live_stop" && args.get("root").is_none() {
+        let sec = parse_sec_of(args, sec_types_for("live_market"))?;
         // Without a root this closes the whole market. Contract identifiers
         // say the caller meant one contract, and closing every one of them
         // instead is not a smaller mistake for being silent.
@@ -3324,14 +3324,14 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         }
         if sec == SecType::Index {
             return Err(ToolError::InvalidParams(
-                "an index has no whole-market stream to close; tape_read follows one index at a \
-                 time and tape_stop with its root closes it"
+                "an index has no whole-market stream to close; live_read follows one index at a \
+                 time and live_stop with its root closes it"
                     .into(),
             ));
         }
         if !reg.market_held(sec) {
             return Err(ToolError::InvalidParams(format!(
-                "no whole-market book is held on {}; tape_list shows what is",
+                "no whole-market book is held on {}; live_list shows what is",
                 sec.as_str().to_ascii_lowercase()
             )));
         }
@@ -3343,15 +3343,15 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         }));
     }
 
-    // tape_prints pairs a trade with the quote before it, and an index has
+    // live_prints pairs a trade with the quote before it, and an index has
     // no quote stream, so it says which types it serves at the first refusal
     // rather than after a second call.
-    if name == "tape_prints" {
+    if name == "live_prints" {
         parse_sec_of(args, sec_types_for(name))?;
     }
     let (sec, contract) = parse_contract(args)?;
     match name {
-        "tape_read" => {
+        "live_read" => {
             let kind = arg(args, "kind", "a subscription name", |v| {
                 v.as_str().map(str::to_string)
             })?;
@@ -3455,7 +3455,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 }).collect::<Vec<_>>()
             }))
         }
-        "tape_prints" => {
+        "live_prints" => {
             // A print needs both legs; an index offers neither quote nor
             // print, and the refusal names what it does offer.
             resolve_kind(sec, Some("quote"))?;
@@ -3518,11 +3518,11 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 }).collect::<Vec<_>>()
             }))
         }
-        "tape_stop" => {
+        "live_stop" => {
             let held = reg.held_for(&contract);
             if held.is_empty() {
                 return Err(ToolError::InvalidParams(format!(
-                    "{contract} is not held; tape_list shows what is"
+                    "{contract} is not held; live_list shows what is"
                 )));
             }
             let (done, failures) = close_on_feed(client, reg, held);
@@ -4009,7 +4009,7 @@ mod tests {
             PAST_TTL,
         ));
         assert!(
-            why.contains("tape_market"),
+            why.contains("live_market"),
             "and the call is refused: {why}"
         );
         assert_eq!(
@@ -4158,7 +4158,7 @@ mod tests {
 
     #[test]
     fn reading_prints_keeps_a_book_alive_without_moving_its_window() {
-        // tape_prints needs the trade and quote books to survive, but it is
+        // live_prints needs the trade and quote books to survive, but it is
         // not a read of them: moving the window floor would shorten a later
         // read's window without moving the cursor that picks its rows, and
         // the read would report a window shorter than what it returned.
@@ -4316,18 +4316,18 @@ mod tests {
         // Stated outright, not compared against the same list the code
         // reads: a test that asks whether a value equals itself passes
         // whatever the value becomes.
-        assert_eq!(sec_types_for("tape_prints"), ["option", "stock"]);
-        assert_eq!(sec_types_for("tape_market"), ["option", "stock"]);
-        assert_eq!(sec_types_for("tape_read"), ["option", "stock", "index"]);
-        assert_eq!(sec_types_for("tape_stop"), ["option", "stock", "index"]);
-        assert_eq!(types("tape_prints"), ["option", "stock"]);
+        assert_eq!(sec_types_for("live_prints"), ["option", "stock"]);
+        assert_eq!(sec_types_for("live_market"), ["option", "stock"]);
+        assert_eq!(sec_types_for("live_read"), ["option", "stock", "index"]);
+        assert_eq!(sec_types_for("live_stop"), ["option", "stock", "index"]);
+        assert_eq!(types("live_prints"), ["option", "stock"]);
         // An index price arrives on the trade subscription, so a read and a
         // stop both work.
-        assert_eq!(types("tape_read"), ["option", "stock", "index"]);
-        assert_eq!(types("tape_stop"), ["option", "stock", "index"]);
+        assert_eq!(types("live_read"), ["option", "stock", "index"]);
+        assert_eq!(types("live_stop"), ["option", "stock", "index"]);
         // The refusal a call gives comes from the same list the schema
         // advertises, so neither can drift from the other.
-        for tool in ["tape_read", "tape_prints", "tape_stop", "tape_market"] {
+        for tool in ["live_read", "live_prints", "live_stop", "live_market"] {
             for t in ["option", "stock", "index"] {
                 let served = sec_types_for(tool).contains(&t);
                 let parsed = parse_sec_of(&json!({"sec_type": t}), sec_types_for(tool));
@@ -4454,7 +4454,7 @@ mod tests {
     fn a_schema_says_when_an_option_leg_is_required() {
         // A caller composing against the schema should not be able to write
         // a request whose only possible answer is a refusal.
-        for tool in ["tape_read", "tape_prints", "tape_stop"] {
+        for tool in ["live_read", "live_prints", "live_stop"] {
             let Some(t) = tool_definitions().into_iter().find(|t| t["name"] == tool) else {
                 continue;
             };
@@ -5731,7 +5731,7 @@ mod tests {
         // server did not hear. `strike` on a whole-market read is the shape
         // of it: narrowing to one strike, ignored, handed every strike.
         let why = refused(only_declared_arguments(
-            "tape_market",
+            "live_market",
             &json!({"sec_type": "option", "root": "SPY", "strike": 550}),
         ));
         assert!(
@@ -6790,7 +6790,7 @@ mod tests {
             "spread is ask minus bid"
         );
 
-        // What tape_market offers is exactly what a print can read: a name
+        // What live_market offers is exactly what a print can read: a name
         // it cannot would select nothing forever, so it is refused in words
         // instead.
         let (t, q) = (trade(&c, 1.0, 0), quote(&c, 1.0, 1.1));
@@ -7193,7 +7193,7 @@ mod tests {
             0,
             4,
         ));
-        assert!(why.contains("tape_market"), "names the other side: {why}");
+        assert!(why.contains("live_market"), "names the other side: {why}");
         assert!(
             reg.prints(&c, 1, 0, 5).is_err(),
             "a print needs both doubled legs"
@@ -7241,7 +7241,7 @@ mod tests {
         assert!(
             why.contains("Options Pro")
                 && why.contains("tier is Standard")
-                && why.contains("tape_read"),
+                && why.contains("live_read"),
             "names the tier needed, the tier held and what still works: {why}"
         );
         let why = refused(pro_required(SecType::Stock, None));
