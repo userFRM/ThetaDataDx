@@ -62,7 +62,7 @@ disruptor = "4.2.0"
 #      `FFI_ArrowArrayStream` pointer and imported via
 #      `pyarrow.RecordBatchReader._import_from_c`, which aliases the
 #      underlying buffers in place.
-arrow = { version = "59.0.0", features = ["ffi"] }
+arrow = { version = "60.0.0", features = ["ffi"] }
 
 # Async bridge: run tokio futures from sync Python
 tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
