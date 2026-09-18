@@ -4710,6 +4710,31 @@ mod tests {
             Some(0),
             "none of them since the read a moment ago, which is the other number"
         );
+        assert_eq!(
+            after_v["since_seconds"].as_f64(),
+            Some(0.2),
+            "the selection stood from the read at 6_000 to this one"
+        );
+
+        // A read that changes the selection: the rows came back under the one
+        // that stood, and the new one takes effect from here. Reported the
+        // other way round, a caller credits rows to a question nothing has
+        // asked yet.
+        let mut next = query(1);
+        next.root = Some("MSFT".into());
+        let changed =
+            market_now(&reg, SecType::Stock, next.clone(), 0, 7_000).expect("nothing to refuse");
+        let changed_v = market_response(SecType::Stock, "Connected".into(), &next, &changed, 7_000);
+        assert_eq!(
+            changed_v["selection"]["root"].as_str(),
+            Some("MSFT"),
+            "what is selecting from here"
+        );
+        assert_eq!(
+            changed_v["selected_by"]["root"].as_str(),
+            Some("AAPL"),
+            "and what kept the rows this read returns"
+        );
     }
 
     #[test]
@@ -4947,6 +4972,44 @@ mod tests {
             v["on_feed_not_held"].as_array().map(|a| a.len()),
             Some(0),
             "nothing on the feed that is not held"
+        );
+
+        // The last rejection the feed sent, which is what a caller reads to
+        // learn why a subscription did not take. The code and the sentence
+        // explaining it are built a line apart, and a rejection paired with
+        // another code's meaning sends a caller to the wrong remedy.
+        let rejected = list_response(
+            "Connected".into(),
+            9,
+            Some((StreamResponseType::MaxStreamsReached, 4_000)),
+            &rows,
+            Some(&on_feed),
+            5_000,
+        );
+        assert_eq!(
+            rejected["last_rejection"]["result"].as_str(),
+            Some("MAX_STREAMS_REACHED")
+        );
+        // Not matched against a phrase, which stops testing anything the day
+        // the wording changes: the meaning shown is this code's, so it is
+        // none of the other three's.
+        let meaning = rejected["last_rejection"]["meaning"].as_str();
+        assert!(meaning.is_some(), "a rejection carries what it means");
+        for other in [
+            StreamResponseType::Subscribed,
+            StreamResponseType::Error,
+            StreamResponseType::InvalidPerms,
+        ] {
+            assert_ne!(
+                meaning,
+                Some(rejection_meaning(other)),
+                "the rejection is paired with another code's remedy"
+            );
+        }
+        assert_eq!(
+            rejected["last_rejection"]["seconds_ago"].as_f64(),
+            Some(1.0),
+            "sent at 4_000, read at 5_000"
         );
     }
 
