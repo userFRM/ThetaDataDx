@@ -307,7 +307,7 @@ impl Op {
 }
 
 /// The right-hand side of a comparison: a number, or another field of the
-/// same row, which is how a crossed buffer (`bid >= ask`) is asked for.
+/// same row, which is how a crossed market (`bid >= ask`) is asked for.
 #[derive(Clone, Debug, PartialEq)]
 enum Rhs {
     Number(f64),
@@ -526,6 +526,19 @@ struct Buffer {
     /// discharge an interruption nobody was ever shown.
     gaps: u64,
     gaps_at_read: u64,
+    /// The newest stamp among the rows the ring has evicted, or zero while it
+    /// has evicted none that carried one. Coverage starts at the oldest row
+    /// still held, which is the oldest by arrival; a host clock that steps
+    /// backwards puts a later stamp on an earlier arrival, so an evicted row
+    /// can sit inside a window the held rows all start after. Without this,
+    /// that window reports itself whole.
+    dropped_newest_ms: u64,
+    /// The ring has evicted a row whose clock could not be read. A row with
+    /// no stamp is held in every named window, because nothing places it
+    /// outside one; losing it is therefore a loss from every named window,
+    /// and there is no moment to date it to. Coverage collapses to the read
+    /// that finds it, exactly as it does for an unstamped row still held.
+    dropped_unstamped: bool,
     /// The latest moment up to which this buffer is known to have lost rows.
     ///
     /// Dated to the read that learns of the loss, not to when the loss
@@ -548,6 +561,8 @@ impl Buffer {
             ring: VecDeque::new(),
             received: 0,
             dropped: 0,
+            dropped_newest_ms: 0,
+            dropped_unstamped: false,
             opened_ms: now,
             read_ms: now,
             touched_ms: now,
@@ -618,13 +633,21 @@ impl ContractState {
     /// call, so the call that reopens the quote buffer has sealed everything
     /// from before the reopening first.
     fn close(&mut self, mut gone: impl FnMut(SubscriptionKind, &Buffer) -> bool) {
+        let quote = |s: &Self| s.buffers.iter().any(|(k, _)| *k == SubscriptionKind::Quote);
+        let had_quote = quote(self);
         self.buffers.retain(|(k, b)| !gone(*k, b));
-        if !self
-            .buffers
-            .iter()
-            .any(|(k, _)| *k == SubscriptionKind::Quote)
-        {
+        if !quote(self) {
             self.seal();
+            // The quotes stop here. Prints keep accruing on the trade leg
+            // while the quote leg is gone and come back with no quote beside
+            // them, which reads exactly like a contract that was quiet.
+            // Counted so the next prints answer says an interval went
+            // unwatched; not holed, because the prints themselves are all
+            // there. A contract losing its last buffer is dropped by the
+            // caller of this, so a count left on one owes nobody anything.
+            if had_quote {
+                self.gaps += 1;
+            }
         }
     }
 
@@ -695,8 +718,12 @@ impl Market {
         // belong to a subscription this selection never had.
         // A zero stamp is the SDK's fallback when the clock misbehaves,
         // and means unknown rather than old: dropping live rows over a
-        // clock hiccup would be far worse than counting a late one.
+        // clock hiccup would be far worse than counting a late one. A clock
+        // that steps backwards below this market's open makes a live row
+        // look like one of those, and it goes the same way; counted as an
+        // interval nothing watched, because that is what it is.
         if seen_ms(data).is_some_and(|seen| seen < self.opened_ms) {
+            self.gaps += 1;
             return;
         }
         match data {
@@ -919,6 +946,8 @@ struct Coverage {
     held: usize,
     dropped: u64,
     covered_since_ms: u64,
+    /// See [`Buffer::dropped_newest_ms`].
+    dropped_newest_ms: u64,
     /// Events the SDK discarded since this buffer last settled.
     feed_dropped: u64,
     /// The feed was interrupted since this buffer last settled.
@@ -964,6 +993,11 @@ fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
             };
             c.covered_since_ms > floor
                 || (c.dropped > 0 && c.covered_since_ms == floor)
+                // An evicted row stamped inside the window. Coverage starts at
+                // the oldest row held, which is the oldest by arrival, so a
+                // clock that stepped backwards can leave this the only thing
+                // that says the window is not whole.
+                || (c.dropped_newest_ms > 0 && c.dropped_newest_ms >= floor)
                 || (lost_at > 0 && lost_at >= floor)
         }
     }
@@ -1093,6 +1127,7 @@ struct Holding {
     /// mark, not a moment, and reading it as one reports decades of idleness
     /// for a buffer put back a moment ago.
     read_ms: Option<u64>,
+    /// The newest row this holding holds, never the newest the feed carried.
     newest_ms: Option<u64>,
 }
 
@@ -1280,7 +1315,6 @@ impl Registry {
         let mut count = 0u64;
         let mut rows = Vec::new();
         let mut oldest = None;
-        let mut newest: Option<&StreamData> = None;
         // Newest first. Without a window the rows are the `new` newest;
         // with one they are those stamped at or after the floor. Either set
         // is a run from the back, so the walk stops at the first row outside
@@ -1304,35 +1338,36 @@ impl Registry {
                 continue;
             }
             count += 1;
-            // Walking newest first, so the first row inside the window is
-            // the newest one this answer covers.
-            if newest.is_none() {
-                newest = Some(d);
-            }
             oldest = Some(d);
             if rows.len() < tail {
                 rows.push(d.clone());
             }
         }
         let oldest = oldest.cloned();
-        // The age this answer reports is of the newest row it covers, not of
-        // the newest the buffer holds. A window that returns nothing has no
-        // age: taking the held row's would date an empty answer to whenever
-        // that row landed, and a window ending before it renders nought,
-        // which reads as something having just arrived.
-        let newest_ms = newest.and_then(seen_ms);
+        // The age this answer reports is of the newest row it hands back, not
+        // of the newest the buffer holds nor the newest the window covers. An
+        // answer returning nothing has no age: taking a held row's would date
+        // it to whenever that row landed, and a window ending before it
+        // renders nought, which reads as something having just arrived.
+        let newest_ms = rows.first().and_then(seen_ms);
         rows.reverse();
 
         // Where coverage starts. A quiet buffer has seen everything since it
         // opened. Once rows have been evicted it starts at the oldest one
         // still held, and if that row carries no stamp there is nothing to
         // place it by, so nothing before this read is proven covered.
-        let covered_since_ms = if buffer.dropped > 0 {
+        let covered_since_ms = if buffer.dropped_unstamped {
+            // A row with no stamp sits inside every named window, so one the
+            // ring pushed out was lost from every one of them and there is
+            // no moment to date the loss to.
+            now
+        } else if buffer.dropped > 0 {
             buffer.ring.front().and_then(seen_ms).unwrap_or(now)
         } else {
             buffer.opened_ms
         };
         let dropped = buffer.dropped;
+        let dropped_newest_ms = buffer.dropped_newest_ms;
         // Everything the buffer has to say, read out before the borrow ends.
         let gap = buffer.gaps > buffer.gaps_at_read;
         let gaps_seen = buffer.gaps;
@@ -1354,6 +1389,7 @@ impl Registry {
                     held: held_rows,
                     dropped,
                     covered_since_ms,
+                    dropped_newest_ms,
                     feed_dropped,
                     gap,
                     incomplete_at_ms: incomplete_at,
@@ -1523,7 +1559,9 @@ impl Registry {
                     }
                 })
                 .unwrap_or(opened_ms),
-            newest_ms: state.prints.back().and_then(|p| seen_ms(&p.trade)),
+            // The newest print returned, which with a count of nought is
+            // none: an age there would date a print the caller never saw.
+            newest_ms: rows.last().and_then(|p| seen_ms(&p.trade)),
             new_since_last_read: new,
             rows,
         };
@@ -1639,15 +1677,35 @@ impl Registry {
     /// no quote waits to go before the next trade, on every contract and
     /// every market.
     fn gap(&self, now: u64) {
-        let mut held = self.lock();
+        Self::lost(&mut self.lock(), now, Delivery::Unproven);
+    }
+
+    /// A frame the vendor sent that became no row here, because the SDK could
+    /// not decode it or does not know the code it carried. The feed is
+    /// delivering, so the loss is dated and nothing waits on proof.
+    fn unplaceable(&self, now: u64) {
+        Self::lost(&mut self.lock(), now, Delivery::Proven);
+    }
+
+    /// Mark every buffer as having lost rows at `now`.
+    ///
+    /// `delivery` is what this loss says about the feed itself. An
+    /// interruption leaves delivery unproven until a row lands: no window
+    /// ending now can be shown whole, because nothing says the feed came
+    /// back. A row this server could not place is different — the feed is
+    /// delivering, it simply handed over something with no buffer to put it
+    /// in — so the loss is dated and nothing waits on proof.
+    fn lost(held: &mut Held, now: u64, delivery: Delivery) {
         for state in held.contracts.values_mut() {
             state.seal();
             state.gaps += 1;
             state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
             for (_, buffer) in &mut state.buffers {
                 buffer.gaps += 1;
-                buffer.incomplete_at_ms = now;
-                buffer.awaiting_resume = true;
+                buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now);
+                if delivery == Delivery::Unproven {
+                    buffer.awaiting_resume = true;
+                }
             }
         }
         for (_, market) in &mut held.markets {
@@ -1783,7 +1841,6 @@ impl Registry {
         match shape(sub) {
             Some(Shape::Contract(contract, kind)) => {
                 let state = held.contracts.entry(contract.clone()).or_default();
-                let had_prints = !state.prints.is_empty();
                 let (buffer, first) = state.open(kind, now);
                 if first {
                     // Idle as far as the sweep is concerned, so the next one
@@ -1799,7 +1856,11 @@ impl Registry {
                     buffer.gaps += 1;
                     buffer.incomplete_at_ms = now;
                     buffer.awaiting_resume = true;
-                    if kind == SubscriptionKind::Trade && had_prints {
+                    if kind == SubscriptionKind::Trade {
+                        // Whether or not any print is held: the leg was gone
+                        // while the feed kept delivering, so the prints from
+                        // that interval are missing, and an empty list is the
+                        // one shape where nothing else would ever say so.
                         state.gaps += 1;
                         state.prints_holed_before =
                             Some(state.prints_dropped + state.prints.len() as u64);
@@ -1814,6 +1875,12 @@ impl Registry {
                 // Idle to the sweep, without dating a read's since_seconds
                 // to the epoch.
                 market.touched_ms = 0;
+                // The same absence the contract arm marks above. The buffer
+                // was gone while the feed kept delivering every print on the
+                // type, and it held no selection to offer them to, so the
+                // next read must not find an intact market and conclude
+                // nothing was missed.
+                market.gaps += 1;
                 held.markets.push((sec, market));
             }
             _ => {}
@@ -1845,15 +1912,25 @@ impl Registry {
                     newest_ms: b.ring.back().and_then(seen_ms),
                 })
             })
-            .chain(held.markets.iter().map(|(sec, m)| Holding {
-                sub: sec.full_trades(),
-                label: sec.as_str().to_string(),
-                received: m.received,
-                held: m.selection.as_ref().map_or(0, |s| s.kept.len()),
-                dropped: 0,
-                opened_ms: m.opened_ms,
-                read_ms: Some(m.touched_ms).filter(|t| *t > 0),
-                newest_ms: m.newest_ms,
+            .chain(held.markets.iter().map(|(sec, m)| {
+                Holding {
+                    sub: sec.full_trades(),
+                    label: sec.as_str().to_string(),
+                    received: m.received,
+                    held: m.selection.as_ref().map_or(0, |s| s.kept.len()),
+                    dropped: 0,
+                    opened_ms: m.opened_ms,
+                    read_ms: Some(m.touched_ms).filter(|t| *t > 0),
+                    // The newest print this row is holding, which is not the
+                    // newest the market received: a narrow selection keeps an old
+                    // one while the tape stays busy, and the listing's age is of
+                    // what it holds, the same as a contract row's. The other
+                    // number is `feed_age_ms`, and only a market read returns it.
+                    newest_ms: m
+                        .selection
+                        .as_ref()
+                        .and_then(|s| s.kept.iter().filter_map(|p| seen_ms(&p.trade)).max()),
+                }
             }))
             .collect();
         rows.sort_by_key(|h| (h.label.clone(), label(&h.sub)));
@@ -1884,6 +1961,16 @@ impl Registry {
             return;
         };
         let mut held = self.lock();
+        // A tick the vendor sent before naming the contract it belongs to.
+        // The SDK hands it over under a sentinel so an operator can see the
+        // wire id, and it matches no buffer and no market here, so it is
+        // lost. Nothing else records it: it is not a row any buffer
+        // received, not one the ring evicted, and not one the SDK discarded.
+        // Every window open while it arrived is short by it.
+        if contract.sec_type == SecType::Unknown {
+            Self::lost(&mut held, now_ms(), Delivery::Proven);
+            return;
+        }
         if let Some(market) = held.market(contract.sec_type) {
             market.ingest(&data);
         }
@@ -1930,7 +2017,21 @@ impl Registry {
         // rows the previous subscription queued. They belong to the feed
         // this buffer was not on. A zero stamp is the SDK's fallback for a
         // clock it could not read and means unknown, so those are kept.
+        //
+        // The same test refuses a live row while a host clock that stepped
+        // backwards leaves it stamped before this buffer opened, and there
+        // is no way here to tell the two apart. Either way a row the feed
+        // delivered is not being kept, so the buffer counts the moment
+        // short. The feed is delivering, so nothing waits on proof.
         if seen_ms(&data).is_some_and(|seen| seen < buffer.opened_ms) {
+            buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now_ms());
+            // A refused trade is a print that will not be in the list, and a
+            // prints answer reads the state's marks rather than a buffer's,
+            // so marking only the buffer leaves the prints on either side of
+            // it served as though they were next to each other.
+            if msg == SubscriptionKind::Trade.subscribe_code() {
+                state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
+            }
             return;
         }
         buffer.received += 1;
@@ -1939,14 +2040,25 @@ impl Registry {
             // proves that much and dates nothing, so the loss keeps the
             // moment it already had rather than being moved to zero, which
             // would erase it.
-            if let Some(seen) = seen_ms(&data) {
+            // And it proves it only if it was stamped at or after the
+            // moment the loss was dated. A row decoded before the break can
+            // still be in the SDK's ring when the break is marked, because
+            // the status flag moves ahead of the queue; taking that row as
+            // proof would clear the mark and pull the loss back to before it
+            // happened, leaving every later window over the outage whole.
+            if let Some(seen) = seen_ms(&data).filter(|s| *s >= buffer.incomplete_at_ms) {
                 buffer.incomplete_at_ms = seen;
                 buffer.awaiting_resume = false;
             }
         }
         if buffer.ring.len() == RING {
-            buffer.ring.pop_front();
-            buffer.dropped += 1;
+            if let Some(evicted) = buffer.ring.pop_front() {
+                buffer.dropped += 1;
+                match seen_ms(&evicted) {
+                    Some(ms) => buffer.dropped_newest_ms = buffer.dropped_newest_ms.max(ms),
+                    None => buffer.dropped_unstamped = true,
+                }
+            }
         }
         buffer.ring.push_back(data.clone());
 
@@ -2241,7 +2353,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 account and its first read returns nothing, so reaching for it to read a \
                 single value costs two calls and leaves a buffer open for fifteen minutes. \
                 Reach for it when the gap between two looks is the thing you care about: it \
-                serves every row in that gap, and says so when it could not see them all, \
+                serves the newest rows from that gap, counts the rest, and says so when it \
+                could not see them all, \
                 which is what no snapshot can tell you. The first read opens the \
                 subscription and returns nothing yet; read again a second or two later. After \
                 that the window defaults to everything since your last read of this buffer; pass \
@@ -2249,20 +2362,39 @@ pub fn tool_definitions() -> Vec<Value> {
                 never how long ago the feed last carried anything: an index reports \
                 about once a second, so seconds of age are normal there and stale on an option \
                 quote. Rows are held within a memory budget, not for a length of time: \
-                covers_seconds is how far back the rows held reach right now, and clipped means \
-                the window you asked for reaches further, which a liquid buffer can hit within \
-                seconds. rows_in_window is how many rows the window held, which is not how \
+                covers_seconds is how far back this buffer is known to have seen everything: \
+                the oldest row it still holds once its ring has pushed rows out, and the \
+                moment it opened before that, because a buffer that has dropped nothing has \
+                missed nothing since it opened however quiet the contract was. clipped means \
+                this answer is not the whole of the window you asked for: either it reaches \
+                further back than the rows held, which a liquid buffer can hit within seconds, \
+                or the feed was interrupted, or events were discarded, inside it. Treat it as \
+                the one field that says whether anything is missing, whatever the cause. It \
+                speaks for what this server has received: a row the feed has sent and not yet \
+                delivered is in no answer and behind no flag, so a window ending now is a claim \
+                about rows in hand rather than about the market. \
+                rows_in_window is how many rows of the window this buffer still holds, which is not how \
                 many came back: the tail is capped, so a larger count means you are seeing the \
                 newest of more. The tail is the vendor's messages as sent, condition and \
-                exchange codes intact. vendor_ohlcvc is the vendor's own bar for the contract \
+                exchange codes intact. A row carried inside this answer has its own age_ms \
+                beside it, which is the age of that row and not of the answer. \
+                vendor_ohlcvc is the vendor's own bar for the contract \
                 as last sent, served as is; nothing here builds a bar from trades, because \
                 condition, cancel and size rules are yours to choose, and nothing here \
-                summarises them. feed_dropped_since_last_read counts events the SDK discarded \
+                summarises them. subscribed_now says whether this call opened the \
+                subscription, and new_since_last_read counts rows that arrived since your last \
+                live_read of this buffer, counted as they arrived, so it is larger than \
+                rows_in_window whenever the ring pushed some of them out again, and clipped \
+                says so when it does. dropped counts rows this buffer's ring has pushed out since \
+                it opened, a running total rather than a count since your last read. \
+                feed_dropped_since_last_read counts events the SDK discarded \
                 because this server fell behind; while it is not zero any buffer may be missing \
                 rows, and clipped says so. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
-                are Eastern. A buffer goes 15 minutes unread and the next call to any of these \
+                are Eastern. A buffer goes 15 minutes without any of these tools using it, \
+                which live_prints does to the legs it reads from without reading them, and \
+                the next call to any of these \
                 tools closes it; live_stop closes it now. A read that finds \
                 the feed refused the subscription after accepting it says so and releases the \
                 buffer; reading again re-subscribes. In the answer: window_from says whether the \
@@ -2279,7 +2411,7 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "live_prints",
-            "description": "Trades on one contract since you last looked, newest last, each \
+            "description": "The newest trades on one contract, oldest of them first, each \
                 with the quote that stood before it; the feed also sends the two quotes after \
                 a print, and quotes_after returns them. For the last trade alone use a \
                 snapshot, stock_snapshot_trade or option_snapshot_trade; for a past interval \
@@ -2291,9 +2423,29 @@ pub fn tool_definitions() -> Vec<Value> {
                 for its trades has whatever printed since, without the quotes beside them, \
                 because a print takes only the quotes that arrived while both were being \
                 watched; prints from after this call have them. \
-                new_since_last_read counts prints since your last live_prints on this \
-                contract; live_read keeps its own count of trades. Prints are held within a memory budget, and clipped means older ones \
-                were discarded before you asked. Each print carries quote_before, the quote that stood when it \
+                count is how many prints came back and held is how many this server holds, \
+                so a count short of held means you asked for fewer than there were. \
+                subscribed_now names the legs this call opened, and is empty when it opened \
+                none. \
+                new_since_last_read counts prints that arrived since your last live_prints on \
+                this contract, which is not what the rows are: the prints held survive a \
+                read, so asking twice in a row serves the same ones again. live_read keeps \
+                its own count of trades. age_ms is the age of the \
+                newest print returned, never of the feed, and covers_seconds is how far back \
+                this buffer is known to have seen everything, which is the oldest print held \
+                once prints have been discarded and the moment the trade leg opened before \
+                that. Prints are held within a memory budget. clipped means \
+                this answer is not the whole of what you asked for: you asked for more prints \
+                than are held and older ones had been discarded, or the history has a hole in \
+                it, or \
+                the SDK discarded events, which feed_dropped_since_last_read counts. Treat it \
+                as the one field that says whether anything is missing, whatever the cause, \
+                among the prints this server has received. \
+                feed_interrupted means there was an interval \
+                before this read that nothing was watching, so prints from it were never held: \
+                the connection broke, or a leg expired and was reopened between your calls. A \
+                quote carried beside a print has its own age_ms, which is the age of that quote \
+                and not of the print. Each print carries quote_before, the quote that stood when it \
                 traded, and date when the prints span more than one trading date. A print is a \
                 trade and the quote that stood \
                 before it, and an index has no quote stream, so indices are not on this tool; \
@@ -2314,22 +2466,41 @@ pub fn tool_definitions() -> Vec<Value> {
                 it to every print the feed delivers and keeps the top rows, or the newest \
                 without rank_by, until your next read, which returns them and starts again. So \
                 a read answers the largest prints since you last looked exactly, whatever the \
-                rate: nothing here is windowed by a buffer. Nothing is computed: you select \
-                and rank the vendor's own fields. examined and matched say how many prints the \
+                rate: nothing here is windowed by a buffer. Nothing is computed from the \
+                rows: they are served as the vendor sent them, and the one derived value is \
+                spread, ask minus bid, which you can narrow and rank on and which is never a \
+                column on a row. examined and matched say how many prints the \
                 selection saw and how many passed since your last read; returned is what you \
-                got; unranked counts matches without the rank field, such as a quote field on \
-                a print with no quote ahead of it. A print can go missing two ways and both \
+                got; received is every print this market has taken since it opened, a running \
+                total rather than a count since your last read; \
+                subscribed_now says whether this call opened the subscription, \
+                new_since_last_read counts prints taken since your last read, and each print \
+                carries the contract it traded on, because a whole market spans all of them, \
+                and quote_before, the quote that stood when it traded, with its own age_ms \
+                beside it; date is the trading date \
+                the prints share, absent and carried on each print when they span more than \
+                one. \
+                unranked counts matches without the rank field, such as a quote field on \
+                a print with no quote ahead of it. age_ms is the age of the newest print \
+                returned; feed_age_ms is the age of the newest print on the whole market, \
+                which is a different number whenever a narrow selection holds an old row \
+                while the tape stays busy. A print can go missing two ways and both \
                 are reported: feed_dropped_since_last_read counts what the feed threw away, \
-                and feed_interrupted says the connection broke while the selection stood, so \
-                prints from that interval never arrived to be counted at all. since_seconds is how long the selection stood before \
-                this read took it. Sending different parameters replaces the \
-                selection; the rows that come back were kept under the previous one, shown as \
-                selected_by. Needs an Options Pro or Stocks Pro subscription; the error says \
+                and feed_interrupted means there was an interval before this read that no \
+                selection was watching, so prints from it were never counted at all. The \
+                connection breaking is one cause; the others are this market having been \
+                released and reopened, and a replaced selection having examined prints the \
+                one before it never saw. since_seconds is how long the selection stood before \
+                this read took it. Sending different parameters replaces the selection, and \
+                the answer echoes both: selection is the one in force from here, and \
+                selected_by the one that kept the rows this call returns, present only when \
+                they differ, because the rows came back under that one and not this. Needs an Options Pro or Stocks Pro subscription; the error says \
                 which when the account lacks it. The first call installs the selection, opens \
                 the subscription and returns nothing yet; call again a second or two later. A \
                 market buffer is not held alongside per-contract trade or quote buffers on the same \
                 security type, because the feed would deliver those contracts twice; live_stop \
-                one side. Once 15 minutes unread, the next call to any of these tools closes \
+                one side. Once 15 minutes without any of these tools using it, the next call \
+                to any of them closes \
                 it; live_stop with sec_type alone closes it now. Times are Eastern.",
             "inputSchema": {
                 "type": "object",
@@ -2363,12 +2534,20 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "live_list",
-            "description": "Every buffer this server holds: rows received and held, the age of \
-                the newest, how long since it was read and when it expires, plus the feed's \
-                state. on_feed is whether the feed itself still carries the subscription; a \
+            "description": "Every buffer this server holds. Each is named by contract and \
+                kind, or by sec_type when it is a whole market, with received and held rows, \
+                age_ms for the newest of them, idle_seconds since it was last used and \
+                expires_in_seconds until the sweep releases it, plus the feed's \
+                state. dropped counts rows a buffer's ring has pushed out since it opened, and \
+                open_for_seconds is how long ago it opened, which is not idle_seconds: a busy \
+                buffer is old and never idle. on_feed is whether the feed itself still carries \
+                the subscription; a \
                 buffer the feed dropped is released on its next read. on_feed_not_held lists \
-                subscriptions the feed carries for no buffer. last_rejection is the feed's most \
-                recent refusal of a subscribe, with the vendor's meaning. feed_dropped_events is \
+                subscriptions the feed carries for no buffer. last_rejection is the most recent \
+                refusal of a subscribe this server has recorded, with the vendor's meaning; a \
+                refusal travels the same path as the rows, so a newer one may not have arrived \
+                yet; it carries result, the vendor's code, and seconds_ago, how long since this \
+                server saw it. feed_dropped_events is \
                 the SDK's running count of events it discarded because this server fell behind. \
                 An age that keeps \
                 growing while the feed says Connected is a contract that has gone quiet, not a \
@@ -2379,9 +2558,12 @@ pub fn tool_definitions() -> Vec<Value> {
         json!({
             "name": "live_stop",
             "description": "Close every buffer held for a contract and release its subscriptions; \
-                with sec_type alone, close the whole-market buffer for that security type. A \
+                with sec_type alone, close the whole-market buffer for that security type, which \
+                an index does not have, so an index is closed by its root. subscriptions_closed \
+                counts what the feed released and failed_to_close names what it would not. A \
                 subscription the feed did not release stays held; the buffer is kept so a \
-                later stop, or the sweep once it is idle again, tries to release it. A buffer 15 minutes unread is closed by the next call to any of these \
+                later stop, or the sweep once it is idle again, tries to release it. A buffer \
+                15 minutes without any of these tools using it is closed by the next call to any of these \
                 tools, so nothing is released while the server sits idle.",
             "inputSchema": {
                 "type": "object",
@@ -2617,15 +2799,111 @@ fn feed_state(client: &Client) -> String {
 /// one started; a new session knows nothing of the buffers this process still
 /// holds, so they are reopened from the registry rather than from what the
 /// old session tracked.
+/// Whether a loss leaves the feed's delivery in doubt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Delivery {
+    /// The feed was still delivering when this was lost.
+    Proven,
+    /// The feed stopped, and nothing since says it started again.
+    Unproven,
+}
+
+/// What a control event from the feed means for what this server is holding.
+///
+/// Pulled out of the callback so the decision is reachable by a test: the
+/// callback needs a live client, and a control event this server ignores is
+/// indistinguishable, from outside, from one it never knew about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FeedEvent {
+    /// The feed stopped carrying what it was carrying, and nothing since says
+    /// it is back.
+    Interrupted,
+    /// A frame arrived and became no row here, on a feed still delivering.
+    Unplaceable,
+    /// The feed refused a subscribe, with the code it gave.
+    Refused(StreamResponseType),
+    /// Nothing this server holds is affected.
+    Ignored,
+}
+
+fn feed_event(control: &StreamControl) -> FeedEvent {
+    match control {
+        // A server restart is an interruption without the socket closing:
+        // the vendor ends one stream and begins another, the SDK clears its
+        // delta state and its contract cache, and the ticks between the two
+        // never arrive. The connection stays up and the session stays
+        // authenticated, so nothing else here would notice.
+        StreamControl::Disconnected { .. }
+        | StreamControl::Reconnecting { .. }
+        | StreamControl::Restart
+        | StreamControl::ReconnectedServer => FeedEvent::Interrupted,
+        // A frame that did not decode, or carried a code this build does not
+        // know. The SDK hands these over rather than dropping them quietly,
+        // and either may have been a row: not one any buffer received, not
+        // one the ring evicted, and not one the SDK discarded. They are not
+        // sent in ordinary operation, which is what makes marking on them
+        // honest rather than noise.
+        StreamControl::Error { .. } | StreamControl::UnknownFrame { .. } => FeedEvent::Unplaceable,
+        StreamControl::ReqResponse { result, .. } if *result != StreamResponseType::Subscribed => {
+            FeedEvent::Refused(*result)
+        }
+        // Everything else says nothing about rows this server holds: a
+        // session opening or closing, a heartbeat, the SDK's own reconnect
+        // succeeding after a Reconnecting that already marked, its budget
+        // running out after a Disconnected that already marked, a contract
+        // being named, and a subscribe the feed accepted.
+        _ => FeedEvent::Ignored,
+    }
+}
+
+/// What a call has to do about the feed before it can answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FeedAction {
+    /// Nothing has run yet: open a session.
+    Start,
+    /// A dead session still occupies the slot; it has to go before another
+    /// can take it.
+    StopThenStart,
+    /// The session is up. Answer from it.
+    Deliver,
+    /// The session is down and recovering, and the registry has not been
+    /// told. Mark the interruption before answering.
+    MarkInterrupted,
+}
+
+/// What the feed's own state means for the call about to be answered.
+///
+/// Pulled out of the call that needs a live client so the decision is
+/// reachable by a test. The one that matters is `Reconnecting`: the SDK
+/// clears the authenticated flag on the thread reading the socket, and the
+/// event that tells this registry so is queued behind every row already in
+/// the ring, which at a market open is a great many. A read that waits for
+/// that event to drain before believing the status answers that a window
+/// spanning an outage already in progress is whole. Any state that is not
+/// connected is a feed that is not delivering, and a state a later SDK adds
+/// is treated the same way, because over-marking costs a caller far less
+/// than a window that claims to be whole and is not.
+fn feed_action(status: ConnectionStatus) -> FeedAction {
+    match status {
+        ConnectionStatus::NotStarted => FeedAction::Start,
+        ConnectionStatus::Disconnected | ConnectionStatus::ReconnectsExhausted => {
+            FeedAction::StopThenStart
+        }
+        ConnectionStatus::Connected => FeedAction::Deliver,
+        _ => FeedAction::MarkInterrupted,
+    }
+}
+
 fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, ToolError> {
     let stream = client.stream();
-    match stream.connection_status() {
-        ConnectionStatus::NotStarted => {}
-        // A dead session still occupies the slot until it is stopped.
-        ConnectionStatus::Disconnected | ConnectionStatus::ReconnectsExhausted => {
-            stream.stop_streaming();
+    match feed_action(stream.connection_status()) {
+        FeedAction::Start => {}
+        FeedAction::StopThenStart => stream.stop_streaming(),
+        FeedAction::Deliver => return Ok(stream.dropped_event_count()),
+        FeedAction::MarkInterrupted => {
+            reg.gap(now_ms());
+            return Ok(stream.dropped_event_count());
         }
-        _ => return Ok(stream.dropped_event_count()),
     }
     // Stopping is asynchronous: the retired dispatcher can still be
     // running, and a row it delivers after the reset would be recorded as
@@ -2646,16 +2924,12 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
     stream
         .start_streaming(move |event: &StreamEvent| match event {
             StreamEvent::Data(data) => reg.ingest(data.clone()),
-            // The SDK reconnects on its own, and whatever the feed sent
-            // between the drop and the new session was never seen.
-            StreamEvent::Control(
-                StreamControl::Disconnected { .. } | StreamControl::Reconnecting { .. },
-            ) => reg.gap(now_ms()),
-            StreamEvent::Control(StreamControl::ReqResponse { result, .. })
-                if *result != StreamResponseType::Subscribed =>
-            {
-                reg.note_rejection(*result, now_ms());
-            }
+            StreamEvent::Control(control) => match feed_event(control) {
+                FeedEvent::Interrupted => reg.gap(now_ms()),
+                FeedEvent::Unplaceable => reg.unplaceable(now_ms()),
+                FeedEvent::Refused(code) => reg.note_rejection(code, now_ms()),
+                FeedEvent::Ignored => {}
+            },
             _ => {}
         })
         .map_err(|e| stream_error("could not start streaming", e))?;
@@ -2718,9 +2992,12 @@ fn on_feed(client: &Client) -> Result<Subs, ToolError> {
 /// feed's most recent refusal and what the vendor says it means.
 fn dropped_by_feed(reg: &Registry, sub: &Subscription, now: u64) -> ToolError {
     reg.forget(sub);
+    // The rejection this server has recorded, which is not necessarily the
+    // newest one the feed has sent: the event carrying it is delivered on the
+    // same path as the rows and can still be behind them.
     let why = reg.last_rejection().map_or_else(String::new, |(code, at)| {
         format!(
-            " The feed's most recent rejection was {code}, {:.1} s ago: {}.",
+            " The last rejection this server recorded was {code}, {:.1} s ago: {}.",
             seconds(now.saturating_sub(at)),
             rejection_meaning(code)
         )
@@ -2750,10 +3027,20 @@ fn reconcile(
         return Ok(());
     }
     let live = on_feed(client)?;
-    match subs.iter().find(|s| !live.contains(s)) {
+    match dropped_of(subs, &live) {
         Some(sub) => Err(dropped_by_feed(reg, sub, now)),
         None => Ok(()),
     }
+}
+
+/// The first of `subs` the feed is no longer carrying, or `None` while it
+/// carries them all.
+///
+/// Pulled out of the feed call so the decision is reachable by a test: the
+/// call around it needs a live client, and a check that only exists inside an
+/// untestable branch is a check nobody can prove runs the right way round.
+fn dropped_of<'a>(subs: &'a [Subscription], live: &[Subscription]) -> Option<&'a Subscription> {
+    subs.iter().find(|s| !live.contains(s))
 }
 
 fn parse_sec(args: &Value) -> Result<SecType, ToolError> {
@@ -3191,7 +3478,17 @@ fn list_response(
             "seconds_ago": seconds(now.saturating_sub(at))
         })),
         "held": rows.iter().map(|h| json!({
-            "contract": h.label,
+            // A whole market is not a contract, and naming it under one hands
+            // a caller a security type where a root belongs. `stop_response`
+            // already refuses this; so does the listing.
+            "contract": match shape(&h.sub) {
+                Some(Shape::Full(..)) | None => Value::default(),
+                Some(Shape::Contract(..)) => Value::from(h.label.as_str()),
+            },
+            "sec_type": match shape(&h.sub) {
+                Some(Shape::Full(sec, _)) => Value::from(sec.as_str().to_ascii_lowercase().as_str()),
+                _ => Value::default(),
+            },
             "kind": match shape(&h.sub) {
                 Some(Shape::Contract(_, k)) => k.kind_str(),
                 Some(Shape::Full(_, k)) => k.kind_str(),
@@ -3408,7 +3705,10 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
         };
         if let Err(e) = landed {
             // The caller receives nothing, so the selection this read took
-            // goes back and its rows reach whoever asks next.
+            // goes back and its rows reach whoever asks next. Except when
+            // the feed dropped the subscription, which releases the market:
+            // there is no longer anything for a selection to be installed
+            // on, and the error returned says the buffer is gone.
             reg.restore_market(sec, m.settle.outgoing.take());
             return Err(e);
         }
@@ -3555,7 +3855,9 @@ mod tests {
     }
 
     fn trade_with(c: &Contract, price: f64, condition: i32, received_at_ns: u64) -> StreamData {
-        trade_sized(c, price, 1, condition, received_at_ns)
+        // Size differs from price so a swap between the two is visible. With
+        // both rendering as one, `fields` could exchange them unseen.
+        trade_sized(c, price, 7, condition, received_at_ns)
     }
 
     fn trade_on(c: &Contract, price: f64, date: i32, received_at_ns: u64) -> StreamData {
@@ -4065,6 +4367,23 @@ mod tests {
             .expect("nothing to refuse");
         assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
 
+        // And the other shape of window, which counts stamps rather than
+        // arrivals and would otherwise have to be taken on trust.
+        reg.ingest(trade(&c, 1.5, 3 * MS));
+        let named = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 7, 4)
+            .expect("nothing to refuse");
+        assert_eq!(named.feed_dropped_since_last_read, 1);
+        assert!(named.clipped, "a named window counts the discard too");
+        // A window that begins after the read which dated that loss: the
+        // discard is behind it, and it is the whole of what it asked for.
+        let quiet = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 7, 6)
+            .expect("nothing to refuse");
+        assert_eq!(
+            (quiet.feed_dropped_since_last_read, quiet.clipped),
+            (0, false),
+            "and stops counting it once it has been disclosed"
+        );
+
         // The cursor moves where the prints cursor moves: on the commit that
         // follows a call the caller actually received.
         let first = reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
@@ -4137,12 +4456,27 @@ mod tests {
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, MS));
         reg.prints(&c, 10, 0, 2 * MS).expect("nothing to refuse");
+
+        // The half the window rule exists to allow. Nothing has read the
+        // trade buffer since it opened, so a sweep past the TTL from that
+        // read frees it unless the prints call counted as use. Checked here,
+        // before the read below touches it and would answer for it.
+        let expired = reg.expire(TTL.as_millis() as u64 + 1);
+        assert!(
+            expired.is_empty(),
+            "the prints call kept the trade leg alive: {expired:?}"
+        );
+
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3 * MS)
             .expect("nothing to refuse");
         assert_eq!(r.new_since_last_read, 1, "the trade is new to this read");
         assert_eq!(
             r.floor, 0,
             "the window still starts at the last read of this buffer, not at the prints call"
+        );
+        assert!(
+            !reg.expire(3 * MS + TTL.as_millis() as u64 + 1).is_empty(),
+            "and past the TTL from the last use of them, they go"
         );
     }
 
@@ -4159,6 +4493,47 @@ mod tests {
             "one session, one date"
         );
         assert_eq!(one_date(std::iter::empty()), None, "nothing to name");
+
+        // And what the name claims: with no date for the collection, each row
+        // carries its own and the column header says so. Asserting only the
+        // aggregate leaves the carriage itself unproven.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade_on(&c, 1.0, 20260915, 2_000 * MS));
+        reg.ingest(trade_on(&c, 2.0, 20260916, 3_000 * MS));
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 4_000)
+            .expect("nothing to refuse");
+        let v = read_response(
+            &c,
+            SubscriptionKind::Trade,
+            "Connected".into(),
+            None,
+            &r,
+            4_000,
+        );
+        assert!(v["date"].is_null(), "the rows do not share one");
+        let cols: Vec<&str> = v["columns"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|x| x.as_str()).collect())
+            .unwrap_or_default();
+        assert_eq!(
+            cols.last(),
+            Some(&"date"),
+            "so the header names a date column"
+        );
+        let rows = v["tail"].as_array().cloned().unwrap_or_default();
+        assert_eq!(rows.len(), 2, "both rows come back");
+        let dates: Vec<i64> = rows
+            .iter()
+            .filter_map(|row| {
+                row.as_array()
+                    .and_then(|a| a.last())
+                    .and_then(|d| d.as_i64())
+            })
+            .collect();
+        assert_eq!(dates, vec![20260915, 20260916], "each carrying its own");
     }
 
     #[test]
@@ -4172,26 +4547,30 @@ mod tests {
         reg.ingest(trade(&c, 1.0, MS));
         reg.gap(1);
 
-        // An uncommitted read: the answer never reached anyone.
+        // An uncommitted read: the answer never reached anyone. The clock a
+        // read is given and the clock a row is stamped with are the same one,
+        // so they are written on the same scale here: milliseconds for the
+        // read, the same milliseconds times MS for the stamp.
         let lost = reg
-            .read(&c, SubscriptionKind::Trade, None, TAIL, 7, 2 * MS)
+            .read(&c, SubscriptionKind::Trade, None, TAIL, 7, 2)
             .expect("nothing to refuse");
         assert_eq!(lost.new_since_last_read, 1);
         assert_eq!(lost.feed_dropped_since_last_read, 7);
 
         // Every one of them is still owed.
-        let next = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 7, 3 * MS)
+        let next = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 7, 3)
             .expect("nothing to refuse");
         assert_eq!(next.new_since_last_read, 1, "the row is still new");
         assert_eq!(next.feed_dropped_since_last_read, 7, "nor the discards");
         assert!(next.clipped, "nor the interruption");
 
         // Once answered, they are settled. A row first, since nothing else
-        // shows the feed came back from the interruption above.
+        // shows the feed came back from the interruption above, and stamped
+        // after the read that dated the loss, because one stamped before it
+        // was decoded before the feed stopped and proves nothing.
         reg.ingest(trade(&c, 2.0, 4 * MS));
-        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 7, 5 * MS)
-            .expect("nothing to refuse");
-        let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 7, 6 * MS)
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 7, 5).expect("nothing to refuse");
+        let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 7, 6)
             .expect("nothing to refuse");
         assert_eq!(
             (
@@ -4362,8 +4741,9 @@ mod tests {
         );
         let get = |k: &str| v.get(k).cloned().unwrap_or_default();
 
-        // The age is of the newest row returned, 5_000, not of anything the
-        // feed did. This is the one thing this surface exists not to do.
+        // The age is of the newest row returned, stamped 7_000, not of
+        // anything the feed did. This is what this surface exists not to get
+        // wrong.
         assert_eq!(
             get("age_ms").as_u64(),
             Some(2_000),
@@ -4405,13 +4785,18 @@ mod tests {
 
         // A named window is labelled as the caller's and measured from the
         // floor that read carried, which is the interval they asked for.
+        // One more row, and a feed that discarded three events, so the four
+        // counts below are four different numbers: under the default window
+        // a count of the window and a count since the last read are the same
+        // rows, and a swap between them is invisible.
+        reg.ingest(trade(&c, 5.0, 8_500 * MS));
         let n = read_now(
             &reg,
             &c,
             SubscriptionKind::Trade,
-            Some(2_000),
+            Some(6_000),
             TAIL,
-            0,
+            3,
             10_000,
         )
         .expect("nothing to refuse");
@@ -4419,7 +4804,7 @@ mod tests {
             &c,
             SubscriptionKind::Trade,
             "Connected".into(),
-            Some(2_000),
+            Some(6_000),
             &n,
             10_000,
         );
@@ -4429,7 +4814,28 @@ mod tests {
         );
         assert_eq!(
             named.get("window_seconds").and_then(|v| v.as_f64()),
-            Some(2.0)
+            Some(6.0)
+        );
+        let named_get = |k: &str| named.get(k).cloned().unwrap_or_default();
+        assert_eq!(
+            named_get("rows_in_window").as_u64(),
+            Some(5),
+            "every row stamped at or after the floor"
+        );
+        assert_eq!(
+            named_get("new_since_last_read").as_u64(),
+            Some(1),
+            "of which one arrived since the read at 9_000"
+        );
+        assert_eq!(
+            named_get("dropped").as_u64(),
+            Some(0),
+            "the ring evicted nothing"
+        );
+        assert_eq!(
+            named_get("feed_dropped_since_last_read").as_u64(),
+            Some(3),
+            "while the feed discarded three, which is a different loss"
         );
         // Coverage is how far back the rows held reach, and it is not the
         // window: this buffer has been open nine seconds, so a two-second
@@ -4480,6 +4886,77 @@ mod tests {
             leaked.get("contract").is_none(),
             "a whole market has no contract"
         );
+    }
+
+    #[test]
+    fn every_field_an_answer_returns_is_one_its_description_names() {
+        // A caller reads the description, then the answer. A field the
+        // description never names is one they have to guess at, and the guess
+        // is what a running total sitting among counts since the last read
+        // gets wrong. Read off the source rather than off a built response,
+        // because a fixture that happens not to produce a nested field would
+        // pass while saying nothing about it.
+        // Matched on whole words, so a field name is not satisfied by
+        // appearing inside a longer one. What this cannot catch is a name
+        // that reads as ordinary prose: `selection` sat in a sentence about
+        // replacing one for a while before anything said it comes back on
+        // the answer.
+        let src = include_str!("stream.rs");
+        let body = |signature: &str| -> String {
+            let at = src
+                .find(signature)
+                .unwrap_or_else(|| panic!("{signature} is gone; this test is checking nothing"));
+            let rest = &src[at..];
+            // Every one of these is a top-level fn, so its body ends at the
+            // first line that is a lone closing brace in column one.
+            let end = rest
+                .find("\n}\n")
+                .unwrap_or_else(|| panic!("{signature} has no closed body"));
+            rest[..end].to_string()
+        };
+        let named = |tool: &str| -> String {
+            tool_definitions()
+                .into_iter()
+                .find(|t| t["name"] == tool)
+                .and_then(|t| t["description"].as_str().map(ToString::to_string))
+                .unwrap_or_else(|| panic!("{tool} has no description"))
+        };
+
+        let mut checked = 0;
+        for (signature, tool) in [
+            ("fn read_response(", "live_read"),
+            ("fn prints_response(", "live_prints"),
+            ("fn market_response(", "live_market"),
+            ("fn list_response(", "live_list"),
+            ("fn stop_response(", "live_stop"),
+        ] {
+            let answer = body(signature);
+            let description = named(tool);
+            let mut fields: Vec<&str> = answer
+                .split('"')
+                .zip(answer.split('"').skip(1))
+                .filter(|(_, after)| after.starts_with(':'))
+                .map(|(field, _)| field)
+                .filter(|f| !f.is_empty() && f.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
+                .collect();
+            fields.sort_unstable();
+            fields.dedup();
+            assert!(
+                fields.len() > 1,
+                "{signature} parsed to {} field(s); the scan is broken, not the code",
+                fields.len()
+            );
+            for field in fields {
+                assert!(
+                    description
+                        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                        .any(|word| word == field),
+                    "{tool} returns {field} and its description never names it"
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked > 50, "only {checked} fields were checked");
     }
 
     #[test]
@@ -4584,8 +5061,53 @@ mod tests {
             "paired with the quote that stood before it, not an earlier one"
         );
         // The most important disclosure on this arm, read through the
-        // response rather than off the reading it was built from.
+        // response rather than off the reading. Both ways round: a fixture
+        // that never interrupts proves only that a negation is caught.
         assert_eq!(get("feed_interrupted").as_bool(), Some(false));
+        reg.gap(6_100);
+        let after =
+            market_now(&reg, SecType::Stock, q.clone(), 0, 6_200).expect("nothing to refuse");
+        let after_v = market_response(SecType::Stock, "Connected".into(), &q, &after, 6_200);
+        assert_eq!(
+            after_v["feed_interrupted"].as_bool(),
+            Some(true),
+            "and an interruption is reported"
+        );
+        assert_eq!(
+            after_v["received"].as_u64(),
+            Some(3),
+            "every stock print the market took since it opened"
+        );
+        assert_eq!(
+            after_v["new_since_last_read"].as_u64(),
+            Some(0),
+            "none of them since the read a moment ago, which is the other number"
+        );
+        assert_eq!(
+            after_v["since_seconds"].as_f64(),
+            Some(0.2),
+            "the selection stood from the read at 6_000 to this one"
+        );
+
+        // A read that changes the selection: the rows came back under the one
+        // that stood, and the new one takes effect from here. Reported the
+        // other way round, a caller credits rows to a question nothing has
+        // asked yet.
+        let mut next = query(1);
+        next.root = Some("MSFT".into());
+        let changed =
+            market_now(&reg, SecType::Stock, next.clone(), 0, 7_000).expect("nothing to refuse");
+        let changed_v = market_response(SecType::Stock, "Connected".into(), &next, &changed, 7_000);
+        assert_eq!(
+            changed_v["selection"]["root"].as_str(),
+            Some("MSFT"),
+            "what is selecting from here"
+        );
+        assert_eq!(
+            changed_v["selected_by"]["root"].as_str(),
+            Some("AAPL"),
+            "and what kept the rows this read returns"
+        );
     }
 
     #[test]
@@ -4660,6 +5182,24 @@ mod tests {
         let with = prints_response(&c, "Connected".into(), 2, true, &p, 9_000);
         assert!(with["prints"][0].get("quotes_after").is_some(), "asked for");
 
+        // A read that takes nothing: the prints are still held and none of
+        // them is new, which is the only state that tells the two counts
+        // apart. Until this read they were the same number.
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        let quiet = reg.prints(&c, 2, 7, 10_000).expect("nothing to refuse");
+        let q = prints_response(&c, "Connected".into(), 2, false, &quiet, 10_000);
+        assert_eq!(q["held"].as_u64(), Some(3), "still holding every print");
+        assert_eq!(
+            q["new_since_last_read"].as_u64(),
+            Some(0),
+            "and not one of them arrived since the read a second ago"
+        );
+        assert_eq!(
+            q["covers_seconds"].as_f64(),
+            Some(9.0),
+            "back to when the legs opened, not to the oldest print"
+        );
+
         // Each reason to clip on its own, since a fixture that trips two of
         // them cannot tell which one the answer is reading. Here the history
         // has a hole and nothing else is wrong: no discards, nothing evicted,
@@ -4732,6 +5272,10 @@ mod tests {
             .expect("nothing to refuse");
         read_now(&reg, &gone, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
             .expect("nothing to refuse");
+        // Read again later, so the moment it opened and the moment it was
+        // read differ and the countdown can only come from one of them.
+        read_now(&reg, &held, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
         // Counters that differ from one another, so a swap between any two is
         // visible. All nought proves nothing.
         for _ in 0..(RING + 2) {
@@ -4772,15 +5316,73 @@ mod tests {
             "what the ring still holds"
         );
         assert_eq!(row["dropped"].as_u64(), Some(2), "and what it pushed out");
+        assert!(row["sec_type"].is_null(), "a contract is not a market");
+        assert_eq!(row["kind"].as_str(), Some("trade"));
         assert_eq!(
-            v["held"][0]["expires_in_seconds"].as_f64(),
-            Some(seconds(TTL.as_millis() as u64 - 4_000)),
-            "the time left, counted down from the last read"
+            row["age_ms"].as_u64(),
+            Some(3_000),
+            "the newest row it holds is stamped 2_000"
+        );
+        // Three clocks a line apart: the open at 1_000, the last read at
+        // 3_000, and the release that follows the read. Each reads a
+        // different number here, so a swap between any two is visible.
+        assert_eq!(
+            row["open_for_seconds"].as_f64(),
+            Some(4.0),
+            "open since 1_000"
+        );
+        assert_eq!(
+            row["idle_seconds"].as_f64(),
+            Some(2.0),
+            "but unread only since 3_000"
+        );
+        assert_eq!(
+            row["expires_in_seconds"].as_f64(),
+            Some(seconds(TTL.as_millis() as u64 - 2_000)),
+            "counted down from the last read at 3_000, not the open at 1_000"
         );
         assert_eq!(
             v["on_feed_not_held"].as_array().map(|a| a.len()),
             Some(0),
             "nothing on the feed that is not held"
+        );
+
+        // The last rejection the feed sent, which is what a caller reads to
+        // learn why a subscription did not take. The code and the sentence
+        // explaining it are built a line apart, and a rejection paired with
+        // another code's meaning sends a caller to the wrong remedy.
+        let rejected = list_response(
+            "Connected".into(),
+            9,
+            Some((StreamResponseType::MaxStreamsReached, 4_000)),
+            &rows,
+            Some(&on_feed),
+            5_000,
+        );
+        assert_eq!(
+            rejected["last_rejection"]["result"].as_str(),
+            Some("MAX_STREAMS_REACHED")
+        );
+        // Not matched against a phrase, which stops testing anything the day
+        // the wording changes: the meaning shown is this code's, so it is
+        // none of the other three's.
+        let meaning = rejected["last_rejection"]["meaning"].as_str();
+        assert!(meaning.is_some(), "a rejection carries what it means");
+        for other in [
+            StreamResponseType::Subscribed,
+            StreamResponseType::Error,
+            StreamResponseType::InvalidPerms,
+        ] {
+            assert_ne!(
+                meaning,
+                Some(rejection_meaning(other)),
+                "the rejection is paired with another code's remedy"
+            );
+        }
+        assert_eq!(
+            rejected["last_rejection"]["seconds_ago"].as_f64(),
+            Some(1.0),
+            "sent at 4_000, read at 5_000"
         );
     }
 
@@ -4860,7 +5462,13 @@ mod tests {
         // were evicted before it. That count is the only one separating
         // "fewer than asked for" from "no more than asked for".
         let exact = reg.prints(&c, PRINTS, 0, 9_100).expect("nothing to refuse");
-        assert_eq!(exact.held, PRINTS, "every print held comes back");
+        assert_eq!(exact.held, PRINTS, "the ring is still full");
+        assert_eq!(
+            exact.rows.len(),
+            PRINTS,
+            "and every print it holds comes back, which is the count the answer is
+             complete against"
+        );
         assert!(exact.dropped > 0, "rows were still evicted at some point");
         assert_eq!(
             prints_response(&c, "Connected".into(), PRINTS, false, &exact, 9_100)["clipped"]
@@ -5011,6 +5619,285 @@ mod tests {
     }
 
     #[test]
+    fn a_selection_ages_itself_by_the_newest_row_it_returns() {
+        // With one row returned the oldest and the newest are the same, so a
+        // fold over them cannot say which end it took.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let mut q = query(5);
+        q.root = Some("AAPL".into());
+        market_now(&reg, SecType::Stock, q.clone(), 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        reg.ingest(trade(&c, 2.0, 5_000 * MS));
+        let m = market_now(&reg, SecType::Stock, q.clone(), 0, 6_000).expect("nothing to refuse");
+        assert_eq!(m.rows.len(), 2, "two prints, stamped apart");
+        assert_eq!(
+            market_response(SecType::Stock, "Connected".into(), &q, &m, 6_000)["age_ms"].as_u64(),
+            Some(1_000),
+            "the newest of them is 1 s old; the oldest is 4 s and is not the answer"
+        );
+    }
+
+    #[test]
+    fn every_comparison_a_selection_offers_means_what_it_says() {
+        // Each operator on its own boundary, where it differs from its
+        // neighbour. Tried away from the boundary, `>` and `>=` agree and
+        // neither is proven.
+        let row = |bid: f64, ask: f64| quote(&stock("AAPL"), bid, ask);
+        let holds = |op: &str, value: f64, bid: f64, ask: f64| {
+            let c = parse_clauses(
+                &json!([{"field": "spread", "op": op, "value": value}]),
+                &FIELDS,
+            )
+            .expect("a clause");
+            let d = row(bid, ask);
+            holds_all(&c, &|f| field_of(&d, f))
+        };
+        // Spread sits exactly on the value, which is the only input that
+        // separates each pair. A quarter is exact in binary; a tenth is not,
+        // and `1.10 - 1.0` lands just above it, which would make `>` hold.
+        assert!(!holds(">", 0.25, 1.0, 1.25), "greater than excludes equal");
+        assert!(holds(">=", 0.25, 1.0, 1.25), "at least includes it");
+        assert!(!holds("<", 0.25, 1.0, 1.25), "less than excludes equal");
+        assert!(holds("<=", 0.25, 1.0, 1.25), "at most includes it");
+        assert!(holds("==", 0.25, 1.0, 1.25), "equal holds");
+        assert!(!holds("!=", 0.25, 1.0, 1.25), "and unequal does not");
+        // A range includes both of its ends.
+        let inside = parse_clauses(
+            &json!([{"field": "spread", "op": "inside", "value": [0.25, 0.5]}]),
+            &FIELDS,
+        )
+        .expect("a clause");
+        let lo = row(1.0, 1.25);
+        let hi = row(1.0, 1.5);
+        assert!(
+            holds_all(&inside, &|f| field_of(&lo, f)),
+            "the low end is in"
+        );
+        assert!(
+            holds_all(&inside, &|f| field_of(&hi, f)),
+            "and the high end"
+        );
+        // And the complement excludes both, which is where an endpoint that
+        // quietly became exclusive would show.
+        let outside = parse_clauses(
+            &json!([{"field": "spread", "op": "outside", "value": [0.25, 0.5]}]),
+            &FIELDS,
+        )
+        .expect("a clause");
+        assert!(
+            !holds_all(&outside, &|f| field_of(&lo, f)),
+            "the low end is not outside"
+        );
+        assert!(
+            !holds_all(&outside, &|f| field_of(&hi, f)),
+            "nor is the high end"
+        );
+        assert!(
+            holds_all(&outside, &|f| field_of(&row(1.0, 1.6), f)),
+            "past the high end is"
+        );
+    }
+
+    #[test]
+    fn an_answer_that_returns_no_rows_reports_no_age() {
+        // An age dates the rows handed back. Asking for none is a caller
+        // wanting the counts and the disclosures without the rows, and an
+        // age there would date a row they were never given.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+
+        let none = read_now(&reg, &c, SubscriptionKind::Trade, None, 0, 0, 3_000)
+            .expect("nothing to refuse");
+        assert_eq!(none.count, 1, "the window covers the row");
+        assert!(none.tail.is_empty(), "and hands none of it back");
+        assert_eq!(none.newest_ms, None, "so there is no age to report");
+
+        // With a tail the age is of the newest row in it.
+        reg.ingest(trade(&c, 2.0, 4_000 * MS));
+        let some = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
+            .expect("nothing to refuse");
+        assert_eq!(some.newest_ms, Some(4_000), "the newest row handed back");
+
+        // Prints answer the same way at the same boundary.
+        let reg = Registry::default();
+        let c = stock("MSFT");
+        reg.prints(&c, 10, 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        let empty = reg.prints(&c, 0, 0, 3_000).expect("nothing to refuse");
+        assert_eq!(empty.held, 1, "the print is held");
+        assert!(empty.rows.is_empty(), "and none is returned");
+        assert_eq!(empty.newest_ms, None, "so there is no age to report");
+        let one = reg.prints(&c, 10, 0, 3_000).expect("nothing to refuse");
+        assert_eq!(
+            one.newest_ms,
+            Some(2_000),
+            "and with a print returned, its age"
+        );
+    }
+
+    #[test]
+    fn a_subscription_the_feed_no_longer_carries_is_the_one_reported() {
+        // Inverted, this reports a subscription the feed kept and misses the
+        // one it dropped, so a read answers that a live leg was dropped and
+        // releases it. Every read after the first routes through here.
+        let c = stock("AAPL");
+        let trade = subscription(SubscriptionKind::Trade, &c);
+        let quote = subscription(SubscriptionKind::Quote, &c);
+        let both = [trade.clone(), quote.clone()];
+
+        assert_eq!(
+            dropped_of(&both, &[trade.clone(), quote.clone()]),
+            None,
+            "the feed carries both, so nothing is reported"
+        );
+        assert_eq!(
+            dropped_of(&both, std::slice::from_ref(&trade)),
+            Some(&quote),
+            "the quote leg is the one it stopped carrying"
+        );
+        assert_eq!(
+            dropped_of(&both, std::slice::from_ref(&quote)),
+            Some(&trade),
+            "and the trade leg when that is the one"
+        );
+        assert_eq!(
+            dropped_of(&both, &[]),
+            Some(&trade),
+            "with neither carried, the first asked about"
+        );
+        assert_eq!(
+            dropped_of(&[], &[]),
+            None,
+            "nothing asked, nothing reported"
+        );
+    }
+
+    #[test]
+    fn a_row_already_kept_holds_its_place_on_a_tie() {
+        // Two prints of equal rank and room for one. The comment says the row
+        // already kept stays, and nothing said which one a caller gets.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let mut q = query(1);
+        q.root = Some("AAPL".into());
+        q.rank_by = Some("size".into());
+        market_now(&reg, SecType::Stock, q.clone(), 0, 1_000).expect("nothing to refuse");
+        // Same size, so they tie; different prices, so they are told apart.
+        reg.ingest(trade_sized(&c, 10.0, 5, 0, 2_000 * MS));
+        reg.ingest(trade_sized(&c, 20.0, 5, 0, 3_000 * MS));
+        let m = market_now(&reg, SecType::Stock, q, 0, 4_000).expect("nothing to refuse");
+        assert_eq!(m.rows.len(), 1, "room for one");
+        assert!(
+            matches!(&m.rows[0].trade, StreamData::Trade { price, .. } if *price == 10.0),
+            "the first to arrive holds its place: {:?}",
+            m.rows[0].trade
+        );
+    }
+
+    #[test]
+    fn reopening_a_leg_for_a_read_discloses_what_it_missed() {
+        // Reopening a leg is an interruption whichever tool does it: the feed
+        // stopped carrying that contract in between, and what it sent then is
+        // simply absent. None of this path was exercised through `read`.
+
+        // A quote leg coming back seals the prints it left open: a print
+        // cannot take a quote from an interval nobody was watching.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.prints(&c, 10, 0, 1_000).expect("nothing to refuse");
+        // The quote leg goes while the trade leg stays, then a trade lands.
+        // That print is open and was never sealed by the leg going, so only
+        // the reopening can seal it.
+        reg.forget(&subscription(SubscriptionKind::Quote, &c));
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        reg.ingest(quote(&c, 10.0, 11.0));
+        let p = reg.prints(&c, 10, 0, 4_000).expect("nothing to refuse");
+        assert_eq!(p.rows.len(), 1, "the print is still held");
+        assert!(
+            p.rows[0].quotes_after.is_empty(),
+            "and takes no quote from across the interval it was not watching"
+        );
+
+        // A trade leg coming back while prints are held holes the history.
+        let reg = Registry::default();
+        let c = stock("MSFT");
+        reg.prints(&c, 10, 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        reg.prints(&c, 10, 0, 2_500).expect("nothing to refuse");
+        reg.forget(&subscription(SubscriptionKind::Trade, &c));
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        let after = reg.prints(&c, 10, 0, 4_000).expect("nothing to refuse");
+        assert!(
+            after.holed,
+            "the trades from while the leg was gone are missing, and it says so"
+        );
+
+        // A second view inherits the discard count the first was already
+        // carrying, so it reports what the feed threw away since then and not
+        // since this call.
+        let reg = Registry::default();
+        let c = stock("NVDA");
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        let second = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 9, 2_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            second.feed_dropped_since_last_read, 9,
+            "the nine the feed discarded since the first view opened, not nought"
+        );
+    }
+
+    #[test]
+    fn a_market_put_back_after_a_failed_release_is_not_an_unbroken_one() {
+        // The sweep frees the market buffer, the release fails, and it goes
+        // back. The feed carried every print on the type throughout, and the
+        // buffer that went back held no selection to offer them to, so the
+        // next read has not seen that interval and must say so.
+        let reg = Registry::default();
+        market_now(&reg, SecType::Stock, query(5), 0, 0).expect("nothing to refuse");
+        let expired = reg.expire(PAST_TTL);
+        assert_eq!(expired.len(), 1, "the idle market is freed");
+        reg.reinstate(&SecType::Stock.full_trades(), PAST_TTL);
+
+        let back = market_now(&reg, SecType::Stock, query(5), 0, PAST_TTL + 1_000)
+            .expect("nothing to refuse");
+        assert!(
+            back.gap,
+            "the interval it did not observe is disclosed, as it is for a contract"
+        );
+    }
+
+    #[test]
+    fn a_listing_names_a_market_as_a_market() {
+        // A whole market has no contract, and naming it under one hands a
+        // caller a security type where a root belongs. The close answer
+        // already refuses this.
+        let reg = Registry::default();
+        market_now(&reg, SecType::Stock, query(5), 0, 1_000).expect("nothing to refuse");
+        let v = list_response("Connected".into(), 0, None, &reg.list(), Some(&[]), 2_000);
+        let held = v["held"].as_array().cloned().unwrap_or_default();
+        let m = held.first().expect("the market is listed");
+        assert!(m["contract"].is_null(), "a market is not a contract");
+        assert_eq!(
+            m["sec_type"].as_str(),
+            Some("stock"),
+            "it is named by the type it covers"
+        );
+        assert_eq!(
+            m["kind"].as_str(),
+            Some("full_trades"),
+            "and the stream it is on"
+        );
+    }
+
+    #[test]
     fn a_tool_offers_only_the_security_types_it_can_serve() {
         // A type offered in the schema and refused on every call is a call
         // a model will make and an answer it will never get.
@@ -5044,6 +5931,569 @@ mod tests {
         // stop both work.
         assert_eq!(types("live_read"), ["option", "stock", "index"]);
         assert_eq!(types("live_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
+    fn a_tick_with_no_contract_to_place_it_in_shortens_every_window() {
+        // The vendor can send a tick before the frame that says which
+        // contract it belongs to. The SDK hands it over under a sentinel so
+        // an operator can see the wire id, and it matches no buffer here, so
+        // it is lost. It is not a row any buffer received, not one the ring
+        // evicted, and not one the SDK discarded, so without this nothing at
+        // all records it and the window it fell in reports itself whole.
+        //
+        // Dated by the clock, like every other loss the dispatcher reports,
+        // so the fixture is built around the real one.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let t0 = now_ms();
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            0,
+            t0 - 10_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, (t0 - 5_000) * MS));
+        let whole = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            t0 - 1_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!whole.clipped, "nothing has been lost yet");
+
+        // The shape the SDK hands over: the wire id as the symbol, and the
+        // security type it detects the sentinel by.
+        let mut unplaceable = Contract::stock("__pending:42");
+        unplaceable.sec_type = SecType::Unknown;
+        reg.ingest(trade(&unplaceable, 2.0, (t0 - 500) * MS));
+
+        // Reaching back over the loss, and not back past the moment the
+        // buffer opened: a window older than the buffer is clipped for that
+        // reason alone and would say nothing about this one.
+        let over = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(36_000),
+            TAIL,
+            0,
+            t0 + 31_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            over.clipped,
+            "a window reaching back over it is short by a row nothing else counts"
+        );
+
+        // And the feed never stopped: it delivered something this server
+        // could not place. A window that begins after the loss is whole,
+        // where an interruption would leave every window unproven until a
+        // row landed.
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            t0 + 31_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            !after.clipped,
+            "the loss is dated, and this window starts thirty seconds after it"
+        );
+    }
+
+    #[test]
+    fn a_control_event_the_feed_sends_is_read_for_what_it_costs() {
+        // The vendor can end one stream and begin another without the socket
+        // closing. The session stays authenticated, so a read would find
+        // every leg intact and call a window over it whole; only this says
+        // otherwise. The events that cost nothing are named here too, because
+        // an event this server ignores looks, from outside, exactly like one
+        // it never knew about.
+        use thetadatadx::RemoveReason;
+        for control in [
+            StreamControl::Restart,
+            StreamControl::ReconnectedServer,
+            StreamControl::Disconnected {
+                reason: RemoveReason::Unspecified,
+            },
+            StreamControl::Reconnecting {
+                reason: RemoveReason::Unspecified,
+                attempt: 1,
+                delay_ms: 10,
+            },
+        ] {
+            assert_eq!(
+                feed_event(&control),
+                FeedEvent::Interrupted,
+                "{control:?} leaves an interval nothing was watching"
+            );
+        }
+        for control in [
+            StreamControl::Error {
+                message: "bad frame".into(),
+            },
+            StreamControl::UnknownFrame {
+                code: 250,
+                payload: vec![1, 2],
+            },
+        ] {
+            assert_eq!(
+                feed_event(&control),
+                FeedEvent::Unplaceable,
+                "{control:?} may have been a row and became none"
+            );
+        }
+        assert_eq!(
+            feed_event(&StreamControl::ReqResponse {
+                req_id: 1,
+                result: StreamResponseType::MaxStreamsReached,
+            }),
+            FeedEvent::Refused(StreamResponseType::MaxStreamsReached),
+            "a refusal carries the code the feed gave"
+        );
+        for control in [
+            StreamControl::ReqResponse {
+                req_id: 1,
+                result: StreamResponseType::Subscribed,
+            },
+            StreamControl::MarketOpen,
+            StreamControl::MarketClose,
+            StreamControl::Connected,
+            StreamControl::Reconnected,
+        ] {
+            assert_eq!(
+                feed_event(&control),
+                FeedEvent::Ignored,
+                "{control:?} costs this server no row"
+            );
+        }
+    }
+
+    #[test]
+    fn a_feed_that_is_not_connected_reads_as_an_interruption() {
+        // The status flag is set on the thread reading the socket; the event
+        // that tells the registry is queued behind every row in the ring. A
+        // read that trusts delivery order over the flag answers that a window
+        // spanning an outage in progress is whole.
+        assert_eq!(
+            feed_action(ConnectionStatus::Reconnecting),
+            FeedAction::MarkInterrupted,
+            "recovering is not delivering"
+        );
+        assert_eq!(
+            feed_action(ConnectionStatus::Connected),
+            FeedAction::Deliver,
+            "and a live session is not an interruption"
+        );
+        assert_eq!(feed_action(ConnectionStatus::NotStarted), FeedAction::Start);
+        assert_eq!(
+            feed_action(ConnectionStatus::Disconnected),
+            FeedAction::StopThenStart,
+            "a dead session holds the slot until it is stopped"
+        );
+        assert_eq!(
+            feed_action(ConnectionStatus::ReconnectsExhausted),
+            FeedAction::StopThenStart,
+            "and one that gave up holds it the same way"
+        );
+
+        // What the mark buys: a window asked for while the feed is down does
+        // not come back whole. Without the mark this read has nothing to go
+        // on, because the interruption is still in the ring.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, MS));
+        let whole = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        assert!(!whole.clipped, "nothing is wrong yet");
+        reg.gap(2_000);
+        let marked = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_000)
+            .expect("nothing to refuse");
+        assert!(
+            marked.clipped,
+            "the same window, asked once the mark is in, is not whole"
+        );
+    }
+
+    #[test]
+    fn a_row_the_admission_gate_refuses_is_counted_against_the_window() {
+        // The gate cannot tell a row queued by a subscription that closed
+        // from a live one a backwards host clock stamped before this buffer
+        // opened, and it refuses both. Either way the feed delivered a row
+        // this server is not keeping, so the interval it fell in is not
+        // whole. Dated by the clock, like every loss the dispatcher reports,
+        // so the fixture is built around the real one.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let t0 = now_ms();
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            0,
+            t0 - 10_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, (t0 - 5_000) * MS));
+        let whole = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            t0 - 1_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!whole.clipped, "nothing has been refused yet");
+
+        reg.ingest(trade(&c, 2.0, (t0 - 20_000) * MS));
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(36_000),
+            TAIL,
+            0,
+            t0 + 31_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            after.count, 1,
+            "the refused row is in no window, which is the point of refusing it"
+        );
+        assert!(after.clipped, "and the window it fell in is short by it");
+
+        // The whole-market buffer refuses on the same test, and counts the
+        // same interval.
+        let reg = Registry::default();
+        let sec = SecType::Stock;
+        market_now(&reg, sec, query(10), 0, 5_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 6_000 * MS));
+        let seen = market_now(&reg, sec, query(10), 0, 7_000).expect("nothing to refuse");
+        assert_eq!((seen.received, seen.gap), (1, false), "a live print");
+        reg.ingest(trade(&c, 2.0, MS));
+        let refused = market_now(&reg, sec, query(10), 0, 8_000).expect("nothing to refuse");
+        assert_eq!(
+            refused.received, 1,
+            "the row stamped before the market opened is not one of its own"
+        );
+        assert!(refused.gap, "and the interval it fell in is disclosed");
+    }
+
+    #[test]
+    fn a_trade_the_admission_gate_refuses_holes_the_prints_around_it() {
+        // A refused trade is a print that will not be in the list. The prints
+        // answer reads the marks on the contract rather than on a buffer, so
+        // marking only the buffer serves the prints on either side of the
+        // missing one as though they were next to each other, while a read of
+        // the same contract says its window is short.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let t0 = now_ms();
+        let (opened, _) = prints(&reg, &c, 10, t0 - 10_000);
+        assert!(!opened.holed, "nothing has been refused yet");
+        reg.ingest(trade(&c, 1.0, (t0 - 5_000) * MS));
+
+        // Stamped before the trade buffer opened, which a backwards clock
+        // does to a live row.
+        reg.ingest(trade(&c, 2.0, (t0 - 20_000) * MS));
+        reg.ingest(trade(&c, 3.0, (t0 - 4_000) * MS));
+
+        let (after, _) = prints(&reg, &c, 10, t0 - 3_000);
+        assert_eq!(after.rows.len(), 2, "the refused trade is in no list");
+        assert!(
+            after.holed,
+            "and the two that came back are not next to each other"
+        );
+    }
+
+    #[test]
+    fn a_trade_leg_put_back_holes_a_prints_history_it_holds_none_of() {
+        // The leg was gone while the feed kept delivering, so the prints from
+        // that interval are missing. An empty list is the one shape where
+        // nothing else would ever say so: no print spans the loss, and the
+        // buffer's own mark reaches no prints answer.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 0).expect("nothing to refuse");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        // An answered prints read first, so the baseline that would otherwise
+        // carry the buffer's own mark into this history is already set. After
+        // it, only the state's marks reach a prints answer.
+        let (opening, _) = prints(&reg, &c, 10, 100);
+        assert!(!opening.holed, "nothing has been lost yet");
+        let sub = subscription(SubscriptionKind::Trade, &c);
+
+        // Swept, and the feed would not let it go, so it comes back marked.
+        reg.forget(&sub);
+        reg.reinstate(&sub, 1_000);
+
+        let (p, _) = prints(&reg, &c, 10, 2_000);
+        assert_eq!(p.held, 0, "it holds no print at all");
+        assert!(
+            p.holed,
+            "and asking for prints reaches back into the interval it lost"
+        );
+    }
+
+    #[test]
+    fn a_quote_leg_that_was_released_says_so_on_the_prints_that_lost_it() {
+        // A print with no quote before it reads the same whether the contract
+        // was quiet or this server was not holding the quote leg when it
+        // traded. The prints themselves are all there, so the answer is not
+        // clipped; what it has to say is that an interval went unwatched.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let (first, _) = prints(&reg, &c, 10, 0);
+        assert!(!first.gap, "the first look has lost nothing");
+        reg.ingest(quote(&c, 1.0, 1.1));
+        reg.ingest(trade(&c, 1.05, MS));
+
+        // The quote leg goes, the trade leg stays, and trades keep coming.
+        reg.forget(&subscription(SubscriptionKind::Quote, &c));
+        reg.ingest(trade(&c, 1.06, 2 * MS));
+
+        let after = reg.prints(&c, 10, 0, 3).expect("nothing to refuse");
+        assert!(
+            after.gap,
+            "the quote leg was gone while that print arrived, and nothing else says so"
+        );
+        assert!(
+            !after.holed,
+            "but the prints are all here; it is their quotes that are not"
+        );
+        assert!(
+            after.rows[1].quote_before.is_none(),
+            "which is what the interval cost"
+        );
+        reg.commit_prints_read(&c, after.received, after.feed_drops_seen, after.gaps_seen);
+        let settled = reg.prints(&c, 10, 0, 4).expect("nothing to refuse");
+        assert!(!settled.gap, "disclosed once, not for ever");
+
+        // Closing a contract outright owes nothing: there is no later answer
+        // about it, and the next read of one opens a buffer that says so.
+        let gone = stock("MSFT");
+        prints(&reg, &gone, 10, 0);
+        reg.forget(&subscription(SubscriptionKind::Quote, &gone));
+        reg.forget(&subscription(SubscriptionKind::Trade, &gone));
+        let reopened = reg.prints(&gone, 10, 0, 5).expect("nothing to refuse");
+        assert_eq!(
+            reopened.opened,
+            vec![SubscriptionKind::Trade, SubscriptionKind::Quote],
+            "both legs are new, which is what subscribed_now reports"
+        );
+    }
+
+    #[test]
+    fn a_row_decoded_before_an_interruption_does_not_prove_it_ended() {
+        // A row is stamped on the thread that reads the socket and delivered
+        // later, so one decoded before the feed stopped can still arrive
+        // after this server has marked the interruption. Taken as proof, it
+        // clears the mark and pulls the loss back to before it happened, and
+        // every window over the outage then reads whole.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 100 * MS));
+        reg.gap(1_000);
+        let marked = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_000)
+            .expect("nothing to refuse");
+        assert!(marked.clipped, "the read that notices");
+
+        // Decoded at 500, behind the rows already queued, delivered now.
+        reg.ingest(trade(&c, 2.0, 500 * MS));
+        let stale = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_500)
+            .expect("nothing to refuse");
+        assert!(
+            stale.clipped,
+            "a row from before the break says nothing about after it"
+        );
+
+        // One stamped after the read that dated the loss does prove it.
+        reg.ingest(trade(&c, 3.0, 2_600 * MS));
+        read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_700)
+            .expect("nothing to refuse");
+        let proven = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        assert!(
+            !proven.clipped,
+            "and this window begins after the row that proved delivery"
+        );
+    }
+
+    #[test]
+    fn a_listing_ages_a_market_by_the_rows_it_is_holding() {
+        // A narrow selection holds an old print while the tape stays busy.
+        // The listing's age is of the rows a holding holds, the same for a
+        // market as for a contract; the age of the market itself is a
+        // different number, and only a market read returns it.
+        let reg = Registry::default();
+        let mine = stock("AAPL");
+        let other = stock("MSFT");
+        let mut q = query(10);
+        q.root = Some("AAPL".into());
+        market_now(&reg, SecType::Stock, q, 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&mine, 1.0, 1_100 * MS));
+        reg.ingest(trade(&other, 2.0, 5_000 * MS));
+
+        let rows = reg.list();
+        let v = list_response("Connected".into(), 0, None, &rows, None, 6_000);
+        let market = v["held"]
+            .as_array()
+            .and_then(|a| a.iter().find(|h| h["sec_type"].as_str() == Some("stock")))
+            .cloned()
+            .expect("the market is listed");
+        assert_eq!(
+            market["held"].as_u64(),
+            Some(1),
+            "the selection kept the one print its root matched"
+        );
+        assert_eq!(
+            market["received"].as_u64(),
+            Some(2),
+            "while the market took both"
+        );
+        assert_eq!(
+            market["age_ms"].as_u64(),
+            Some(4_900),
+            "aged by the print it holds, stamped 1_100, not by the tape's newest at 5_000"
+        );
+    }
+
+    #[test]
+    fn a_row_the_ring_evicted_with_no_stamp_leaves_no_window_whole() {
+        // A row whose clock could not be read is held in every named window,
+        // because nothing places it outside one. Losing it is a loss from
+        // every named window, and there is no moment to date that to, so
+        // coverage collapses the way it does for an unstamped row still
+        // held. Without that, the rows left behind are all stamped and the
+        // answer reads whole.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 0));
+        for _ in 0..RING {
+            reg.ingest(trade(&c, 2.0, 100 * MS));
+        }
+
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(5_000),
+            TAIL,
+            0,
+            10_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(r.dropped, 1, "the unstamped row is the one pushed out");
+        assert_eq!(
+            r.covered_since_ms, 10_000,
+            "nothing before this read is proven covered"
+        );
+        assert!(
+            r.clipped,
+            "and no named window can be shown whole while a row nothing could place is gone"
+        );
+
+        // A buffer that evicted only stamped rows still says how far back it
+        // reaches, so the collapse above is about the unstamped one and not
+        // about eviction.
+        let other = stock("MSFT");
+        read_now(&reg, &other, SubscriptionKind::Trade, None, TAIL, 0, 0)
+            .expect("nothing to refuse");
+        for i in 0..(RING as u64 + 1) {
+            reg.ingest(trade(&other, 3.0, (100 + i) * MS));
+        }
+        let stamped = read_now(
+            &reg,
+            &other,
+            SubscriptionKind::Trade,
+            Some(5_000),
+            TAIL,
+            0,
+            10_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(stamped.dropped, 1);
+        assert_eq!(
+            stamped.covered_since_ms, 101,
+            "coverage starts at the oldest row still held"
+        );
+    }
+
+    #[test]
+    fn a_window_over_a_row_the_ring_evicted_is_not_whole_whatever_the_clock_did() {
+        // Coverage starts at the oldest row still held, which is the oldest by
+        // arrival. A host clock that steps backwards puts a later stamp on an
+        // earlier arrival, so an evicted row can sit inside a window every
+        // held row starts before, and nothing else in the answer says so.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        // One row stamped late, then the clock steps back and the ring fills
+        // with rows stamped early, pushing exactly that row out. Every filler
+        // row carries the same early stamp, so the window below cannot reach
+        // one of them whatever the ring's size works out to be.
+        reg.ingest(trade(&c, 1.0, 10_000 * MS));
+        for _ in 0..RING {
+            reg.ingest(trade(&c, 2.0, 100 * MS));
+        }
+
+        let inside = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(600),
+            TAIL,
+            0,
+            10_500,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(inside.dropped, 1, "one row was pushed out");
+        assert_eq!(
+            inside.covered_since_ms, 100,
+            "the oldest row held is stamped before the window, so coverage alone says nothing"
+        );
+        assert_eq!(inside.count, 0, "and it holds no row inside the window");
+        assert!(
+            inside.clipped,
+            "the row it evicted was stamped 10_000, inside the window from 9_900"
+        );
+
+        // A window that starts after the evicted row is whole: it asks about
+        // an interval nothing was lost from.
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(300),
+            TAIL,
+            0,
+            10_500,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            !after.clipped,
+            "the loss is at 10_000 and this window starts at 10_200"
+        );
     }
 
     #[test]
@@ -5178,13 +6628,7 @@ mod tests {
                         .collect()
                 });
             let advertised = narrowed.unwrap_or_else(|| flat.clone());
-            let sec = sec_named(name).expect("an offered name is a security type");
 
-            for kind in &advertised {
-                resolve_kind(sec, Some(kind)).unwrap_or_else(|_| {
-                    panic!("the schema offers {name} the kind {kind}, and the call refuses it")
-                });
-            }
             // Stated, not derived: read out of `kinds_for` this would
             // compare the schema to the source it is built from.
             let expected: &[&str] = match *name {
@@ -5199,6 +6643,23 @@ mod tests {
                 advertised, expected,
                 "{name} is advertised exactly the kinds the call takes"
             );
+
+            // And asked of the call itself, rather than left to the two
+            // sides happening to read one list today: a schema offering a
+            // kind the call refuses is a request whose only answer is a
+            // refusal.
+            let sec = parse_sec_of(&json!({"sec_type": name}), sec_types_for("live_read"))
+                .expect("a type this tool serves");
+            for kind in &advertised {
+                resolve_kind(sec, Some(kind)).unwrap_or_else(|e| {
+                    panic!("{name} advertises {kind} and the call refuses it: {e:?}")
+                });
+            }
+            for kind in ["quote", "trade", "market_value", "open_interest"] {
+                if !advertised.iter().any(|a| a == kind) {
+                    refused(resolve_kind(sec, Some(kind)));
+                }
+            }
         }
     }
 
@@ -5246,9 +6707,10 @@ mod tests {
         // A caller composing against the schema should not be able to write
         // a request whose only possible answer is a refusal.
         for tool in ["live_read", "live_prints", "live_stop"] {
-            let Some(t) = tool_definitions().into_iter().find(|t| t["name"] == tool) else {
-                continue;
-            };
+            let t = tool_definitions()
+                .into_iter()
+                .find(|t| t["name"] == tool)
+                .unwrap_or_else(|| panic!("{tool} is advertised"));
             // Found by what it says, not by where it sits: other rules
             // share the list.
             let rules = t["inputSchema"]["allOf"]
@@ -5260,8 +6722,12 @@ mod tests {
                 .find(|r| r["if"]["properties"]["sec_type"]["const"] == "option")
                 .unwrap_or_else(|| panic!("{tool} has a rule for an option leg"));
             assert_eq!(
-                rule["if"]["properties"]["sec_type"]["const"], "option",
-                "{tool} says which type needs a leg"
+                rules
+                    .iter()
+                    .filter(|r| r["if"]["properties"]["sec_type"]["const"] == "option")
+                    .count(),
+                1,
+                "{tool} says it once, so two rules cannot disagree about the leg"
             );
             let needs = rule["then"]["required"]
                 .as_array()
@@ -5417,6 +6883,15 @@ mod tests {
             still.clipped,
             "the interruption is spent, but nothing has arrived to show the feed is back"
         );
+        // And the other shape with it: a named window ending now ends inside
+        // an interval the feed is not known to have been delivering in,
+        // however short it is.
+        let named = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        assert!(
+            named.clipped,
+            "not even a one-millisecond window can be shown whole while the feed is unproven"
+        );
         // A row is that evidence.
         reg.ingest(trade(&c, 1.0, 4_000 * MS));
         let proven = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
@@ -5428,6 +6903,34 @@ mod tests {
         let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 6_000)
             .expect("nothing to refuse");
         assert!(!after.clipped, "and this one begins after it");
+        // Named windows answer the same way once delivery is proven: one
+        // reaching back over where the loss ended is not whole, one
+        // beginning after it is.
+        let over = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(3_000),
+            TAIL,
+            0,
+            6_500,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            over.clipped,
+            "this one starts at 3_500, before the loss ended"
+        );
+        let clear = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            6_500,
+        )
+        .expect("nothing to refuse");
+        assert!(!clear.clipped, "and this one starts at 5_500, after it");
     }
 
     #[test]
@@ -6126,19 +7629,41 @@ mod tests {
             why.contains("does not take strike") && why.contains("strike_min"),
             "names it and what it does take: {why}"
         );
-        // Every name a tool's own schema declares is one a caller may send.
-        // Stated as literals: built from the schema, the argument object
-        // would be checked against the map it came from.
+        // Every name a tool's own schema declares is one a caller may send,
+        // the option leg included: a tool that stops declaring one while the
+        // parser still reads it refuses a call it would have answered.
+        // Stated as literals, because built from the schema the argument
+        // object would be checked against the map it came from.
         for (tool, names) in [
             (
                 "live_read",
-                &["sec_type", "root", "kind", "seconds", "tail"][..],
+                &[
+                    "sec_type",
+                    "root",
+                    "expiration",
+                    "strike",
+                    "right",
+                    "kind",
+                    "seconds",
+                    "tail",
+                ][..],
             ),
             (
                 "live_prints",
-                &["sec_type", "root", "count", "quotes_after"][..],
+                &[
+                    "sec_type",
+                    "root",
+                    "expiration",
+                    "strike",
+                    "right",
+                    "count",
+                    "quotes_after",
+                ][..],
             ),
-            ("live_list", &[][..]),
+            (
+                "live_stop",
+                &["sec_type", "root", "expiration", "strike", "right"][..],
+            ),
         ] {
             let mut args = json!({});
             if let Some(o) = args.as_object_mut() {
@@ -6148,7 +7673,42 @@ mod tests {
             }
             only_declared_arguments(tool, &args)
                 .unwrap_or_else(|e| panic!("{tool} takes the names it declares: {e:?}"));
+            let mut expected: Vec<&str> = names.to_vec();
+            expected.sort_unstable();
+            assert_eq!(
+                declared_names(tool),
+                expected,
+                "{tool} declares exactly these, so the list above is the whole of it"
+            );
         }
+        // A tool that declares nothing takes nothing. Passing it an empty
+        // object proves only that an empty object has no unknown names in it.
+        assert!(declared_names("live_list").is_empty());
+        let why = refused(only_declared_arguments(
+            "live_list",
+            &json!({"root": "AAPL"}),
+        ));
+        assert!(
+            why.contains("does not take root"),
+            "and it says so by name: {why}"
+        );
+    }
+
+    /// The names a tool's own schema declares, sorted, read back off the
+    /// definition so a list written above cannot quietly fall short of it.
+    fn declared_names(tool: &str) -> Vec<String> {
+        let mut names: Vec<String> = tool_definitions()
+            .into_iter()
+            .find(|t| t["name"] == tool)
+            .map(|t| {
+                t["inputSchema"]["properties"]
+                    .as_object()
+                    .map(|props| props.iter().map(|(k, _)| k.to_string()).collect())
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
+        names.sort();
+        names
     }
 
     #[test]
@@ -6518,8 +8078,10 @@ mod tests {
 
         let (r, _) = read(&reg, &c, SubscriptionKind::Trade, Some(20), TAIL, now);
         assert_eq!(
-            r.count, 11,
-            "rows from 4096 to 4106 lie inside the last 20 ms"
+            r.count,
+            11,
+            "the rows stamped {RING} to {} lie inside the last 20 ms",
+            RING as u64 + 10
         );
         assert!(!r.clipped, "a window inside coverage is whole");
 
@@ -6696,7 +8258,7 @@ mod tests {
     }
 
     #[test]
-    fn stopping_a_contract_closes_each_kind_on_the_feed_before_the_buffer_goes() {
+    fn stopping_a_contract_leaves_neither_kind_held() {
         let reg = Registry::default();
         let c = stock("AAPL");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
@@ -6755,12 +8317,24 @@ mod tests {
             "the buffer is released, so the next read re-subscribes"
         );
 
+        // A registry that has recorded nothing says nothing about a
+        // rejection. Compared against the one above rather than against a
+        // phrase: keyed to wording, this stops testing anything the day the
+        // wording changes, and says so by passing.
         let fresh = Registry::default();
         read(&fresh, &c, SubscriptionKind::Quote, None, TAIL, 0);
-        let why = format!("{:?}", dropped_by_feed(&fresh, &c.quote(), 1));
         assert!(
-            !why.contains("most recent rejection"),
-            "no rejection seen, none claimed: {why}"
+            reg.last_rejection().is_some() && fresh.last_rejection().is_none(),
+            "one has seen a rejection and the other has not"
+        );
+        // A release that names no rejection cannot be dated by one, so the
+        // clock cannot change what it says. Read twice, far apart: a claim
+        // about a rejection that was never seen would move with the clock.
+        let silent = format!("{:?}", dropped_by_feed(&fresh, &c.quote(), 1_700));
+        let later = format!("{:?}", dropped_by_feed(&fresh, &c.quote(), 9_000));
+        assert_eq!(
+            silent, later,
+            "nothing was recorded, so nothing in this answer is dated"
         );
     }
 
@@ -6944,6 +8518,30 @@ mod tests {
             ["time", "open", "high", "low", "close", "volume", "count"],
             "served with the vendor's own fields"
         );
+
+        // And each name against the value the vendor put under it. The names
+        // alone say nothing about which value each one carries, and the
+        // fixture's are all different, so a pair exchanged here shows.
+        let v = read_response(
+            &c,
+            SubscriptionKind::Quote,
+            "Connected".into(),
+            None,
+            &r,
+            30,
+        );
+        let served = &v["vendor_ohlcvc"];
+        assert_eq!(served["open"].as_f64(), Some(1.0));
+        assert_eq!(served["high"].as_f64(), Some(2.0));
+        assert_eq!(served["low"].as_f64(), Some(0.5));
+        assert_eq!(served["close"].as_f64(), Some(1.7), "the newest bar's");
+        assert_eq!(served["volume"].as_u64(), Some(10));
+        assert_eq!(served["count"].as_u64(), Some(3));
+        assert_eq!(
+            served["time"].as_str(),
+            Some("09:30:00.000"),
+            "the vendor's own clock, rendered"
+        );
     }
 
     #[test]
@@ -6992,6 +8590,18 @@ mod tests {
         for d in [&t, &q] {
             for (col, _) in fields(d) {
                 if col == "time" {
+                    // The one rendered column a selection cannot read: a
+                    // clock string, not a number. Skipped with its reason
+                    // asserted, so the day it becomes selectable this fails
+                    // rather than quietly passing over it.
+                    assert!(
+                        !PRINT_FIELDS.contains(&col),
+                        "time is excluded on purpose; the schema now offers it"
+                    );
+                    assert!(
+                        print_field(&t, Some(&q), col).is_none(),
+                        "and it reads no number off a print"
+                    );
                     continue;
                 }
                 assert!(
@@ -7147,6 +8757,11 @@ mod tests {
         // A read takes what was kept: the next has nothing until more prints.
         let m = market_now(&reg, SecType::Option, query(10), 0, 11).expect("nothing to refuse");
         assert_eq!((m.examined, m.matched, m.rows.len()), (0, 0, 0));
+        assert_eq!(
+            (m.received, m.new_since_last_read),
+            (2, 0),
+            "received counts every print since the market opened; new only those since the last read"
+        );
 
         // Only `limit` rows are kept, the newest, and the counts still say
         // how many there were.

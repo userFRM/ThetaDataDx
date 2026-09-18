@@ -4,7 +4,7 @@
 This script keeps the human-facing docs aligned with the current SDK and REST
 surface by checking a few high-signal invariants:
 
-- endpoint/tool counts in top-level docs
+- endpoint/tool counts in top-level docs, each derived from the list it heads
 - REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
@@ -71,6 +71,8 @@ FLATFILE_TYPES_RS = ROOT / "thetadatadx-rs/src/flatfiles/types.rs"
 # than the docs carrying a hand-maintained count that silently drifts.
 MCP_MAIN_RS = ROOT / "tools/mcp/src/main.rs"
 MCP_FLATFILE_TOOLS_RS = ROOT / "tools/mcp/src/flatfile_tools.rs"
+MCP_STREAM_RS = ROOT / "tools/mcp/src/stream.rs"
+MCP_UTILITIES_RS = ROOT / "tools/mcp/src/utilities.rs"
 
 # Docs that must enumerate the connection-only MCP tools by name, each paired
 # with the `##` heading of the section that carries the tool listing. The
@@ -249,7 +251,7 @@ def check_static_docs() -> None:
     expect_contains(ROOT / "README.md", "Documentation site (GitHub Pages)")
     expect_contains(
         ROOT / "README.md",
-        "MCP server exposing every market-data endpoint to AI clients",
+        "MCP server exposing every market-data endpoint, plus the live tape, to AI clients",
     )
 
     expect_contains(
@@ -258,7 +260,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.",
+        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live-tape tools, 6 flat-file tools and `entitlements`.",
     )
 
     expect_contains(
@@ -1011,15 +1013,16 @@ def check_flatfile_matrix() -> None:
         )
 
 
-def _rust_str_array_items(text: str, const_name: str) -> list[str]:
+def _rust_str_array_items(text: str, const_name: str, path: Path) -> list[str]:
     """The string literals in a `const NAME: [...] = [ "a", "b", ... ];` array.
 
-    Used to read `OFFLINE_TOOL_NAMES` from the MCP `main.rs` so the offline tool
-    set tracks the source const rather than a copy in this gate.
+    Used to read `OFFLINE_TOOL_NAMES` from the MCP `main.rs` and `TOOL_NAMES`
+    from `stream.rs`, so each tool set tracks its source const rather than a
+    copy in this gate.
     """
     m = re.search(rf"const {const_name}:[^=]*=\s*\[(.*?)\];", text, re.DOTALL)
     if not m:
-        fail(f"{MCP_MAIN_RS.relative_to(ROOT)} missing the {const_name} array")
+        fail(f"{path.relative_to(ROOT)} missing the {const_name} array")
     return re.findall(r'"([^"]+)"', m.group(1))
 
 
@@ -1060,29 +1063,70 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
       ``OFFLINE_TOOL_NAMES`` in ``main.rs``.
     - ``flatfile``: the flat-file tools advertised by
       ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs``.
+    - ``live``: the live-tape tools, read from ``TOOL_NAMES`` in ``stream.rs``.
+    - ``utility``: the generated utility tools in ``utilities.rs``, which
+      include the offline ones; the offline set is subtracted so a tool is
+      reported under one origin only.
 
     A connected `tools/list` returns the union; the docs gate asserts the docs
     enumerate it, so a tool added in code but absent from the docs fails here.
+    Every source of tool names the connected list draws from is read here: a
+    family parsed from none of these files would be undocumented with this
+    gate green, which is how the live tools shipped with no entry.
     """
     registry = [ep["name"] for ep in REGISTRY_ENDPOINTS]
 
-    offline = _rust_str_array_items(MCP_MAIN_RS.read_text(), "OFFLINE_TOOL_NAMES")
+    offline = _rust_str_array_items(
+        MCP_MAIN_RS.read_text(), "OFFLINE_TOOL_NAMES", MCP_MAIN_RS
+    )
     if not offline:
         fail(f"{MCP_MAIN_RS.relative_to(ROOT)} OFFLINE_TOOL_NAMES parsed to no tools")
+
+    live = _rust_str_array_items(MCP_STREAM_RS.read_text(), "TOOL_NAMES", MCP_STREAM_RS)
+    if not live:
+        fail(f"{MCP_STREAM_RS.relative_to(ROOT)} TOOL_NAMES parsed to no tools")
+
+    utility_body = _rust_fn_body(
+        MCP_UTILITIES_RS.read_text(),
+        r"fn push_generated_utility_tool_definitions\b",
+        MCP_UTILITIES_RS,
+    )
+    utility = [
+        name
+        for name in dict.fromkeys(re.findall(r'"name":\s*"([a-z_]+)"', utility_body))
+        if name not in offline
+    ]
 
     flatfile_body = _rust_fn_body(
         MCP_FLATFILE_TOOLS_RS.read_text(),
         r"fn push_flatfile_tool_definitions\b",
         MCP_FLATFILE_TOOLS_RS,
     )
-    flatfile = sorted(set(re.findall(r'"(thetadatadx_flatfile_[a-z_]+)"', flatfile_body)))
+    flatfile_text = MCP_FLATFILE_TOOLS_RS.read_text()
+    flatfile = set(re.findall(r'"(thetadatadx_flatfile_[a-z_]+)"', flatfile_body))
+    # A name the function pushes through a const is still a tool it advertises.
+    # Reading only the literals in the body missed the generic dispatcher, which
+    # is named by `FLATFILE_DISPATCHER_TOOL`, so it was never compared with the
+    # docs at all.
+    for const_name, value in re.findall(
+        r'const ([A-Z_]+): &str = "(thetadatadx_flatfile_[a-z_]+)"', flatfile_text
+    ):
+        if re.search(rf"\b{const_name}\b", flatfile_body):
+            flatfile.add(value)
+    flatfile = sorted(flatfile)
     if not flatfile:
         fail(
             f"{MCP_FLATFILE_TOOLS_RS.relative_to(ROOT)} push_flatfile_tool_definitions "
             f"advertised no flat-file tools"
         )
 
-    return {"registry": registry, "offline": offline, "flatfile": flatfile}
+    return {
+        "registry": registry,
+        "offline": offline,
+        "flatfile": flatfile,
+        "live": live,
+        "utility": utility,
+    }
 
 
 def _markdown_section(text: str, heading: str, path: Path) -> str:
@@ -1108,20 +1152,67 @@ def _markdown_section(text: str, heading: str, path: Path) -> str:
     return "\n".join(out)
 
 
+SECTION_COUNT_RE = re.compile(r"^### .*?\((\d+)")
+
+
+def check_mcp_tool_counts(inventory: set[str]) -> None:
+    """Each `### ... (N tools)` heading must count the tools listed under it.
+
+    The counts are published in the package README, so each one is derived
+    from the list beneath it rather than maintained by hand: a heading saying
+    fourteen over thirteen tools is a number with nothing behind it. Only
+    names in the server's own tool inventory count, so a backticked parameter
+    or type in a bullet's prose is not mistaken for a tool.
+    """
+    readme, heading = MCP_DOC_TOOL_SECTIONS[0]
+    section = _markdown_section(readme.read_text(), heading, readme)
+    current: tuple[str, int] | None = None
+    listed: set[str] = set()
+    checked = 0
+
+    def settle() -> int:
+        if current is None:
+            return 0
+        title, claimed = current
+        if claimed != len(listed):
+            fail(
+                f"{readme.relative_to(ROOT)} {title!r} claims {claimed} tools and lists "
+                f"{len(listed)}. Correct the heading or the list."
+            )
+        return 1
+
+    for line in section.splitlines():
+        if line.startswith("### "):
+            checked += settle()
+            m = SECTION_COUNT_RE.match(line)
+            current = (line.strip(), int(m.group(1))) if m else None
+            listed = set()
+        elif current is not None:
+            listed |= {
+                name for name in re.findall(r"`([a-z_]+)`", line) if name in inventory
+            }
+    checked += settle()
+    if checked == 0:
+        fail(
+            f"{readme.relative_to(ROOT)} {heading!r} section has no counted "
+            f"'### ... (N tools)' heading, so no count was checked."
+        )
+
+
 def check_mcp_tool_inventory() -> None:
     """The MCP docs must enumerate the connected `tools/list` surface.
 
-    Every connection-only tool (the offline utilities plus the flat-file tools)
-    must appear by name in each MCP doc's tool-listing section. The flat-file
-    tools are the surface that previously had no doc-gate coverage: a flat-file
-    tool advertised by the server but missing from the listing trips this check.
+    Every connection-only tool (the offline utilities, the flat-file tools, the
+    live-tape tools and the generated utilities) must appear by name in each MCP
+    doc's tool-listing section, so a tool advertised by the server but missing
+    from the listing trips this check.
     The README also lists every registry market-data endpoint by name in its tool
     tables, so the full inventory is asserted against it; `mcp.md` defers the
     per-endpoint listing to the generated reference pages, so only the
     connection-only tools are pinned there.
     """
     inv = mcp_tool_inventory()
-    connection_only = inv["offline"] + inv["flatfile"]
+    connection_only = inv["offline"] + inv["flatfile"] + inv["live"] + inv["utility"]
 
     for doc, heading in MCP_DOC_TOOL_SECTIONS:
         section = _markdown_section(doc.read_text(), heading, doc)
@@ -1142,6 +1233,8 @@ def check_mcp_tool_inventory() -> None:
             f"registry MCP tool by name: {missing_registry}. The README tool tables must "
             f"cover the full market-data surface the connected tools/list advertises."
         )
+
+    check_mcp_tool_counts(set(inv["registry"]) | set(connection_only))
 
 
 def check_endpoint_option_surface() -> None:
