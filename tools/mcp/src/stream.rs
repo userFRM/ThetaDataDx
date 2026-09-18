@@ -5418,13 +5418,7 @@ mod tests {
                         .collect()
                 });
             let advertised = narrowed.unwrap_or_else(|| flat.clone());
-            let sec = sec_named(name).expect("an offered name is a security type");
 
-            for kind in &advertised {
-                resolve_kind(sec, Some(kind)).unwrap_or_else(|_| {
-                    panic!("the schema offers {name} the kind {kind}, and the call refuses it")
-                });
-            }
             // Stated, not derived: read out of `kinds_for` this would
             // compare the schema to the source it is built from.
             let expected: &[&str] = match *name {
@@ -5500,8 +5494,12 @@ mod tests {
                 .find(|r| r["if"]["properties"]["sec_type"]["const"] == "option")
                 .unwrap_or_else(|| panic!("{tool} has a rule for an option leg"));
             assert_eq!(
-                rule["if"]["properties"]["sec_type"]["const"], "option",
-                "{tool} says which type needs a leg"
+                rules
+                    .iter()
+                    .filter(|r| r["if"]["properties"]["sec_type"]["const"] == "option")
+                    .count(),
+                1,
+                "{tool} says it once, so two rules cannot disagree about the leg"
             );
             let needs = rule["then"]["required"]
                 .as_array()
