@@ -391,8 +391,8 @@ fn parse_clauses(v: &Value, fields: &[&str]) -> Result<Vec<Clause>, ToolError> {
     };
     if items.len() > MAX_CLAUSES {
         return Err(ToolError::InvalidParams(format!(
-            "a predicate takes at most {MAX_CLAUSES} clauses, since every one runs on every \
-             row as the feed delivers it; {} were given",
+            "a selection takes at most {MAX_CLAUSES} clauses, since every one runs on every \
+             print of the market as it arrives; {} were given",
             items.len()
         )));
     }
@@ -1514,10 +1514,10 @@ impl Registry {
         Ok(prints)
     }
 
-    /// Settle a book read: advance its cursors, install the predicate it
-    /// brought, and discharge the interruption it disclosed. Runs only once
-    /// the answer is going to reach the caller, so a call that fails on the
-    /// feed leaves every one of them for the next read.
+    /// Settle a book read: advance its cursors and discharge the
+    /// interruption it disclosed. Runs only once the answer is going to
+    /// reach the caller, so a call that fails on the feed leaves both for
+    /// the next read.
     fn commit_read(&self, contract: &Contract, kind: SubscriptionKind, settle: Settle, now: u64) {
         let mut held = self.lock();
         let Some(state) = held.contracts.get_mut(contract) else {
