@@ -4,7 +4,7 @@
 This script keeps the human-facing docs aligned with the current SDK and REST
 surface by checking a few high-signal invariants:
 
-- endpoint/tool counts in top-level docs
+- endpoint/tool counts in top-level docs, each derived from the list it heads
 - REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
@@ -1102,7 +1102,18 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
         r"fn push_flatfile_tool_definitions\b",
         MCP_FLATFILE_TOOLS_RS,
     )
-    flatfile = sorted(set(re.findall(r'"(thetadatadx_flatfile_[a-z_]+)"', flatfile_body)))
+    flatfile_text = MCP_FLATFILE_TOOLS_RS.read_text()
+    flatfile = set(re.findall(r'"(thetadatadx_flatfile_[a-z_]+)"', flatfile_body))
+    # A name the function pushes through a const is still a tool it advertises.
+    # Reading only the literals in the body missed the generic dispatcher, which
+    # is named by `FLATFILE_DISPATCHER_TOOL`, so it was never compared with the
+    # docs at all.
+    for const_name, value in re.findall(
+        r'const ([A-Z_]+): &str = "(thetadatadx_flatfile_[a-z_]+)"', flatfile_text
+    ):
+        if re.search(rf"\b{const_name}\b", flatfile_body):
+            flatfile.add(value)
+    flatfile = sorted(flatfile)
     if not flatfile:
         fail(
             f"{MCP_FLATFILE_TOOLS_RS.relative_to(ROOT)} push_flatfile_tool_definitions "
@@ -1141,6 +1152,53 @@ def _markdown_section(text: str, heading: str, path: Path) -> str:
     return "\n".join(out)
 
 
+SECTION_COUNT_RE = re.compile(r"^### .*?\((\d+)")
+
+
+def check_mcp_tool_counts(inventory: set[str]) -> None:
+    """Each `### ... (N tools)` heading must count the tools listed under it.
+
+    The counts are published in the package README, so each one is derived
+    from the list beneath it rather than maintained by hand: a heading saying
+    fourteen over thirteen tools is a number with nothing behind it. Only
+    names in the server's own tool inventory count, so a backticked parameter
+    or type in a bullet's prose is not mistaken for a tool.
+    """
+    readme, heading = MCP_DOC_TOOL_SECTIONS[0]
+    section = _markdown_section(readme.read_text(), heading, readme)
+    current: tuple[str, int] | None = None
+    listed: set[str] = set()
+    checked = 0
+
+    def settle() -> int:
+        if current is None:
+            return 0
+        title, claimed = current
+        if claimed != len(listed):
+            fail(
+                f"{readme.relative_to(ROOT)} {title!r} claims {claimed} tools and lists "
+                f"{len(listed)}. Correct the heading or the list."
+            )
+        return 1
+
+    for line in section.splitlines():
+        if line.startswith("### "):
+            checked += settle()
+            m = SECTION_COUNT_RE.match(line)
+            current = (line.strip(), int(m.group(1))) if m else None
+            listed = set()
+        elif current is not None:
+            listed |= {
+                name for name in re.findall(r"`([a-z_]+)`", line) if name in inventory
+            }
+    checked += settle()
+    if checked == 0:
+        fail(
+            f"{readme.relative_to(ROOT)} {heading!r} section has no counted "
+            f"'### ... (N tools)' heading, so no count was checked."
+        )
+
+
 def check_mcp_tool_inventory() -> None:
     """The MCP docs must enumerate the connected `tools/list` surface.
 
@@ -1175,6 +1233,8 @@ def check_mcp_tool_inventory() -> None:
             f"registry MCP tool by name: {missing_registry}. The README tool tables must "
             f"cover the full market-data surface the connected tools/list advertises."
         )
+
+    check_mcp_tool_counts(set(inv["registry"]) | set(connection_only))
 
 
 def check_endpoint_option_surface() -> None:

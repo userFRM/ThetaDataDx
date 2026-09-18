@@ -132,7 +132,7 @@ This tool does not require a ThetaData account or a network round-trip; it is av
 
 - `ping` - server status
 
-### Stock Data (14 tools)
+### Stock Data (13 tools)
 - `stock_list_symbols`, `stock_list_dates`
 - `stock_snapshot_ohlc`, `stock_snapshot_trade`, `stock_snapshot_quote`, `stock_snapshot_market_value`
 - `stock_history_eod`, `stock_history_ohlc`, `stock_history_trade`, `stock_history_quote`, `stock_history_trade_quote`
