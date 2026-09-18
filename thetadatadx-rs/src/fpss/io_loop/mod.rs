@@ -1526,22 +1526,7 @@ where
                     // permanent paths above: recovery has stopped for
                     // a non-user-initiated cause. The inner `reason`
                     // (the login rejection) is the one operators need.
-                    if producer
-                        .try_publish(|slot| {
-                            slot.event =
-                                FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
-                                    reason,
-                                    attempts: reconnect_attempt,
-                                });
-                        })
-                        .is_err()
-                    {
-                        dropped.fetch_add(1, Ordering::Relaxed);
-                        tracing::warn!(
-                            target: "thetadatadx::fpss::io_loop",
-                            "ring full while publishing ReconnectsExhausted; dropped",
-                        );
-                    }
+                    publish_exhausted!(reconnect_attempt);
                     shutdown.store(true, Ordering::Release);
                     break 'session;
                 }
