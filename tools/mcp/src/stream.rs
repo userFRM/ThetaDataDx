@@ -1280,7 +1280,6 @@ impl Registry {
         let mut count = 0u64;
         let mut rows = Vec::new();
         let mut oldest = None;
-        let mut newest: Option<&StreamData> = None;
         // Newest first. Without a window the rows are the `new` newest;
         // with one they are those stamped at or after the floor. Either set
         // is a run from the back, so the walk stops at the first row outside
@@ -1304,23 +1303,18 @@ impl Registry {
                 continue;
             }
             count += 1;
-            // Walking newest first, so the first row inside the window is
-            // the newest one this answer covers.
-            if newest.is_none() {
-                newest = Some(d);
-            }
             oldest = Some(d);
             if rows.len() < tail {
                 rows.push(d.clone());
             }
         }
         let oldest = oldest.cloned();
-        // The age this answer reports is of the newest row it covers, not of
-        // the newest the buffer holds. A window that returns nothing has no
-        // age: taking the held row's would date an empty answer to whenever
-        // that row landed, and a window ending before it renders nought,
-        // which reads as something having just arrived.
-        let newest_ms = newest.and_then(seen_ms);
+        // The age this answer reports is of the newest row it hands back, not
+        // of the newest the buffer holds nor the newest the window covers. An
+        // answer returning nothing has no age: taking a held row's would date
+        // it to whenever that row landed, and a window ending before it
+        // renders nought, which reads as something having just arrived.
+        let newest_ms = rows.first().and_then(seen_ms);
         rows.reverse();
 
         // Where coverage starts. A quiet buffer has seen everything since it
@@ -1523,7 +1517,9 @@ impl Registry {
                     }
                 })
                 .unwrap_or(opened_ms),
-            newest_ms: state.prints.back().and_then(|p| seen_ms(&p.trade)),
+            // The newest print returned, which with a count of nought is
+            // none: an age there would date a print the caller never saw.
+            newest_ms: rows.last().and_then(|p| seen_ms(&p.trade)),
             new_since_last_read: new,
             rows,
         };
@@ -2750,10 +2746,20 @@ fn reconcile(
         return Ok(());
     }
     let live = on_feed(client)?;
-    match subs.iter().find(|s| !live.contains(s)) {
+    match dropped_of(subs, &live) {
         Some(sub) => Err(dropped_by_feed(reg, sub, now)),
         None => Ok(()),
     }
+}
+
+/// The first of `subs` the feed is no longer carrying, or `None` while it
+/// carries them all.
+///
+/// Pulled out of the feed call so the decision is reachable by a test: the
+/// call around it needs a live client, and a check that only exists inside an
+/// untestable branch is a check nobody can prove runs the right way round.
+fn dropped_of<'a>(subs: &'a [Subscription], live: &[Subscription]) -> Option<&'a Subscription> {
+    subs.iter().find(|s| !live.contains(s))
 }
 
 fn parse_sec(args: &Value) -> Result<SecType, ToolError> {
@@ -5086,6 +5092,105 @@ mod tests {
         assert!(
             holds_all(&inside, &|f| field_of(&hi, f)),
             "and the high end"
+        );
+    }
+
+    #[test]
+    fn an_answer_that_returns_no_rows_reports_no_age() {
+        // An age dates the rows handed back. Asking for none is a caller
+        // wanting the counts and the disclosures without the rows, and an
+        // age there would date a row they were never given.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+
+        let none = read_now(&reg, &c, SubscriptionKind::Trade, None, 0, 0, 3_000)
+            .expect("nothing to refuse");
+        assert_eq!(none.count, 1, "the window covers the row");
+        assert!(none.tail.is_empty(), "and hands none of it back");
+        assert_eq!(none.newest_ms, None, "so there is no age to report");
+
+        // With a tail the age is of the newest row in it.
+        reg.ingest(trade(&c, 2.0, 4_000 * MS));
+        let some = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
+            .expect("nothing to refuse");
+        assert_eq!(some.newest_ms, Some(4_000), "the newest row handed back");
+
+        // Prints answer the same way at the same boundary.
+        let reg = Registry::default();
+        let c = stock("MSFT");
+        reg.prints(&c, 10, 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        let empty = reg.prints(&c, 0, 0, 3_000).expect("nothing to refuse");
+        assert_eq!(empty.held, 1, "the print is held");
+        assert!(empty.rows.is_empty(), "and none is returned");
+        assert_eq!(empty.newest_ms, None, "so there is no age to report");
+        let one = reg.prints(&c, 10, 0, 3_000).expect("nothing to refuse");
+        assert_eq!(
+            one.newest_ms,
+            Some(2_000),
+            "and with a print returned, its age"
+        );
+    }
+
+    #[test]
+    fn a_subscription_the_feed_no_longer_carries_is_the_one_reported() {
+        // Inverted, this reports a subscription the feed kept and misses the
+        // one it dropped, so a read answers that a live leg was dropped and
+        // releases it. Every read after the first routes through here.
+        let c = stock("AAPL");
+        let trade = subscription(SubscriptionKind::Trade, &c);
+        let quote = subscription(SubscriptionKind::Quote, &c);
+        let both = [trade.clone(), quote.clone()];
+
+        assert_eq!(
+            dropped_of(&both, &[trade.clone(), quote.clone()]),
+            None,
+            "the feed carries both, so nothing is reported"
+        );
+        assert_eq!(
+            dropped_of(&both, std::slice::from_ref(&trade)),
+            Some(&quote),
+            "the quote leg is the one it stopped carrying"
+        );
+        assert_eq!(
+            dropped_of(&both, std::slice::from_ref(&quote)),
+            Some(&trade),
+            "and the trade leg when that is the one"
+        );
+        assert_eq!(
+            dropped_of(&both, &[]),
+            Some(&trade),
+            "with neither carried, the first asked about"
+        );
+        assert_eq!(
+            dropped_of(&[], &[]),
+            None,
+            "nothing asked, nothing reported"
+        );
+    }
+
+    #[test]
+    fn a_row_already_kept_holds_its_place_on_a_tie() {
+        // Two prints of equal rank and room for one. The comment says the row
+        // already kept stays, and nothing said which one a caller gets.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let mut q = query(1);
+        q.root = Some("AAPL".into());
+        q.rank_by = Some("size".into());
+        market_now(&reg, SecType::Stock, q.clone(), 0, 1_000).expect("nothing to refuse");
+        // Same size, so they tie; different prices, so they are told apart.
+        reg.ingest(trade_sized(&c, 10.0, 5, 0, 2_000 * MS));
+        reg.ingest(trade_sized(&c, 20.0, 5, 0, 3_000 * MS));
+        let m = market_now(&reg, SecType::Stock, q, 0, 4_000).expect("nothing to refuse");
+        assert_eq!(m.rows.len(), 1, "room for one");
+        assert!(
+            matches!(&m.rows[0].trade, StreamData::Trade { price, .. } if *price == 10.0),
+            "the first to arrive holds its place: {:?}",
+            m.rows[0].trade
         );
     }
 
