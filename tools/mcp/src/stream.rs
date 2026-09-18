@@ -675,6 +675,9 @@ struct Market {
     read_ms: u64,
     /// Prints received as of the last read; see [`Book::read_seq`].
     read_seq: u64,
+    /// See [`Book::touched_ms`]: what keeps this book alive, kept apart
+    /// from the floor a default window reads from.
+    touched_ms: u64,
     /// See [`Book::feed_drops_at_read`].
     feed_drops_at_read: Option<u64>,
     /// See [`Book::gaps`]. A selection has no ring to fall short,
@@ -698,6 +701,7 @@ impl Market {
             opened_ms: now,
             read_ms: now,
             read_seq: 0,
+            touched_ms: now,
             feed_drops_at_read: None,
             gaps: 0,
             gaps_at_read: 0,
@@ -1216,7 +1220,7 @@ impl Registry {
             !state.books.is_empty()
         });
         held.markets.retain(|(sec, market)| {
-            let live = now.saturating_sub(market.read_ms) <= ttl;
+            let live = now.saturating_sub(market.touched_ms) <= ttl;
             if !live {
                 freed.push(sec.full_trades());
             }
@@ -1564,6 +1568,12 @@ impl Registry {
             // it. Asking for only the newest prints, all of them after the
             // loss, is a complete answer to what was asked.
             holed: state.prints_holed_before.is_some_and(|at| {
+                if at == 0 {
+                    // The hole sits before every print held, so no returned
+                    // row spans it. A caller asking for more prints than
+                    // exist reaches back into it all the same.
+                    return count > state.prints.len();
+                }
                 let oldest_returned =
                     state.prints_dropped + state.prints.len().saturating_sub(count) as u64;
                 oldest_returned < at
@@ -1676,6 +1686,7 @@ impl Registry {
             return;
         };
         market.read_ms = now;
+        market.touched_ms = now;
         market.read_seq = settle.received;
         market.feed_drops_at_read = Some(settle.feed_drops);
         market.gaps_at_read = settle.gaps;
@@ -1788,6 +1799,7 @@ impl Registry {
         });
         let market = &mut held.markets[i].1;
         let previous = market.read_ms;
+        market.touched_ms = now;
         // Observed here, settled by `commit_market` once the answer is
         // going to reach the caller. A call that fails on the feed after
         // this point leaves the selection and its counts for the next read.
@@ -1889,7 +1901,11 @@ impl Registry {
                 let had_prints = !state.prints.is_empty();
                 let (book, first) = state.open(kind, now);
                 if first {
-                    book.read_ms = 0;
+                    // Idle as far as the sweep is concerned, so the next one
+                    // hands the subscription back to be released again.
+                    // `read_ms` is the floor of a default window and is left
+                    // where it is: zeroing it would date the next read's
+                    // window to the epoch.
                     book.touched_ms = 0;
                     // The book was gone while the feed kept delivering, and
                     // putting it back is not the same as never having lost
@@ -1910,7 +1926,9 @@ impl Registry {
             }
             Some(Shape::Full(sec, _)) if held.market(sec).is_none() => {
                 let mut market = Market::open(now);
-                market.read_ms = 0;
+                // Idle to the sweep, without dating a read's since_seconds
+                // to the epoch.
+                market.touched_ms = 0;
                 held.markets.push((sec, market));
             }
             _ => {}
@@ -1949,7 +1967,7 @@ impl Registry {
                 held: m.selection.as_ref().map_or(0, |s| s.kept.len()),
                 dropped: 0,
                 opened_ms: m.opened_ms,
-                read_ms: m.read_ms,
+                read_ms: m.touched_ms,
                 newest_ms: m.newest_ms,
             }))
             .collect();
@@ -4666,6 +4684,69 @@ mod tests {
         let again = reg.prints(&c, 10, 2, 5).expect("nothing to refuse");
         assert_eq!(again.feed_dropped_since_last_read, 0, "disclosed once");
         assert!(again.holed, "but the same prints with the same hole");
+    }
+
+    #[test]
+    fn a_book_put_back_and_read_at_once_does_not_date_its_window_to_the_epoch() {
+        // Reinstating marks a book idle so the next sweep hands its
+        // subscription back. The floor a default window reads from is a
+        // different thing, and zeroing it dates the window to 1970.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        reg.forget(&subscription(SubscriptionKind::Trade, &c));
+        reg.reinstate(&subscription(SubscriptionKind::Trade, &c), 2_000);
+        let r = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3_000,
+        )
+        .expect("nothing to refuse");
+        assert_ne!(r.floor, 0, "the window does not start at the epoch");
+        assert!(
+            3_000u64.saturating_sub(r.floor) < 60_000,
+            "it starts within living memory, not decades ago: floor={}",
+            r.floor
+        );
+    }
+
+    #[test]
+    fn asking_for_more_prints_than_exist_reaches_into_the_hole_before_them() {
+        // The loss happened before any print was held, so no returned row
+        // spans it. A caller asking for more than exist reaches back into
+        // it regardless, and the answer says so.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let p = reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
+        reg.commit_prints_read(&c, p.received, p.feed_drops_seen, p.gaps_seen);
+        // The feed breaks before anything printed, then one arrives.
+        reg.gap(1);
+        reg.ingest(trade(&c, 1.0, 2 * MS));
+        let first = reg.prints(&c, 2, 0, 3).expect("nothing to refuse");
+        reg.commit_prints_read(&c, first.received, first.feed_drops_seen, first.gaps_seen);
+        let again = reg.prints(&c, 2, 0, 4).expect("nothing to refuse");
+        assert_eq!(again.rows.len(), 1, "only one print exists");
+        assert!(
+            again.holed,
+            "and the two that were asked for reach back over the break"
+        );
+        let enough = reg.prints(&c, 1, 0, 5).expect("nothing to refuse");
+        assert!(!enough.holed, "asking only for what is there is whole");
     }
 
     #[test]
