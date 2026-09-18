@@ -3999,13 +3999,6 @@ mod tests {
         );
     }
 
-    /// Finding #3 source guard: every reconnect-path replay/drain failure
-    /// branch that re-enters the session loop must first set
-    /// `pending_reason`, so a broken reconnected socket re-enters
-    /// reconnect on the originating class instead of being re-read as a
-    /// generic timeout. Counts the `continue 'session` sites in the
-    /// replay/drain region and asserts each is immediately preceded by a
-    /// `pending_reason = Some(reason)` assignment.
     #[test]
     fn the_terminal_event_has_one_construction_site() {
         // `publish_exhausted!` stores the flag before it publishes, so a full
@@ -4042,6 +4035,13 @@ mod tests {
         );
     }
 
+    /// Finding #3 source guard: every reconnect-path replay/drain failure
+    /// branch that re-enters the session loop must first set
+    /// `pending_reason`, so a broken reconnected socket re-enters
+    /// reconnect on the originating class instead of being re-read as a
+    /// generic timeout. Counts the `continue 'session` sites in the
+    /// replay/drain region and asserts each is immediately preceded by a
+    /// `pending_reason = Some(reason)` assignment.
     #[test]
     fn reconnect_replay_failures_set_pending_reason_before_continue() {
         let src = include_str!("mod.rs");

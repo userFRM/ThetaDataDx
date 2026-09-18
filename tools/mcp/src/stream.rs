@@ -2774,6 +2774,13 @@ const OPTION_LEG: [&str; 3] = ["expiration", "strike", "right"];
 /// call that an observation.
 fn whole_market_target(name: &str, args: &Value) -> Result<SecType, ToolError> {
     let sec = parse_sec_of(args, sec_types_for(name))?;
+    if sec == SecType::Index {
+        return Err(ToolError::InvalidParams(
+            "an index has no whole-market stream to close; live_read follows one index at a \
+             time and live_stop with its root closes it"
+                .into(),
+        ));
+    }
     // Without a root this closes the whole market. Contract identifiers say
     // the caller meant one contract, and closing every one of them instead is
     // not a smaller mistake for being silent.
@@ -2786,13 +2793,6 @@ fn whole_market_target(name: &str, args: &Value) -> Result<SecType, ToolError> {
              {} market; give root to close that contract, or drop {named}",
             sec.as_str().to_ascii_lowercase()
         )));
-    }
-    if sec == SecType::Index {
-        return Err(ToolError::InvalidParams(
-            "an index has no whole-market stream to close; live_read follows one index at a \
-             time and live_stop with its root closes it"
-                .into(),
-        ));
     }
     Ok(sec)
 }
@@ -4070,6 +4070,67 @@ mod tests {
             ),
             (0, 0, false),
             "settled: nothing is owed to the next read"
+        );
+    }
+
+    #[test]
+    fn a_book_the_sweep_has_marked_reports_no_idle_time() {
+        // `reinstate` marks a book idle with nought so the next sweep hands
+        // its subscription back. Nought is that mark, not a moment, and read
+        // as one it reports decades of idleness for a book put back now.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.forget(&subscription(SubscriptionKind::Trade, &c));
+        reg.reinstate(&subscription(SubscriptionKind::Trade, &c), 2_000);
+
+        let held = reg.list();
+        let h = held.first().expect("the book was put back");
+        assert_eq!(h.read_ms, None, "a marked book has no read time to report");
+
+        // And one that has been read carries its own.
+        let reg = Registry::default();
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            reg.list().first().expect("held").read_ms,
+            Some(5_000),
+            "a book that was read reports when"
+        );
+    }
+
+    #[test]
+    fn closing_a_whole_market_refuses_a_contract_identifier() {
+        // Without a root this closes every contract on the type. A leg says
+        // the caller meant one, and closing all of them instead is not a
+        // smaller mistake for being silent.
+        for named in OPTION_LEG {
+            let args = json!({"sec_type": "option", named: 100});
+            let why = refused(whole_market_target("live_stop", &args));
+            assert!(
+                why.contains(named) && why.contains("give root"),
+                "{named} is named, with what to do instead: {why}"
+            );
+        }
+        assert_eq!(
+            whole_market_target("live_stop", &json!({"sec_type": "option"})).ok(),
+            Some(SecType::Option),
+            "and the whole market closes when nothing identifies one contract"
+        );
+    }
+
+    #[test]
+    fn an_index_is_refused_before_it_is_told_to_drop_a_leg() {
+        // Told to drop `strike` so that sec_type alone closes the whole index
+        // market, a caller who does so is then told there is no such stream.
+        let why = refused(whole_market_target(
+            "live_stop",
+            &json!({"sec_type": "index", "strike": 100}),
+        ));
+        assert!(
+            why.contains("no whole-market stream to close"),
+            "the refusal a caller can act on comes first: {why}"
         );
     }
 
@@ -6031,12 +6092,20 @@ mod tests {
             cols,
             ["time", "price", "size", "condition", "exchange", "sequence"]
         );
-        // The tail is positional and `columns` is its header, so each slot
-        // carries the value of the column at that index. A length against a
-        // length cannot say that: `row` is a map over `fields`.
-        let by_name: Vec<Value> = fields(&d).into_iter().map(|(_, v)| v).collect();
+        // The tail is positional and `columns` is its header, so slot i has
+        // to carry the value the object renders under the name at index i.
+        // Reading both out of `fields` would compare a map to itself; the
+        // object is built independently, so it can disagree.
         let positional = row(&d).as_array().cloned().unwrap_or_default();
-        assert_eq!(positional, by_name, "columns {cols:?} line up with the row");
+        let named = object(&d);
+        assert_eq!(positional.len(), cols.len(), "a slot per column");
+        for (i, name) in cols.iter().enumerate() {
+            assert_eq!(
+                Some(&positional[i]),
+                named.get(name),
+                "slot {i} carries the value the object renders under {name}"
+            );
+        }
         assert_eq!(clock(34_200_000), "09:30:00.000");
         assert_eq!(clock(57_600_123), "16:00:00.123");
         assert_eq!(
