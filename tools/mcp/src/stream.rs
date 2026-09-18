@@ -718,8 +718,12 @@ impl Market {
         // belong to a subscription this selection never had.
         // A zero stamp is the SDK's fallback when the clock misbehaves,
         // and means unknown rather than old: dropping live rows over a
-        // clock hiccup would be far worse than counting a late one.
+        // clock hiccup would be far worse than counting a late one. A clock
+        // that steps backwards below this market's open makes a live row
+        // look like one of those, and it goes the same way; counted as an
+        // interval nothing watched, because that is what it is.
         if seen_ms(data).is_some_and(|seen| seen < self.opened_ms) {
+            self.gaps += 1;
             return;
         }
         match data {
@@ -2003,7 +2007,14 @@ impl Registry {
         // rows the previous subscription queued. They belong to the feed
         // this buffer was not on. A zero stamp is the SDK's fallback for a
         // clock it could not read and means unknown, so those are kept.
+        //
+        // The same test refuses a live row while a host clock that stepped
+        // backwards leaves it stamped before this buffer opened, and there
+        // is no way here to tell the two apart. Either way a row the feed
+        // delivered is not being kept, so the buffer counts the moment
+        // short. The feed is delivering, so nothing waits on proof.
         if seen_ms(&data).is_some_and(|seen| seen < buffer.opened_ms) {
+            buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now_ms());
             return;
         }
         buffer.received += 1;
@@ -5963,6 +5974,74 @@ mod tests {
             marked.clipped,
             "the same window, asked once the mark is in, is not whole"
         );
+    }
+
+    #[test]
+    fn a_row_the_admission_gate_refuses_is_counted_against_the_window() {
+        // The gate cannot tell a row queued by a subscription that closed
+        // from a live one a backwards host clock stamped before this buffer
+        // opened, and it refuses both. Either way the feed delivered a row
+        // this server is not keeping, so the interval it fell in is not
+        // whole. Dated by the clock, like every loss the dispatcher reports,
+        // so the fixture is built around the real one.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let t0 = now_ms();
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            0,
+            t0 - 10_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, (t0 - 5_000) * MS));
+        let whole = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            t0 - 1_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!whole.clipped, "nothing has been refused yet");
+
+        reg.ingest(trade(&c, 2.0, (t0 - 20_000) * MS));
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(36_000),
+            TAIL,
+            0,
+            t0 + 31_000,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(
+            after.count, 1,
+            "the refused row is in no window, which is the point of refusing it"
+        );
+        assert!(after.clipped, "and the window it fell in is short by it");
+
+        // The whole-market buffer refuses on the same test, and counts the
+        // same interval.
+        let reg = Registry::default();
+        let sec = SecType::Stock;
+        market_now(&reg, sec, query(10), 0, 5_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 6_000 * MS));
+        let seen = market_now(&reg, sec, query(10), 0, 7_000).expect("nothing to refuse");
+        assert_eq!((seen.received, seen.gap), (1, false), "a live print");
+        reg.ingest(trade(&c, 2.0, MS));
+        let refused = market_now(&reg, sec, query(10), 0, 8_000).expect("nothing to refuse");
+        assert_eq!(
+            refused.received, 1,
+            "the row stamped before the market opened is not one of its own"
+        );
+        assert!(refused.gap, "and the interval it fell in is disclosed");
     }
 
     #[test]
