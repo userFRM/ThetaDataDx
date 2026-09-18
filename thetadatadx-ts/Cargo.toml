@@ -18,11 +18,11 @@ crate-type = ["cdylib"]
 thetadatadx = { package = "thetadatadx-rs", path = "../thetadatadx-rs", features = ["arrow", "__internal"] }
 
 napi = { version = "3.8.5", features = ["async", "serde-json", "napi6", "chrono_date"] }
-arrow-ipc = "59.0.0"
+arrow-ipc = "60.0.0"
 # RecordBatch / Schema types for the streaming `RecordBatch` reader's Arrow
 # IPC boundary. Pinned to the same major as `arrow-ipc` and the parent crate.
-arrow-array = "59.0.0"
-arrow-schema = "59.0.0"
+arrow-array = "60.0.0"
+arrow-schema = "60.0.0"
 napi-derive = "3.5.4"
 chrono = { version = "=0.4.44", default-features = false, features = ["alloc", "clock"] }
 
