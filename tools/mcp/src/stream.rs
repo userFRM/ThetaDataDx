@@ -526,6 +526,13 @@ struct Buffer {
     /// discharge an interruption nobody was ever shown.
     gaps: u64,
     gaps_at_read: u64,
+    /// The newest stamp among the rows the ring has evicted, or zero while it
+    /// has evicted none that carried one. Coverage starts at the oldest row
+    /// still held, which is the oldest by arrival; a host clock that steps
+    /// backwards puts a later stamp on an earlier arrival, so an evicted row
+    /// can sit inside a window the held rows all start after. Without this,
+    /// that window reports itself whole.
+    dropped_newest_ms: u64,
     /// The latest moment up to which this buffer is known to have lost rows.
     ///
     /// Dated to the read that learns of the loss, not to when the loss
@@ -548,6 +555,7 @@ impl Buffer {
             ring: VecDeque::new(),
             received: 0,
             dropped: 0,
+            dropped_newest_ms: 0,
             opened_ms: now,
             read_ms: now,
             touched_ms: now,
@@ -919,6 +927,8 @@ struct Coverage {
     held: usize,
     dropped: u64,
     covered_since_ms: u64,
+    /// See [`Buffer::dropped_newest_ms`].
+    dropped_newest_ms: u64,
     /// Events the SDK discarded since this buffer last settled.
     feed_dropped: u64,
     /// The feed was interrupted since this buffer last settled.
@@ -964,6 +974,11 @@ fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
             };
             c.covered_since_ms > floor
                 || (c.dropped > 0 && c.covered_since_ms == floor)
+                // An evicted row stamped inside the window. Coverage starts at
+                // the oldest row held, which is the oldest by arrival, so a
+                // clock that stepped backwards can leave this the only thing
+                // that says the window is not whole.
+                || (c.dropped_newest_ms > 0 && c.dropped_newest_ms >= floor)
                 || (lost_at > 0 && lost_at >= floor)
         }
     }
@@ -1327,6 +1342,7 @@ impl Registry {
             buffer.opened_ms
         };
         let dropped = buffer.dropped;
+        let dropped_newest_ms = buffer.dropped_newest_ms;
         // Everything the buffer has to say, read out before the borrow ends.
         let gap = buffer.gaps > buffer.gaps_at_read;
         let gaps_seen = buffer.gaps;
@@ -1348,6 +1364,7 @@ impl Registry {
                     held: held_rows,
                     dropped,
                     covered_since_ms,
+                    dropped_newest_ms,
                     feed_dropped,
                     gap,
                     incomplete_at_ms: incomplete_at,
@@ -1947,8 +1964,12 @@ impl Registry {
             }
         }
         if buffer.ring.len() == RING {
-            buffer.ring.pop_front();
-            buffer.dropped += 1;
+            if let Some(evicted) = buffer.ring.pop_front() {
+                buffer.dropped += 1;
+                if let Some(ms) = seen_ms(&evicted) {
+                    buffer.dropped_newest_ms = buffer.dropped_newest_ms.max(ms);
+                }
+            }
         }
         buffer.ring.push_back(data.clone());
 
@@ -5555,6 +5576,63 @@ mod tests {
         // stop both work.
         assert_eq!(types("live_read"), ["option", "stock", "index"]);
         assert_eq!(types("live_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
+    fn a_window_over_a_row_the_ring_evicted_is_not_whole_whatever_the_clock_did() {
+        // Coverage starts at the oldest row still held, which is the oldest by
+        // arrival. A host clock that steps backwards puts a later stamp on an
+        // earlier arrival, so an evicted row can sit inside a window every
+        // held row starts before, and nothing else in the answer says so.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
+        // One row stamped late, then the clock steps back and the ring fills
+        // with rows stamped early, pushing exactly that row out. Every filler
+        // row carries the same early stamp, so the window below cannot reach
+        // one of them whatever the ring's size works out to be.
+        reg.ingest(trade(&c, 1.0, 10_000 * MS));
+        for _ in 0..RING {
+            reg.ingest(trade(&c, 2.0, 100 * MS));
+        }
+
+        let inside = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(600),
+            TAIL,
+            0,
+            10_500,
+        )
+        .expect("nothing to refuse");
+        assert_eq!(inside.dropped, 1, "one row was pushed out");
+        assert_eq!(
+            inside.covered_since_ms, 100,
+            "the oldest row held is stamped before the window, so coverage alone says nothing"
+        );
+        assert_eq!(inside.count, 0, "and it holds no row inside the window");
+        assert!(
+            inside.clipped,
+            "the row it evicted was stamped 10_000, inside the window from 9_900"
+        );
+
+        // A window that starts after the evicted row is whole: it asks about
+        // an interval nothing was lost from.
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(300),
+            TAIL,
+            0,
+            10_500,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            !after.clipped,
+            "the loss is at 10_000 and this window starts at 10_200"
+        );
     }
 
     #[test]
