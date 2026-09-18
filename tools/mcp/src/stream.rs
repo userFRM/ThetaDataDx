@@ -1652,15 +1652,28 @@ impl Registry {
     /// no quote waits to go before the next trade, on every contract and
     /// every market.
     fn gap(&self, now: u64) {
-        let mut held = self.lock();
+        Self::lost(&mut self.lock(), now, Delivery::Unproven);
+    }
+
+    /// Mark every buffer as having lost rows at `now`.
+    ///
+    /// `delivery` is what this loss says about the feed itself. An
+    /// interruption leaves delivery unproven until a row lands: no window
+    /// ending now can be shown whole, because nothing says the feed came
+    /// back. A row this server could not place is different — the feed is
+    /// delivering, it simply handed over something with no buffer to put it
+    /// in — so the loss is dated and nothing waits on proof.
+    fn lost(held: &mut Held, now: u64, delivery: Delivery) {
         for state in held.contracts.values_mut() {
             state.seal();
             state.gaps += 1;
             state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
             for (_, buffer) in &mut state.buffers {
                 buffer.gaps += 1;
-                buffer.incomplete_at_ms = now;
-                buffer.awaiting_resume = true;
+                buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now);
+                if delivery == Delivery::Unproven {
+                    buffer.awaiting_resume = true;
+                }
             }
         }
         for (_, market) in &mut held.markets {
@@ -1903,6 +1916,16 @@ impl Registry {
             return;
         };
         let mut held = self.lock();
+        // A tick the vendor sent before naming the contract it belongs to.
+        // The SDK hands it over under a sentinel so an operator can see the
+        // wire id, and it matches no buffer and no market here, so it is
+        // lost. Nothing else records it: it is not a row any buffer
+        // received, not one the ring evicted, and not one the SDK discarded.
+        // Every window open while it arrived is short by it.
+        if contract.sec_type == SecType::Unknown {
+            Self::lost(&mut held, now_ms(), Delivery::Proven);
+            return;
+        }
         if let Some(market) = held.market(contract.sec_type) {
             market.ingest(&data);
         }
@@ -2652,6 +2675,15 @@ fn feed_state(client: &Client) -> String {
 /// one started; a new session knows nothing of the buffers this process still
 /// holds, so they are reopened from the registry rather than from what the
 /// old session tracked.
+/// Whether a loss leaves the feed's delivery in doubt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Delivery {
+    /// The feed was still delivering when this was lost.
+    Proven,
+    /// The feed stopped, and nothing since says it started again.
+    Unproven,
+}
+
 /// What a call has to do about the feed before it can answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FeedAction {
@@ -5615,6 +5647,87 @@ mod tests {
         // stop both work.
         assert_eq!(types("live_read"), ["option", "stock", "index"]);
         assert_eq!(types("live_stop"), ["option", "stock", "index"]);
+    }
+
+    #[test]
+    fn a_tick_with_no_contract_to_place_it_in_shortens_every_window() {
+        // The vendor can send a tick before the frame that says which
+        // contract it belongs to. The SDK hands it over under a sentinel so
+        // an operator can see the wire id, and it matches no buffer here, so
+        // it is lost. It is not a row any buffer received, not one the ring
+        // evicted, and not one the SDK discarded, so without this nothing at
+        // all records it and the window it fell in reports itself whole.
+        //
+        // Dated by the clock, like every other loss the dispatcher reports,
+        // so the fixture is built around the real one.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let t0 = now_ms();
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            0,
+            t0 - 10_000,
+        )
+        .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, (t0 - 5_000) * MS));
+        let whole = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            t0 - 1_000,
+        )
+        .expect("nothing to refuse");
+        assert!(!whole.clipped, "nothing has been lost yet");
+
+        // The shape the SDK hands over: the wire id as the symbol, and the
+        // security type it detects the sentinel by.
+        let mut unplaceable = Contract::stock("__pending:42");
+        unplaceable.sec_type = SecType::Unknown;
+        reg.ingest(trade(&unplaceable, 2.0, (t0 - 500) * MS));
+
+        // Reaching back over the loss, and not back past the moment the
+        // buffer opened: a window older than the buffer is clipped for that
+        // reason alone and would say nothing about this one.
+        let over = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(36_000),
+            TAIL,
+            0,
+            t0 + 31_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            over.clipped,
+            "a window reaching back over it is short by a row nothing else counts"
+        );
+
+        // And the feed never stopped: it delivered something this server
+        // could not place. A window that begins after the loss is whole,
+        // where an interruption would leave every window unproven until a
+        // row landed.
+        let after = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(1_000),
+            TAIL,
+            0,
+            t0 + 31_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            !after.clipped,
+            "the loss is dated, and this window starts thirty seconds after it"
+        );
     }
 
     #[test]
