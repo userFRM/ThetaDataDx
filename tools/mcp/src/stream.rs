@@ -3062,6 +3062,23 @@ fn count_arg(args: &Value, key: &str, what: &str, default: usize) -> Result<usiz
     Ok(arg(args, key, what, |v| v.as_u64().map(|n| n as usize))?.unwrap_or(default))
 }
 
+/// The answer a close hands back.
+///
+/// Pulled out of the request arm so the count is reachable by a test. A
+/// subscription the feed would not release is named in `failed_to_close` and
+/// is not one that closed: counting it would report a leak as a clean close,
+/// which is the number a caller decides on.
+fn stop_response(key: &str, what: String, done: usize, failures: Vec<String>) -> Value {
+    let mut out = json!({
+        "subscriptions_closed": done,
+        "failed_to_close": failures,
+    });
+    if let Some(obj) = out.as_object_mut() {
+        obj.insert(key, Value::from(what.as_str()));
+    }
+    out
+}
+
 /// The answer a whole-market read hands back.
 ///
 /// Pulled out of the request arm so which value lands in which field is
@@ -3378,11 +3395,12 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             )));
         }
         let (done, failures) = close_on_feed(client, reg, vec![sec.full_trades()]);
-        return Ok(json!({
-            "sec_type": sec.as_str().to_ascii_lowercase(),
-            "subscriptions_closed": done,
-            "failed_to_close": failures
-        }));
+        return Ok(stop_response(
+            "sec_type",
+            sec.as_str().to_ascii_lowercase(),
+            done,
+            failures,
+        ));
     }
 
     // live_prints pairs a trade with the quote before it, and an index has
@@ -3461,11 +3479,12 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 )));
             }
             let (done, failures) = close_on_feed(client, reg, held);
-            Ok(json!({
-                "contract": contract.to_string(),
-                "subscriptions_closed": done,
-                "failed_to_close": failures
-            }))
+            Ok(stop_response(
+                "contract",
+                contract.to_string(),
+                done,
+                failures,
+            ))
         }
         other => Err(ToolError::InvalidParams(format!("unknown tool: {other}"))),
     }
@@ -4382,6 +4401,52 @@ mod tests {
             named.get("window_seconds").and_then(|v| v.as_f64()),
             Some(2.0)
         );
+        // Coverage is how far back the rows held reach, and it is not the
+        // window: this book has been open nine seconds, so a two-second
+        // window covers less than the book does. Asserting the two equal
+        // proves neither, and computing one from the other would then be a
+        // book two seconds old claiming an hour of coverage.
+        assert_eq!(
+            named.get("covers_seconds").and_then(|v| v.as_f64()),
+            Some(9.0),
+            "back to when the book opened, whatever window was asked for"
+        );
+    }
+
+    #[test]
+    fn a_close_does_not_count_what_it_could_not_release() {
+        // A subscription the feed would not let go is named, and it is not
+        // one that closed. Counting it would report a leak as a clean close,
+        // and the count is the number a caller decides on.
+        let clean = stop_response("contract", "AAPL".into(), 3, Vec::new());
+        assert_eq!(clean["subscriptions_closed"].as_u64(), Some(3));
+        assert_eq!(
+            clean["failed_to_close"].as_array().map(|a| a.len()),
+            Some(0)
+        );
+        assert_eq!(clean["contract"].as_str(), Some("AAPL"));
+
+        let leaked = stop_response(
+            "sec_type",
+            "option".into(),
+            1,
+            vec!["quote AAPL".into(), "trade AAPL".into()],
+        );
+        assert_eq!(
+            leaked["subscriptions_closed"].as_u64(),
+            Some(1),
+            "only the one that actually closed"
+        );
+        assert_eq!(
+            leaked["failed_to_close"].as_array().map(|a| a.len()),
+            Some(2),
+            "and the two the feed still holds are named"
+        );
+        assert_eq!(leaked["sec_type"].as_str(), Some("option"));
+        assert!(
+            leaked.get("contract").is_none(),
+            "a whole market has no contract"
+        );
     }
 
     #[test]
@@ -4433,7 +4498,9 @@ mod tests {
         let mut q = query(1);
         q.root = Some("AAPL".into());
         market_now(&reg, SecType::Stock, q.clone(), 0, 1_000).expect("nothing to refuse");
+        reg.ingest(quote(&mine, 10.0, 11.0));
         reg.ingest(trade(&mine, 1.0, 1_050 * MS));
+        reg.ingest(quote(&mine, 12.0, 13.0));
         reg.ingest(trade(&mine, 1.0, 1_100 * MS));
         // The tape carries on, none of it this selection's.
         reg.ingest(trade(&other, 2.0, 5_000 * MS));
@@ -4473,6 +4540,19 @@ mod tests {
             Some(mine.to_string().as_str()),
             "and it is the contract the selection named"
         );
+        assert_eq!(
+            v["prints"][0]["trade"]["price"].as_f64(),
+            Some(1.0),
+            "the trade"
+        );
+        assert_eq!(
+            v["prints"][0]["quote_before"]["bid"].as_f64(),
+            Some(12.0),
+            "paired with the quote that stood before it, not an earlier one"
+        );
+        // The most important disclosure on this arm, read through the
+        // response rather than off the reading it was built from.
+        assert_eq!(get("feed_interrupted").as_bool(), Some(false));
     }
 
     #[test]
@@ -4494,6 +4574,9 @@ mod tests {
         assert_eq!(opened, vec!["trade", "quote"], "a print needs both legs");
         reg.gap(2_000);
         for at in [4_000u64, 5_000, 6_000] {
+            // A quote before each trade, so a print carries both and the
+            // trade slot rendering the quote instead is visible.
+            reg.ingest(quote(&c, 10.0, 11.0));
             reg.ingest(trade(&c, 1.0, at * MS));
         }
         // Ask for fewer than are held, so `count` and `held` cannot agree.
@@ -4525,6 +4608,17 @@ mod tests {
             "what the SDK discarded, not what arrived"
         );
         assert_eq!(get("prints").as_array().map(|a| a.len()), Some(2));
+        // The trade slot carries the executed price, not the quote beside it.
+        assert_eq!(
+            v["prints"][0]["trade"]["price"].as_f64(),
+            Some(1.0),
+            "the trade"
+        );
+        assert_eq!(
+            v["prints"][0]["quote_before"]["bid"].as_f64(),
+            Some(10.0),
+            "and the quote that stood before it"
+        );
         assert!(
             get("prints")[0].get("quotes_after").is_none(),
             "not asked for"
@@ -4590,6 +4684,11 @@ mod tests {
             .expect("nothing to refuse");
         read_now(&reg, &gone, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
             .expect("nothing to refuse");
+        // Counters that differ from one another, so a swap between any two is
+        // visible. All nought proves nothing.
+        for _ in 0..(RING + 2) {
+            reg.ingest(trade(&held, 1.0, 2_000 * MS));
+        }
         // The feed kept one of them and dropped the other.
         let on_feed = vec![subscription(SubscriptionKind::Trade, &held)];
         let rows = reg.list();
@@ -4610,6 +4709,21 @@ mod tests {
         );
         assert_eq!(flag(&gone.to_string()), Some(false), "this one it did not");
         assert_eq!(v["feed_dropped_events"].as_u64(), Some(9));
+        let row = listed
+            .iter()
+            .find(|h| h["contract"].as_str() == Some(held.to_string().as_str()))
+            .expect("the held book is listed");
+        assert_eq!(
+            row["received"].as_u64(),
+            Some(RING as u64 + 2),
+            "every row it took"
+        );
+        assert_eq!(
+            row["held"].as_u64(),
+            Some(RING as u64),
+            "what the ring still holds"
+        );
+        assert_eq!(row["dropped"].as_u64(), Some(2), "and what it pushed out");
         assert_eq!(
             v["held"][0]["expires_in_seconds"].as_f64(),
             Some(seconds(TTL.as_millis() as u64 - 4_000)),
