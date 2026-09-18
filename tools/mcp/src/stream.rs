@@ -124,6 +124,12 @@ fn now_ms() -> u64 {
 ///
 /// Every variant carries `received_at_ns` stamped at decode, which is what
 /// makes an honest age possible on a read.
+/// When this row reached us, or `None` if that cannot be said.
+///
+/// The SDK stamps a row it could not read the host clock for with nought, so
+/// nought is the absence of a stamp rather than the epoch. Reading it as a
+/// time is how an age of fifty-five years, and a window claiming to cover
+/// them, get served as though the clock had worked.
 fn seen_ms(data: &StreamData) -> Option<u64> {
     let ns = match data {
         StreamData::Quote { received_at_ns, .. }
@@ -133,7 +139,7 @@ fn seen_ms(data: &StreamData) -> Option<u64> {
         | StreamData::MarketValue { received_at_ns, .. } => *received_at_ns,
         _ => return None,
     };
-    Some(ns / 1_000_000)
+    Some(ns / 1_000_000).filter(|ms| *ms > 0)
 }
 
 fn contract_of(data: &StreamData) -> Option<&Contract> {
@@ -718,7 +724,7 @@ impl Market {
         // A zero stamp is the SDK's fallback when the clock misbehaves,
         // and means unknown rather than old: dropping live rows over a
         // clock hiccup would be far worse than counting a late one.
-        if seen_ms(data).is_some_and(|seen| seen > 0 && seen < self.opened_ms) {
+        if seen_ms(data).is_some_and(|seen| seen < self.opened_ms) {
             return;
         }
         match data {
@@ -1139,7 +1145,11 @@ struct Holding {
     held: usize,
     dropped: u64,
     opened_ms: u64,
-    read_ms: u64,
+    /// When this book was last read, or `None` for one the sweep has marked
+    /// idle so the next call hands its subscription back. Nought is that
+    /// mark, not a moment, and reading it as one reports decades of idleness
+    /// for a book put back a moment ago.
+    read_ms: Option<u64>,
     newest_ms: Option<u64>,
 }
 
@@ -1296,13 +1306,13 @@ impl Registry {
             .chain(state.books.iter().filter_map(|(_, b)| b.feed_drops_at_read))
             .min();
         let holed_elsewhere = state.prints_holed_before.is_some();
-        let inherited = Some(inherited.unwrap_or(feed_drops));
         let (book, _) = state.open(kind, now);
         if book.feed_drops_at_read.is_none() {
             // Another view of this contract has been watching, so what the
             // feed discarded since is this book's to report too, and so is
-            // the loss that number already stands for.
-            book.feed_drops_at_read = inherited;
+            // the loss that number already stands for. With no other view,
+            // this book starts counting from what this call was handed.
+            book.feed_drops_at_read = Some(inherited.unwrap_or(feed_drops));
             if inherited.is_some() && holed_elsewhere {
                 book.incomplete_at_ms = book.incomplete_at_ms.max(now);
             }
@@ -1335,7 +1345,7 @@ impl Registry {
                 // A zero stamp is the SDK's fallback for a clock it could
                 // not read, and a clock can also step backwards, so a row
                 // outside the window does not mean the rest are.
-                Some(_) => seen_ms(d).is_none_or(|s| s == 0 || (s >= floor && s <= now)),
+                Some(_) => seen_ms(d).is_none_or(|s| s >= floor && s <= now),
             };
             if !inside {
                 // The default window counts arrivals, which are in order, so
@@ -1956,7 +1966,7 @@ impl Registry {
                     held: b.ring.len(),
                     dropped: b.dropped,
                     opened_ms: b.opened_ms,
-                    read_ms: b.touched_ms,
+                    read_ms: Some(b.touched_ms).filter(|t| *t > 0),
                     newest_ms: b.ring.back().and_then(seen_ms),
                 })
             })
@@ -1967,7 +1977,7 @@ impl Registry {
                 held: m.selection.as_ref().map_or(0, |s| s.kept.len()),
                 dropped: 0,
                 opened_ms: m.opened_ms,
-                read_ms: m.touched_ms,
+                read_ms: Some(m.touched_ms).filter(|t| *t > 0),
                 newest_ms: m.newest_ms,
             }))
             .collect();
@@ -2010,17 +2020,28 @@ impl Registry {
         if let StreamData::Ohlcvc { .. } = data {
             // Through the same gate as every other row: a bar queued by a
             // subscription that has since closed is not this book's.
-            // Measured against the earliest book this contract still holds.
-            // With none, there is nothing this bar can belong to: a bar left
-            // over from a subscription that has closed is not the next one's.
+            //
+            // Measured against the trade book where there is one, because a
+            // bar rides ahead of a trade and that is the subscription that
+            // produced it. Letting an older sibling vouch instead admits a
+            // bar the previous trade subscription queued: a quote book open
+            // since before the trade leg was dropped and reopened would date
+            // the bar to itself and call it current.
+            //
+            // With no trade book, the earliest book still stands in, since
+            // the contract is held and this is the newest bar the vendor sent
+            // for it. A bar from a trade leg that closed and was not reopened
+            // is still admitted that way; it is served with its age, which
+            // grows, rather than as something that just arrived.
+            //
+            // With no books at all there is nothing it can belong to.
             let fresh = state
                 .books
                 .iter()
+                .find(|(kind, _)| *kind == SubscriptionKind::Trade)
                 .map(|(_, b)| b.opened_ms)
-                .min()
-                .is_some_and(|opened| {
-                    seen_ms(&data).is_none_or(|seen| seen == 0 || seen >= opened)
-                });
+                .or_else(|| state.books.iter().map(|(_, b)| b.opened_ms).min())
+                .is_some_and(|opened| seen_ms(&data).is_none_or(|seen| seen >= opened));
             if fresh {
                 state.ohlcvc = Some(data);
             }
@@ -2040,7 +2061,7 @@ impl Registry {
         // rows the previous subscription queued. They belong to the feed
         // this book was not on. A zero stamp is the SDK's fallback for a
         // clock it could not read and means unknown, so those are kept.
-        if seen_ms(&data).is_some_and(|seen| seen > 0 && seen < book.opened_ms) {
+        if seen_ms(&data).is_some_and(|seen| seen < book.opened_ms) {
             return;
         }
         book.received += 1;
@@ -2049,7 +2070,7 @@ impl Registry {
             // proves that much and dates nothing, so the loss keeps the
             // moment it already had rather than being moved to zero, which
             // would erase it.
-            if let Some(seen) = seen_ms(&data).filter(|s| *s > 0) {
+            if let Some(seen) = seen_ms(&data) {
                 book.incomplete_at_ms = seen;
                 book.awaiting_resume = false;
             }
@@ -2221,19 +2242,64 @@ fn sec_types_for(tool: &str) -> &'static [&'static str] {
     }
 }
 
-/// An index has no quote and no open interest, only its price and a
-/// market value, so the schema says which kinds it takes rather than
-/// leaving a caller to find out from a refusal.
-fn with_index_kinds(mut schema: Value) -> Value {
-    let index_only = json!({
-        "if": {"properties": {"sec_type": {"const": "index"}}, "required": ["sec_type"]},
-        "then": {"properties": {"kind": {"enum": ["trade", "market_value"]}}}
-    });
+/// The security type a public name stands for.
+///
+/// One mapping, read by the schema a caller composes against and by the call
+/// that reads it, so the two cannot come to disagree about what a name means.
+fn sec_named(name: &str) -> Option<SecType> {
+    match name {
+        "option" => Some(SecType::Option),
+        "stock" => Some(SecType::Stock),
+        "index" => Some(SecType::Index),
+        _ => None,
+    }
+}
+
+/// Say in the schema which kinds each security type actually takes.
+///
+/// A stock has no open interest and an index has neither a quote nor one, so
+/// a flat enum over every kind lets a caller compose a request whose only
+/// possible answer is a refusal. Both the enum and the per-type narrowing are
+/// read out of [`kinds_for`], the list the call itself resolves against, so
+/// the schema cannot advertise a kind the call would refuse.
+fn with_kinds(mut schema: Value, sec_types: &[&str]) -> Value {
+    let offered: Vec<(&str, Vec<&'static str>)> = sec_types
+        .iter()
+        .filter_map(|name| sec_named(name).map(|sec| (*name, sec)))
+        .map(|(name, sec)| (name, kinds_for(sec).iter().map(|k| k.kind_str()).collect()))
+        .collect();
+
+    // The property's own enum is every kind some offered type takes; the
+    // conditionals below cut it back per type.
+    let mut union: Vec<&'static str> = Vec::new();
+    for (_, kinds) in &offered {
+        for k in kinds {
+            if !union.contains(k) {
+                union.push(k);
+            }
+        }
+    }
+    if let Some(kind) = schema
+        .get_mut("properties")
+        .and_then(|v: &mut Value| v.get_mut("kind"))
+        .and_then(|v: &mut Value| v.as_object_mut())
+    {
+        kind.insert(&"enum", json!(union));
+    }
+
     if let Some(all) = schema
         .get_mut("allOf")
         .and_then(|v: &mut Value| v.as_array_mut())
     {
-        all.push(index_only);
+        for (name, kinds) in offered {
+            if kinds.len() == union.len() {
+                continue;
+            }
+            all.push(json!({
+                "if": {"properties": {"sec_type": {"const": name}}, "required": ["sec_type"]},
+                "then": {"properties": {"kind": {"enum": kinds}}}
+            }));
+        }
     }
     schema
 }
@@ -2342,13 +2408,13 @@ pub fn tool_definitions() -> Vec<Value> {
                 back it reaches, columns names the fields of each tail row in order, and date is \
                 the trading date they share, absent and carried on each row instead when they \
                 span more than one.",
-            "inputSchema": with_index_kinds(contract_schema(sec_types_for("live_read"), json!({
-                "kind": {"type": "string", "enum": ["quote", "trade", "market_value", "open_interest"],
+            "inputSchema": with_kinds(contract_schema(sec_types_for("live_read"), json!({
+                "kind": {"type": "string",
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "minimum": 0, "description": "Fixed lookback. Default: since your last read."},
                 "tail": {"type": "integer", "minimum": 0, "description": "Newest rows served verbatim. Default 10, capped at 50. Ask for a summary over a longer window rather than more rows."},
                 "watch": clauses_schema("Clauses that must all hold for a row to be kept, over the vendor's fields; spread is ask minus bid. Stays in force until replaced; [] clears it. Spread wider than 0.10: {field: spread, op: >, value: 0.10}. Crossed book: {field: bid, op: >=, value: ask}. Price outside a range: {field: price, op: outside, value: [lo, hi]}. At most 8 clauses. A bounded number of matches are kept between reads, the newest surviving; watch.dropped counts the rest.", &FIELDS)
-            })))
+            })), sec_types_for("live_read"))
         }),
         json!({
             "name": "live_prints",
@@ -2599,7 +2665,7 @@ fn aged_object_dated(data: &StreamData, now: u64, dated: bool) -> Value {
         // Zero is the SDK's fallback for a clock it could not read. Aging
         // from it would report the time since the epoch and present an
         // unknown age as decades.
-        if let Some(seen) = seen_ms(data).filter(|s| *s > 0) {
+        if let Some(seen) = seen_ms(data) {
             obj.insert("age_ms", Value::from(now.saturating_sub(seen)));
         }
         if dated {
@@ -2655,7 +2721,6 @@ fn window_start(window: Option<u64>, r: &Reading) -> u64 {
         .iter()
         .chain(r.summary.first.iter())
         .filter_map(seen_ms)
-        .filter(|s| *s > 0)
         .fold(r.floor, u64::min)
 }
 
@@ -2886,11 +2951,13 @@ fn parse_sec_of(args: &Value, offered: &[&str]) -> Result<SecType, ToolError> {
     let raw = arg(args, "sec_type", &offered.join(", "), |v| {
         v.as_str().map(str::to_string)
     })?;
-    match raw.as_deref().filter(|r| offered.contains(r)) {
-        Some("option") => Ok(SecType::Option),
-        Some("stock") => Ok(SecType::Stock),
-        Some("index") => Ok(SecType::Index),
-        _ => Err(ToolError::InvalidParams(format!(
+    match raw
+        .as_deref()
+        .filter(|r| offered.contains(r))
+        .and_then(sec_named)
+    {
+        Some(sec) => Ok(sec),
+        None => Err(ToolError::InvalidParams(format!(
             "sec_type must be {}",
             offered.join(" or ")
         ))),
@@ -2899,6 +2966,38 @@ fn parse_sec_of(args: &Value, offered: &[&str]) -> Result<SecType, ToolError> {
 
 /// The names that identify one option leg, which only an option has.
 const OPTION_LEG: [&str; 3] = ["expiration", "strike", "right"];
+
+/// The market a rootless `live_stop` names, or why it names none.
+///
+/// Pulled out of the request arm so the list it reads is reachable by a test:
+/// the arm around it needs a live client, and a refusal that exists only
+/// inside an untestable branch is a refusal nobody can prove is there. The
+/// tool name is an argument so the test cannot supply the list itself and
+/// call that an observation.
+fn whole_market_target(name: &str, args: &Value) -> Result<SecType, ToolError> {
+    let sec = parse_sec_of(args, sec_types_for(name))?;
+    // Without a root this closes the whole market. Contract identifiers say
+    // the caller meant one contract, and closing every one of them instead is
+    // not a smaller mistake for being silent.
+    if let Some(named) = OPTION_LEG
+        .iter()
+        .find(|k| args.get(*k).is_some_and(|v: &Value| !v.is_null()))
+    {
+        return Err(ToolError::InvalidParams(format!(
+            "{named} identifies one contract, and sec_type alone closes the whole \
+             {} market; give root to close that contract, or drop {named}",
+            sec.as_str().to_ascii_lowercase()
+        )));
+    }
+    if sec == SecType::Index {
+        return Err(ToolError::InvalidParams(
+            "an index has no whole-market stream to close; live_read follows one index at a \
+             time and live_stop with its root closes it"
+                .into(),
+        ));
+    }
+    Ok(sec)
+}
 
 fn parse_contract(args: &Value) -> Result<(SecType, Contract), ToolError> {
     let sec = parse_sec(args)?;
@@ -3214,8 +3313,12 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 "dropped": h.dropped,
                 "age_ms": h.newest_ms.map(|s| now.saturating_sub(s)),
                 "open_for_seconds": seconds(now.saturating_sub(h.opened_ms)),
-                "idle_seconds": seconds(now.saturating_sub(h.read_ms)),
-                "expires_in_seconds": seconds((TTL.as_millis() as u64).saturating_sub(now.saturating_sub(h.read_ms)))
+                // A book the sweep has marked has no idle time to report and
+                // is due for release now, which is what the caller acts on.
+                "idle_seconds": h.read_ms.map(|r| seconds(now.saturating_sub(r))),
+                "expires_in_seconds": h.read_ms.map_or(0.0, |r| {
+                    seconds((TTL.as_millis() as u64).saturating_sub(now.saturating_sub(r)))
+                })
             })).collect::<Vec<_>>(),
             "on_feed_not_held": unheld
         }));
@@ -3308,27 +3411,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
     }
 
     if name == "live_stop" && args.get("root").is_none() {
-        let sec = parse_sec_of(args, sec_types_for("live_market"))?;
-        // Without a root this closes the whole market. Contract identifiers
-        // say the caller meant one contract, and closing every one of them
-        // instead is not a smaller mistake for being silent.
-        if let Some(named) = OPTION_LEG
-            .iter()
-            .find(|k| args.get(*k).is_some_and(|v: &Value| !v.is_null()))
-        {
-            return Err(ToolError::InvalidParams(format!(
-                "{named} identifies one contract, and sec_type alone closes the whole \
-                 {} market; give root to close that contract, or drop {named}",
-                sec.as_str().to_ascii_lowercase()
-            )));
-        }
-        if sec == SecType::Index {
-            return Err(ToolError::InvalidParams(
-                "an index has no whole-market stream to close; live_read follows one index at a \
-                 time and live_stop with its root closes it"
-                    .into(),
-            ));
-        }
+        let sec = whole_market_target(name, args)?;
         if !reg.market_held(sec) {
             return Err(ToolError::InvalidParams(format!(
                 "no whole-market book is held on {}; live_list shows what is",
@@ -4325,15 +4408,6 @@ mod tests {
         // stop both work.
         assert_eq!(types("live_read"), ["option", "stock", "index"]);
         assert_eq!(types("live_stop"), ["option", "stock", "index"]);
-        // The refusal a call gives comes from the same list the schema
-        // advertises, so neither can drift from the other.
-        for tool in ["live_read", "live_prints", "live_stop", "live_market"] {
-            for t in ["option", "stock", "index"] {
-                let served = sec_types_for(tool).contains(&t);
-                let parsed = parse_sec_of(&json!({"sec_type": t}), sec_types_for(tool));
-                assert_eq!(parsed.is_ok(), served, "{tool} and {t}");
-            }
-        }
     }
 
     #[test]
@@ -4451,6 +4525,104 @@ mod tests {
     }
 
     #[test]
+    fn a_schema_never_offers_a_kind_the_call_would_refuse() {
+        // A caller composing against the schema should not be able to write
+        // a request whose only possible answer is a refusal. The schema's
+        // enum, narrowed by whatever conditional applies to the type, has to
+        // be exactly what `resolve_kind` accepts for that type.
+        let t = tool_definitions()
+            .into_iter()
+            .find(|t| t["name"] == "live_read")
+            .expect("live_read is advertised");
+        let schema = &t["inputSchema"];
+        let flat: Vec<String> = schema["properties"]["kind"]["enum"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(!flat.is_empty(), "live_read advertises a kind enum");
+        let rules = schema["allOf"].as_array().cloned().unwrap_or_default();
+
+        for name in sec_types_for("live_read") {
+            let narrowed: Option<Vec<String>> = rules
+                .iter()
+                .find(|r| r["if"]["properties"]["sec_type"]["const"] == *name)
+                .and_then(|r| r["then"]["properties"]["kind"]["enum"].as_array().cloned())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(str::to_string)
+                        .collect()
+                });
+            let advertised = narrowed.unwrap_or_else(|| flat.clone());
+            let sec = sec_named(name).expect("an offered name is a security type");
+
+            for kind in &advertised {
+                resolve_kind(sec, Some(kind)).unwrap_or_else(|_| {
+                    panic!("the schema offers {name} the kind {kind}, and the call refuses it")
+                });
+            }
+            // Stated, not derived: read out of `kinds_for` this would
+            // compare the schema to the source it is built from.
+            let expected: &[&str] = match *name {
+                "option" => &["quote", "trade", "market_value", "open_interest"],
+                // A stock has no open interest; an index has neither that nor
+                // a quote, and its price arrives on the trade subscription.
+                "stock" => &["quote", "trade", "market_value"],
+                "index" => &["trade", "market_value"],
+                other => panic!("{other} is offered and this test does not say what it takes"),
+            };
+            assert_eq!(
+                advertised, expected,
+                "{name} is advertised exactly the kinds the call takes"
+            );
+        }
+    }
+
+    #[test]
+    fn closing_a_whole_market_reads_the_types_its_own_schema_offers() {
+        // Read against another tool's list, an index could never be named
+        // here, so the refusal that says what to do instead was unreachable
+        // and the caller was told the type was not served at all.
+        let why = refused(whole_market_target(
+            "live_stop",
+            &json!({"sec_type": "index"}),
+        ));
+        assert!(
+            why.contains("no whole-market stream to close"),
+            "an index is named, and told where its stream lives: {why}"
+        );
+        assert!(
+            !why.contains("sec_type must be"),
+            "not refused as a type this tool does not serve: {why}"
+        );
+        assert_eq!(
+            whole_market_target("live_stop", &json!({"sec_type": "stock"})).ok(),
+            Some(SecType::Stock),
+            "a type with a whole-market stream is named"
+        );
+    }
+
+    #[test]
+    fn every_advertised_tool_is_one_the_server_answers() {
+        // Two hand-kept lists: the names the server routes on, and the names
+        // in the definitions it publishes. A name in one and not the other is
+        // either a tool nobody can call or one advertised and unimplemented.
+        let mut advertised: Vec<String> = tool_definitions()
+            .iter()
+            .filter_map(|t| t["name"].as_str().map(str::to_string))
+            .collect();
+        advertised.sort();
+        let mut routed: Vec<String> = TOOL_NAMES.iter().map(|n| (*n).to_string()).collect();
+        routed.sort();
+        assert_eq!(advertised, routed, "every advertised tool is a routed one");
+    }
+
+    #[test]
     fn a_schema_says_when_an_option_leg_is_required() {
         // A caller composing against the schema should not be able to write
         // a request whose only possible answer is a refusal.
@@ -4525,6 +4697,56 @@ mod tests {
             retry.feed_dropped_since_last_read, 1,
             "the one discarded since the subscriptions opened, not all six"
         );
+    }
+
+    #[test]
+    fn a_reopened_trade_leg_does_not_take_a_bar_the_closed_one_queued() {
+        // An older quote book keeps the contract alive across the drop, so
+        // measuring the bar against the earliest book this contract holds
+        // dates it to that quote book and calls a bar from the closed trade
+        // subscription current.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, None, 0, 0)
+            .expect("nothing to refuse");
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            1_000,
+        )
+        .expect("nothing to refuse");
+        // The feed drops the trade leg; the quote book keeps the contract.
+        reg.forget(&subscription(SubscriptionKind::Trade, &c));
+        read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            None,
+            TAIL,
+            None,
+            0,
+            3_400,
+        )
+        .expect("nothing to refuse");
+
+        // Decoded at 2_500, under the subscription that has since closed.
+        reg.ingest(bar(&c, 1.5, 2_500 * MS));
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 4_000);
+        assert!(
+            r.ohlcvc.is_none(),
+            "a bar the closed trade subscription queued is not the reopened one's: {:?}",
+            r.ohlcvc
+        );
+
+        // And one produced after the reopening is kept.
+        reg.ingest(bar(&c, 1.7, 3_500 * MS));
+        let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 4_100);
+        assert!(matches!(r.ohlcvc, Some(StreamData::Ohlcvc { close, .. }) if close == 1.7));
     }
 
     #[test]
@@ -4715,11 +4937,12 @@ mod tests {
             3_000,
         )
         .expect("nothing to refuse");
-        assert_ne!(r.floor, 0, "the window does not start at the epoch");
-        assert!(
-            3_000u64.saturating_sub(r.floor) < 60_000,
-            "it starts within living memory, not decades ago: floor={}",
-            r.floor
+        // Stated as the moment the book was put back, not as a bound that
+        // `saturating_sub` would satisfy for a floor of nought as readily as
+        // for the right one.
+        assert_eq!(
+            r.floor, 2_000,
+            "the window starts when the book was put back, not at the epoch"
         );
     }
 
@@ -5690,6 +5913,41 @@ mod tests {
     }
 
     #[test]
+    fn a_row_the_clock_could_not_stamp_has_no_age_and_vouches_for_no_coverage() {
+        // The SDK stamps a row it could not read the host clock for with
+        // nought. Read as a time that is the epoch, so the row reports an age
+        // of fifty-five years and a window claiming to have covered them.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let now = 100 * MS / 1_000;
+
+        // Open the books first: ingest before that has nowhere to land.
+        reg.prints(&c, 10, 0, now).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 0));
+        let p = reg.prints(&c, 10, 0, now).expect("nothing to refuse");
+        assert_eq!(p.rows.len(), 1, "the row is still served");
+        assert_eq!(
+            rows_age_ms(&p.rows, now),
+            None,
+            "an unstamped row has no age, rather than one measured from the epoch"
+        );
+        assert_eq!(
+            p.covered_since_ms, now,
+            "coverage starts when the book opened, not at the epoch"
+        );
+
+        // And on a book read, where an epoch coverage start also unsets the
+        // clipped flag: a window is not shown whole because the stamp that
+        // would have limited it was unreadable.
+        let r = read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, None, 0, now)
+            .expect("nothing to refuse");
+        assert!(
+            r.covered_since_ms > 0,
+            "a book's coverage starts when it opened, not at the epoch"
+        );
+    }
+
+    #[test]
     fn prints_coverage_never_starts_after_a_print_it_returns() {
         // A trade book reopened after the prints it holds opened later than
         // they arrived. Taking its clock would claim coverage beginning
@@ -5697,7 +5955,9 @@ mod tests {
         let reg = Registry::default();
         let c = stock("AAPL");
         reg.prints(&c, 10, 0, 0).expect("nothing to refuse");
-        reg.ingest(trade(&c, 1.0, 0));
+        // Stamped: an unstamped row has no arrival time to compare coverage
+        // against, so the property this test states would be vacuous.
+        reg.ingest(trade(&c, 1.0, MS));
         // The quote leg is kept alive while the trade leg goes idle, so the
         // trade book expires on its own and the print it produced survives.
         read_now(
@@ -5738,19 +5998,28 @@ mod tests {
             why.contains("does not take strike") && why.contains("strike_min"),
             "names it and what it does take: {why}"
         );
-        // Everything a tool declares is accepted.
-        for t in tool_definitions() {
-            let name = t["name"].as_str().expect("a name");
-            let declared = t["inputSchema"]["properties"]
-                .as_object()
-                .expect("properties");
+        // Every name a tool's own schema declares is one a caller may send.
+        // Stated as literals: built from the schema, the argument object
+        // would be checked against the map it came from.
+        for (tool, names) in [
+            (
+                "live_read",
+                &["sec_type", "root", "kind", "seconds", "tail", "watch"][..],
+            ),
+            (
+                "live_prints",
+                &["sec_type", "root", "count", "quotes_after"][..],
+            ),
+            ("live_list", &[][..]),
+        ] {
             let mut args = json!({});
             if let Some(o) = args.as_object_mut() {
-                for (k, _) in declared {
+                for k in names {
                     o.insert(k, Value::from(1));
                 }
             }
-            only_declared_arguments(name, &args).expect("every declared name is taken");
+            only_declared_arguments(tool, &args)
+                .unwrap_or_else(|e| panic!("{tool} takes the names it declares: {e:?}"));
         }
     }
 
