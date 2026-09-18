@@ -2218,12 +2218,19 @@ pub fn tool_definitions() -> Vec<Value> {
     vec![
         json!({
             "name": "live_read",
-            "description": "Live data for one contract in one call. The first read opens the \
+            "description": "What has happened to one contract since you last looked. \
+                For what it is right now, use a snapshot instead: stock_snapshot_quote, \
+                option_snapshot_trade and their siblings answer in one call, hold nothing, \
+                and are the right tool for a price. This one holds a subscription on the \
+                account and its first read returns nothing, so reaching for it to read a \
+                single value costs two calls and leaves a book open for fifteen minutes. \
+                Reach for it when the gap between two looks is the thing you care about: it \
+                serves every row in that gap, and says so when it could not see them all, \
+                which is what no snapshot can tell you. The first read opens the \
                 subscription and returns nothing yet; read again a second or two later. After \
-                that each read summarises a window and serves its newest rows verbatim. The \
-                window defaults to everything since your last read of this book; pass seconds \
-                for a fixed lookback. A snapshot is a round trip and has already moved by the \
-                time you read it, so age_ms says how old the newest row is: an index reports \
+                that the window defaults to everything since your last read of this book; pass \
+                seconds for a fixed lookback. age_ms is how old the newest row returned is, \
+                never how long ago the feed last carried anything: an index reports \
                 about once a second, so seconds of age are normal there and stale on an option \
                 quote. Rows are held within a memory budget, not for a length of time: \
                 covers_seconds is how far back the rows held reach right now, and clipped means \
@@ -2256,10 +2263,14 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "live_prints",
-            "description": "Recent trades on one contract, newest last, each with the quote that \
-                stood before it; the feed also sends the two quotes after a print, and \
-                quotes_after returns them. Opens the trade and quote subscriptions if they \
-                are not already held. A print needs both: a contract nothing was watching has \
+            "description": "Trades on one contract since you last looked, newest last, each \
+                with the quote that stood before it; the feed also sends the two quotes after \
+                a print, and quotes_after returns them. For the last trade alone use a \
+                snapshot, stock_snapshot_trade or option_snapshot_trade; for a past interval \
+                use the trade-quote history endpoint. This pairs each trade with the quote \
+                beside it as the feed delivers them, which is an association no snapshot \
+                carries and no two snapshots can reconstruct. Opens the trade and quote \
+                subscriptions if they are not already held. A print needs both: a contract nothing was watching has \
                 none yet, so call again a second or two later. A contract already being read \
                 for its trades has whatever printed since, without the quotes beside them, \
                 because a print takes only the quotes that arrived while both were being \
@@ -4308,6 +4319,41 @@ mod tests {
             named.get("window_seconds").and_then(|v| v.as_f64()),
             Some(2.0)
         );
+    }
+
+    #[test]
+    fn every_tool_a_description_sends_a_model_to_exists() {
+        // These descriptions route a caller to a snapshot for the current
+        // value, because holding a subscription to read one costs two calls
+        // and leaves a book open. A name that no longer exists sends the
+        // model nowhere and it comes back here, which is the failure the
+        // routing was added to prevent.
+        use thetadatadx::ENDPOINTS;
+        let served: Vec<&str> = ENDPOINTS.iter().map(|e| e.name).chain(TOOL_NAMES).collect();
+        let mut named = 0;
+        for t in tool_definitions() {
+            let tool = t["name"].as_str().unwrap_or_default().to_string();
+            let text = t["description"].as_str().unwrap_or_default().to_string();
+            for word in text.split(|c: char| !(c.is_alphanumeric() || c == '_')) {
+                if !word.contains('_') || word == tool {
+                    continue;
+                }
+                // A word shaped like a tool name is one, or it is prose that
+                // reads like one, which is just as misleading to a model.
+                if word.starts_with("live_")
+                    || word.starts_with("stock_")
+                    || word.starts_with("option_")
+                    || word.starts_with("index_")
+                {
+                    assert!(
+                        served.contains(&word),
+                        "{tool} sends a model to {word}, which this server does not serve"
+                    );
+                    named += 1;
+                }
+            }
+        }
+        assert!(named > 0, "the descriptions do name other tools");
     }
 
     #[test]
