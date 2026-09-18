@@ -1680,6 +1680,13 @@ impl Registry {
         Self::lost(&mut self.lock(), now, Delivery::Unproven);
     }
 
+    /// A frame the vendor sent that became no row here, because the SDK could
+    /// not decode it or does not know the code it carried. The feed is
+    /// delivering, so the loss is dated and nothing waits on proof.
+    fn unplaceable(&self, now: u64) {
+        Self::lost(&mut self.lock(), now, Delivery::Proven);
+    }
+
     /// Mark every buffer as having lost rows at `now`.
     ///
     /// `delivery` is what this loss says about the feed itself. An
@@ -2790,6 +2797,54 @@ enum Delivery {
     Unproven,
 }
 
+/// What a control event from the feed means for what this server is holding.
+///
+/// Pulled out of the callback so the decision is reachable by a test: the
+/// callback needs a live client, and a control event this server ignores is
+/// indistinguishable, from outside, from one it never knew about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FeedEvent {
+    /// The feed stopped carrying what it was carrying, and nothing since says
+    /// it is back.
+    Interrupted,
+    /// A frame arrived and became no row here, on a feed still delivering.
+    Unplaceable,
+    /// The feed refused a subscribe, with the code it gave.
+    Refused(StreamResponseType),
+    /// Nothing this server holds is affected.
+    Ignored,
+}
+
+fn feed_event(control: &StreamControl) -> FeedEvent {
+    match control {
+        // A server restart is an interruption without the socket closing:
+        // the vendor ends one stream and begins another, the SDK clears its
+        // delta state and its contract cache, and the ticks between the two
+        // never arrive. The connection stays up and the session stays
+        // authenticated, so nothing else here would notice.
+        StreamControl::Disconnected { .. }
+        | StreamControl::Reconnecting { .. }
+        | StreamControl::Restart
+        | StreamControl::ReconnectedServer => FeedEvent::Interrupted,
+        // A frame that did not decode, or carried a code this build does not
+        // know. The SDK hands these over rather than dropping them quietly,
+        // and either may have been a row: not one any buffer received, not
+        // one the ring evicted, and not one the SDK discarded. They are not
+        // sent in ordinary operation, which is what makes marking on them
+        // honest rather than noise.
+        StreamControl::Error { .. } | StreamControl::UnknownFrame { .. } => FeedEvent::Unplaceable,
+        StreamControl::ReqResponse { result, .. } if *result != StreamResponseType::Subscribed => {
+            FeedEvent::Refused(*result)
+        }
+        // Everything else says nothing about rows this server holds: a
+        // session opening or closing, a heartbeat, the SDK's own reconnect
+        // succeeding after a Reconnecting that already marked, its budget
+        // running out after a Disconnected that already marked, a contract
+        // being named, and a subscribe the feed accepted.
+        _ => FeedEvent::Ignored,
+    }
+}
+
 /// What a call has to do about the feed before it can answer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FeedAction {
@@ -2858,16 +2913,12 @@ fn ensure_streaming(client: &Client, reg: &'static Registry) -> Result<u64, Tool
     stream
         .start_streaming(move |event: &StreamEvent| match event {
             StreamEvent::Data(data) => reg.ingest(data.clone()),
-            // The SDK reconnects on its own, and whatever the feed sent
-            // between the drop and the new session was never seen.
-            StreamEvent::Control(
-                StreamControl::Disconnected { .. } | StreamControl::Reconnecting { .. },
-            ) => reg.gap(now_ms()),
-            StreamEvent::Control(StreamControl::ReqResponse { result, .. })
-                if *result != StreamResponseType::Subscribed =>
-            {
-                reg.note_rejection(*result, now_ms());
-            }
+            StreamEvent::Control(control) => match feed_event(control) {
+                FeedEvent::Interrupted => reg.gap(now_ms()),
+                FeedEvent::Unplaceable => reg.unplaceable(now_ms()),
+                FeedEvent::Refused(code) => reg.note_rejection(code, now_ms()),
+                FeedEvent::Ignored => {}
+            },
             _ => {}
         })
         .map_err(|e| stream_error("could not start streaming", e))?;
@@ -5950,6 +6001,74 @@ mod tests {
             !after.clipped,
             "the loss is dated, and this window starts thirty seconds after it"
         );
+    }
+
+    #[test]
+    fn a_control_event_the_feed_sends_is_read_for_what_it_costs() {
+        // The vendor can end one stream and begin another without the socket
+        // closing. The session stays authenticated, so a read would find
+        // every leg intact and call a window over it whole; only this says
+        // otherwise. The events that cost nothing are named here too, because
+        // an event this server ignores looks, from outside, exactly like one
+        // it never knew about.
+        use thetadatadx::RemoveReason;
+        for control in [
+            StreamControl::Restart,
+            StreamControl::ReconnectedServer,
+            StreamControl::Disconnected {
+                reason: RemoveReason::Unspecified,
+            },
+            StreamControl::Reconnecting {
+                reason: RemoveReason::Unspecified,
+                attempt: 1,
+                delay_ms: 10,
+            },
+        ] {
+            assert_eq!(
+                feed_event(&control),
+                FeedEvent::Interrupted,
+                "{control:?} leaves an interval nothing was watching"
+            );
+        }
+        for control in [
+            StreamControl::Error {
+                message: "bad frame".into(),
+            },
+            StreamControl::UnknownFrame {
+                code: 250,
+                payload: vec![1, 2],
+            },
+        ] {
+            assert_eq!(
+                feed_event(&control),
+                FeedEvent::Unplaceable,
+                "{control:?} may have been a row and became none"
+            );
+        }
+        assert_eq!(
+            feed_event(&StreamControl::ReqResponse {
+                req_id: 1,
+                result: StreamResponseType::MaxStreamsReached,
+            }),
+            FeedEvent::Refused(StreamResponseType::MaxStreamsReached),
+            "a refusal carries the code the feed gave"
+        );
+        for control in [
+            StreamControl::ReqResponse {
+                req_id: 1,
+                result: StreamResponseType::Subscribed,
+            },
+            StreamControl::MarketOpen,
+            StreamControl::MarketClose,
+            StreamControl::Connected,
+            StreamControl::Reconnected,
+        ] {
+            assert_eq!(
+                feed_event(&control),
+                FeedEvent::Ignored,
+                "{control:?} costs this server no row"
+            );
+        }
     }
 
     #[test]
