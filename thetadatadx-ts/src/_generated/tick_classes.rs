@@ -688,10 +688,6 @@ pub struct TradeTick {
     pub price_condition_set_last: bool,
     /// True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively.
     pub is_incremental_volume: bool,
-    /// True when the trade occurred during regular trading hours (9:30 AM - 4:00 PM ET).
-    pub regular_trading_hours: bool,
-    /// True when the trade is seller-initiated (ext_condition1 == 12).
-    pub is_seller: bool,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
@@ -1348,8 +1344,6 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
                 trade_condition_no_last: t.condition_flags & 1 == 1,
                 price_condition_set_last: t.price_flags & 1 == 1,
                 is_incremental_volume: t.volume_type == 0,
-                regular_trading_hours: (34200000..=57600000).contains(&t.ms_of_day),
-                is_seller: t.ext_condition1 == 12,
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })

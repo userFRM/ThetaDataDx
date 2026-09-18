@@ -121,9 +121,50 @@ pub enum ConnectionStatus {
     /// Connected and authenticated.
     Connected,
     /// Currently attempting to reconnect after an involuntary disconnect.
+    ///
+    /// Auto-recovery is still trying, so the answer to this is to wait.
     Reconnecting,
+    /// Auto-recovery has given up: the reconnect budget is spent and
+    /// nothing further will be attempted on this session.
+    ///
+    /// This is terminal, and wants the opposite response to
+    /// [`Self::Reconnecting`] even though both follow a disconnect. Waiting
+    /// achieves nothing; a caller that wants a feed has to stop this session
+    /// and start another.
+    ReconnectsExhausted,
     /// Explicitly stopped or failed to connect.
     Disconnected,
+}
+
+/// What a live streaming slot reports, given what its client knows about
+/// itself.
+///
+/// Pulled out of [`Client::connection_status`] so the distinction it exists
+/// for is reachable without a network credential: a session still trying to
+/// reconnect and one that has stopped trying both follow a disconnect and
+/// want opposite responses from a caller.
+fn live_status(
+    dispatcher_failed: bool,
+    authenticated: bool,
+    reconnects_exhausted: bool,
+) -> ConnectionStatus {
+    if dispatcher_failed {
+        // The dispatcher draining the FPSS iterator is what delivers
+        // callbacks. If it died, nothing will ever arrive even though the
+        // I/O thread and ring are alive.
+        ConnectionStatus::Disconnected
+    } else if authenticated {
+        ConnectionStatus::Connected
+    } else if reconnects_exhausted {
+        // The budget is spent and the session loop has left. Without this
+        // the status stays `Reconnecting` for ever and a caller waits on a
+        // feed that will never return.
+        ConnectionStatus::ReconnectsExhausted
+    } else {
+        // Not authenticated but still trying: the flag is cleared on
+        // disconnect and restored on a successful re-auth.
+        ConnectionStatus::Reconnecting
+    }
 }
 
 /// Unified `ThetaData` client.
@@ -1799,21 +1840,18 @@ impl Client {
                         _ => None,
                     }
                 };
-                if let Some(reason) = failed_reason {
+                if let Some(reason) = &failed_reason {
                     tracing::debug!(
                         target: "thetadatadx::client",
                         reason = %reason,
                         "connection_status: dispatcher failed",
                     );
-                    ConnectionStatus::Disconnected
-                } else if client.is_authenticated() {
-                    ConnectionStatus::Connected
-                } else {
-                    // The client exists but is not authenticated — this
-                    // happens during reconnection (authenticated flag is
-                    // cleared on disconnect, restored on successful re-auth).
-                    ConnectionStatus::Reconnecting
                 }
+                live_status(
+                    failed_reason.is_some(),
+                    client.is_authenticated(),
+                    client.reconnects_exhausted(),
+                )
             }
         }
     }
@@ -4004,6 +4042,40 @@ mod tests {
     /// not just the most-recent. A single-slot tracker would return `true`
     /// as soon as the last-pushed flag flipped, even with earlier flags
     /// still pending.
+    #[test]
+    fn a_session_that_stopped_trying_does_not_read_as_still_trying() {
+        // Both states follow a disconnect and they want opposite responses:
+        // one is wait, the other is this session is over. Reporting the
+        // second as the first leaves a caller waiting on a feed that will
+        // never come back.
+        // Not authenticated, still trying.
+        assert_eq!(
+            super::live_status(false, false, false),
+            ConnectionStatus::Reconnecting
+        );
+        // Not authenticated, and it has stopped trying.
+        assert_eq!(
+            super::live_status(false, false, true),
+            ConnectionStatus::ReconnectsExhausted,
+            "a session that gave up must not read as one still trying"
+        );
+        // A dispatcher fault outranks both: nothing is being delivered.
+        assert_eq!(
+            super::live_status(true, false, true),
+            ConnectionStatus::Disconnected
+        );
+        // And a live session says so whatever the budget did earlier.
+        assert_eq!(
+            super::live_status(false, true, true),
+            ConnectionStatus::Connected
+        );
+        // The flag itself is terminal on the client that owns it.
+        let client = crate::fpss::StreamingClient::for_io_fault_test();
+        assert!(!client.reconnects_exhausted());
+        client.mark_reconnects_exhausted_for_test();
+        assert!(client.reconnects_exhausted());
+    }
+
     #[test]
     fn await_drain_waits_for_all_retired_generations() {
         // We exercise the predicate logic directly through a `Vec` to
