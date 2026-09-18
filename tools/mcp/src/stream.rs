@@ -3062,19 +3062,33 @@ fn count_arg(args: &Value, key: &str, what: &str, default: usize) -> Result<usiz
     Ok(arg(args, key, what, |v| v.as_u64().map(|n| n as usize))?.unwrap_or(default))
 }
 
+/// What a close was asked to release: a whole market, or one contract.
+///
+/// The name the answer carries follows from this rather than from a literal
+/// at each call site, so a market cannot come back under `contract`.
+enum Closing<'a> {
+    Market(SecType),
+    Contract(&'a Contract),
+}
+
 /// The answer a close hands back.
 ///
 /// Pulled out of the request arm so the count is reachable by a test. A
 /// subscription the feed would not release is named in `failed_to_close` and
 /// is not one that closed: counting it would report a leak as a clean close,
 /// which is the number a caller decides on.
-fn stop_response(key: &str, what: String, done: usize, failures: Vec<String>) -> Value {
+fn stop_response(what: Closing<'_>, closed: (usize, Vec<String>)) -> Value {
+    let (done, failures) = closed;
+    let (key, named) = match what {
+        Closing::Market(sec) => ("sec_type", sec.as_str().to_ascii_lowercase()),
+        Closing::Contract(c) => ("contract", c.to_string()),
+    };
     let mut out = json!({
         "subscriptions_closed": done,
         "failed_to_close": failures,
     });
     if let Some(obj) = out.as_object_mut() {
-        obj.insert(key, Value::from(what.as_str()));
+        obj.insert(key, Value::from(named.as_str()));
     }
     out
 }
@@ -3395,12 +3409,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             )));
         }
         let (done, failures) = close_on_feed(client, reg, vec![sec.full_trades()]);
-        return Ok(stop_response(
-            "sec_type",
-            sec.as_str().to_ascii_lowercase(),
-            done,
-            failures,
-        ));
+        return Ok(stop_response(Closing::Market(sec), (done, failures)));
     }
 
     // live_prints pairs a trade with the quote before it, and an index has
@@ -3480,10 +3489,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             }
             let (done, failures) = close_on_feed(client, reg, held);
             Ok(stop_response(
-                "contract",
-                contract.to_string(),
-                done,
-                failures,
+                Closing::Contract(&contract),
+                (done, failures),
             ))
         }
         other => Err(ToolError::InvalidParams(format!("unknown tool: {other}"))),
@@ -4418,19 +4425,22 @@ mod tests {
         // A subscription the feed would not let go is named, and it is not
         // one that closed. Counting it would report a leak as a clean close,
         // and the count is the number a caller decides on.
-        let clean = stop_response("contract", "AAPL".into(), 3, Vec::new());
+        let c = stock("AAPL");
+        let clean = stop_response(Closing::Contract(&c), (3, Vec::new()));
         assert_eq!(clean["subscriptions_closed"].as_u64(), Some(3));
         assert_eq!(
             clean["failed_to_close"].as_array().map(|a| a.len()),
             Some(0)
         );
-        assert_eq!(clean["contract"].as_str(), Some("AAPL"));
+        assert_eq!(clean["contract"].as_str(), Some(c.to_string().as_str()));
+        assert!(
+            clean.get("sec_type").is_none(),
+            "a contract is not a market"
+        );
 
         let leaked = stop_response(
-            "sec_type",
-            "option".into(),
-            1,
-            vec!["quote AAPL".into(), "trade AAPL".into()],
+            Closing::Market(SecType::Option),
+            (1, vec!["quote AAPL".into(), "trade AAPL".into()]),
         );
         assert_eq!(
             leaked["subscriptions_closed"].as_u64(),
@@ -4574,9 +4584,10 @@ mod tests {
         assert_eq!(opened, vec!["trade", "quote"], "a print needs both legs");
         reg.gap(2_000);
         for at in [4_000u64, 5_000, 6_000] {
-            // A quote before each trade, so a print carries both and the
-            // trade slot rendering the quote instead is visible.
-            reg.ingest(quote(&c, 10.0, 11.0));
+            // A different quote before each trade, so a print carries both
+            // and both which quote it took and the trade slot rendering a
+            // quote instead are visible. Identical quotes say neither.
+            reg.ingest(quote(&c, at as f64 / 1_000.0, 11.0));
             reg.ingest(trade(&c, 1.0, at * MS));
         }
         // Ask for fewer than are held, so `count` and `held` cannot agree.
@@ -4616,8 +4627,8 @@ mod tests {
         );
         assert_eq!(
             v["prints"][0]["quote_before"]["bid"].as_f64(),
-            Some(10.0),
-            "and the quote that stood before it"
+            Some(5.0),
+            "paired with the quote that stood before it, not an earlier one"
         );
         assert!(
             get("prints")[0].get("quotes_after").is_none(),
@@ -4650,11 +4661,25 @@ mod tests {
             "a hole in the history clips on its own"
         );
 
-        // A discard also clips, and nothing was evicted for it to hide
-        // behind. It holes the history in the same call, which is why the
-        // discard term of `clipped` cannot be isolated from the hole term:
-        // the two are the same loss seen twice, and the disclosure errs
-        // toward saying so.
+        // A discard also clips. The schema allows count 0, which is a
+        // caller asking whether anything was lost without wanting rows
+        // back, and that is where the discard term of `clipped` is the only
+        // one that can answer: with no row returned, none straddles the
+        // hole, so `holed` is false and the history reads as whole.
+        let reg = Registry::default();
+        let c = stock("AMD");
+        reg.prints(&c, 20, 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        let none_wanted = reg.prints(&c, 0, 5, 3_000).expect("nothing to refuse");
+        assert!(!none_wanted.holed, "no returned row straddles the hole");
+        assert_eq!(none_wanted.dropped, 0, "and nothing was evicted");
+        assert_eq!(
+            prints_response(&c, "Connected".into(), 0, false, &none_wanted, 3_000)["clipped"]
+                .as_bool(),
+            Some(true),
+            "but five events were discarded, so this is not the whole of it"
+        );
+
         let reg = Registry::default();
         let c = stock("NVDA");
         reg.prints(&c, 20, 0, 1_000).expect("nothing to refuse");
