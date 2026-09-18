@@ -124,7 +124,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.
+Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 live-tape tools, 6 flat-file tools and `entitlements`.
 
 ### Offline (1 total: `ping`)
 
@@ -169,6 +169,26 @@ This matches the current JVM terminal behavior. The v3 REST surface uses `*` for
 ### Calendar & Rates (4 tools)
 - `calendar_open_today`, `calendar_on_date`, `calendar_year`
 - `interest_rate_history_eod`
+
+### Live Tape (5 tools)
+
+Advertised only when a client is connected. The endpoint tools return what the vendor serves at the moment you ask; these hold live subscriptions and answer what happened between two moments.
+
+- `live_read` - one contract and one kind of tick: the rows that arrived since your last read of it, the age of the newest row returned, how far back the rows held reach, and whether anything is missing from the interval asked about
+- `live_prints` - each trade on a contract paired with the quote that stood before it, as the feed delivered them
+- `live_market` - every trade across the whole option or stock market from one subscription, narrowed and ranked on the vendor's own fields as the prints arrive
+- `live_list` - what is held, whether each buffer is still on the feed, and when each will be released
+- `live_stop` - close one now
+
+A buffer is a contract and a kind, opened by the first read of it and closed after fifteen minutes unread, so the first call returns nothing yet and the second returns what arrived in between. Nothing is computed from the rows: they carry the vendor's condition and exchange codes as they arrived, and the vendor's own bar is served as the vendor sent it.
+
+A stream subscription is scoped to the account rather than to the connection, so `live_stop` stops the stream for every application on that account.
+
+### Entitlements (1 tool)
+
+Advertised only when a client is connected.
+
+- `entitlements` - the subscription tier held for each asset class, which is what decides the rest of the tool list
 
 ### Flat Files (6 tools)
 
