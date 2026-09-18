@@ -68,7 +68,7 @@ function sampleRows() {
     tradeConditionNoLast: false,
     priceConditionSetLast: false,
     isIncrementalVolume: false,
-    regularTradingHours: true,
+    usRegularTradingHours: true,
     isSeller: false,
   };
   return [base, { ...base, sequence: 2, size: 200, price: 12.75, recordsBack: 1 }];
