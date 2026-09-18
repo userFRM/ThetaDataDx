@@ -2366,7 +2366,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 rows_in_window is how many rows the window held, which is not how \
                 many came back: the tail is capped, so a larger count means you are seeing the \
                 newest of more. The tail is the vendor's messages as sent, condition and \
-                exchange codes intact. vendor_ohlcvc is the vendor's own bar for the contract \
+                exchange codes intact. A row carried inside this answer has its own age_ms \
+                beside it, which is the age of that row and not of the answer. \
+                vendor_ohlcvc is the vendor's own bar for the contract \
                 as last sent, served as is; nothing here builds a bar from trades, because \
                 condition, cancel and size rules are yours to choose, and nothing here \
                 summarises them. subscribed_now says whether this call opened the \
@@ -2425,7 +2427,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 among the prints this server has received. \
                 feed_interrupted means there was an interval \
                 before this read that nothing was watching, so prints from it were never held: \
-                the connection broke, or a leg expired and was reopened between your calls. Each print carries quote_before, the quote that stood when it \
+                the connection broke, or a leg expired and was reopened between your calls. A \
+                quote carried beside a print has its own age_ms, which is the age of that quote \
+                and not of the print. Each print carries quote_before, the quote that stood when it \
                 traded, and date when the prints span more than one trading date. A print is a \
                 trade and the quote that stood \
                 before it, and an index has no quote stream, so indices are not on this tool; \
@@ -2456,7 +2460,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 subscribed_now says whether this call opened the subscription, \
                 new_since_last_read counts prints taken since your last read, and each print \
                 carries the contract it traded on, because a whole market spans all of them, \
-                and quote_before, the quote that stood when it traded; date is the trading date \
+                and quote_before, the quote that stood when it traded, with its own age_ms \
+                beside it; date is the trading date \
                 the prints share, absent and carried on each print when they span more than \
                 one. \
                 unranked counts matches without the rank field, such as a quote field on \
