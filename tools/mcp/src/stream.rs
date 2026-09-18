@@ -4270,6 +4270,23 @@ mod tests {
             .expect("nothing to refuse");
         assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
 
+        // And the other shape of window, which counts stamps rather than
+        // arrivals and would otherwise have to be taken on trust.
+        reg.ingest(trade(&c, 1.5, 3 * MS));
+        let named = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 7, 4)
+            .expect("nothing to refuse");
+        assert_eq!(named.feed_dropped_since_last_read, 1);
+        assert!(named.clipped, "a named window counts the discard too");
+        // A window that begins after the read which dated that loss: the
+        // discard is behind it, and it is the whole of what it asked for.
+        let quiet = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 7, 6)
+            .expect("nothing to refuse");
+        assert_eq!(
+            (quiet.feed_dropped_since_last_read, quiet.clipped),
+            (0, false),
+            "and stops counting it once it has been disclosed"
+        );
+
         // The cursor moves where the prints cursor moves: on the commit that
         // follows a call the caller actually received.
         let first = reg.prints(&c, 10, 6, 3).expect("nothing to refuse");
@@ -4342,12 +4359,27 @@ mod tests {
         read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 0).expect("nothing to refuse");
         reg.ingest(trade(&c, 1.0, MS));
         reg.prints(&c, 10, 0, 2 * MS).expect("nothing to refuse");
+
+        // The half the window rule exists to allow. Nothing has read the
+        // trade buffer since it opened, so a sweep past the TTL from that
+        // read frees it unless the prints call counted as use. Checked here,
+        // before the read below touches it and would answer for it.
+        let expired = reg.expire(TTL.as_millis() as u64 + 1);
+        assert!(
+            expired.is_empty(),
+            "the prints call kept the trade leg alive: {expired:?}"
+        );
+
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3 * MS)
             .expect("nothing to refuse");
         assert_eq!(r.new_since_last_read, 1, "the trade is new to this read");
         assert_eq!(
             r.floor, 0,
             "the window still starts at the last read of this buffer, not at the prints call"
+        );
+        assert!(
+            !reg.expire(3 * MS + TTL.as_millis() as u64 + 1).is_empty(),
+            "and past the TTL from the last use of them, they go"
         );
     }
 
@@ -5879,7 +5911,7 @@ mod tests {
     }
 
     #[test]
-    fn a_feed_that_is_not_connected_is_marked_before_the_answer_is_built() {
+    fn a_feed_that_is_not_connected_reads_as_an_interruption() {
         // The status flag is set on the thread reading the socket; the event
         // that tells the registry is queued behind every row in the ring. A
         // read that trusts delivery order over the flag answers that a window
@@ -7865,7 +7897,7 @@ mod tests {
     }
 
     #[test]
-    fn stopping_a_contract_closes_each_kind_on_the_feed_before_the_buffer_goes() {
+    fn stopping_a_contract_leaves_neither_kind_held() {
         let reg = Registry::default();
         let c = stock("AAPL");
         read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0);
