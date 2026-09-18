@@ -4473,13 +4473,18 @@ mod tests {
 
         // A named window is labelled as the caller's and measured from the
         // floor that read carried, which is the interval they asked for.
+        // One more row, and a feed that discarded three events, so the four
+        // counts below are four different numbers: under the default window
+        // a count of the window and a count since the last read are the same
+        // rows, and a swap between them is invisible.
+        reg.ingest(trade(&c, 5.0, 8_500 * MS));
         let n = read_now(
             &reg,
             &c,
             SubscriptionKind::Trade,
-            Some(2_000),
+            Some(6_000),
             TAIL,
-            0,
+            3,
             10_000,
         )
         .expect("nothing to refuse");
@@ -4487,7 +4492,7 @@ mod tests {
             &c,
             SubscriptionKind::Trade,
             "Connected".into(),
-            Some(2_000),
+            Some(6_000),
             &n,
             10_000,
         );
@@ -4497,7 +4502,28 @@ mod tests {
         );
         assert_eq!(
             named.get("window_seconds").and_then(|v| v.as_f64()),
-            Some(2.0)
+            Some(6.0)
+        );
+        let named_get = |k: &str| named.get(k).cloned().unwrap_or_default();
+        assert_eq!(
+            named_get("rows_in_window").as_u64(),
+            Some(5),
+            "every row stamped at or after the floor"
+        );
+        assert_eq!(
+            named_get("new_since_last_read").as_u64(),
+            Some(1),
+            "of which one arrived since the read at 9_000"
+        );
+        assert_eq!(
+            named_get("dropped").as_u64(),
+            Some(0),
+            "the ring evicted nothing"
+        );
+        assert_eq!(
+            named_get("feed_dropped_since_last_read").as_u64(),
+            Some(3),
+            "while the feed discarded three, which is a different loss"
         );
         // Coverage is how far back the rows held reach, and it is not the
         // window: this buffer has been open nine seconds, so a two-second
@@ -4658,12 +4684,21 @@ mod tests {
         reg.gap(6_100);
         let after =
             market_now(&reg, SecType::Stock, q.clone(), 0, 6_200).expect("nothing to refuse");
+        let after_v = market_response(SecType::Stock, "Connected".into(), &q, &after, 6_200);
         assert_eq!(
-            market_response(SecType::Stock, "Connected".into(), &q, &after, 6_200)
-                ["feed_interrupted"]
-                .as_bool(),
+            after_v["feed_interrupted"].as_bool(),
             Some(true),
             "and an interruption is reported"
+        );
+        assert_eq!(
+            after_v["received"].as_u64(),
+            Some(3),
+            "every stock print the market took since it opened"
+        );
+        assert_eq!(
+            after_v["new_since_last_read"].as_u64(),
+            Some(0),
+            "none of them since the read a moment ago, which is the other number"
         );
     }
 
@@ -5153,6 +5188,25 @@ mod tests {
         assert!(
             holds_all(&inside, &|f| field_of(&hi, f)),
             "and the high end"
+        );
+        // And the complement excludes both, which is where an endpoint that
+        // quietly became exclusive would show.
+        let outside = parse_clauses(
+            &json!([{"field": "spread", "op": "outside", "value": [0.25, 0.5]}]),
+            &FIELDS,
+        )
+        .expect("a clause");
+        assert!(
+            !holds_all(&outside, &|f| field_of(&lo, f)),
+            "the low end is not outside"
+        );
+        assert!(
+            !holds_all(&outside, &|f| field_of(&hi, f)),
+            "nor is the high end"
+        );
+        assert!(
+            holds_all(&outside, &|f| field_of(&row(1.0, 1.6), f)),
+            "past the high end is"
         );
     }
 
@@ -7335,6 +7389,18 @@ mod tests {
         for d in [&t, &q] {
             for (col, _) in fields(d) {
                 if col == "time" {
+                    // The one rendered column a selection cannot read: a
+                    // clock string, not a number. Skipped with its reason
+                    // asserted, so the day it becomes selectable this fails
+                    // rather than quietly passing over it.
+                    assert!(
+                        !PRINT_FIELDS.contains(&col),
+                        "time is excluded on purpose; the schema now offers it"
+                    );
+                    assert!(
+                        print_field(&t, Some(&q), col).is_none(),
+                        "and it reads no number off a print"
+                    );
                     continue;
                 }
                 assert!(
@@ -7490,6 +7556,11 @@ mod tests {
         // A read takes what was kept: the next has nothing until more prints.
         let m = market_now(&reg, SecType::Option, query(10), 0, 11).expect("nothing to refuse");
         assert_eq!((m.examined, m.matched, m.rows.len()), (0, 0, 0));
+        assert_eq!(
+            (m.received, m.new_since_last_read),
+            (2, 0),
+            "received counts every print since the market opened; new only those since the last read"
+        );
 
         // Only `limit` rows are kept, the newest, and the counts still say
         // how many there were.
