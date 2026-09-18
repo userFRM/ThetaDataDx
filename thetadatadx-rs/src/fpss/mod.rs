@@ -2432,10 +2432,11 @@ impl StreamingClient {
     /// Mark auto-recovery as having given up, as the io loop does when its
     /// reconnect budget runs out.
     ///
-    /// Exposed (not `#[cfg(test)]`) so a test can reach the terminal state
-    /// without a network, exactly as [`Self::for_io_fault_test`] does for a
-    /// dispatcher fault.
-    #[doc(hidden)]
+    /// Reaches the terminal state without a network. Unlike
+    /// [`Self::for_io_fault_test`], which a second crate's tests call, this
+    /// one is only ever called from inside this crate, so it is compiled out
+    /// of a consumer's build rather than shipped hidden on the client.
+    #[cfg(test)]
     pub fn mark_reconnects_exhausted_for_test(&self) {
         self.authenticated.store(false, Ordering::Release);
         self.reconnects_exhausted.store(true, Ordering::Release);

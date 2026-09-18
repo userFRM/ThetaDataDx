@@ -2297,7 +2297,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 watched; prints from after this call have them. \
                 new_since_last_read counts prints since your last live_prints on this \
                 contract; live_read keeps its own count of trades. Prints are held within a memory budget, and clipped means older ones \
-                were discarded before you asked. Each print carries quote_before, the quote that stood when it \
+                were discarded before you asked. feed_interrupted means there was an interval \
+                before this read that nothing was watching, so prints from it were never held: \
+                the connection broke, or a leg expired and was reopened between your calls. Each print carries quote_before, the quote that stood when it \
                 traded, and date when the prints span more than one trading date. A print is a \
                 trade and the quote that stood \
                 before it, and an index has no quote stream, so indices are not on this tool; \
@@ -2324,8 +2326,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 got; unranked counts matches without the rank field, such as a quote field on \
                 a print with no quote ahead of it. A print can go missing two ways and both \
                 are reported: feed_dropped_since_last_read counts what the feed threw away, \
-                and feed_interrupted says the connection broke while the selection stood, so \
-                prints from that interval never arrived to be counted at all. since_seconds is how long the selection stood before \
+                and feed_interrupted means there was an interval before this read that no \
+                selection was watching, so prints from it were never counted at all. The \
+                connection breaking is one cause; the others are this market having been \
+                released and reopened, and a replaced selection having examined prints the \
+                one before it never saw. since_seconds is how long the selection stood before \
                 this read took it. Sending different parameters replaces the \
                 selection; the rows that come back were kept under the previous one, shown as \
                 selected_by. Needs an Options Pro or Stocks Pro subscription; the error says \
