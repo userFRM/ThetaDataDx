@@ -71,7 +71,21 @@ When credentials are present the connected surface also carries six flat-file to
 - `thetadatadx_flatfile_stock_trade_quote`: stock trade-quote flat file.
 - `thetadatadx_flatfile_stock_eod`: stock end-of-day flat file.
 
-Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools and the market-data endpoints need a live connection.
+A connected server also holds live subscriptions on your behalf and answers questions about them. The endpoint tools return what the vendor serves at the moment you ask; these answer what happened between two moments, which no sequence of snapshots can reconstruct:
+
+- `live_read`: one contract, one kind of tick. The rows that arrived since your last read of it, with the age of the newest row returned, how far back the rows held reach, and whether anything is missing from the interval you asked about.
+- `live_prints`: each trade on a contract paired with the quote that stood before it, as the feed delivered them.
+- `live_market`: every trade across the whole option or stock market from one subscription, narrowed and ranked on the vendor's own fields as the prints arrive, with the top rows kept until your next read.
+- `live_list`: what is currently held, whether each buffer is still on the feed, and when each will be released.
+- `live_stop`: close one now.
+
+There are no handles. A buffer is a contract and a kind, opened by the first read of it and closed after fifteen minutes unread, so the first call to any of these returns nothing yet and the second returns what arrived in between. Every answer reports the feed's own state alongside the rows, because a dead feed and a quiet contract look identical from an age alone. Nothing is computed from the rows: they carry the vendor's condition and exchange codes as they arrived, and the vendor's own bar is served as the vendor sent it.
+
+A stream subscription is scoped to the account, not to the connection. `live_stop` therefore stops the stream for every application on that account, not only for this server.
+
+The `entitlements` tool reports the subscription tier held for each asset class, which is what decides the rest of the tool list.
+
+Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools, the live tools and the market-data endpoints need a live connection.
 
 ## Option queries from a model
 
