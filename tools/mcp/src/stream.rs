@@ -307,7 +307,7 @@ impl Op {
 }
 
 /// The right-hand side of a comparison: a number, or another field of the
-/// same row, which is how a crossed buffer (`bid >= ask`) is asked for.
+/// same row, which is how a crossed market (`bid >= ask`) is asked for.
 #[derive(Clone, Debug, PartialEq)]
 enum Rhs {
     Number(f64),
@@ -3555,7 +3555,9 @@ mod tests {
     }
 
     fn trade_with(c: &Contract, price: f64, condition: i32, received_at_ns: u64) -> StreamData {
-        trade_sized(c, price, 1, condition, received_at_ns)
+        // Size differs from price so a swap between the two is visible. With
+        // both rendering as one, `fields` could exchange them unseen.
+        trade_sized(c, price, 7, condition, received_at_ns)
     }
 
     fn trade_on(c: &Contract, price: f64, date: i32, received_at_ns: u64) -> StreamData {
@@ -4584,8 +4586,19 @@ mod tests {
             "paired with the quote that stood before it, not an earlier one"
         );
         // The most important disclosure on this arm, read through the
-        // response rather than off the reading it was built from.
+        // response rather than off the reading. Both ways round: a fixture
+        // that never interrupts proves only that a negation is caught.
         assert_eq!(get("feed_interrupted").as_bool(), Some(false));
+        reg.gap(6_100);
+        let after =
+            market_now(&reg, SecType::Stock, q.clone(), 0, 6_200).expect("nothing to refuse");
+        assert_eq!(
+            market_response(SecType::Stock, "Connected".into(), &q, &after, 6_200)
+                ["feed_interrupted"]
+                .as_bool(),
+            Some(true),
+            "and an interruption is reported"
+        );
     }
 
     #[test]
@@ -4732,6 +4745,10 @@ mod tests {
             .expect("nothing to refuse");
         read_now(&reg, &gone, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
             .expect("nothing to refuse");
+        // Read again later, so the moment it opened and the moment it was
+        // read differ and the countdown can only come from one of them.
+        read_now(&reg, &held, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
         // Counters that differ from one another, so a swap between any two is
         // visible. All nought proves nothing.
         for _ in 0..(RING + 2) {
@@ -4773,9 +4790,9 @@ mod tests {
         );
         assert_eq!(row["dropped"].as_u64(), Some(2), "and what it pushed out");
         assert_eq!(
-            v["held"][0]["expires_in_seconds"].as_f64(),
-            Some(seconds(TTL.as_millis() as u64 - 4_000)),
-            "the time left, counted down from the last read"
+            row["expires_in_seconds"].as_f64(),
+            Some(seconds(TTL.as_millis() as u64 - 2_000)),
+            "counted down from the last read at 3_000, not the open at 1_000"
         );
         assert_eq!(
             v["on_feed_not_held"].as_array().map(|a| a.len()),
@@ -5007,6 +5024,68 @@ mod tests {
             r.newest_ms,
             Some(3_000),
             "and the age is of that row, not of the one behind it in the ring"
+        );
+    }
+
+    #[test]
+    fn a_selection_ages_itself_by_the_newest_row_it_returns() {
+        // With one row returned the oldest and the newest are the same, so a
+        // fold over them cannot say which end it took.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        let mut q = query(5);
+        q.root = Some("AAPL".into());
+        market_now(&reg, SecType::Stock, q.clone(), 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        reg.ingest(trade(&c, 2.0, 5_000 * MS));
+        let m = market_now(&reg, SecType::Stock, q.clone(), 0, 6_000).expect("nothing to refuse");
+        assert_eq!(m.rows.len(), 2, "two prints, stamped apart");
+        assert_eq!(
+            market_response(SecType::Stock, "Connected".into(), &q, &m, 6_000)["age_ms"].as_u64(),
+            Some(1_000),
+            "the newest of them is 1 s old; the oldest is 4 s and is not the answer"
+        );
+    }
+
+    #[test]
+    fn every_comparison_a_selection_offers_means_what_it_says() {
+        // Each operator on its own boundary, where it differs from its
+        // neighbour. Tried away from the boundary, `>` and `>=` agree and
+        // neither is proven.
+        let row = |bid: f64, ask: f64| quote(&stock("AAPL"), bid, ask);
+        let holds = |op: &str, value: f64, bid: f64, ask: f64| {
+            let c = parse_clauses(
+                &json!([{"field": "spread", "op": op, "value": value}]),
+                &FIELDS,
+            )
+            .expect("a clause");
+            let d = row(bid, ask);
+            holds_all(&c, &|f| field_of(&d, f))
+        };
+        // Spread sits exactly on the value, which is the only input that
+        // separates each pair. A quarter is exact in binary; a tenth is not,
+        // and `1.10 - 1.0` lands just above it, which would make `>` hold.
+        assert!(!holds(">", 0.25, 1.0, 1.25), "greater than excludes equal");
+        assert!(holds(">=", 0.25, 1.0, 1.25), "at least includes it");
+        assert!(!holds("<", 0.25, 1.0, 1.25), "less than excludes equal");
+        assert!(holds("<=", 0.25, 1.0, 1.25), "at most includes it");
+        assert!(holds("==", 0.25, 1.0, 1.25), "equal holds");
+        assert!(!holds("!=", 0.25, 1.0, 1.25), "and unequal does not");
+        // A range includes both of its ends.
+        let inside = parse_clauses(
+            &json!([{"field": "spread", "op": "inside", "value": [0.25, 0.5]}]),
+            &FIELDS,
+        )
+        .expect("a clause");
+        let lo = row(1.0, 1.25);
+        let hi = row(1.0, 1.5);
+        assert!(
+            holds_all(&inside, &|f| field_of(&lo, f)),
+            "the low end is in"
+        );
+        assert!(
+            holds_all(&inside, &|f| field_of(&hi, f)),
+            "and the high end"
         );
     }
 
