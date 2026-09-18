@@ -1387,7 +1387,13 @@ impl Registry {
             buffer.ring.front().and_then(seen_ms).unwrap_or(now)
         } else {
             buffer.opened_ms
-        };
+        }
+        // Nothing before the last loss this buffer knows of is proven, whether
+        // or not a window has since been told about it. A read that discloses
+        // an interruption spends the disclosure; the loss itself does not go
+        // away, and a coverage figure reaching back over it would claim an
+        // unbroken span across the interval it names.
+        .max(buffer.incomplete_at_ms);
         let dropped = buffer.dropped;
         let dropped_newest_ms = buffer.dropped_newest_ms;
         // Everything the buffer has to say, read out before the borrow ends.
@@ -2463,9 +2469,15 @@ pub fn tool_definitions() -> Vec<Value> {
                 the SDK discarded events, which feed_dropped_since_last_read counts. Treat it \
                 as the one field that says whether anything is missing, whatever the cause, \
                 among the prints this server has received. \
-                feed_interrupted means there was an interval \
-                before this read that nothing was watching, so prints from it were never held: \
-                the connection broke, or a leg expired and was reopened between your calls. A \
+                feed_interrupted means there was an interval before this read that this \
+                server was not watching all of. Sometimes the prints from it were never held: \
+                the connection broke, the vendor restarted the stream, or the trade leg \
+                expired and was reopened between your calls. Sometimes the prints are all \
+                here and their quotes are not, which is what the quote leg going away costs, \
+                and a print from that interval carries no quote_before. clipped is the field \
+                that separates the two: it is true when prints are missing. A frame the \
+                server could not decode sets it too, because either kind of loss may have \
+                been in it. A \
                 quote carried beside a print has its own age_ms, which is the age of that quote \
                 and not of the print. Each print carries quote_before, the quote that stood when it \
                 traded, and date when the prints span more than one trading date. A print is a \
@@ -2510,9 +2522,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 are reported: feed_dropped_since_last_read counts what the feed threw away, \
                 and feed_interrupted means there was an interval before this read that no \
                 selection was watching, so prints from it were never counted at all. The \
-                connection breaking is one cause; the others are this market having been \
-                released and reopened, and a replaced selection having examined prints the \
-                one before it never saw. since_seconds is how long the selection stood before \
+                connection breaking is one cause; the others are the vendor restarting the \
+                stream, this market having been released and reopened, a replaced selection \
+                having examined prints the one before it never saw, and a frame the server \
+                could not decode, which may have been a print. since_seconds is how long the \
+                selection stood before \
                 this read took it. Sending different parameters replaces the selection, and \
                 the answer echoes both: selection is the one in force from here, and \
                 selected_by the one that kept the rows this call returns, present only when \
@@ -4801,8 +4815,9 @@ mod tests {
         );
         assert_eq!(
             get("covers_seconds").as_f64(),
-            Some(8.0),
-            "back to when the buffer opened"
+            Some(5.0),
+            "back to where the feed came back at 4_000, not to the open: the interruption \
+             at 2_000 is behind that and nothing across it is proven"
         );
 
         // A named window is labelled as the caller's and measured from the
@@ -4859,15 +4874,14 @@ mod tests {
             Some(3),
             "while the feed discarded three, which is a different loss"
         );
-        // Coverage is how far back the rows held reach, and it is not the
-        // window: this buffer has been open nine seconds, so a two-second
-        // window covers less than the buffer does. Asserting the two equal
-        // proves neither, and computing one from the other would then be a
-        // buffer two seconds old claiming an hour of coverage.
+        // Coverage is how far back this buffer can prove it saw everything,
+        // and it is not the window: asserting the two equal proves neither,
+        // and computing one from the other would be a buffer two seconds old
+        // claiming an hour of coverage.
         assert_eq!(
             named.get("covers_seconds").and_then(|v| v.as_f64()),
-            Some(9.0),
-            "back to when the buffer opened, whatever window was asked for"
+            Some(6.0),
+            "back to where the feed came back, whatever window was asked for"
         );
     }
 
