@@ -171,11 +171,14 @@ fn date_of(data: &StreamData) -> Option<i32> {
     }
 }
 
-/// The names a predicate or a rank may use: every numeric column `fields`
-/// renders, so what a model reads in a tail is what it can compare, plus
-/// `spread`. Spread is ask minus bid on one quote message — the comparison a
-/// quote predicate is nearly always about, and the one name here that is
-/// not a column the vendor sends.
+/// Every numeric column `fields` renders, plus `spread`, which is ask minus
+/// bid on one quote message and the one name here the vendor does not send.
+///
+/// This is wider than what a selection can narrow or rank on, which is
+/// [`PRINT_FIELDS`]. It exists so that a name belonging to some other row
+/// can be refused as that rather than as no field at all: a caller ranking a
+/// selection by `open_interest` is told it is not a field these rows carry,
+/// instead of being handed the bare list and left to guess why.
 const FIELDS: [&str; 18] = [
     "price",
     "size",
@@ -219,8 +222,10 @@ const PRINT_FIELDS: [&str; 14] = [
 
 /// A numeric field of a row by name; `None` when the row has no such field.
 ///
-/// Runs on the dispatcher thread for every print of a selected market, so
-/// it reads the enum and allocates nothing.
+/// Reads a trade or the quote before it, which is what a print carries and
+/// the only thing a selection ranks or narrows on. Runs on the dispatcher
+/// thread for every print of a selected market, so it reads the enum and
+/// allocates nothing.
 fn field_of(data: &StreamData, name: &str) -> Option<f64> {
     let v = match data {
         StreamData::Quote {
@@ -258,21 +263,6 @@ fn field_of(data: &StreamData, name: &str) -> Option<f64> {
             "condition" => f64::from(*condition),
             "exchange" => f64::from(*exchange),
             "sequence" => f64::from(*sequence),
-            _ => return None,
-        },
-        StreamData::OpenInterest { open_interest, .. } => match name {
-            "open_interest" => f64::from(*open_interest),
-            _ => return None,
-        },
-        StreamData::MarketValue {
-            market_bid,
-            market_ask,
-            market_price,
-            ..
-        } => match name {
-            "market_bid" => *market_bid,
-            "market_ask" => *market_ask,
-            "market_price" => *market_price,
             _ => return None,
         },
         _ => return None,
@@ -6179,54 +6169,32 @@ mod tests {
     }
 
     #[test]
-    fn every_column_a_row_renders_is_a_field_a_predicate_can_read() {
-        // A column the model sees in a tail must be one it can compare on,
-        // and a name the schema offers must read something on the row it
-        // belongs to. The bar is left out: it is never a ring row, so no
-        // predicate runs on it.
+    fn every_column_a_print_renders_is_one_a_selection_can_read() {
+        // A column the model sees in a row must be one it can narrow or rank
+        // on, and a name the schema offers must read something on the rows it
+        // is offered for. A selection reads prints, and a print is a trade
+        // and the quote before it.
         let c = stock("AAPL");
-        let rows = [
-            quote(&c, 1.0, 1.1),
-            trade(&c, 1.0, 0),
-            StreamData::OpenInterest {
-                contract: Arc::new(c.clone()),
-                ms_of_day: 0,
-                open_interest: 5,
-                date: 20260915,
-                received_at_ns: 0,
-            },
-            StreamData::MarketValue {
-                contract: Arc::new(c.clone()),
-                ms_of_day: 0,
-                market_bid: 1.0,
-                market_ask: 1.1,
-                market_price: 1.05,
-                date: 20260915,
-                received_at_ns: 0,
-            },
-        ];
-        let mut readable = Vec::new();
-        for d in &rows {
+        let (t, q) = (trade(&c, 1.0, 0), quote(&c, 1.0, 1.1));
+        for d in [&t, &q] {
             for (col, _) in fields(d) {
                 if col == "time" {
                     continue;
                 }
                 assert!(
-                    FIELDS.contains(&col),
-                    "{col} is rendered but cannot be compared on"
+                    PRINT_FIELDS.contains(&col),
+                    "{col} is rendered on a print but cannot be selected on"
                 );
                 assert!(
-                    field_of(d, col).is_some(),
-                    "{col} reads nothing on its own row"
+                    print_field(&t, Some(&q), col).is_some(),
+                    "{col} reads nothing on the print it is rendered from"
                 );
-                readable.push(col);
             }
         }
-        readable.push("spread");
-        for name in FIELDS {
+        for name in PRINT_FIELDS {
             assert!(
-                readable.contains(&name),
-                "{name} is offered but reads nothing anywhere"
+                print_field(&t, Some(&q), name).is_some(),
+                "{name} is offered and reads nothing"
             );
         }
         assert_eq!(
@@ -6235,35 +6203,27 @@ mod tests {
             "spread is ask minus bid"
         );
 
-        // What live_market offers is exactly what a print can read: a name
-        // it cannot would select nothing forever, so it is refused in words
-        // instead.
-        let (t, q) = (trade(&c, 1.0, 0), quote(&c, 1.0, 1.1));
-        for name in FIELDS {
-            assert_eq!(
-                PRINT_FIELDS.contains(&name),
-                print_field(&t, Some(&q), name).is_some(),
-                "{name}"
-            );
-        }
+        // FIELDS is wider than that on purpose: a name belonging to some
+        // other row is refused as that rather than as no field at all.
         let why = refused(parse_market_query(&json!({"rank_by": "open_interest"}), 1));
         assert!(
             why.contains("open_interest is not a field these rows carry"),
             "{why}"
+        );
+        assert!(
+            FIELDS.contains(&"open_interest") && !PRINT_FIELDS.contains(&"open_interest"),
+            "which is what that wording depends on"
+        );
+        let plain = refused(parse_market_query(&json!({"rank_by": "nonsense"}), 1));
+        assert!(
+            !plain.contains("not a field these rows carry") && plain.contains("rank_by must be"),
+            "a name that is no field anywhere just names the list: {plain}"
         );
         assert!(parse_market_query(
             &json!({"where": [{"field": "market_price", "op": ">", "value": 1}]}),
             1
         )
         .is_err());
-        assert!(
-            parse_clauses(
-                &json!([{"field": "open_interest", "op": ">", "value": 1}]),
-                &FIELDS
-            )
-            .is_ok(),
-            "an open-interest book can still watch its own field"
-        );
     }
 
     #[test]
