@@ -2307,7 +2307,7 @@ pub fn tool_definitions() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "sec_type": {"type": "string", "enum": ["option", "stock"]},
+                    "sec_type": {"type": "string", "enum": sec_types_for("live_market")},
                     "root": {"type": "string", "description": "Only this ticker or option root."},
                     "expiration": {"type": "integer", "description": "YYYYMMDD. Options only."},
                     "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."},
@@ -3051,6 +3051,67 @@ fn count_arg(args: &Value, key: &str, what: &str, default: usize) -> Result<usiz
     Ok(arg(args, key, what, |v| v.as_u64().map(|n| n as usize))?.unwrap_or(default))
 }
 
+/// The answer a book read hands back.
+///
+/// Pulled out of the request arm so which value lands in which field is
+/// reachable by a test. The arm around it needs a live client, and an
+/// `age_ms` that could only be checked inside an untestable branch is an age
+/// nobody can prove describes the rows rather than the feed.
+fn read_response(
+    contract: &Contract,
+    kind: SubscriptionKind,
+    feed: String,
+    window: Option<u64>,
+    r: &Reading,
+    now: u64,
+) -> Value {
+    let newest = r.tail.last();
+    // One date for everything this response renders while they agree.
+    // Otherwise it travels on each row: restamping one is not an option, and
+    // the oldest row reaches further back than the tail.
+    let shared_date = one_date(r.tail.iter().chain(r.oldest.iter()).chain(r.ohlcvc.iter()));
+    json!({
+        "contract": contract.to_string(),
+        "kind": kind.kind_str(),
+        "feed": feed,
+        "subscribed_now": r.first,
+        // A named window is the interval the caller asked for. Only the
+        // default window, which is "since you last looked", stretches back
+        // over a row decoded before that read and delivered after it.
+        "window_seconds": seconds(now.saturating_sub(window_start(window, r))),
+        "window_from": if window.is_some() { "request" } else { "last_read" },
+        "covers_seconds": seconds(now.saturating_sub(r.covered_since_ms)),
+        "clipped": r.clipped,
+        "dropped": r.dropped,
+        "new_since_last_read": r.new_since_last_read,
+        "feed_dropped_since_last_read": r.feed_dropped_since_last_read,
+        // The age of the rows returned, never of the feed: a quiet contract
+        // and a dead feed look identical from a feed age alone.
+        "age_ms": r.newest_ms.map(|s| now.saturating_sub(s)),
+        "rows_in_window": r.count,
+        "vendor_ohlcvc": r.ohlcvc
+            .as_ref()
+            .map(|bar| aged_object_dated(bar, now, shared_date.is_none())),
+        "date": shared_date.map(Value::from),
+        "columns": newest.map(|d| {
+            let mut c: Vec<&str> = fields(d).into_iter().map(|(k, _)| k).collect();
+            if shared_date.is_none() {
+                c.push("date");
+            }
+            c
+        }),
+        "tail": r.tail.iter().map(|d| {
+            let mut v = row(d);
+            if shared_date.is_none() {
+                if let (Some(a), Some(day)) = (v.as_array_mut(), date_of(d)) {
+                    a.push(json!(day));
+                }
+            }
+            v
+        }).collect::<Vec<_>>()
+    })
+}
+
 /// Tool calls arrive one at a time (the JSON-RPC loop awaits each before
 /// reading the next), so a registry mutation and the feed call that follows
 /// it are never interleaved with another tool call. That ordering is what
@@ -3246,54 +3307,14 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             // The answer is going to reach the caller, so the cursors move.
             // A call that failed above left all of it for the next read.
             reg.commit_read(&contract, kind, r.settle.clone(), now);
-            let newest = r.tail.last();
-            // One date for everything this response renders while they
-            // agree. Otherwise it travels on each row: restamping one is not
-            // an option, and the oldest row reaches further back than the
-            // tail.
-            let shared_date = one_date(r.tail.iter().chain(r.oldest.iter()).chain(r.ohlcvc.iter()));
-            Ok(json!({
-                "contract": contract.to_string(),
-                "kind": kind.kind_str(),
-                "feed": feed_state(client),
-                "subscribed_now": r.first,
-                // A row decoded before the last read and dispatched after
-                // it is new to this one, and the span must reach back far
-                // enough to hold it.
-                // A named window is the interval the caller asked for. Only
-                // the default window, which is "since you last looked",
-                // stretches back over a row decoded before that read and
-                // delivered after it.
-                "window_seconds": seconds(now.saturating_sub(window_start(window, &r))),
-                "window_from": if window.is_some() { "request" } else { "last_read" },
-                "covers_seconds": seconds(now.saturating_sub(r.covered_since_ms)),
-                "clipped": r.clipped,
-                "dropped": r.dropped,
-                "new_since_last_read": r.new_since_last_read,
-                "feed_dropped_since_last_read": r.feed_dropped_since_last_read,
-                "age_ms": r.newest_ms.map(|s| now.saturating_sub(s)),
-                "rows_in_window": r.count,
-                "vendor_ohlcvc": r.ohlcvc
-                    .as_ref()
-                    .map(|bar| aged_object_dated(bar, now, shared_date.is_none())),
-                "date": shared_date.map(Value::from),
-                "columns": newest.map(|d| {
-                    let mut c: Vec<&str> = fields(d).into_iter().map(|(k, _)| k).collect();
-                    if shared_date.is_none() {
-                        c.push("date");
-                    }
-                    c
-                }),
-                "tail": r.tail.iter().map(|d| {
-                    let mut v = row(d);
-                    if shared_date.is_none() {
-                        if let (Some(a), Some(day)) = (v.as_array_mut(), date_of(d)) {
-                            a.push(json!(day));
-                        }
-                    }
-                    v
-                }).collect::<Vec<_>>()
-            }))
+            Ok(read_response(
+                &contract,
+                kind,
+                feed_state(client),
+                window,
+                &r,
+                now,
+            ))
         }
         "live_prints" => {
             // A print needs both legs; an index offers neither quote nor
@@ -4189,6 +4210,107 @@ mod tests {
     }
 
     #[test]
+    fn a_read_answers_about_its_own_rows_and_not_about_the_feed() {
+        // Which value lands in which field. Every one of these was assigned
+        // inside a branch no test reached, so swapping two of them, or
+        // hardcoding a disclosure, changed nothing any test could see.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        // More rows than the tail will carry, so a count that quietly became
+        // the tail's length would be wrong; and an interruption, so a clipped
+        // flag that quietly became false would be wrong too. A fixture where
+        // they agree cannot tell either apart.
+        reg.gap(2_000);
+        for (price, at) in [(1.0, 4_000), (2.0, 5_000), (3.0, 6_000), (4.0, 7_000)] {
+            reg.ingest(trade(&c, price, at * MS));
+        }
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, 2, 0, 9_000)
+            .expect("nothing to refuse");
+
+        let v = read_response(
+            &c,
+            SubscriptionKind::Trade,
+            "Connected".into(),
+            None,
+            &r,
+            9_000,
+        );
+        let get = |k: &str| v.get(k).cloned().unwrap_or_default();
+
+        // The age is of the newest row returned, 5_000, not of anything the
+        // feed did. This is the one thing this surface exists not to do.
+        assert_eq!(
+            get("age_ms").as_u64(),
+            Some(2_000),
+            "age of the newest row, 7_000"
+        );
+        assert_eq!(
+            get("rows_in_window").as_u64(),
+            Some(4),
+            "the population the tail was cut from, not the tail"
+        );
+        assert_eq!(
+            get("tail").as_array().map(|a| a.len()),
+            Some(2),
+            "and the tail is smaller"
+        );
+        assert_eq!(get("dropped").as_u64(), Some(0));
+        assert_eq!(get("new_since_last_read").as_u64(), Some(4));
+        assert_eq!(get("feed_dropped_since_last_read").as_u64(), Some(0));
+        assert_eq!(
+            get("clipped").as_bool(),
+            Some(true),
+            "the feed was interrupted"
+        );
+        assert_eq!(get("window_from").as_str(), Some("last_read"));
+        assert_eq!(get("kind").as_str(), Some("trade"));
+        assert_eq!(get("feed").as_str(), Some("Connected"));
+        // The default window starts at the last read, 1_000, and stretches
+        // further only for a row older than it. These rows are newer.
+        assert_eq!(
+            get("window_seconds").as_f64(),
+            Some(8.0),
+            "back to the last read"
+        );
+        assert_eq!(
+            get("covers_seconds").as_f64(),
+            Some(8.0),
+            "back to when the book opened"
+        );
+
+        // A named window is labelled as the caller's and measured from the
+        // floor that read carried, which is the interval they asked for.
+        let n = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(2_000),
+            TAIL,
+            0,
+            10_000,
+        )
+        .expect("nothing to refuse");
+        let named = read_response(
+            &c,
+            SubscriptionKind::Trade,
+            "Connected".into(),
+            Some(2_000),
+            &n,
+            10_000,
+        );
+        assert_eq!(
+            named.get("window_from").and_then(|v| v.as_str()),
+            Some("request")
+        );
+        assert_eq!(
+            named.get("window_seconds").and_then(|v| v.as_f64()),
+            Some(2.0)
+        );
+    }
+
+    #[test]
     fn a_tool_offers_only_the_security_types_it_can_serve() {
         // A type offered in the schema and refused on every call is a call
         // a model will make and an answer it will never get.
@@ -4217,6 +4339,7 @@ mod tests {
         assert_eq!(sec_types_for("live_read"), ["option", "stock", "index"]);
         assert_eq!(sec_types_for("live_stop"), ["option", "stock", "index"]);
         assert_eq!(types("live_prints"), ["option", "stock"]);
+        assert_eq!(types("live_market"), ["option", "stock"]);
         // An index price arrives on the trade subscription, so a read and a
         // stop both work.
         assert_eq!(types("live_read"), ["option", "stock", "index"]);
