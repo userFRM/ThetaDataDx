@@ -2296,7 +2296,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 because a print takes only the quotes that arrived while both were being \
                 watched; prints from after this call have them. \
                 new_since_last_read counts prints since your last live_prints on this \
-                contract; live_read keeps its own count of trades. Prints are held within a memory budget, and clipped means older ones \
+                contract; live_read keeps its own count of trades. age_ms is the age of the \
+                newest print returned, never of the feed, and covers_seconds is how far back \
+                the prints held reach. Prints are held within a memory budget, and clipped means older ones \
                 were discarded before you asked. feed_interrupted means there was an interval \
                 before this read that nothing was watching, so prints from it were never held: \
                 the connection broke, or a leg expired and was reopened between your calls. Each print carries quote_before, the quote that stood when it \
@@ -2324,7 +2326,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 and rank the vendor's own fields. examined and matched say how many prints the \
                 selection saw and how many passed since your last read; returned is what you \
                 got; unranked counts matches without the rank field, such as a quote field on \
-                a print with no quote ahead of it. A print can go missing two ways and both \
+                a print with no quote ahead of it. age_ms is the age of the newest print \
+                returned; feed_age_ms is the age of the newest print on the whole market, \
+                which is a different number whenever a narrow selection holds an old row \
+                while the tape stays busy. A print can go missing two ways and both \
                 are reported: feed_dropped_since_last_read counts what the feed threw away, \
                 and feed_interrupted means there was an interval before this read that no \
                 selection was watching, so prints from it were never counted at all. The \
