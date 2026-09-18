@@ -5195,6 +5195,62 @@ mod tests {
     }
 
     #[test]
+    fn reopening_a_leg_for_a_read_discloses_what_it_missed() {
+        // Reopening a leg is an interruption whichever tool does it: the feed
+        // stopped carrying that contract in between, and what it sent then is
+        // simply absent. None of this path was exercised through `read`.
+
+        // A quote leg coming back seals the prints it left open: a print
+        // cannot take a quote from an interval nobody was watching.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        reg.prints(&c, 10, 0, 1_000).expect("nothing to refuse");
+        // The quote leg goes while the trade leg stays, then a trade lands.
+        // That print is open and was never sealed by the leg going, so only
+        // the reopening can seal it.
+        reg.forget(&subscription(SubscriptionKind::Quote, &c));
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        reg.ingest(quote(&c, 10.0, 11.0));
+        let p = reg.prints(&c, 10, 0, 4_000).expect("nothing to refuse");
+        assert_eq!(p.rows.len(), 1, "the print is still held");
+        assert!(
+            p.rows[0].quotes_after.is_empty(),
+            "and takes no quote from across the interval it was not watching"
+        );
+
+        // A trade leg coming back while prints are held holes the history.
+        let reg = Registry::default();
+        let c = stock("MSFT");
+        reg.prints(&c, 10, 0, 1_000).expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 2_000 * MS));
+        reg.prints(&c, 10, 0, 2_500).expect("nothing to refuse");
+        reg.forget(&subscription(SubscriptionKind::Trade, &c));
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        let after = reg.prints(&c, 10, 0, 4_000).expect("nothing to refuse");
+        assert!(
+            after.holed,
+            "the trades from while the leg was gone are missing, and it says so"
+        );
+
+        // A second view inherits the discard count the first was already
+        // carrying, so it reports what the feed threw away since then and not
+        // since this call.
+        let reg = Registry::default();
+        let c = stock("NVDA");
+        read_now(&reg, &c, SubscriptionKind::Quote, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        let second = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 9, 2_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            second.feed_dropped_since_last_read, 9,
+            "the nine the feed discarded since the first view opened, not nought"
+        );
+    }
+
+    #[test]
     fn a_tool_offers_only_the_security_types_it_can_serve() {
         // A type offered in the schema and refused on every call is a call
         // a model will make and an answer it will never get.
