@@ -1810,6 +1810,12 @@ impl Registry {
                 // Idle to the sweep, without dating a read's since_seconds
                 // to the epoch.
                 market.touched_ms = 0;
+                // The same absence the contract arm marks above. The buffer
+                // was gone while the feed kept delivering every print on the
+                // type, and it held no selection to offer them to, so the
+                // next read must not find an intact market and conclude
+                // nothing was missed.
+                market.gaps += 1;
                 held.markets.push((sec, market));
             }
             _ => {}
@@ -5247,6 +5253,26 @@ mod tests {
         assert_eq!(
             second.feed_dropped_since_last_read, 9,
             "the nine the feed discarded since the first view opened, not nought"
+        );
+    }
+
+    #[test]
+    fn a_market_put_back_after_a_failed_release_is_not_an_unbroken_one() {
+        // The sweep frees the market buffer, the release fails, and it goes
+        // back. The feed carried every print on the type throughout, and the
+        // buffer that went back held no selection to offer them to, so the
+        // next read has not seen that interval and must say so.
+        let reg = Registry::default();
+        market_now(&reg, SecType::Stock, query(5), 0, 0).expect("nothing to refuse");
+        let expired = reg.expire(PAST_TTL);
+        assert_eq!(expired.len(), 1, "the idle market is freed");
+        reg.reinstate(&SecType::Stock.full_trades(), PAST_TTL);
+
+        let back = market_now(&reg, SecType::Stock, query(5), 0, PAST_TTL + 1_000)
+            .expect("nothing to refuse");
+        assert!(
+            back.gap,
+            "the interval it did not observe is disclosed, as it is for a contract"
         );
     }
 
