@@ -2251,9 +2251,11 @@ pub fn tool_definitions() -> Vec<Value> {
                 never how long ago the feed last carried anything: an index reports \
                 about once a second, so seconds of age are normal there and stale on an option \
                 quote. Rows are held within a memory budget, not for a length of time: \
-                covers_seconds is how far back the rows held reach right now, and clipped means \
-                the window you asked for reaches further, which a liquid buffer can hit within \
-                seconds. rows_in_window is how many rows the window held, which is not how \
+                covers_seconds is how far back the rows held reach right now. clipped means \
+                this answer is not the whole of the window you asked for: either it reaches \
+                further back than the rows held, which a liquid buffer can hit within seconds, \
+                or the feed was interrupted, or events were discarded, inside it. Treat it as \
+                the one field that says whether anything is missing, whatever the cause. rows_in_window is how many rows the window held, which is not how \
                 many came back: the tail is capped, so a larger count means you are seeing the \
                 newest of more. The tail is the vendor's messages as sent, condition and \
                 exchange codes intact. vendor_ohlcvc is the vendor's own bar for the contract \
