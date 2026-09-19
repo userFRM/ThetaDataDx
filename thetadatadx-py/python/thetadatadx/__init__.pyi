@@ -5230,7 +5230,7 @@ class Client:
         none, or two different ones, raises ``ConfigError`` before any
         network round-trip. ``market_data_type`` (``"PROD"`` / ``"STAGE"``,
         case-insensitive) selects the market-data environment and
-        ``streaming_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
+        ``streaming_type`` (``"PROD"`` / ``"STAGE"`` / ``"DEV"``, case-insensitive) the
         streaming environment, independently; ``config`` supplies a full
         :class:`Config` whose environments and hosts win. Streaming is not
         started. The call is interruptible with ``Ctrl+C`` if the
@@ -5243,7 +5243,7 @@ class Client:
             email: Inline account email, paired with ``password``.
             password: Inline account password, paired with ``email``.
             market_data_type: Market-data environment selector (``"PROD"`` / ``"STAGE"``).
-            streaming_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
+            streaming_type: Streaming environment selector (``"PROD"`` / ``"STAGE"`` / ``"DEV"``).
 
         Raises:
             ConfigError: If no authentication argument is given, two
@@ -5272,7 +5272,7 @@ class Client:
             config: Connection configuration; defaults to
                 ``Config.production()`` when omitted.
             market_data_type: Market-data environment selector (``"PROD"`` / ``"STAGE"``).
-            streaming_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
+            streaming_type: Streaming environment selector (``"PROD"`` / ``"STAGE"`` / ``"DEV"``).
 
         Returns:
             A connected :class:`Client`.

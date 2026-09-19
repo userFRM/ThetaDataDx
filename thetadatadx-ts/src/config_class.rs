@@ -342,7 +342,8 @@ impl Config {
     }
 
     /// Target streaming environment carried by this configuration:
-    /// `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
+    /// `"PROD"` for the production cluster, `"STAGE"` for the staging
+    /// cluster, or `"DEV"` for the dev cluster.
     /// The streaming and market-data channels are selected independently;
     /// `Config.production()` / `Config.dev()` (and the
     /// `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming

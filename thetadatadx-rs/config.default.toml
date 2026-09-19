@@ -125,7 +125,7 @@ park_interval_us = 1000
 # The market-data and streaming channels are selected independently via
 # environment variables, each PROD by default:
 #   THETADATA_MARKET_DATA_TYPE = "prod" | "stage"  — market-data cluster + auth marker
-#   THETADATA_STREAMING_TYPE  = "prod" | "dev"    — streaming cluster only
+#   THETADATA_STREAMING_TYPE  = "prod" | "stage" | "dev"   — streaming cluster only
 # There is no streaming staging cluster; market-data staging leaves streaming on
 # production. `stage` (market-data) is less stable than production and reboots
 # often.
