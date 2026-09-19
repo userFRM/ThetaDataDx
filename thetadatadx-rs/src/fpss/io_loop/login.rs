@@ -76,14 +76,56 @@ pub fn wait_for_login(
 /// Say what a read timeout during login means, keeping the kind the reconnect
 /// path classifies on.
 ///
-/// A peer that accepts the connection and then sends nothing surfaces here as
-/// a bare `WouldBlock` or `TimedOut`, which reaches a caller as `Resource
-/// temporarily unavailable` and nothing else: no hint that the server took
-/// the connection, that the login was sent, or that the wait was bounded. The
-/// error keeps its `ErrorKind`, so `is_transient_read` and every reconnect
-/// decision above behave exactly as before, and carries the sentence a caller
-/// needs.
-fn mute_peer_context(e: Error, waited: Duration) -> Error {
+/// What the handshake had received when it gave up.
+///
+/// A login that stalls stalls in one of two ways, and they point at different
+/// things: a peer that sent nothing at all took the connection and never
+/// spoke, while a peer that answered and then withheld `METADATA` authenticated
+/// the account and stopped short of saying what it is entitled to. Reporting
+/// both as silence sends a reader looking at the wrong half of the system, so
+/// the timeout messages carry the tally.
+#[derive(Default)]
+struct HandshakeProgress {
+    frames: usize,
+    last: Option<StreamMsgType>,
+}
+
+impl HandshakeProgress {
+    /// Record one frame read during the handshake. `code` is `None` for a
+    /// frame whose code this build does not know, which still counts: it is
+    /// something the server said.
+    fn saw(&mut self, code: Option<StreamMsgType>) {
+        self.frames += 1;
+        if code.is_some() {
+            self.last = code;
+        }
+    }
+
+    /// The clause a timeout message uses to say what the server said. Reads
+    /// as the predicate of "the server accepted the connection and ...".
+    fn describe(&self) -> String {
+        match (self.frames, self.last) {
+            (0, _) => "sent no login response".to_string(),
+            (n, Some(code)) => format!(
+                "answered with {n} {} but no METADATA (last: {code:?})",
+                if n == 1 { "frame" } else { "frames" }
+            ),
+            (n, None) => format!(
+                "answered with {n} unrecognised {} but no METADATA",
+                if n == 1 { "frame" } else { "frames" }
+            ),
+        }
+    }
+}
+
+/// A peer that accepts the connection and then stops surfaces here as a bare
+/// `WouldBlock` or `TimedOut`, which reaches a caller as `Resource temporarily
+/// unavailable` and nothing else: no hint that the server took the connection,
+/// that the login was sent, how long the wait was, or whether the server said
+/// anything at all before it stopped. The error keeps its `ErrorKind`, so
+/// `is_transient_read` and every reconnect decision above behave exactly as
+/// before, and carries the sentence a caller needs.
+fn mute_peer_context(e: Error, waited: Duration, progress: &HandshakeProgress) -> Error {
     let Error::Io(io_err) = &e else {
         return e;
     };
@@ -93,8 +135,8 @@ fn mute_peer_context(e: Error, waited: Duration) -> Error {
     Error::Io(std::io::Error::new(
         io_err.kind(),
         format!(
-            "the server accepted the connection and sent no login response \
-             within {}ms: {io_err}",
+            "the server accepted the connection and {} within {}ms: {io_err}",
+            progress.describe(),
             waited.as_millis()
         ),
     ))
@@ -112,6 +154,7 @@ where
     // Reused across frames. Each read consumes one complete frame bounded by
     // the per-stall / socket read timeout.
     let mut frame_buf: Vec<u8> = Vec::new();
+    let mut progress = HandshakeProgress::default();
     let handshake_deadline = Instant::now() + stall_timeout;
     loop {
         // Between frames, honour a teardown so a live-but-withholding server
@@ -127,17 +170,25 @@ where
             return Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::Timeout,
                 message: format!(
-                    "login handshake timed out after {}ms without METADATA",
-                    stall_timeout.as_millis()
+                    "login handshake timed out after {}ms without METADATA: the \
+                     server {}",
+                    stall_timeout.as_millis(),
+                    progress.describe()
                 ),
             });
         }
         let (code, payload_len) =
             match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout)
-                .map_err(|e| mute_peer_context(e, stall_timeout))?
+                .map_err(|e| mute_peer_context(e, stall_timeout, &progress))?
             {
-                FrameRead::Frame(code, len) => (code, len),
-                FrameRead::SkippedUnknown => continue,
+                FrameRead::Frame(code, len) => {
+                    progress.saw(Some(code));
+                    (code, len)
+                }
+                FrameRead::SkippedUnknown => {
+                    progress.saw(None);
+                    continue;
+                }
                 FrameRead::Eof => {
                     return Err(Error::Stream {
                         kind: crate::error::StreamErrorKind::Disconnected,
@@ -559,6 +610,43 @@ mod tests {
             Err(other) => panic!("expected an Fpss protocol error, got {other:?}"),
             Ok(_) => panic!("a partial-frame silence must trip the stall timeout"),
         }
+    }
+
+    /// A server that authenticates the account and then withholds `METADATA`
+    /// is a different failure from one that never spoke, and the message must
+    /// not describe it as silence. The dev replay cluster does exactly this:
+    /// it rejects a bad password in under half a second, accepts a good one,
+    /// answers `SESSION_TOKEN`, and never says what the account is entitled
+    /// to. A caller told "sent no login response" goes looking at the network;
+    /// the tally sends them to the server's entitlement step instead.
+    #[test]
+    fn a_login_that_was_answered_and_then_abandoned_does_not_report_silence() {
+        let mut reader = PartialThenStallForever {
+            // One complete pre-METADATA frame, then permanent silence at the
+            // next header — the shape of the stalling dev handshake.
+            prefix: wire_frame(StreamMsgType::SessionToken, &[0xAA; 8]),
+            pos: 0,
+            sleep_per_stall: Duration::from_millis(2),
+        };
+        let mut pending: Vec<StreamControl> = Vec::new();
+
+        let result =
+            wait_for_login_generic(&mut reader, &mut pending, Duration::from_millis(30), None);
+
+        let said = match result {
+            Err(Error::Io(ref io_err)) => io_err.to_string(),
+            Err(Error::Stream { ref message, .. }) => message.clone(),
+            Ok(_) => panic!("a withheld METADATA must not complete the login"),
+            Err(other) => panic!("expected a timeout error, got {other:?}"),
+        };
+        assert!(
+            !said.contains("sent no login response"),
+            "a server that answered must not be reported as silent: {said}"
+        );
+        assert!(
+            said.contains("SessionToken") && said.contains("METADATA"),
+            "the message names what arrived and what did not: {said}"
+        );
     }
 
     /// Reader that dribbles an endless stream of complete pre-`METADATA` PING
