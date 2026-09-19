@@ -78,7 +78,7 @@ export declare class Client {
    * or `credentialsFile`. Passing none, or two different ones, rejects
    * with a `ConfigError` before any network round-trip. `marketDataType`
    * (`"PROD"` / `"STAGE"`, case-insensitive) selects the market-data
-   * environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
+   * environment and `streamingType` (`"PROD"` / `"STAGE"` / `"DEV"`, case-insensitive)
    * the streaming environment, independently. For a pre-built full
    * `Config` (or a pre-built `Credentials` handle), use
    * [`Client::connect`], which takes both.
@@ -237,7 +237,8 @@ export declare class Config {
   get marketDataEnvironment(): string
   /**
    * Target streaming environment carried by this configuration:
-   * `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
+   * `"PROD"` for the production cluster, `"STAGE"` for the staging
+   * cluster, or `"DEV"` for the dev cluster.
    * The streaming and market-data channels are selected independently;
    * `Config.production()` / `Config.dev()` (and the
    * `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming
@@ -3544,7 +3545,7 @@ export interface ClientConnectOptions {
    */
   marketDataType?: string
   /**
-   * Streaming environment selector (`"PROD"` / `"DEV"`,
+   * Streaming environment selector (`"PROD"` / `"STAGE"` / `"DEV"`,
    * case-insensitive). Defaults to production. Selected independently of
    * the market-data channel.
    */

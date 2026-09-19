@@ -150,10 +150,11 @@ pub use crate::backoff::JitterMode;
 /// A malformed `THETADATA_MARKET_DATA_PORT` / `THETADATA_STREAMING_PORT` (a
 /// non-integer) is ignored with a `tracing::warn!`, keeping the current value.
 /// An unrecognized environment selector, by contrast, FAILS LOUD: a
-/// `THETADATA_MARKET_DATA_TYPE` that is not `PROD` / `STAGE` (including the now-removed
-/// `DEV`) or a `THETADATA_STREAMING_TYPE` that is not `PROD` / `DEV` (including
-/// `STAGE`) is a hard error naming the valid set, never a silent fallback, so a
-/// stale or cross-channel selector cannot quietly route to the wrong cluster.
+/// `THETADATA_MARKET_DATA_TYPE` that is not `PROD` / `STAGE` (including `DEV`,
+/// which the market-data channel has no cluster for) or a
+/// `THETADATA_STREAMING_TYPE` that is not `PROD` / `STAGE` / `DEV` is a hard
+/// error naming the valid set, never a silent fallback, so a stale or
+/// cross-channel selector cannot quietly route to the wrong cluster.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
 pub struct DirectConfig {
@@ -723,9 +724,11 @@ impl DirectConfig {
     ///   market-data channel dials `mdds-stage.thetadata.us:443` (TLS) and the
     ///   auth request carries the staging marker so the server routes the
     ///   session to staging.
-    /// - Streaming stays on production. There is no streaming staging cluster,
-    ///   and the two clients are selected independently, so `stage()` leaves
-    ///   the streaming channel on the production hosts.
+    /// - Streaming stays on production. There is a streaming staging cluster
+    ///   ([`StreamingEnvironment::Stage`]), but it carries the live feed and is
+    ///   rebooted often, so moving a caller's stream onto it is opt-in rather
+    ///   than something this preset does on their behalf: select it with
+    ///   [`Self::with_streaming_environment`] or `THETADATA_STREAMING_TYPE=STAGE`.
     ///
     /// Staging is used to validate against pre-release server changes;
     /// it is less stable than production and subject to frequent reboots.
@@ -738,12 +741,25 @@ impl DirectConfig {
     #[must_use]
     pub fn stage() -> Self {
         let mut config = Self::production();
-        // Select market-data-staging (host + auth marker) only; streaming stays
-        // on production since streaming has no staging cluster.
+        // Market-data-staging (host + auth marker) only. The streaming staging
+        // cluster exists and is selectable, but it is the live feed on a build
+        // that reboots often, so a preset does not move a caller's stream onto
+        // it without being asked.
         config.apply_market_data_environment(MarketDataEnvironment::Stage);
         config
             .validate()
             .expect("stage preset is within validated bounds")
+    }
+
+    /// Streaming hosts for the stage preset (test-only accessor).
+    ///
+    /// The counterpart to [`Self::dev_streaming_hosts`]: a thin delegate to
+    /// [`StreamingEnvironment::Stage`]'s hosts, so the config regression tests
+    /// can name the staging host set without a second copy of it.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn stage_streaming_hosts() -> Vec<(String, u16)> {
+        StreamingEnvironment::Stage.hosts()
     }
 
     /// Validate configuration values and reject out-of-range tuning knobs.
@@ -2674,22 +2690,27 @@ mod tests {
     }
 
     #[test]
-    fn streaming_type_env_stage_panics_as_cross_channel_value() {
-        // The mirror negative: STAGE is a market-data-only value, so a
-        // cross-channel `THETADATA_STREAMING_TYPE=STAGE` must FAIL LOUD via
-        // `production()`'s `.expect`, never silently keep production streaming.
+    fn streaming_type_env_stage_selects_stage_streaming_cluster() {
+        // The streaming channel has its own staging cluster, and selecting it
+        // must move the streaming hosts and nothing else: market-data and the
+        // auth marker are a separate choice, and a caller validating a
+        // pre-release streaming build against production market data is the
+        // reason the two are independent.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: see `market_data_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
             std::env::set_var(ENV_STREAMING_TYPE, "STAGE");
         }
-        let panicked = std::panic::catch_unwind(DirectConfig::production).is_err();
+        let config = DirectConfig::production();
         clear_env_matrix();
-        assert!(
-            panicked,
-            "THETADATA_STREAMING_TYPE=STAGE (a market-data-only value) must panic, not fall back"
+        assert_eq!(config.streaming_environment, StreamingEnvironment::Stage);
+        assert_eq!(
+            config.streaming.hosts,
+            DirectConfig::stage_streaming_hosts()
         );
+        assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
+        assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
     }
 
     #[test]
@@ -3632,18 +3653,37 @@ mod tests {
     }
 
     #[test]
-    fn from_dotenv_cross_channel_streaming_type_returns_error() {
+    fn from_dotenv_unrecognized_streaming_type_returns_error() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // The streaming companion: a cross-channel `THETADATA_STREAMING_TYPE=STAGE`
-        // (STAGE is market-data-only) is a returned error, never a silent
-        // fallback.
-        let path = write_temp_dotenv("fpss-stage.env", "THETADATA_STREAMING_TYPE=STAGE\n");
+        // A selector naming no cluster is a returned error, never a silent
+        // fallback to production: a stale or misspelled value must not route
+        // the stream somewhere the caller did not ask for.
+        let path = write_temp_dotenv("fpss-bogus.env", "THETADATA_STREAMING_TYPE=REPLAY\n");
         let err = DirectConfig::from_dotenv(&path)
-            .expect_err("a cross-channel THETADATA_STREAMING_TYPE must return an error");
+            .expect_err("an unrecognized THETADATA_STREAMING_TYPE must return an error");
+        let msg = err.to_string();
         assert!(
-            err.to_string().contains("THETADATA_STREAMING_TYPE"),
-            "the error must name the offending selector, got: {err}"
+            msg.contains("THETADATA_STREAMING_TYPE"),
+            "the error must name the offending selector, got: {msg}"
+        );
+        assert!(
+            msg.contains("PROD") && msg.contains("STAGE") && msg.contains("DEV"),
+            "and the set it would have accepted, got: {msg}"
+        );
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_streaming_type_stage_selects_the_staging_cluster() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let path = write_temp_dotenv("fpss-stage.env", "THETADATA_STREAMING_TYPE=STAGE\n");
+        let config = DirectConfig::from_dotenv(&path).expect(".env must source");
+        assert_eq!(config.streaming_environment, StreamingEnvironment::Stage);
+        assert_eq!(
+            config.streaming.hosts,
+            DirectConfig::stage_streaming_hosts()
         );
         std::fs::remove_file(&path).ok();
     }
@@ -3658,7 +3698,8 @@ mod tests {
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         assert_eq!(config.streaming.hosts[0].0, "stream.example.com");
-        // THETADATA_MARKET_DATA_TYPE=STAGE flips only market-data; streaming stays on production,
+        // THETADATA_MARKET_DATA_TYPE=STAGE flips only the market-data channel;
+        // the streaming environment is a separate selector and is unset here,
         // so the production failover hosts surround the overridden primary.
         assert_eq!(
             &config.streaming.hosts[1..],

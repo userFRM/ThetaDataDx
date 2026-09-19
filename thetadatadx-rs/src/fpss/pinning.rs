@@ -60,8 +60,9 @@ pub(crate) const FPSS_SPKI_SHA256: [u8; 32] = [
 /// Hostnames we are willing to connect to for FPSS.
 ///
 /// Covers every host the shipped streaming environments dial: production spans
-/// the two NJ machines (`nj-a` / `nj-b`), while the dev replay environment dials
-/// `nj-a` plus `test-server.thetadata.us`. The hostname allowlist runs before
+/// the two NJ machines (`nj-a` / `nj-b`), while the staging and dev
+/// environments dial `nj-a` plus `test-server.thetadata.us`. The hostname
+/// allowlist runs before
 /// the SPKI pin, so a host missing here fails TLS with `NotValidForName` and
 /// that environment loses failover — `test-server` must be present for dev to
 /// connect at all.
@@ -313,12 +314,12 @@ mod tests {
         // list, and assert each hostname is in the allowlist. The allowlist
         // runs before the SPKI pin, so an environment host missing here fails
         // TLS with `NotValidForName` and that environment silently loses
-        // failover. Streaming hosts come exclusively from the streaming
-        // environment {Prod, Dev} — there is no streaming staging cluster — so
-        // a future host that is not allowlisted trips this test instead of
-        // shipping a dead environment.
+        // failover. The environments come from `StreamingEnvironment::ALL`
+        // rather than a list written out here, so a new one is covered the
+        // moment it exists: a host of its that is not allowlisted trips this
+        // test instead of shipping a dead environment.
         let mut env_hosts: Vec<(String, u16)> = Vec::new();
-        for env in [StreamingEnvironment::Prod, StreamingEnvironment::Dev] {
+        for env in StreamingEnvironment::ALL {
             env_hosts.extend(env.hosts());
         }
 

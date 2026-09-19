@@ -46,7 +46,7 @@ Each channel has its own selector, and you can pick whichever fits how you confi
 
 1. Use a preset or the typed setters, in code. The presets are on every binding: `production()` / `stage()` / `dev()` (for example `Config.stage()` in Python and TypeScript, `thetadatadx::Config::stage()` in C++). For an explicit per-channel choice, use `DirectConfig::with_market_data_environment(MarketDataEnvironment::Stage)` and `DirectConfig::with_streaming_environment(StreamingEnvironment::Dev)`.
 
-2. Set environment variables. `THETADATA_MARKET_DATA_TYPE` selects the market-data environment (`PROD` or `STAGE`); `THETADATA_STREAMING_TYPE` selects the streaming environment (`PROD` or `DEV`). Both are case-insensitive, and an unset value keeps production. This steers an existing deployment without a code change, and it works with every binding because each one reads them when it builds the config from a preset:
+2. Set environment variables. `THETADATA_MARKET_DATA_TYPE` selects the market-data environment (`PROD` or `STAGE`); `THETADATA_STREAMING_TYPE` selects the streaming environment (`PROD`, `STAGE` or `DEV`). Both are case-insensitive, and an unset value keeps production. This steers an existing deployment without a code change, and it works with every binding because each one reads them when it builds the config from a preset:
 
 ```bash
 export THETADATA_MARKET_DATA_TYPE=STAGE
@@ -79,7 +79,7 @@ THETADATA_STREAMING_TYPE=DEV
 
 Load the credential with `Credentials.from_dotenv` and the environment with `Config.from_dotenv`, both pointed at that one file.
 
-A value outside a selector's set is rejected rather than silently ignored: `THETADATA_MARKET_DATA_TYPE` must be `PROD` or `STAGE`, and `THETADATA_STREAMING_TYPE` must be `PROD` or `DEV`.
+A value outside a selector's set is rejected rather than silently ignored: `THETADATA_MARKET_DATA_TYPE` must be `PROD` or `STAGE`, and `THETADATA_STREAMING_TYPE` must be `PROD`, `STAGE` or `DEV`.
 
 You can also select environments inline at the client, without building a `Config` first. The fluent builder takes them alongside the credential: `Client::builder().api_key("...").stage().dev().connect()` in Rust and C++ (each shorthand selects its channel, and they compose), `Client(api_key="...", market_data_type="STAGE", streaming_type="DEV")` in Python, and `Client.connectWith({ apiKey: '...', marketDataType: 'STAGE', streamingType: 'DEV' })` in TypeScript. The `Config` path above stays available when you need full control over the hosts and tuning knobs; the builder is a convenience over it.
 

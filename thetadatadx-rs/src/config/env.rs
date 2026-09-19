@@ -217,7 +217,8 @@ where
             Error::config_invalid(
                 ENV_STREAMING_TYPE,
                 format!(
-                    "{} {ENV_STREAMING_TYPE}={value:?} is not a streaming environment; expected \"PROD\" or \"DEV\"",
+                    "{} {ENV_STREAMING_TYPE}={value:?} is not a streaming environment; \
+                     expected \"PROD\", \"STAGE\" or \"DEV\"",
                     source.label()
                 ),
             )
@@ -348,15 +349,37 @@ mod tests {
     }
 
     #[test]
-    fn cross_channel_streaming_selector_fails_loud() {
-        // The streaming channel has no staging cluster.
-        let err = apply(&[(ENV_STREAMING_TYPE, "STAGE")])
-            .expect_err("STREAMING_TYPE=STAGE must fail loud, never fall back");
+    fn an_unrecognized_streaming_selector_fails_loud() {
+        // A selector naming no cluster must not fall back to production: a
+        // stale or misspelled value would route the stream somewhere the
+        // caller did not ask for, and say nothing.
+        let err = apply(&[(ENV_STREAMING_TYPE, "REPLAY")])
+            .expect_err("STREAMING_TYPE=REPLAY must fail loud, never fall back");
         let msg = err.to_string();
         assert!(msg.contains(ENV_STREAMING_TYPE), "names the key: {msg}");
         assert!(
-            msg.contains("PROD") && msg.contains("DEV"),
+            msg.contains("PROD") && msg.contains("STAGE") && msg.contains("DEV"),
             "names the valid set: {msg}"
+        );
+    }
+
+    #[test]
+    fn the_streaming_staging_selector_is_accepted() {
+        // The streaming channel has a staging cluster of its own, and
+        // selecting it must move the streaming hosts without touching the
+        // market-data channel, which is a separate choice.
+        let config = apply(&[(ENV_STREAMING_TYPE, "STAGE")]).expect("STAGE is a streaming cluster");
+        assert_eq!(
+            config.streaming_environment,
+            crate::config::StreamingEnvironment::Stage
+        );
+        assert_eq!(
+            config.streaming.hosts,
+            vec![("nj-a.thetadata.us".to_string(), 20100)]
+        );
+        assert_eq!(
+            config.market_data_environment,
+            crate::config::MarketDataEnvironment::Prod
         );
     }
 

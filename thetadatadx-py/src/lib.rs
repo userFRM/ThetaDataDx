@@ -520,7 +520,8 @@ impl Config {
     }
 
     /// Target streaming environment carried by this configuration:
-    /// ``"PROD"`` for the production cluster or ``"DEV"`` for the dev
+    /// ``"PROD"`` for the production cluster, ``"STAGE"`` for the staging
+    /// cluster, or ``"DEV"`` for the dev
     /// cluster. The streaming and market-data channels are selected
     /// independently; :meth:`Config.production` / :meth:`Config.dev` (and
     /// the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set
@@ -678,7 +679,7 @@ fn resolve_credentials(
 /// verbatim). Otherwise the market-data and streaming
 /// channels are selected independently on top of the production defaults:
 /// `market_data_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
-/// market-data channel and `streaming_type` (`"PROD"` / `"DEV"`,
+/// market-data channel and `streaming_type` (`"PROD"` / `"STAGE"` / `"DEV"`,
 /// case-insensitive) the streaming channel. Either absent keeps that
 /// channel on production. An unrecognized value raises ``ValueError``
 /// naming the valid set, never a silent fallback.
@@ -923,7 +924,7 @@ impl Client {
     /// none, or two different ones, raises ``ConfigError`` before any
     /// network round-trip. ``market_data_type`` (``"PROD"`` / ``"STAGE"``,
     /// case-insensitive) selects the market-data environment and
-    /// ``streaming_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
+    /// ``streaming_type`` (``"PROD"`` / ``"STAGE"`` / ``"DEV"``, case-insensitive) the
     /// streaming environment, independently; ``config`` supplies a full
     /// :class:`Config` whose environments and hosts win.
     #[new]
