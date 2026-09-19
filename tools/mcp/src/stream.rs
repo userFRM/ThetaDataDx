@@ -752,6 +752,12 @@ impl Market {
 #[derive(Debug)]
 struct Selection {
     query: MarketQuery,
+    /// When this selection was installed, which is what `since_seconds`
+    /// reports. Held on the selection and not on the market so a read that
+    /// fails and puts the selection back also puts back the moment it
+    /// started standing, and so a market the sweep reopened dates its next
+    /// read to the selection rather than to the reopen, where none stood.
+    installed_ms: u64,
     /// Prints seen, and prints that passed the filter, since the last
     /// read: the population the kept rows were chosen from.
     examined: u64,
@@ -786,9 +792,10 @@ impl Selection {
         self.unranked = unranked;
     }
 
-    fn new(query: MarketQuery) -> Self {
+    fn new(query: MarketQuery, now: u64) -> Self {
         Self {
             query,
+            installed_ms: now,
             examined: 0,
             matched: 0,
             unranked: 0,
@@ -1094,7 +1101,9 @@ struct SettleMarket {
 struct MarketReading {
     first: bool,
     settle: SettleMarket,
-    previous_ms: u64,
+    /// When the selection that kept these rows was installed, absent when
+    /// none stood before this read.
+    previous_ms: Option<u64>,
     received: u64,
     newest_ms: Option<u64>,
     new_since_last_read: u64,
@@ -1769,7 +1778,12 @@ impl Registry {
             held.markets.len() - 1
         });
         let market = &mut held.markets[i].1;
-        let previous = market.read_ms;
+        // When the selection this read takes was installed, not when the
+        // market was last read. They are the same on every read that
+        // followed one, and they part on the first read after the sweep
+        // reopened a market it could not release: that one is read against
+        // an interval no selection watched, and has no span to report.
+        let previous = market.selection.as_ref().map(|s| s.installed_ms);
         market.touched_ms = now;
         // Observed here, settled by `commit_market` once the answer is
         // going to reach the caller. A call that fails on the feed after
@@ -1782,7 +1796,7 @@ impl Registry {
 
         // What stood until now comes out, reported under its own query
         // when this read changed it; the new selection starts empty.
-        let outgoing = market.selection.replace(Selection::new(q.clone()));
+        let outgoing = market.selection.replace(Selection::new(q.clone(), now));
         let (examined, matched, unranked, rows, selected_by, taken) = match outgoing {
             Some(s) => {
                 // Disclosed by the selection that kept the rows: whether it
@@ -2387,7 +2401,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 subscription and returns nothing yet; read again a second or two later. After \
                 that the window defaults to everything since your last read of this buffer; pass \
                 seconds for a fixed lookback. age_ms is how old the newest row returned is, \
-                never how long ago the feed last carried anything: an index reports \
+                never how long ago the feed last carried anything; a row stamped later than \
+                this answer's clock has no age at all rather than an age of nought, and the \
+                default window, which chooses by arrival, is where one reaches an answer. \
+                An index reports \
                 about once a second, so seconds of age are normal there and stale on an option \
                 quote. Rows are held within a memory budget, not for a length of time: \
                 covers_seconds is how far back this buffer is known to have seen everything: \
@@ -2417,7 +2434,10 @@ pub fn tool_definitions() -> Vec<Value> {
                 it opened, a running total rather than a count since your last read. \
                 feed_dropped_since_last_read counts events the SDK discarded \
                 because this server fell behind; while it is not zero any buffer may be missing \
-                rows, and clipped says so. kind \
+                rows, and clipped says so. On the call that opens a buffer it counts from where \
+                another view of the same contract had already reached, because what the feed \
+                discarded since then is missing from this buffer too, so it covers an interval \
+                older than this buffer. kind \
                 defaults to quote; an index has no quote stream, so it defaults to trade, which \
                 carries the index price. market_value is a derived midpoint, not a quote. Times \
                 are Eastern. A buffer goes 15 minutes without any of these tools using it, \
@@ -2459,14 +2479,18 @@ pub fn tool_definitions() -> Vec<Value> {
                 this contract, which is not what the rows are: the prints held survive a \
                 read, so asking twice in a row serves the same ones again. live_read keeps \
                 its own count of trades. age_ms is the age of the \
-                newest print returned, never of the feed, and covers_seconds is how far back \
+                newest print returned, never of the feed, and a print stamped later than this \
+                answer's clock has no age rather than an age of nought. covers_seconds is how far back \
                 this buffer is known to have seen everything, which is the oldest print held \
                 once prints have been discarded and the moment the trade leg opened before \
                 that. Prints are held within a memory budget. clipped means \
                 this answer is not the whole of what you asked for: you asked for more prints \
                 than are held and older ones had been discarded, or the history has a hole in \
                 it, or \
-                the SDK discarded events, which feed_dropped_since_last_read counts. Treat it \
+                the SDK discarded events, which feed_dropped_since_last_read counts; on the \
+                call that opens a leg that count starts from where another view of the same \
+                contract had already reached, so it covers an interval older than the leg. \
+                Treat clipped \
                 as the one field that says whether anything is missing, whatever the cause, \
                 among the prints this server has received. \
                 feed_interrupted means there was an interval before this read that this \
@@ -2516,7 +2540,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 one. \
                 unranked counts matches without the rank field, such as a quote field on \
                 a print with no quote ahead of it. age_ms is the age of the newest print \
-                returned; feed_age_ms is the age of the newest print on the whole market, \
+                returned, absent when that print is stamped later than this answer's clock, \
+                which is a stamp nothing can age; feed_age_ms is the age of the newest print \
+                on the whole market, \
                 which is a different number whenever a narrow selection holds an old row \
                 while the market stays busy. A print can go missing two ways and both \
                 are reported: feed_dropped_since_last_read counts what the feed threw away, \
@@ -2527,7 +2553,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 having examined prints the one before it never saw, and a frame the server \
                 could not decode, which may have been a print. since_seconds is how long the \
                 selection stood before \
-                this read took it. Sending different parameters replaces the selection, and \
+                this read took it, and is absent when none stood: on the first call, and on \
+                the first call after this server reopened the market. \
+                Sending different parameters replaces the selection, and \
                 the answer echoes both: selection is the one in force from here, and \
                 selected_by the one that kept the rows this call returns, present only when \
                 they differ, because the rows came back under that one and not this. Needs an Options Pro or Stocks Pro subscription; the error says \
@@ -2739,17 +2767,27 @@ fn object(data: &StreamData) -> Value {
     out
 }
 
+/// How old a row stamped `seen` is, or `None` when nothing can say.
+///
+/// Two stamps have no age. Nought is the SDK's fallback for a clock it could
+/// not read, and aging from it reports the time since the epoch, presenting
+/// an unknown age as decades. A stamp later than this answer's clock is one
+/// the clock could not have produced: it reaches here when a clock steps
+/// forward between a row being stamped and the answer being built, and
+/// subtracting it saturates to nought, which reads as a row that has just
+/// arrived. Neither is an age, so neither is reported as one.
+fn age_ms(seen: u64, now: u64) -> Option<u64> {
+    (seen > 0 && seen <= now).then(|| now - seen)
+}
+
 /// A row with how long ago it arrived. `dated` also carries its trading
 /// date, for a response whose rows do not share one and so cannot name a
 /// date for the collection.
 fn aged_object_dated(data: &StreamData, now: u64, dated: bool) -> Value {
     let mut out = object(data);
     if let Some(obj) = out.as_object_mut() {
-        // Zero is the SDK's fallback for a clock it could not read. Aging
-        // from it would report the time since the epoch and present an
-        // unknown age as decades.
-        if let Some(seen) = seen_ms(data) {
-            obj.insert("age_ms", Value::from(now.saturating_sub(seen)));
+        if let Some(age) = seen_ms(data).and_then(|seen| age_ms(seen, now)) {
+            obj.insert("age_ms", Value::from(age));
         }
         if dated {
             if let Some(day) = date_of(data) {
@@ -2788,7 +2826,7 @@ fn rows_age_ms(rows: &[Print], now: u64) -> Option<u64> {
     rows.iter()
         .filter_map(|p| seen_ms(&p.trade))
         .max()
-        .map(|newest| now.saturating_sub(newest))
+        .and_then(|newest| age_ms(newest, now))
 }
 
 /// Where the window a read names begins.
@@ -3457,7 +3495,7 @@ fn market_response(
         "sec_type": sec.as_str().to_ascii_lowercase(),
         "feed": feed,
         "subscribed_now": m.first,
-        "since_seconds": seconds(now.saturating_sub(m.previous_ms)),
+        "since_seconds": m.previous_ms.map(|at| seconds(now.saturating_sub(at))),
         "received": m.received,
         "new_since_last_read": m.new_since_last_read,
         "feed_dropped_since_last_read": m.feed_dropped_since_last_read,
@@ -3466,7 +3504,7 @@ fn market_response(
         // narrow selection can hold an old row while the market is busy, and
         // calling that fresh is the one thing this surface exists not to do.
         "age_ms": rows_age_ms(&m.rows, now),
-        "feed_age_ms": m.newest_ms.map(|s| now.saturating_sub(s)),
+        "feed_age_ms": m.newest_ms.and_then(|s| age_ms(s, now)),
         "examined": m.examined,
         "matched": m.matched,
         "unranked": m.unranked,
@@ -3534,7 +3572,7 @@ fn list_response(
             "received": h.received,
             "held": h.held,
             "dropped": h.dropped,
-            "age_ms": h.newest_ms.map(|s| now.saturating_sub(s)),
+            "age_ms": h.newest_ms.and_then(|s| age_ms(s, now)),
             "open_for_seconds": seconds(now.saturating_sub(h.opened_ms)),
             // A buffer the sweep has marked has no idle time to report and is
             // due for release now, which is what the caller acts on.
@@ -3584,7 +3622,7 @@ fn prints_response(
         "new_since_last_read": p.new_since_last_read,
         "feed_dropped_since_last_read": p.feed_dropped_since_last_read,
         // The age of the newest print returned, never of the feed.
-        "age_ms": p.newest_ms.map(|s| now.saturating_sub(s)),
+        "age_ms": p.newest_ms.and_then(|s| age_ms(s, now)),
         "date": prints_date,
         "prints": p.rows.iter().map(|p| {
             let mut out = json!({
@@ -3642,7 +3680,7 @@ fn read_response(
         "feed_dropped_since_last_read": r.feed_dropped_since_last_read,
         // The age of the rows returned, never of the feed: a quiet contract
         // and a dead feed look identical from a feed age alone.
-        "age_ms": r.newest_ms.map(|s| now.saturating_sub(s)),
+        "age_ms": r.newest_ms.and_then(|s| age_ms(s, now)),
         "rows_in_window": r.count,
         "vendor_ohlcvc": r.ohlcvc
             .as_ref()
@@ -5907,6 +5945,94 @@ mod tests {
         assert!(
             back.gap,
             "the interval it did not observe is disclosed, as it is for a contract"
+        );
+    }
+
+    #[test]
+    fn a_market_read_over_an_interval_no_selection_watched_reports_no_span() {
+        // `since_seconds` is how long the selection stood before this read
+        // took it. The sweep frees the market, the release fails, and it goes
+        // back holding no selection. The read after that installs the first
+        // selection since, so there is no span to report; dating it to the
+        // reopen would report an interval nothing was watching as time a
+        // selection stood.
+        let reg = Registry::default();
+        market_now(&reg, SecType::Stock, query(5), 0, 0).expect("nothing to refuse");
+        assert_eq!(reg.expire(PAST_TTL).len(), 1, "the idle market is freed");
+        reg.reinstate(&SecType::Stock.full_trades(), PAST_TTL);
+
+        let at = PAST_TTL + 1_000;
+        let back = market_now(&reg, SecType::Stock, query(5), 0, at).expect("nothing to refuse");
+        let v = market_response(SecType::Stock, "Connected".into(), &query(5), &back, at);
+        assert!(
+            v["since_seconds"].is_null(),
+            "no selection stood over that interval, so there is no span: {}",
+            v["since_seconds"]
+        );
+
+        // The read after it follows a selection that did stand, and reports
+        // the interval that one covered.
+        let next =
+            market_now(&reg, SecType::Stock, query(5), 0, at + 2_000).expect("nothing to refuse");
+        let v = market_response(
+            SecType::Stock,
+            "Connected".into(),
+            &query(5),
+            &next,
+            at + 2_000,
+        );
+        assert_eq!(
+            v["since_seconds"].as_f64(),
+            Some(2.0),
+            "the selection the previous read installed stood two seconds"
+        );
+    }
+
+    #[test]
+    fn a_row_stamped_after_this_answers_clock_has_no_age() {
+        // A clock that steps forward between a row being stamped and an
+        // answer being built leaves a stamp the clock could not have
+        // produced. Subtracting it saturates to nought, which reads as the
+        // freshest thing this surface can say about the one row it cannot
+        // place. The default window selects by arrival and applies no stamp
+        // test, so such a row reaches an answer.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.ingest(trade(&c, 1.0, 4_000 * MS));
+        reg.ingest(trade(&c, 2.0, 9_000 * MS));
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
+            .expect("nothing to refuse");
+        assert_eq!(r.tail.len(), 2, "the default window serves both by arrival");
+
+        let v = read_response(
+            &c,
+            SubscriptionKind::Trade,
+            "Connected".into(),
+            None,
+            &r,
+            5_000,
+        );
+        assert!(
+            v["age_ms"].is_null(),
+            "the newest row is stamped four seconds after this answer's clock, \
+             so nothing can give its age: {}",
+            v["age_ms"]
+        );
+
+        // The same rule where a row carries its own age, which is the other
+        // place a stamp becomes a number.
+        let ahead = aged_object_dated(&trade(&c, 2.0, 9_000 * MS), 5_000, false);
+        assert!(
+            ahead.get("age_ms").is_none(),
+            "nor beside the row itself: {ahead}"
+        );
+        let placed = aged_object_dated(&trade(&c, 1.0, 4_000 * MS), 5_000, false);
+        assert_eq!(
+            placed.get("age_ms").and_then(|v| v.as_u64()),
+            Some(1_000),
+            "a row the clock can place is aged as it always was"
         );
     }
 
