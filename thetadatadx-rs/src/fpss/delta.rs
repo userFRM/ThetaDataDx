@@ -13,6 +13,27 @@ use crate::tdbe::codec::fit::{apply_deltas, FitReader};
 /// Number of FIT fields per tick type (excluding the `contract_id` which is the
 /// first FIT field). The FIT decoder returns `n_fields` total, where field [0]
 /// is the `contract_id` and fields [1..] are the tick data.
+/// Which per-contract delta baseline a stream accumulates onto.
+///
+/// The server encodes FIT deltas against state it keeps per contract and
+/// per baseline family, not per message type: the terminal holds exactly
+/// two maps, both keyed by contract id alone, and routes `MARKET_VALUE`
+/// into the quote one. Keying on the message code instead gives a
+/// contract's quote and market-value streams independent baselines, so
+/// each decodes the other's deltas against a row the server has already
+/// moved past.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(super) enum Baseline {
+    /// `QUOTE` and `MARKET_VALUE` for a non-index contract.
+    Quote,
+    /// `TRADE`.
+    Trade,
+    /// `OPEN_INTEREST`.
+    OpenInterest,
+    /// `OHLCVC`.
+    Ohlcvc,
+}
+
 pub(super) const QUOTE_FIELDS: usize = 11;
 /// The FPSS stream trade is the 8-field layout. (The 16-field "extended"
 /// trade is an MDDS gRPC shape on a different protocol and never reaches
@@ -57,28 +78,13 @@ pub struct DeltaState {
     /// tick data. Stored inline (no `Vec`) so the per-tick `apply_deltas`
     /// step costs one stack copy + one in-place add loop with zero
     /// allocations on the hot path.
-    prev: HashMap<(u8, i32), TickFields>,
+    prev: HashMap<(Baseline, i32), TickFields>,
     /// Reusable scratch buffer for FIT decoding, avoiding per-tick allocation.
     /// Resized (never shrunk) to fit the largest tick type seen.
     alloc_buf: Vec<i32>,
     /// Set after `decode_tick` to indicate the last row was a DATE marker.
     /// Callers use this to distinguish normal DATE skips from corrupt payloads.
     pub(super) last_was_date: bool,
-    /// Actual data field count from the first absolute tick for each
-    /// `(msg_type, contract_id)`. The FPSS stream trade is the 8-field
-    /// layout; the 16-field "extended" trade is an MDDS gRPC shape on a
-    /// different protocol and is never seen here.
-    ///
-    /// The width is fixed at the first absolute row and not revised by later
-    /// rows. This is correct because the trade-format width is a server-wide
-    /// constant for the session, not a per-row property: every row a given
-    /// peer emits carries the same field count. Subsequent rows for the same
-    /// `(msg_type, contract_id)` are FIT delta rows whose changed-field count
-    /// is smaller than the full width, so they cannot be used to re-derive it.
-    /// The decode buffer is always the full [`MAX_DATA_FIELDS`] width with
-    /// unused slots zero-filled, so a stale width can only under-report which
-    /// trailing fields a caller reads, never read out of bounds.
-    field_counts: HashMap<(u8, i32), usize>,
     /// Timestamp of last STOP (market close) signal. Used to suppress
     /// "unknown `contract_id`" warnings for 5 seconds after STOP;
     /// stale ticks are expected during teardown.
@@ -103,7 +109,6 @@ impl DeltaState {
             prev: HashMap::new(),
             alloc_buf: vec![0i32; MAX_DATA_FIELDS + 1],
             last_was_date: false,
-            field_counts: HashMap::new(),
             last_stop: None,
         }
     }
@@ -120,7 +125,6 @@ impl DeltaState {
     pub fn clear(&mut self) {
         self.prev.clear();
         self.last_was_date = false;
-        self.field_counts.clear();
     }
 
     /// Whether we are within the post-STOP suppression window.
@@ -143,17 +147,24 @@ impl DeltaState {
     /// changes into `alloc`, where `alloc[0]` is the `contract_id` used to
     /// resolve the contract and `alloc[1..]` are the tick fields.
     ///
-    /// Returns `Some((contract_id, data_field_count))` on success, or `None`
+    /// `baseline` selects the per-contract delta baseline this stream
+    /// accumulates onto. It is not the message code: a contract's quote and
+    /// market-value streams share one baseline upstream, and giving them
+    /// separate ones here decodes each against a row the server has moved
+    /// past.
+    ///
+    /// Returns `Some(contract_id)` on success, or `None`
     /// when the payload is empty or the FIT row is a DATE marker. Sets
     /// `self.last_was_date` so callers can distinguish DATE markers from
     /// corrupt payloads.
     pub(super) fn decode_tick(
         &mut self,
+        baseline: Baseline,
         msg_code: u8,
         payload: &[u8],
         expected_fields: usize,
         out: &mut TickFields,
-    ) -> Option<(i32, usize)> {
+    ) -> Option<i32> {
         self.last_was_date = false;
 
         if payload.is_empty() {
@@ -217,7 +228,7 @@ impl DeltaState {
             return None;
         }
 
-        let key = (msg_code, contract_id);
+        let key = (baseline, contract_id);
         let is_absolute = !self.prev.contains_key(&key);
 
         // An absolute row defines the cached field width and seeds the delta
@@ -227,15 +238,15 @@ impl DeltaState {
         // failure regardless of direction: a wider row would have its trailing
         // fields silently dropped (the scratch buffer is `total_fields` wide)
         // and over-report the cached width, while a complete-but-narrow row
-        // (e.g. a 7-field trade) would seed `prev`/`field_counts` at the wrong
+        // (e.g. a 7-field trade) would seed `prev` at the wrong
         // width and mis-decode every later delta row for that contract. A
         // truncated row is already rejected above via `row_complete`. Rejecting
-        // here, BEFORE any `prev`/`field_counts` insert, guarantees a
+        // here, BEFORE any `prev` insert, guarantees a
         // wrong-width row leaves no state behind so a later correct absolute
         // row can re-seed cleanly.
         if is_absolute && tick_n != expected_fields {
             // Wrong-width absolute row: reject before it seeds `prev` /
-            // `field_counts` (a wrong cached width would mis-decode every later
+            // (a wrong cached width would mis-decode every later
             // delta row for this contract), mirroring the terminal, which
             // requires each stream tick's exact length. `msg_code` identifies
             // the shape; the caller surfaces `Unparseable` and bumps the
@@ -261,13 +272,6 @@ impl DeltaState {
                 &prev[..expected_fields],
                 tick_n,
             );
-        } else {
-            // First absolute tick for this `(msg_type, contract_id)`: record
-            // the actual field count. The maps grow with the live universe
-            // and reset at every START/STOP/RESTART/RECONNECTED session
-            // boundary (see `clear`), matching the terminal, which imposes
-            // no per-session contract cap.
-            self.field_counts.insert(key, tick_n);
         }
 
         // Store the resolved absolute row into `prev` for the next delta.
@@ -276,15 +280,14 @@ impl DeltaState {
         // no `Vec::clone` per tick.
         self.prev.insert(key, *out);
 
-        let data_fields = *self.field_counts.get(&key).unwrap_or(&expected_fields);
-        Some((contract_id, data_fields))
+        Some(contract_id)
     }
 
-    /// Distinct-row counts of the two per-session maps, exposed for
+    /// Distinct-row count of the per-session baseline map, exposed for
     /// state-retention tests.
     #[cfg(test)]
-    pub(super) fn state_sizes(&self) -> (usize, usize) {
-        (self.prev.len(), self.field_counts.len())
+    pub(super) fn state_sizes(&self) -> usize {
+        self.prev.len()
     }
 }
 
@@ -337,7 +340,7 @@ mod tests {
     /// width) must be rejected and leave NO cached baseline or width, so a
     /// subsequent correct-width absolute row for the SAME key re-seeds cleanly.
     /// Before the width guard rejected narrow rows, a 7-field trade passed the
-    /// (wider-only) absolute guard, seeded `prev`/`field_counts` at width 7,
+    /// (wider-only) absolute guard, seeded `prev` at width 7,
     /// and every later 8-field row for that contract decoded as a width-7 delta
     /// and was rejected forever until session `clear()` (issue #1047).
     #[test]
@@ -350,25 +353,24 @@ mod tests {
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
         assert!(
             state
-                .decode_tick(TRADE_CODE, &narrow, TRADE_FIELDS, &mut out)
+                .decode_tick(Baseline::Trade, TRADE_CODE, &narrow, TRADE_FIELDS, &mut out)
                 .is_none(),
             "a narrow first row must decode to None"
         );
         assert_eq!(
             state.state_sizes(),
-            (0, 0),
-            "a rejected narrow row must leave no prev/field_counts state behind"
+            0,
+            "a rejected narrow row must leave no baseline state behind"
         );
 
         // A well-formed 8-field absolute row for the SAME contract must now
         // decode cleanly at the full width — proving the narrow row did not
         // trap the key.
         let good = encode_row(&[cid, 34_200_001, 12_346, 51, 6, 5_500_100, 57, 6, 20_250_428]);
-        let (contract_id, n_data) = state
-            .decode_tick(TRADE_CODE, &good, TRADE_FIELDS, &mut out)
+        let contract_id = state
+            .decode_tick(Baseline::Trade, TRADE_CODE, &good, TRADE_FIELDS, &mut out)
             .expect("a correct-width row must decode after a rejected narrow row");
         assert_eq!(contract_id, cid);
-        assert_eq!(n_data, TRADE_FIELDS);
         assert_eq!(out[0], 34_200_001, "field 0 decodes from the clean re-seed");
         assert_eq!(
             out[7], 20_250_428,
@@ -386,10 +388,15 @@ mod tests {
         let payload = encode_row(&values);
 
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
-        let decoded = state.decode_tick(QUOTE_CODE, &payload, QUOTE_FIELDS, &mut out);
-        let (contract_id, n_data) = decoded.expect("complete row decodes");
+        let decoded = state.decode_tick(
+            Baseline::Quote,
+            QUOTE_CODE,
+            &payload,
+            QUOTE_FIELDS,
+            &mut out,
+        );
+        let contract_id = decoded.expect("complete row decodes");
         assert_eq!(contract_id, 7);
-        assert_eq!(n_data, QUOTE_FIELDS);
         for (i, v) in (100..=110).enumerate() {
             assert_eq!(out[i], v, "field {i} mismatch");
         }
@@ -407,7 +414,13 @@ mod tests {
         payload.pop();
 
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
-        let decoded = state.decode_tick(QUOTE_CODE, &payload, QUOTE_FIELDS, &mut out);
+        let decoded = state.decode_tick(
+            Baseline::Quote,
+            QUOTE_CODE,
+            &payload,
+            QUOTE_FIELDS,
+            &mut out,
+        );
         assert!(
             decoded.is_none(),
             "a truncated row must decode to None, not a zero-filled tick"
@@ -417,7 +430,7 @@ mod tests {
             "rejection is a decode failure, not a DATE skip"
         );
         // The reject path must not have cached any width/baseline.
-        assert_eq!(state.state_sizes().0, 0, "no prev baseline cached");
+        assert_eq!(state.state_sizes(), 0, "no prev baseline cached");
     }
 
     #[test]
@@ -426,14 +439,20 @@ mod tests {
         let payload = vec![0xCE, pack(1, 2)];
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
 
-        let decoded = state.decode_tick(QUOTE_CODE, &payload, QUOTE_FIELDS, &mut out);
+        let decoded = state.decode_tick(
+            Baseline::Quote,
+            QUOTE_CODE,
+            &payload,
+            QUOTE_FIELDS,
+            &mut out,
+        );
 
         assert!(decoded.is_none(), "a truncated DATE marker must not decode");
         assert!(
             !state.last_was_date,
             "a truncated DATE marker is corrupt input, not a benign DATE skip"
         );
-        assert_eq!(state.state_sizes().0, 0, "no prev baseline cached");
+        assert_eq!(state.state_sizes(), 0, "no prev baseline cached");
     }
 
     #[test]
@@ -450,18 +469,23 @@ mod tests {
         truncated.pop();
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
         assert!(state
-            .decode_tick(QUOTE_CODE, &truncated, QUOTE_FIELDS, &mut out)
+            .decode_tick(
+                Baseline::Quote,
+                QUOTE_CODE,
+                &truncated,
+                QUOTE_FIELDS,
+                &mut out
+            )
             .is_none());
-        assert_eq!(state.state_sizes().0, 0, "truncated row poisoned the cache");
+        assert_eq!(state.state_sizes(), 0, "truncated row poisoned the cache");
 
         // A subsequent COMPLETE absolute row for the same contract decodes as
         // a clean absolute tick with the full width, proving the earlier
         // truncated row left no stale state behind.
         let good = encode_row(&full);
-        let decoded = state.decode_tick(QUOTE_CODE, &good, QUOTE_FIELDS, &mut out);
-        let (contract_id, n_data) = decoded.expect("complete row decodes");
+        let decoded = state.decode_tick(Baseline::Quote, QUOTE_CODE, &good, QUOTE_FIELDS, &mut out);
+        let contract_id = decoded.expect("complete row decodes");
         assert_eq!(contract_id, cid);
-        assert_eq!(n_data, QUOTE_FIELDS);
         for (i, v) in (100..=110).enumerate() {
             assert_eq!(out[i], v, "field {i} mismatch after clean re-seed");
         }
@@ -478,16 +502,81 @@ mod tests {
         let abs_payload = encode_row(&abs);
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
         state
-            .decode_tick(QUOTE_CODE, &abs_payload, QUOTE_FIELDS, &mut out)
+            .decode_tick(
+                Baseline::Quote,
+                QUOTE_CODE,
+                &abs_payload,
+                QUOTE_FIELDS,
+                &mut out,
+            )
             .expect("absolute row decodes");
 
         // Delta row: contract_id then a single +5 change to field 0.
         let delta_payload = encode_row(&[cid, 5]);
-        let decoded = state.decode_tick(QUOTE_CODE, &delta_payload, QUOTE_FIELDS, &mut out);
-        let (contract_id, _n) = decoded.expect("delta row decodes");
+        let decoded = state.decode_tick(
+            Baseline::Quote,
+            QUOTE_CODE,
+            &delta_payload,
+            QUOTE_FIELDS,
+            &mut out,
+        );
+        let contract_id = decoded.expect("delta row decodes");
         assert_eq!(contract_id, cid);
         assert_eq!(out[0], 105, "delta accumulated onto prior absolute value");
         assert_eq!(out[1], 101, "unchanged field carried forward from baseline");
+    }
+
+    /// A contract's quote and market-value streams accumulate onto one
+    /// upstream baseline: the terminal keeps two per-contract maps, keyed by
+    /// contract id alone, and routes `MARKET_VALUE` into the quote one. So a
+    /// market-value row for a contract whose quote stream is already running
+    /// arrives as a partial delta, not as an absolute row.
+    ///
+    /// Keyed by message code instead, that row finds no baseline of its own,
+    /// is taken for an absolute row, fails the exact-width check and is
+    /// dropped. Every later market-value row for the contract does the same,
+    /// so the stream goes silent for the session while the quote stream keeps
+    /// accumulating onto a row the server has moved past.
+    #[test]
+    fn market_value_accumulates_onto_the_contract_quote_baseline() {
+        const MARKET_VALUE_CODE: u8 = 25;
+        let mut state = DeltaState::new();
+        let cid = 42;
+        let mut abs = vec![cid];
+        abs.extend(100..=110);
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+
+        // The quote stream seeds the contract's baseline.
+        state
+            .decode_tick(
+                Baseline::Quote,
+                QUOTE_CODE,
+                &encode_row(&abs),
+                QUOTE_FIELDS,
+                &mut out,
+            )
+            .expect("absolute quote row seeds the baseline");
+
+        // A market-value row for the same contract carries one changed field.
+        let contract_id = state
+            .decode_tick(
+                Baseline::Quote,
+                MARKET_VALUE_CODE,
+                &encode_row(&[cid, 5]),
+                QUOTE_FIELDS,
+                &mut out,
+            )
+            .expect("market value decodes against the shared quote baseline");
+        assert_eq!(contract_id, cid);
+        assert_eq!(out[0], 105, "delta accumulated onto the quote baseline");
+        assert_eq!(out[1], 101, "unchanged field carried forward");
+
+        // One baseline for the contract, not one per stream.
+        assert_eq!(
+            state.state_sizes(),
+            1,
+            "quote and market value share a single per-contract baseline"
+        );
     }
 
     #[test]
@@ -499,24 +588,42 @@ mod tests {
         let abs_payload = encode_row(&abs);
         let mut out: TickFields = [0; MAX_DATA_FIELDS];
         state
-            .decode_tick(QUOTE_CODE, &abs_payload, QUOTE_FIELDS, &mut out)
+            .decode_tick(
+                Baseline::Quote,
+                QUOTE_CODE,
+                &abs_payload,
+                QUOTE_FIELDS,
+                &mut out,
+            )
             .expect("absolute row decodes");
-        assert_eq!(state.state_sizes(), (1, 1));
+        assert_eq!(state.state_sizes(), 1);
 
         let mut too_wide = vec![cid];
         too_wide.extend(1..=12);
         let too_wide_payload = encode_row(&too_wide);
         assert!(
             state
-                .decode_tick(QUOTE_CODE, &too_wide_payload, QUOTE_FIELDS, &mut out)
+                .decode_tick(
+                    Baseline::Quote,
+                    QUOTE_CODE,
+                    &too_wide_payload,
+                    QUOTE_FIELDS,
+                    &mut out
+                )
                 .is_none(),
             "a row wider than the tick shape must not be clipped"
         );
-        assert_eq!(state.state_sizes(), (1, 1));
+        assert_eq!(state.state_sizes(), 1);
 
         let delta_payload = encode_row(&[cid, 5]);
-        let decoded = state.decode_tick(QUOTE_CODE, &delta_payload, QUOTE_FIELDS, &mut out);
-        let (contract_id, _n) = decoded.expect("valid delta row decodes");
+        let decoded = state.decode_tick(
+            Baseline::Quote,
+            QUOTE_CODE,
+            &delta_payload,
+            QUOTE_FIELDS,
+            &mut out,
+        );
+        let contract_id = decoded.expect("valid delta row decodes");
         assert_eq!(contract_id, cid);
         assert_eq!(out[0], 105, "rejected wide row did not poison baseline");
         assert_eq!(out[1], 101, "unchanged field carried forward from seed");
