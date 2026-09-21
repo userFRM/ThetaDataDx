@@ -26,6 +26,14 @@ import check_agreement as validate_agreement  # noqa: E402
 
 
 def _write_artifact(base: Path, lang: str, records: list[dict]) -> None:
+    """Write one SDK's artifact, replacing any earlier one for that language.
+
+    One file per language. Several tests rely on that: they write a baseline
+    fixture for every producer through a loop, then write one language again
+    with a divergent record so exactly one SDK differs. The replacement is the
+    point. A test that means to add a producer rather than replace one has to
+    name a language it has not written yet.
+    """
     path = base / f"validator_{lang}.json"
     path.write_text(json.dumps({"lang": lang, "records": records}, indent=2, sort_keys=True))
 
@@ -359,11 +367,12 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("1 cells agree across", out)
 
     def test_infinity_normalizes_to_null(self) -> None:
-        # +Inf / -Inf same treatment as NaN.
+        # +Inf / -Inf same treatment as NaN. Each non-finite value needs a
+        # producer of its own: one file per language, so writing `cli` twice
+        # replaces the first fixture and the value it carried is never read.
         for lang, val in (
             ("python", float("inf")),
             ("cli", float("-inf")),
-            ("cli", None),
             ("cpp", None),
         ):
             _write_artifact(

@@ -1,6 +1,6 @@
 // Layout guards for the hand-written `#[repr(C)]` ABI structs that are
 // not emitted from a schema (so no generated assert covers them). The
-// generated tick and FPSS event structs are pinned in
+// generated tick and streaming event structs are pinned in
 // `tick_layout_asserts.hpp.inc` and `fpss_layout_asserts.hpp.inc`; the
 // structs below are declared by hand on both sides, so these
 // hand-written asserts are the only thing that fails the build if a

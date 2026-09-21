@@ -257,9 +257,23 @@ def check_static_docs() -> None:
         ROOT / "tools/mcp/README.md",
         "## Available Tools",
     )
+    # Derive the three counts from the inventory rather than pinning the
+    # sentence as a literal. Pinned, the gate required whatever number was
+    # current when it was written: adding a tool left it green on a sentence
+    # that had become wrong, and correcting the sentence failed it. The
+    # heading-based count check below does not cover this line either, since
+    # it sits in the intro paragraph before the first subheading.
+    inventory = mcp_tool_inventory()
+    offline = inventory["offline"]
+    flatfile = inventory["flatfile"]
+    utility = inventory["utility"]
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools and `entitlements`.",
+        (
+            f"Every generated market-data endpoint plus {len(offline)} offline "
+            f"tool ({plural_names(offline)}) and, when connected, "
+            f"{len(flatfile)} flat-file tools and {plural_names(utility)}."
+        ),
     )
 
     expect_contains(
@@ -1049,6 +1063,14 @@ def _rust_fn_body(text: str, fn_signature_re: str, path: Path) -> str:
                 return text[start:i]
     fail(f"{path.relative_to(ROOT)} fn matching {fn_signature_re!r} has no closed body")
     return ""  # unreachable; fail() raises
+
+
+def plural_names(names: list[str]) -> str:
+    """Render tool names the way the README prose does: `a`, `b` and `c`."""
+    quoted = [f"`{n}`" for n in sorted(names)]
+    if len(quoted) <= 1:
+        return quoted[0] if quoted else ""
+    return ", ".join(quoted[:-1]) + " and " + quoted[-1]
 
 
 def mcp_tool_inventory() -> dict[str, list[str]]:

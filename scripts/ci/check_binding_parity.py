@@ -3037,7 +3037,7 @@ CORE_STREAMING_METHOD_RENAMES: dict[str, str] = {
 
 # An observability accessor is one whose name matches this shape. The
 # closure is intentionally narrow: cumulative counters (`*_count`), ring
-# telemetry (`ring_*`), and the slow-callback threshold setter. Lifecycle
+# telemetry (`ring_*`). Lifecycle
 # / subscription / connection methods do not match and stay governed by
 # the forward `[[method]]` rows alone.
 def _is_core_observability_accessor(name: str) -> bool:
@@ -3048,8 +3048,6 @@ def _is_core_observability_accessor(name: str) -> bool:
     if name.endswith("_count"):
         return True
     if name.startswith("ring_"):
-        return True
-    if name.startswith("set_") and name.endswith("_threshold"):
         return True
     return False
 
@@ -3561,11 +3559,20 @@ def _harvest_kind_labels(text: str, anchor_substrings: tuple[str, ...]) -> set[s
     for literal in _KIND_LITERAL_RE.findall(text):
         if literal in _KIND_VOCAB:
             out.add(literal)
-    # `anchor_substrings` documents intent (the arms a reader expects to
-    # carry the labels) and guards against an empty harvest from a file
-    # the layout drifted out from under — if not one anchor is present,
-    # the caller's source no longer matches the contract.
-    return out if any(a in text for a in anchor_substrings) else out
+    # `anchor_substrings` names the arms a reader expects to carry the
+    # labels. If none is present the file has been restructured out from
+    # under this collector, and a harvest from it is not evidence about the
+    # surface it claims to cover: the guard has to fail rather than hand
+    # back whatever literals happened to match.
+    missing = [a for a in anchor_substrings if a not in text]
+    if len(missing) == len(anchor_substrings):
+        raise SystemExit(
+            "binding parity: no expected anchor found while harvesting "
+            f"subscription kind labels (looked for {list(anchor_substrings)}). "
+            "The source has been restructured; update the anchors before "
+            "trusting this harvest."
+        )
+    return out
 
 
 def _collect_rust_subscription_kinds(subscription_rs: pathlib.Path) -> set[str]:
@@ -9245,22 +9252,19 @@ def _run_selftest() -> int:
     def _case_core_streaming_positive_all_enrolled() -> None:
         """Every core observability accessor has a `[[method]]` row —
         gate is silent. Covers the `dropped_count` -> `droppedEventCount`
-        rename plus the direct camelCase mappings, including a
-        `set_*_threshold`-shaped setter that maps by default camelCase."""
+        rename plus the direct camelCase mappings."""
         core_methods = {
             "StreamSurface": {
                 "dropped_event_count",
                 "ring_occupancy",
                 "ring_capacity",
                 "panic_count",
-                "set_example_threshold",
             },
             "StreamingClient": {
                 "dropped_count",
                 "ring_occupancy",
                 "ring_capacity",
                 "panic_count",
-                "set_example_threshold",
             },
         }
         rows = [
@@ -9270,7 +9274,6 @@ def _run_selftest() -> int:
                 "ringOccupancy",
                 "ringCapacity",
                 "panicCount",
-                "setExampleThreshold",
             )
         ] + [
             {"class": "StreamingClient", "name": n}
@@ -9279,7 +9282,6 @@ def _run_selftest() -> int:
                 "ringOccupancy",
                 "ringCapacity",
                 "panicCount",
-                "setExampleThreshold",
             )
         ]
         errors = _check_core_streaming_method_rows(core_methods, rows)
@@ -9297,16 +9299,6 @@ def _run_selftest() -> int:
             f"unenrolled core counter must trip the gate; got {errors!r}"
         )
 
-    def _case_core_streaming_negative_unenrolled_setter() -> None:
-        """A wired core threshold setter with no row trips, mapped to the
-        default camelCase binding row name."""
-        core_methods = {"StreamingClient": {"set_example_threshold"}}
-        rows: list[dict[str, Any]] = []
-        errors = _check_core_streaming_method_rows(core_methods, rows)
-        assert any("setExampleThreshold" in e for e in errors), (
-            f"unenrolled core setter must trip the gate; got {errors!r}"
-        )
-
     def _case_core_streaming_internal_hook_ignored() -> None:
         """`record_panic` (the internal fault-injection hook) is not an
         observability accessor, so the harvester never surfaces it and it
@@ -9320,14 +9312,15 @@ def _run_selftest() -> int:
                 f"{non_obs} must not be treated as an observability accessor"
             )
         # The shape predicate accepts the genuine observability accessors:
-        # cumulative counters (`*_count`), ring telemetry (`ring_*`), and a
-        # `set_*_threshold`-shaped setter.
+        # cumulative counters (`*_count`) and ring telemetry (`ring_*`). It
+        # no longer accepts a `set_*_threshold` setter: none exists on either
+        # streaming surface, and the arm was pinned here by a fabricated
+        # symbol rather than a real one.
         for obs in (
             "dropped_count",
             "ring_occupancy",
             "panic_count",
             "example_count",
-            "set_example_threshold",
         ):
             assert _is_core_observability_accessor(obs), (
                 f"{obs} must be treated as an observability accessor"
@@ -9340,10 +9333,6 @@ def _run_selftest() -> int:
     _case(
         "core-streaming negative — unenrolled counter trips",
         _case_core_streaming_negative_unenrolled_getter,
-    )
-    _case(
-        "core-streaming negative — unenrolled threshold setter trips",
-        _case_core_streaming_negative_unenrolled_setter,
     )
     _case(
         "core-streaming positive — internal record_panic hook ignored",
