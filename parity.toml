@@ -721,21 +721,35 @@ python = true
 typescript = true
 cpp = true
 
-# ─── AuthConfig / MetricsConfig cross-binding setters ──────────────────
+# ─── AuthConfig cross-binding setters ─────────────────────────────────
 #
-# Operator-tuning knobs on `DirectConfig.auth` + `DirectConfig.metrics`.
+# Operator-tuning knobs on `DirectConfig.auth`.
 # Bound on every binding: Python via `Config.nexus_url` /
-# `Config.client_type` / `Config.metrics_port` setters/getters,
-# TypeScript via `Config.setNexusUrl` / `setClientType` /
-# `setMetricsPort`, C++ via `thetadatadx::Config::set_nexus_url` /
-# `set_client_type` / `set_metrics_port` (which forward to the FFI
-# `thetadatadx_config_set_nexus_url` / `_client_type` / `_metrics_port`
+# `Config.client_type` setters/getters,
+# TypeScript via `Config.setNexusUrl` / `setClientType`,
+# C++ via `thetadatadx::Config::set_nexus_url` /
+# `set_client_type` (which forward to the FFI
+# `thetadatadx_config_set_nexus_url` / `_client_type`
 # symbols). The two `AuthConfig` fields are `String` — the FFI
 # setter takes a `*const c_char` (validated UTF-8) and the getter
 # returns a heap-owned `*mut c_char` released via `thetadatadx_string_free`.
-# `MetricsConfig.port` is `Option<u16>`, carried across the C ABI as
-# the widened `(has_value, port)` shape so the disabled-exporter
-# `None` sentinel survives the boundary.
+
+# `MetricsConfig.port` is Rust-only. It is read by the Prometheus
+# exporter alone, whose body is behind the `metrics-prometheus` cargo
+# feature that no binding crate, no CI job and no release artifact
+# enables. A binding setter for it succeeded, reported no error and
+# could never take effect, so the accessors were removed rather than
+# left advertising a capability the shipped artifacts do not have. An
+# embedder that compiles the feature in sets the field directly on
+# `DirectConfig`. See #1317.
+
+[[class]]
+name = "MetricsConfig.port"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#1317"
 
 [[class]]
 name = "AuthConfig.nexus_url"
@@ -745,12 +759,6 @@ cpp = true
 
 [[class]]
 name = "AuthConfig.client_type"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
-name = "MetricsConfig.port"
 python = true
 typescript = true
 cpp = true

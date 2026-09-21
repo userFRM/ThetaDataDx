@@ -826,31 +826,4 @@ impl Config {
         guard.reconnect.jitter.as_str()
     }
 
-    /// Set the Prometheus exporter port. ``None`` (the default) keeps
-    /// the exporter disabled; an ``int`` binds an HTTP listener whose
-    /// ``/metrics`` endpoint exposes every counter and histogram.
-    ///
-    /// Raises ``ValueError`` if the value is outside the ``u16`` range
-    /// (``0..=65535``).
-    #[setter]
-    fn set_metrics_port(&self, port: Option<u32>) -> PyResult<()> {
-        let resolved = match port {
-            Some(v) => Some(u16::try_from(v).map_err(|_| {
-                crate::errors::invalid_parameter_err(format!("metrics_port must be in 0..=65535; got {v}"))
-            })?),
-            None => None,
-        };
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.metrics.port = resolved;
-        Ok(())
-    }
-
-    /// Current ``metrics.port`` setting. ``None`` means the exporter is
-    /// disabled; an ``int`` is the bound port.
-    #[getter]
-    fn get_metrics_port(&self) -> Option<u16> {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.metrics.port
-    }
-
 }

@@ -683,20 +683,6 @@ export declare class Config {
   setReconnectJitter(mode: string): void
   /** Current reconnect jitter mode as a lowercase string. */
   get reconnectJitter(): string
-  /**
-   * Set the Prometheus exporter port. Pass `null` or `undefined`
-   * to leave the exporter disabled (the default); pass a
-   * `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
-   * `metrics-prometheus` feature is compiled in.
-   *
-   * Rejects values outside the `0..=65535` port range.
-   */
-  setMetricsPort(port?: number | undefined | null): void
-  /**
-   * Current `metrics.port` setting. `null` means the exporter is
-   * disabled; a `number` is the bound port.
-   */
-  get metricsPort(): number | null
 }
 
 /**
