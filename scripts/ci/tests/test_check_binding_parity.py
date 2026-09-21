@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test suite for `scripts/ci/check_binding_parity.py` (Gate 2 / #595).
+"""Test suite for `scripts/ci/check_binding_parity.py`.
 
 Feeds synthetic Rust source + binding sources via tempdir directories
 and asserts positive (all-bound) and negative (missing-on-TS,
@@ -1411,7 +1411,7 @@ def test_sig_name_only_fails_closed(tmp: pathlib.Path) -> None:
 
 def test_sig_python_pyi_lane(tmp: pathlib.Path) -> None:
     """The `.pyi` lane checks the stub against the cross-binding spec: a clean
-    stub passes; a RETURN drift (the axis Gate 6's stubtest cannot see) FAILS;
+    stub passes; a RETURN drift (the axis stubtest cannot see) FAILS;
     a dropped pinned declaration on a fully-enumerated stub class FAILS; a
     member behind a class `__getattr__` degrades (no false-fail)."""
     paths = _sig_tree(tmp, py_params="n: bool")

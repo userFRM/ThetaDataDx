@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Artifact contents inspection (Gate 12 / issue #555).
+"""Artifact contents inspection.
 
 Verifies that built wheels, npm tarballs, and cmake-installed cpp
 trees contain exactly the files we expect — no accidental inclusion

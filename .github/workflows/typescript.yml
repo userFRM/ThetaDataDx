@@ -114,11 +114,11 @@ jobs:
         # appends the U7 `export const Contract: typeof ContractRef;`
         # alias the documented public surface depends on. Running
         # `napi build` alone would diverge from `package.json` and
-        # fail Gate 7 below on every CI run.
+        # fail the generated-output check below on every CI run.
         run: |
           npx napi build --platform --release --target ${{ matrix.target }} --strip
           node scripts/postbuild_alias_contract.mjs
-      # Gate 7 (#550): the committed `index.d.ts` must equal what
+      # The committed `index.d.ts` must equal what
       # `npm run build` just produced (napi-rs emission + the U7
       # postbuild alias). Any drift means a contributor forgot to
       # commit a regenerated stub after a binding change, so the
@@ -144,14 +144,14 @@ jobs:
       - name: Test
         working-directory: thetadatadx-ts
         run: npm test
-      # Gate 3 (#546) - TypeScript side: extract tsdoc `@example` /
+      # TypeScript side: extract tsdoc `@example` /
       # fenced-code blocks from `index.d.ts` and run each one with
       # `tsx`. Today `index.d.ts` carries no `@example` blocks (the
       # napi-rs emitter doesn't pass them from the Rust source);
       # the gate is wired so future TS doc examples are exercised
       # automatically once the napi-rs emitter starts forwarding them.
       #
-      # The cross-language Gate 3 scope is now scoped narrowly to:
+      # The cross-language example scope is narrowed to:
       #   - Rust:     `cargo test --doc --workspace` (active, runs)
       #   - Python:   stubtest (active — verifies stub <-> runtime)
       #   - TS:       `tsx`-based extractor below (wired, no examples
@@ -184,7 +184,7 @@ jobs:
           name: validator-typescript
           path: artifacts/validator_typescript.json
           if-no-files-found: error
-      - name: Pack + inspect npm tarball (Gate 12 / #555)
+      - name: Pack + inspect npm tarball
         if: matrix.os == 'ubuntu-latest'
         working-directory: thetadatadx-ts
         run: |

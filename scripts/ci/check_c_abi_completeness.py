@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""C ABI completeness check (Gate 4 / issue #547).
+"""C ABI completeness check.
 
 Every exported `thetadatadx_*` C ABI symbol that ends up in the compiled
 shared library `libthetadatadx_ffi.so` MUST appear as a function
