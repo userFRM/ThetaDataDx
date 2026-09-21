@@ -1404,26 +1404,33 @@ def _selftest() -> int:
                 f"table-parse: {flag} parsed as {got!r}, expected {want!r}"
             )
 
-    # Value-by-value mismatch detection: a doc default that disagrees with
-    # the source must be caught even though the stale value appears
-    # elsewhere in the page text.
-    stale_table = (
-        "Run on port 25503 by default.\n\n"
-        "| Flag | Default | Description |\n"
-        "|------|---------|-------------|\n"
-        "| `--http-port <port>` | `25503` | port |\n"
-    )
-    src = {"--http-port": "25504"}  # source moved to 25504
-    doc = _parse_doc_flag_table(stale_table)
-    mismatch = any(
-        doc.get(f) != src.get(f)
-        for f in set(doc) & set(src)
-    )
-    if not mismatch:
+    # Value-by-value mismatch detection. The comparison has to be exercised
+    # through the gate itself: comparing two dicts written here would assert
+    # that "25503" differs from "25504" and would still pass if
+    # `check_server_flag_defaults` stopped comparing values altogether.
+    # So move the port in the source and require the gate to refuse it
+    # against the real docs, which still document the old one.
+    moved_main = synthetic_main.replace("25503", "25504")
+    if moved_main == synthetic_main:
         failures.append(
-            "value-by-value: a stale documented port default was not detected "
-            "as a mismatch (substring scan would have passed it)"
+            "value-by-value: the fixture no longer carries the port default "
+            "this case moves, so the case proves nothing"
         )
+    with tempfile.TemporaryDirectory() as td:
+        fake_main = Path(td) / "main.rs"
+        fake_main.write_text(moved_main, encoding="utf-8")
+        SERVER_MAIN_RS = fake_main
+        try:
+            check_server_flag_defaults()
+        except SystemExit:
+            pass
+        else:
+            failures.append(
+                "value-by-value: a source default that moved away from the "
+                "documented one was not refused by the gate"
+            )
+        finally:
+            SERVER_MAIN_RS = saved_main
 
     if failures:
         print("check_docs_consistency --selftest: FAILED")

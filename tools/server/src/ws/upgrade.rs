@@ -47,35 +47,13 @@ pub(super) async fn ws_upgrade(
 /// already bounds; raising this above that cap would re-open the
 /// large-allocation vector the protocol bound exists to close.
 const PROTOCOL_FRAME_CAP: usize = WS_MAX_TEXT_BYTES;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The protocol-layer cap must equal the application-level text cap.
-    /// If they drift, the codec would buffer frames the application then
-    /// rejects (wasted allocation) or reject frames the application would
-    /// have accepted (a silent functional regression). Pinning them
-    /// together keeps the protocol bound and the application bound in
-    /// lockstep.
-    #[test]
-    fn protocol_cap_matches_application_text_cap() {
-        assert_eq!(PROTOCOL_FRAME_CAP, WS_MAX_TEXT_BYTES);
-    }
-
-    /// The protocol cap must stay far below the codec defaults (64 MiB
-    /// message / 16 MiB frame) it overrides. A cap at or above the
-    /// default would be a no-op and re-open the large-allocation vector.
-    /// 64 KiB is a generous ceiling that any legitimate subscribe
-    /// envelope clears with room to spare. Enforced at compile time so a
-    /// future widening of the cap fails the build, not just a test run.
-    #[test]
-    fn protocol_cap_is_far_below_codec_defaults() {
-        const {
-            assert!(
-                PROTOCOL_FRAME_CAP <= 64 * 1024,
-                "protocol cap is not tight enough to bound allocations"
-            );
-        }
-    }
-}
+// The cap must stay far below the codec defaults (64 MiB message / 16 MiB
+// frame) it overrides: at or above them it is a no-op and re-opens the
+// large-allocation vector it exists to close. 64 KiB is a ceiling any
+// legitimate subscribe envelope clears with room to spare. This is the
+// whole check — a widening fails the build. It needs no test around it,
+// and the two caps cannot drift because one is defined as the other.
+const _: () = assert!(
+    PROTOCOL_FRAME_CAP <= 64 * 1024,
+    "protocol cap is not tight enough to bound allocations"
+);
