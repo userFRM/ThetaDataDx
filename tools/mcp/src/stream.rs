@@ -584,6 +584,12 @@ struct Buffer {
     /// not whole however often it is asked, which is what makes a named
     /// window answer the same way twice. Zero means nothing has been lost.
     incomplete_at_ms: u64,
+    /// What kind of loss `incomplete_at_ms` dates. A buffer records when it
+    /// lost rows; without this it does not record why, and an answer naming a
+    /// cause would be inferring one from a date that five different losses
+    /// set. Reset when a later loss takes the date, OR-ed when one shares it,
+    /// so it always describes the loss the date points at, never an older one.
+    lost_kinds: u8,
     /// The feed was interrupted and nothing has arrived since, so there is
     /// no proof it is delivering again. Until a row lands, no window ending
     /// now can be shown whole; the row that lands is the proof, and dates
@@ -592,6 +598,25 @@ struct Buffer {
 }
 
 impl Buffer {
+    /// Record a loss: when it happened and what it was.
+    ///
+    /// Every site that dates a loss goes through here. Dating one without
+    /// saying what it was is how an answer ends up naming a cause inferred
+    /// from a date five different losses set.
+    ///
+    /// A later loss takes the date and the kinds with it: the kinds describe
+    /// the loss the date points at, and a window that does not reach back to
+    /// an older one should not be told about it. One landing on the same
+    /// millisecond is added rather than replacing.
+    fn lost_rows(&mut self, kind: u8, at: u64) {
+        if at > self.incomplete_at_ms {
+            self.incomplete_at_ms = at;
+            self.lost_kinds = kind;
+        } else if at == self.incomplete_at_ms {
+            self.lost_kinds |= kind;
+        }
+    }
+
     fn open(now: u64) -> Self {
         Self {
             ring: VecDeque::new(),
@@ -607,6 +632,7 @@ impl Buffer {
             gaps: 0,
             gaps_at_read: 0,
             incomplete_at_ms: 0,
+            lost_kinds: 0,
             awaiting_resume: false,
         }
     }
@@ -994,10 +1020,10 @@ struct Reading {
     /// everything since it opened, rows or not.
     covered_since_ms: u64,
     newest_ms: Option<u64>,
-    /// The window reaches back before coverage starts, so the result is not
-    /// the whole window asked for — because the ring overflowed, or because
-    /// the buffer is younger than the window.
-    clipped: bool,
+    /// Why the window is short of whole, empty when it is not. `clipped` is
+    /// this being non-empty, so a caller reading the flag and a caller
+    /// reading the reasons are told the same thing.
+    incomplete_because: Vec<&'static str>,
     new_since_last_read: u64,
     /// Rows the window held, which is not how many came back: the tail is
     /// capped. A caller reading ten rows needs to know whether that was all
@@ -1020,7 +1046,6 @@ struct Coverage {
     new: u64,
     held: usize,
     dropped: u64,
-    covered_since_ms: u64,
     /// See [`Buffer::dropped_newest_ms`].
     dropped_newest_ms: u64,
     /// Events the SDK discarded since this buffer last settled.
@@ -1029,53 +1054,155 @@ struct Coverage {
     gap: bool,
     /// When this buffer last lost rows, or zero if it never has.
     incomplete_at_ms: u64,
+    /// What the loss at `incomplete_at_ms` actually was. Named from this
+    /// rather than guessed from which flags happen to be live.
+    lost_kinds: u8,
+    /// Where coverage starts before any dated loss is folded in. A window
+    /// older than this reaches back before the buffer was watching, which is
+    /// a different thing from reaching back over a loss and must not be
+    /// reported as one.
+    watched_since_ms: u64,
     /// This read's clock, which dates a loss with no end yet proven.
     now: u64,
     /// See [`Buffer::awaiting_resume`].
     awaiting_resume: bool,
 }
 
-/// Whether a window is missing rows. Anything the feed discarded before
-/// this server saw it may have belonged here. Otherwise, without a window,
-/// rows arrived since the last read that the ring no longer holds. With
-/// one, coverage starting after the floor — or on it while rows were
-/// discarded: rows discarded ahead of the oldest held may share its stamp,
-/// so a floor the oldest held row sits on is not proven covered.
-fn clipped(window: Option<u64>, floor: u64, c: &Coverage) -> bool {
-    match window {
-        // Since your last read: anything lost in that interval counts, and
-        // a loss an earlier read disclosed still sits inside this window
-        // when it happened after that read.
-        None => {
-            c.gap
-                || c.awaiting_resume
-                || c.feed_dropped > 0
-                || c.new > c.held as u64
-                // Strictly after the last read: a loss dated at that read
-                // is behind this window, and was disclosed by it.
-                || c.incomplete_at_ms > floor
-        }
-        // A named window asks about an interval, so only a loss inside it
-        // counts. A loss learned of now is dated now, since nothing between
-        // the loss and this read is proven.
+/// The kinds of loss a buffer can suffer. A bitset rather than an enum
+/// because two can land on the same millisecond.
+///
+/// They differ in what a caller would do: an interrupted subscription may
+/// want resubscribing, a discard means this server is behind and should be
+/// read more often, and a row the feed delivered that this buffer could not
+/// place is neither — the feed is fine.
+const LOST_INTERRUPTED: u8 = 1 << 0;
+const LOST_DISCARDED: u8 = 1 << 1;
+const LOST_UNPLACEABLE: u8 = 1 << 2;
+const LOST_REOPENED: u8 = 1 << 3;
+const LOST_REFUSED: u8 = 1 << 4;
+const LOST_ELSEWHERE: u8 = 1 << 5;
+
+/// The reasons a window can be short of whole. A closed set: a caller can
+/// match on these, and a new one is a deliberate addition rather than a new
+/// spelling of an old one.
+const INTERRUPTED: &str = "feed_interrupted";
+const AWAITING_RESUME: &str = "awaiting_resume";
+const FEED_DISCARDED: &str = "feed_discarded";
+const ROWS_EVICTED: &str = "rows_evicted";
+const BEFORE_COVERAGE: &str = "window_predates_coverage";
+const UNPLACEABLE: &str = "row_unplaceable";
+const REOPENED: &str = "buffer_reopened";
+const REFUSED: &str = "row_refused";
+const ELSEWHERE: &str = "lost_on_another_view";
+const EARLIER_LOSS: &str = "earlier_loss_in_window";
+
+/// Why a window is not whole, in the caller's own vocabulary.
+///
+/// `clipped` says something is missing. It does not say which of several
+/// different things happened, and they are not interchangeable: rows this
+/// server threw away because a ring filled is a local capacity problem, the
+/// feed discarding events is this process falling behind, an interruption is
+/// the subscription itself having lapsed, and a window reaching past what was
+/// ever watched is the caller asking about an interval nobody covered. A
+/// caller that cannot tell them apart cannot act on any of them.
+///
+/// Returned in a stable order so an answer does not shuffle between reads.
+/// Empty exactly when the window is whole — [`clipped`] is defined as this
+/// being non-empty, so the flag and the reasons can never disagree.
+fn incomplete_because(window: Option<u64>, floor: u64, c: &Coverage) -> Vec<&'static str> {
+    let mut why = Vec::new();
+    // A dated loss counts when the window reaches back over it. For the
+    // default window that is strictly after the last read: one dated at that
+    // read is behind this window and was disclosed by it. For a named window
+    // a loss learned of now is dated now, since nothing between the loss and
+    // this read is proven.
+    let reaches_the_loss = match window {
+        None => c.incomplete_at_ms > floor,
         Some(_) => {
-            // Nothing has arrived since the interruption, so no window
-            // ending now can be shown whole.
             let lost_at = if c.awaiting_resume || c.feed_dropped > 0 {
                 c.now.max(c.incomplete_at_ms)
             } else {
                 c.incomplete_at_ms
             };
-            c.covered_since_ms > floor
-                || (c.dropped > 0 && c.covered_since_ms == floor)
-                // An evicted row stamped inside the window. Coverage starts at
-                // the oldest row held, which is the oldest by arrival, so a
-                // clock that stepped backwards can leave this the only thing
-                // that says the window is not whole.
+            lost_at > 0 && lost_at >= floor
+        }
+    };
+
+    // One order for both window shapes, so the same state does not read back
+    // in a different order depending on how it was asked for.
+    // `gap` is an interruption since the last settle, which is what the
+    // default window asks about. A named window asks about an interval, and
+    // an interruption only falls in it if the loss it dated does — a window
+    // entirely after the feed came back is whole however recently it broke.
+    let interrupted = match window {
+        None => {
+            // `gaps` counts a row the feed delivered that this buffer could
+            // not place alongside a real interruption, so the bare counter
+            // cannot tell them apart. Where a kind was recorded it decides;
+            // the counter is the fallback for a loss dated before kinds were.
+            if reaches_the_loss && c.lost_kinds != 0 {
+                c.lost_kinds & LOST_INTERRUPTED != 0
+            } else {
+                c.gap
+            }
+        }
+        Some(_) => reaches_the_loss && c.lost_kinds & LOST_INTERRUPTED != 0,
+    };
+    if interrupted {
+        why.push(INTERRUPTED);
+    }
+    if c.awaiting_resume {
+        why.push(AWAITING_RESUME);
+    }
+    if c.feed_dropped > 0 || (reaches_the_loss && c.lost_kinds & LOST_DISCARDED != 0) {
+        why.push(FEED_DISCARDED);
+    }
+    if reaches_the_loss && c.lost_kinds & LOST_UNPLACEABLE != 0 {
+        why.push(UNPLACEABLE);
+    }
+    if reaches_the_loss && c.lost_kinds & LOST_REOPENED != 0 {
+        why.push(REOPENED);
+    }
+    if reaches_the_loss && c.lost_kinds & LOST_REFUSED != 0 {
+        why.push(REFUSED);
+    }
+    if reaches_the_loss && c.lost_kinds & LOST_ELSEWHERE != 0 {
+        why.push(ELSEWHERE);
+    }
+
+    match window {
+        None => {
+            if c.new > c.held as u64 {
+                why.push(ROWS_EVICTED);
+            }
+        }
+        Some(_) => {
+            // The buffer is younger than the window. Read from where it began
+            // watching, not from coverage folded with a loss: a window over a
+            // loss is already named above, and saying both would report one
+            // fact twice under two different names.
+            if c.watched_since_ms > floor {
+                why.push(BEFORE_COVERAGE);
+            }
+            // An evicted row stamped inside the window. Coverage starts at the
+            // oldest row held, which is the oldest by arrival, so a clock that
+            // stepped backwards can leave this the only thing that says the
+            // window is not whole.
+            if (c.dropped > 0 && c.watched_since_ms == floor)
                 || (c.dropped_newest_ms > 0 && c.dropped_newest_ms >= floor)
-                || (lost_at > 0 && lost_at >= floor)
+            {
+                why.push(ROWS_EVICTED);
+            }
         }
     }
+
+    // A dated loss whose kind predates this bookkeeping, or one the window
+    // reaches that recorded nothing. Saying a loss happened without naming it
+    // is honest; picking a name would not be.
+    if reaches_the_loss && why.is_empty() {
+        why.push(EARLIER_LOSS);
+    }
+    why
 }
 
 struct Prints {
@@ -1190,6 +1317,15 @@ struct MarketReading {
     rows: Vec<Print>,
     /// The selection the rows were kept under, when this read replaced it.
     selected_by: Option<MarketQuery>,
+}
+
+impl Reading {
+    /// Whether the window contains everything it should. Always the reasons
+    /// being empty, never a separately-stored bool, so the summary a caller
+    /// reads first cannot disagree with the detail beside it.
+    fn clipped(&self) -> bool {
+        !self.incomplete_because.is_empty()
+    }
 }
 
 struct Holding {
@@ -1373,7 +1509,7 @@ impl Registry {
             // this buffer starts counting from what this call was handed.
             buffer.feed_drops_at_read = Some(inherited.unwrap_or(feed_drops));
             if inherited.is_some() && holed_elsewhere {
-                buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now);
+                buffer.lost_rows(LOST_ELSEWHERE, now);
             }
         }
         let previous = buffer.read_ms;
@@ -1455,6 +1591,17 @@ impl Registry {
         // opened. Once rows have been evicted it starts at the oldest one
         // still held, and if that row carries no stamp there is nothing to
         // place it by, so nothing before this read is proven covered.
+        // Where this buffer began watching, before any dated loss is folded
+        // in. `covered_since_ms` below is this taken with the loss; the two
+        // answer different questions and an answer that conflates them
+        // reports one fact under two names.
+        let watched_since_ms = if buffer.dropped_unstamped {
+            now
+        } else if buffer.dropped > 0 {
+            buffer.ring.front().and_then(seen_ms).unwrap_or(now)
+        } else {
+            buffer.opened_ms
+        };
         let covered_since_ms = if buffer.dropped_unstamped {
             // A row with no stamp sits inside every named window, so one the
             // ring pushed out was lost from every one of them and there is
@@ -1478,6 +1625,7 @@ impl Registry {
         let gaps_seen = buffer.gaps;
         let awaiting_resume = buffer.awaiting_resume;
         let incomplete_at = buffer.incomplete_at_ms;
+        let lost_kinds = buffer.lost_kinds;
         let held_rows = buffer.ring.len();
         let drops_at_read = buffer.feed_drops_at_read.unwrap_or(0);
         let reading = Reading {
@@ -1486,18 +1634,19 @@ impl Registry {
             dropped,
             covered_since_ms,
             newest_ms,
-            clipped: clipped(
+            incomplete_because: incomplete_because(
                 window,
                 floor,
                 &Coverage {
                     new,
                     held: held_rows,
                     dropped,
-                    covered_since_ms,
                     dropped_newest_ms,
                     feed_dropped,
                     gap,
                     incomplete_at_ms: incomplete_at,
+                    lost_kinds,
+                    watched_since_ms,
                     now,
                     awaiting_resume,
                 },
@@ -1692,7 +1841,12 @@ impl Registry {
         // the end of keeps that row's stamp: moving it forward would clip
         // windows that sit entirely after the feed came back.
         if (settle.gap && buffer.awaiting_resume) || settle.feed_dropped > 0 {
-            buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now);
+            let kind = if settle.feed_dropped > 0 {
+                LOST_DISCARDED
+            } else {
+                LOST_INTERRUPTED
+            };
+            buffer.lost_rows(kind, now);
         }
         buffer.gaps_at_read = settle.gaps;
         buffer.feed_drops_at_read = Some(settle.feed_drops);
@@ -1807,7 +1961,18 @@ impl Registry {
             state.prints_holed_before = Some(state.prints_dropped + state.prints.len() as u64);
             for (_, buffer) in &mut state.buffers {
                 buffer.gaps += 1;
-                buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now);
+                // A proven delivery is the feed handing over something this
+                // buffer cannot place, not the feed lapsing. Naming it an
+                // interruption sends a caller to resubscribe over a row that
+                // arrived exactly as it should have.
+                buffer.lost_rows(
+                    if delivery == Delivery::Unproven {
+                        LOST_INTERRUPTED
+                    } else {
+                        LOST_UNPLACEABLE
+                    },
+                    now,
+                );
                 if delivery == Delivery::Unproven {
                     buffer.awaiting_resume = true;
                 }
@@ -1964,7 +2129,7 @@ impl Registry {
                     // it. A later read must not find an intact leg and
                     // conclude nothing was missed.
                     buffer.gaps += 1;
-                    buffer.incomplete_at_ms = now;
+                    buffer.lost_rows(LOST_REOPENED, now);
                     buffer.awaiting_resume = true;
                     if kind == SubscriptionKind::Trade {
                         // Whether or not any print is held: the leg was gone
@@ -2134,7 +2299,7 @@ impl Registry {
         // delivered is not being kept, so the buffer counts the moment
         // short. The feed is delivering, so nothing waits on proof.
         if seen_ms(&data).is_some_and(|seen| seen < buffer.opened_ms) {
-            buffer.incomplete_at_ms = buffer.incomplete_at_ms.max(now_ms());
+            buffer.lost_rows(LOST_REFUSED, now_ms());
             // A refused trade is a print that will not be in the list, and a
             // prints answer reads the state's marks rather than a buffer's,
             // so marking only the buffer leaves the prints on either side of
@@ -2502,7 +2667,23 @@ pub fn tool_definitions() -> Vec<Value> {
                 it opened, a running total rather than a count since your last read. \
                 feed_dropped_since_last_read counts events the SDK discarded \
                 because this server fell behind; while it is not zero any buffer may be missing \
-                rows, and clipped says so. On the call that opens a buffer it counts from where \
+                rows, and clipped says so. \
+                incomplete_because names which of several different things happened, because they \
+                are not interchangeable: rows_evicted is this server's ring having thrown rows \
+                away, feed_discarded is this server having fallen behind the feed, \
+                feed_interrupted is the subscription itself having lapsed, awaiting_resume is a \
+                loss no row has yet proven the end of, and window_predates_coverage is the window \
+                reaching back before anything was watching. row_unplaceable, buffer_reopened and \
+                row_refused are rows the feed did deliver that this buffer could not keep, which \
+                is not the feed lapsing and wants no resubscribe; lost_on_another_view is a loss \
+                another view of the same contract recorded first; earlier_loss_in_window is a \
+                loss inside the window whose kind was not recorded, named as unknown rather than \
+                guessed at. It is empty exactly when clipped is false. \
+                upstream_gaps is always undetectable: nothing here looks for rows the vendor \
+                never sent, and no field could show one. A trade carries an exchange sequence, \
+                which is per-exchange rather than one run that could be checked for holes, and a \
+                quote carries nothing at all. Read it as a limit on what is knowable here, not as \
+                a report that nothing was lost. On the call that opens a buffer it counts from where \
                 another view of the same contract had already reached, because what the feed \
                 discarded since then is missing from this buffer too, so it covers an interval \
                 older than this buffer. kind \
@@ -3763,7 +3944,17 @@ fn read_response(
         "window_seconds": seconds(now.saturating_sub(window_start(window, r))),
         "window_from": if window.is_some() { "request" } else { "last_read" },
         "covers_seconds": seconds(now.saturating_sub(r.covered_since_ms)),
-        "clipped": r.clipped,
+        // The one field that says whether anything is missing, and beside it
+        // which of several different things happened. They cannot disagree:
+        // one is defined as the other being non-empty.
+        "clipped": r.clipped(),
+        "incomplete_because": r.incomplete_because,
+        // Nothing here looks for rows the vendor never sent, and there is no
+        // field it could look at: a trade carries an exchange sequence, which
+        // is per-exchange rather than one run this server could check, and a
+        // quote carries nothing at all. Said plainly, because an absent
+        // signal otherwise reads as "nothing was lost".
+        "upstream_gaps": "undetectable",
         "dropped": r.dropped,
         "new_since_last_read": r.new_since_last_read,
         "feed_dropped_since_last_read": r.feed_dropped_since_last_read,
@@ -4279,7 +4470,7 @@ mod tests {
             "rows since the last read, oldest first"
         );
         assert_eq!(r.new_since_last_read, 2);
-        assert!(!r.clipped, "the buffer was open for the whole window");
+        assert!(!r.clipped(), "the buffer was open for the whole window");
 
         // A fixed lookback does not change what "new" means.
         reg.ingest(trade(&c, 3_500.0, 3_500 * MS));
@@ -4359,20 +4550,20 @@ mod tests {
         let (r, _) = read(&reg, &c, SubscriptionKind::Trade, Some(1_000), TAIL, 2_000);
         assert_eq!((r.dropped, r.covered_since_ms), (1, 1_000));
         assert!(
-            r.clipped,
+            r.clipped(),
             "the discarded row may share the oldest held row's stamp, so the window is not whole"
         );
         // Without a window, rows that arrived since the last read and fell
         // off before being served are the loss.
         let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 2_001);
-        assert!(!r.clipped, "nothing new, nothing lost");
+        assert!(!r.clipped(), "nothing new, nothing lost");
         for i in 0..=RING {
             reg.ingest(trade(&c, i as f64, 3_000 * MS));
         }
         let (r, _) = read(&reg, &c, SubscriptionKind::Trade, None, TAIL, 3_001);
         assert_eq!(r.new_since_last_read, RING as u64 + 1);
         assert_eq!(r.count, RING as u64, "the ring holds one fewer");
-        assert!(r.clipped, "one new row was gone before this read");
+        assert!(r.clipped(), "one new row was gone before this read");
     }
 
     #[test]
@@ -4582,7 +4773,7 @@ mod tests {
         // The SDK's counter is cumulative; a first read starts from it.
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 5, 0)
             .expect("nothing to refuse");
-        assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
+        assert_eq!((r.feed_dropped_since_last_read, r.clipped()), (0, false));
         reg.ingest(trade(&c, 1.0, MS));
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 6, 1)
             .expect("nothing to refuse");
@@ -4591,12 +4782,12 @@ mod tests {
             "one event lost since the last read"
         );
         assert!(
-            r.clipped,
+            r.clipped(),
             "it may have been this buffer's, so the window is not whole"
         );
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 6, 2)
             .expect("nothing to refuse");
-        assert_eq!((r.feed_dropped_since_last_read, r.clipped), (0, false));
+        assert_eq!((r.feed_dropped_since_last_read, r.clipped()), (0, false));
 
         // And the other shape of window, which counts stamps rather than
         // arrivals and would otherwise have to be taken on trust.
@@ -4604,13 +4795,13 @@ mod tests {
         let named = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 7, 4)
             .expect("nothing to refuse");
         assert_eq!(named.feed_dropped_since_last_read, 1);
-        assert!(named.clipped, "a named window counts the discard too");
+        assert!(named.clipped(), "a named window counts the discard too");
         // A window that begins after the read which dated that loss: the
         // discard is behind it, and it is the whole of what it asked for.
         let quiet = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 7, 6)
             .expect("nothing to refuse");
         assert_eq!(
-            (quiet.feed_dropped_since_last_read, quiet.clipped),
+            (quiet.feed_dropped_since_last_read, quiet.clipped()),
             (0, false),
             "and stops counting it once it has been disclosed"
         );
@@ -4793,7 +4984,7 @@ mod tests {
             .expect("nothing to refuse");
         assert_eq!(next.new_since_last_read, 1, "the row is still new");
         assert_eq!(next.feed_dropped_since_last_read, 7, "nor the discards");
-        assert!(next.clipped, "nor the interruption");
+        assert!(next.clipped(), "nor the interruption");
 
         // Once answered, they are settled. A row first, since nothing else
         // shows the feed came back from the interruption above, and stamped
@@ -4807,7 +4998,7 @@ mod tests {
             (
                 after.new_since_last_read,
                 after.feed_dropped_since_last_read,
-                after.clipped
+                after.clipped()
             ),
             (0, 0, false),
             "settled: nothing is owed to the next read"
@@ -6178,6 +6369,188 @@ mod tests {
     }
 
     #[test]
+    fn each_way_of_losing_rows_is_named_apart_from_the_others() {
+        // `clipped` says something is missing. These four are not the same
+        // missing: one is this server's ring overflowing, one is this server
+        // falling behind the feed, one is the subscription lapsing, and one
+        // is the caller asking about an interval nobody was watching. A
+        // caller that cannot tell them apart cannot act on any of them.
+        let cov = |f: &dyn Fn(&mut Coverage)| {
+            let mut c = Coverage {
+                new: 0,
+                held: 0,
+                dropped: 0,
+                dropped_newest_ms: 0,
+                feed_dropped: 0,
+                gap: false,
+                incomplete_at_ms: 0,
+                lost_kinds: 0,
+                watched_since_ms: 1_000,
+                now: 5_000,
+                awaiting_resume: false,
+            };
+            f(&mut c);
+            c
+        };
+        // Spelled out rather than compared against the constants: a test
+        // written against the constants passes whatever they are renamed to,
+        // which is a check on nothing. These are the words a caller matches on.
+        let why = |window, floor, c: &Coverage| incomplete_because(window, floor, c);
+
+        // Whole: no reason, and the flag a caller reads is the same judgement.
+        let clean = cov(&|_| {});
+        assert!(
+            why(None, 1_000, &clean).is_empty(),
+            "nothing was lost, so nothing is named"
+        );
+
+        // This server's ring threw rows away: more arrived than are held.
+        let evicted = cov(&|c| {
+            c.new = 10;
+            c.held = 4;
+        });
+        assert_eq!(why(None, 1_000, &evicted), vec!["rows_evicted"]);
+
+        // This server fell behind the feed.
+        let discarded = cov(&|c| c.feed_dropped = 3);
+        assert_eq!(why(None, 1_000, &discarded), vec!["feed_discarded"]);
+
+        // The subscription lapsed.
+        let interrupted = cov(&|c| c.gap = true);
+        assert_eq!(why(None, 1_000, &interrupted), vec!["feed_interrupted"]);
+
+        // A loss no row has yet proven the end of.
+        let waiting = cov(&|c| c.awaiting_resume = true);
+        assert_eq!(why(None, 1_000, &waiting), vec!["awaiting_resume"]);
+
+        // A named window reaching back before anything was watching. Distinct
+        // from every cause above: nothing was lost, the caller asked wide.
+        let young = cov(&|c| c.watched_since_ms = 4_000);
+        assert_eq!(
+            why(Some(3), 2_000, &young),
+            vec!["window_predates_coverage"]
+        );
+
+        // Two at once are both named, in a stable order, so an answer does
+        // not shuffle between reads.
+        let both = cov(&|c| {
+            c.gap = true;
+            c.feed_dropped = 2;
+        });
+        assert_eq!(
+            why(None, 1_000, &both),
+            vec!["feed_interrupted", "feed_discarded"]
+        );
+    }
+
+    #[test]
+    fn the_same_window_names_the_same_cause_however_often_it_is_asked() {
+        // The cause has to come from what was recorded, not from which flags
+        // happen to still be live at the moment of the read. A discard is
+        // live on the read that learns of it and gone by the next one, while
+        // the date it set stays; naming the cause from the date alone makes
+        // the second read call the same discard an interruption.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+
+        // A named window over the discard, read twice.
+        let first = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            4,
+            2_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            first.incomplete_because.contains(&"feed_discarded"),
+            "the read that learns of the discard names it: {:?}",
+            first.incomplete_because
+        );
+        let again = read_now(
+            &reg,
+            &c,
+            SubscriptionKind::Trade,
+            Some(60_000),
+            TAIL,
+            4,
+            3_000,
+        )
+        .expect("nothing to refuse");
+        assert!(
+            again.incomplete_because.contains(&"feed_discarded"),
+            "and so does the next read of the same window, because the cause \
+             was recorded rather than inferred from the date it left behind: {:?}",
+            again.incomplete_because
+        );
+        assert!(
+            !again.incomplete_because.contains(&"feed_interrupted"),
+            "and it is never renamed an interruption, which is what naming it \
+             from the date alone did: {:?}",
+            again.incomplete_because
+        );
+
+        // An interruption is an interruption on both window shapes, and the
+        // default window also sees it as unresumed.
+        let reg = Registry::default();
+        let c = stock("MSFT");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        reg.gap(2_000);
+        let named = read_now(&reg, &c, SubscriptionKind::Trade, Some(60), TAIL, 0, 2_000)
+            .expect("nothing to refuse");
+        assert!(
+            named.incomplete_because.contains(&"feed_interrupted"),
+            "a named window over an interruption names it: {:?}",
+            named.incomplete_because
+        );
+        assert!(
+            !named.incomplete_because.contains(&"feed_discarded"),
+            "and does not call it a discard: {:?}",
+            named.incomplete_because
+        );
+    }
+
+    #[test]
+    fn a_row_the_feed_delivered_is_not_called_an_interruption() {
+        // The feed handing over a row no buffer can place is a loss — every
+        // open window is short by it — but the feed is delivering. The word
+        // the tools use for a lapsed subscription sends a caller to
+        // resubscribe, which would fix nothing here. The counter that records
+        // it cannot tell the two apart, so the kind has to.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+
+        // The shape the SDK hands over for a contract it could not resolve.
+        let mut unplaceable = Contract::stock("__pending:42");
+        unplaceable.sec_type = SecType::Unknown;
+        reg.ingest(trade(&unplaceable, 2.0, 2_000 * MS));
+
+        let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        assert!(
+            r.clipped(),
+            "the window is still short by the row, whatever it is called"
+        );
+        assert!(
+            r.incomplete_because.contains(&"row_unplaceable"),
+            "and it is named for what happened: {:?}",
+            r.incomplete_because
+        );
+        assert!(
+            !r.incomplete_because.contains(&"feed_interrupted"),
+            "not as the subscription lapsing, which it did not: {:?}",
+            r.incomplete_because
+        );
+    }
+
+    #[test]
     fn a_market_print_takes_the_two_quotes_the_feed_sent_after_it() {
         // On one contract the next two quotes belong to the print. On a whole
         // market they arrive interleaved with every other contract's, so the
@@ -6497,7 +6870,7 @@ mod tests {
             t0 - 1_000,
         )
         .expect("nothing to refuse");
-        assert!(!whole.clipped, "nothing has been lost yet");
+        assert!(!whole.clipped(), "nothing has been lost yet");
 
         // The shape the SDK hands over: the wire id as the symbol, and the
         // security type it detects the sentinel by.
@@ -6519,7 +6892,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(
-            over.clipped,
+            over.clipped(),
             "a window reaching back over it is short by a row nothing else counts"
         );
 
@@ -6538,7 +6911,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(
-            !after.clipped,
+            !after.clipped(),
             "the loss is dated, and this window starts thirty seconds after it"
         );
     }
@@ -6648,12 +7021,12 @@ mod tests {
         reg.ingest(trade(&c, 1.0, MS));
         let whole = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 1_000)
             .expect("nothing to refuse");
-        assert!(!whole.clipped, "nothing is wrong yet");
+        assert!(!whole.clipped(), "nothing is wrong yet");
         reg.gap(2_000);
         let marked = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_000)
             .expect("nothing to refuse");
         assert!(
-            marked.clipped,
+            marked.clipped(),
             "the same window, asked once the mark is in, is not whole"
         );
     }
@@ -6690,7 +7063,7 @@ mod tests {
             t0 - 1_000,
         )
         .expect("nothing to refuse");
-        assert!(!whole.clipped, "nothing has been refused yet");
+        assert!(!whole.clipped(), "nothing has been refused yet");
 
         reg.ingest(trade(&c, 2.0, (t0 - 20_000) * MS));
         let after = read_now(
@@ -6707,7 +7080,7 @@ mod tests {
             after.count, 1,
             "the refused row is in no window, which is the point of refusing it"
         );
-        assert!(after.clipped, "and the window it fell in is short by it");
+        assert!(after.clipped(), "and the window it fell in is short by it");
 
         // The whole-market buffer refuses on the same test, and counts the
         // same interval.
@@ -6926,7 +7299,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert_eq!(over.new_since_last_read, RING as u64 + 2);
-        assert!(over.clipped, "two of them are gone, and it says so");
+        assert!(over.clipped(), "two of them are gone, and it says so");
         let done = read_now(
             &reg,
             &d,
@@ -6957,14 +7330,14 @@ mod tests {
         reg.gap(1_000);
         let marked = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_000)
             .expect("nothing to refuse");
-        assert!(marked.clipped, "the read that notices");
+        assert!(marked.clipped(), "the read that notices");
 
         // Decoded at 500, behind the rows already queued, delivered now.
         reg.ingest(trade(&c, 2.0, 500 * MS));
         let stale = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 2_500)
             .expect("nothing to refuse");
         assert!(
-            stale.clipped,
+            stale.clipped(),
             "a row from before the break says nothing about after it"
         );
 
@@ -6975,7 +7348,7 @@ mod tests {
         let proven = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 3_000)
             .expect("nothing to refuse");
         assert!(
-            !proven.clipped,
+            !proven.clipped(),
             "and this window begins after the row that proved delivery"
         );
     }
@@ -7051,7 +7424,7 @@ mod tests {
             "nothing before this read is proven covered"
         );
         assert!(
-            r.clipped,
+            r.clipped(),
             "and no named window can be shown whole while a row nothing could place is gone"
         );
 
@@ -7116,7 +7489,7 @@ mod tests {
         );
         assert_eq!(inside.count, 0, "and it holds no row inside the window");
         assert!(
-            inside.clipped,
+            inside.clipped(),
             "the row it evicted was stamped 10_000, inside the window from 9_900"
         );
 
@@ -7133,7 +7506,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(
-            !after.clipped,
+            !after.clipped(),
             "the loss is at 10_000 and this window starts at 10_200"
         );
     }
@@ -7155,7 +7528,7 @@ mod tests {
             1_000,
         )
         .expect("nothing to refuse");
-        assert!(first.clipped, "the discard is inside the window");
+        assert!(first.clipped(), "the discard is inside the window");
         let again = read_now(
             &reg,
             &c,
@@ -7167,12 +7540,12 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(
-            again.clipped,
+            again.clipped(),
             "the same window still reaches back over the same loss"
         );
         let moved_on = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 4, 600_000)
             .expect("nothing to refuse");
-        assert!(!moved_on.clipped, "the loss is behind this window");
+        assert!(!moved_on.clipped(), "the loss is behind this window");
     }
 
     #[test]
@@ -7196,7 +7569,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(
-            !r.clipped,
+            !r.clipped(),
             "this second of market is nowhere near the interruption"
         );
     }
@@ -7221,7 +7594,10 @@ mod tests {
             20_000,
         )
         .expect("nothing to refuse");
-        assert!(!first.clipped, "this second sits after the feed came back");
+        assert!(
+            !first.clipped(),
+            "this second sits after the feed came back"
+        );
         let again = read_now(
             &reg,
             &c,
@@ -7232,7 +7608,10 @@ mod tests {
             20_100,
         )
         .expect("nothing to refuse");
-        assert!(!again.clipped, "and it is still after it on the next read");
+        assert!(
+            !again.clipped(),
+            "and it is still after it on the next read"
+        );
     }
 
     #[test]
@@ -7518,11 +7897,11 @@ mod tests {
         reg.gap(1_000);
         let disclosed = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 2_000)
             .expect("nothing to refuse");
-        assert!(disclosed.clipped, "the read that notices");
+        assert!(disclosed.clipped(), "the read that notices");
         let still = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
             .expect("nothing to refuse");
         assert!(
-            still.clipped,
+            still.clipped(),
             "the interruption is spent, but nothing has arrived to show the feed is back"
         );
         // And the other shape with it: a named window ending now ends inside
@@ -7531,7 +7910,7 @@ mod tests {
         let named = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 3_000)
             .expect("nothing to refuse");
         assert!(
-            named.clipped,
+            named.clipped(),
             "not even a one-millisecond window can be shown whole while the feed is unproven"
         );
         // A row is that evidence.
@@ -7539,12 +7918,12 @@ mod tests {
         let proven = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
             .expect("nothing to refuse");
         assert!(
-            proven.clipped,
+            proven.clipped(),
             "this window still reaches back over where the loss ended"
         );
         let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 6_000)
             .expect("nothing to refuse");
-        assert!(!after.clipped, "and this one begins after it");
+        assert!(!after.clipped(), "and this one begins after it");
         // Named windows answer the same way once delivery is proven: one
         // reaching back over where the loss ended is not whole, one
         // beginning after it is.
@@ -7559,7 +7938,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(
-            over.clipped,
+            over.clipped(),
             "this one starts at 3_500, before the loss ended"
         );
         let clear = read_now(
@@ -7572,7 +7951,7 @@ mod tests {
             6_500,
         )
         .expect("nothing to refuse");
-        assert!(!clear.clipped, "and this one starts at 5_500, after it");
+        assert!(!clear.clipped(), "and this one starts at 5_500, after it");
     }
 
     #[test]
@@ -7656,7 +8035,7 @@ mod tests {
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3)
             .expect("nothing to refuse");
         assert!(
-            r.clipped,
+            r.clipped(),
             "the leg was absent while the feed carried on without it"
         );
     }
@@ -7716,16 +8095,16 @@ mod tests {
         reg.gap(2_000);
         let disclosed = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
             .expect("nothing to refuse");
-        assert!(disclosed.clipped, "the read that notices");
+        assert!(disclosed.clipped(), "the read that notices");
         // Delivery resumes after that read, so the loss ended inside the
         // window the next one covers.
         reg.ingest(trade(&c, 1.0, 4_000 * MS));
         let spanning = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
             .expect("nothing to refuse");
-        assert!(spanning.clipped, "this window reaches back over it");
+        assert!(spanning.clipped(), "this window reaches back over it");
         let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 6_000)
             .expect("nothing to refuse");
-        assert!(!after.clipped, "and this one begins after it");
+        assert!(!after.clipped(), "and this one begins after it");
     }
 
     #[test]
@@ -7769,7 +8148,7 @@ mod tests {
         )
         .expect("nothing to refuse");
         assert!(
-            r.clipped,
+            r.clipped(),
             "the interruption still stands; nothing has dated its end"
         );
     }
@@ -8216,7 +8595,7 @@ mod tests {
              this read is proven covered"
         );
         assert!(
-            r.clipped,
+            r.clipped(),
             "a window reaching back before the buffer opened is not whole"
         );
     }
@@ -8541,7 +8920,7 @@ mod tests {
         let r = read_now(&reg, &c, SubscriptionKind::Trade, Some(60_000), TAIL, 0, 2)
             .expect("nothing to refuse");
         assert_eq!(
-            (r.feed_dropped_since_last_read, r.clipped),
+            (r.feed_dropped_since_last_read, r.clipped()),
             (0, true),
             "the feed discarded nothing; the rows are missing because they never came"
         );
@@ -8550,7 +8929,7 @@ mod tests {
         let again = read_now(&reg, &c, SubscriptionKind::Trade, Some(60_000), TAIL, 0, 3)
             .expect("nothing to refuse");
         assert!(
-            again.clipped,
+            again.clipped(),
             "a named window answers the same way every time it is asked"
         );
         // Nothing has arrived since the interruption, so no window ending
@@ -8558,7 +8937,7 @@ mod tests {
         let unproven = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 30_000)
             .expect("nothing to refuse");
         assert!(
-            unproven.clipped,
+            unproven.clipped(),
             "no row since the interruption, so nothing shows the feed is back"
         );
         // A row is that proof, and dates the end of the loss. Once the
@@ -8566,7 +8945,7 @@ mod tests {
         reg.ingest(trade(&c, 1.0, 40_000 * MS));
         let moved_on = read_now(&reg, &c, SubscriptionKind::Trade, Some(1), TAIL, 0, 60_000)
             .expect("nothing to refuse");
-        assert!(!moved_on.clipped, "the loss is behind this window");
+        assert!(!moved_on.clipped(), "the loss is behind this window");
 
         // The print list loses rows the same way, and a read that never
         // reached the caller must not consume the disclosure.
@@ -8598,7 +8977,7 @@ mod tests {
         let r = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 300, 3)
             .expect("nothing to refuse");
         assert_eq!(
-            (r.feed_dropped_since_last_read, r.clipped),
+            (r.feed_dropped_since_last_read, r.clipped()),
             (300, true),
             "everything the new session discarded is new to the buffer"
         );
@@ -8714,7 +9093,7 @@ mod tests {
             "once rows fell off, coverage starts at the oldest row held, not at the subscription"
         );
         assert!(
-            r.clipped,
+            r.clipped(),
             "the window asked for the whole life; the ring does not reach it"
         );
         assert_eq!(r.count, RING as u64, "the summary saw the whole ring");
@@ -8726,7 +9105,7 @@ mod tests {
             "the rows stamped {RING} to {} lie inside the last 20 ms",
             RING as u64 + 10
         );
-        assert!(!r.clipped, "a window inside coverage is whole");
+        assert!(!r.clipped(), "a window inside coverage is whole");
 
         // A buffer younger than the window is clipped too, with nothing dropped.
         let young = stock("MSFT");
@@ -8745,7 +9124,10 @@ mod tests {
             r.covered_since_ms, now,
             "nothing dropped, so coverage starts where the buffer opened, not at its first row"
         );
-        assert!(r.clipped, "two milliseconds of life cannot cover a minute");
+        assert!(
+            r.clipped(),
+            "two milliseconds of life cannot cover a minute"
+        );
     }
 
     #[test]
