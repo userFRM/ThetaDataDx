@@ -2575,7 +2575,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."},
                     "strike_min": {"type": "number", "description": "Dollars, inclusive. Options only."},
                     "strike_max": {"type": "number", "description": "Dollars, inclusive. Options only."},
-                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it. Every field is the vendor's own except spread, which is ask minus bid. At most 8.", &PRINT_FIELDS),
+                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it. Every field is the vendor's own except spread, which is ask minus bid. A clause's value may name another of these fields instead of a number, which is how you ask for a print against the quote it traded on: price >= ask took the offer, price <= bid hit the bid, size >= ask_size took more than was shown. Ranking those by size says where the aggressive size went. At most 8.", &PRINT_FIELDS),
                     "rank_by": {"type": "string", "enum": PRINT_FIELDS, "description": "Keep the top rows by this field of the trade or the quote before it. Default: the newest."},
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
                     "limit": {"type": "integer", "minimum": 1, "description": "Rows kept between reads. Default 20, capped at 50."}
@@ -5945,6 +5945,64 @@ mod tests {
         assert!(
             back.gap,
             "the interval it did not observe is disclosed, as it is for a contract"
+        );
+    }
+
+    #[test]
+    fn a_clause_can_compare_the_trade_against_the_quote_that_stood_before_it() {
+        // A print carries its trade's fields and the quote that stood before
+        // it, so a clause may name one of each. That is what asks "did this
+        // print lift the offer" without the surface ever classifying it: the
+        // feed chose the quote, the comparison is arithmetic, and the word
+        // for what it means stays with the caller.
+        //
+        // The other test of a two-field clause compares a quote against
+        // itself on one row. Nothing reached the case that matters on a whole
+        // market, where the two sides of the comparison arrive as separate
+        // messages and are paired here.
+        let c = stock("AAPL");
+        let lifted = |price: f64| {
+            let mut q = query(5);
+            q.clauses = clauses(json!([{"field": "price", "op": ">=", "value": "ask"}]));
+            let mut sel = Selection::new(q, 0);
+            // The quote that stood before the print: 1.00 bid, 1.10 ask.
+            sel.offer(&trade(&c, price, MS), Some(quote(&c, 1.00, 1.10)));
+            sel.kept.len()
+        };
+
+        assert_eq!(
+            lifted(1.10),
+            1,
+            "a print at the offer lifted it and is kept"
+        );
+        assert_eq!(lifted(1.25), 1, "and one through the offer is kept too");
+        assert_eq!(
+            lifted(1.05),
+            0,
+            "a print inside the spread did not, and is not"
+        );
+
+        // The mirror, so a clause that quietly compared a field against
+        // itself would fail here rather than pass both ways.
+        let hit = |price: f64| {
+            let mut q = query(5);
+            q.clauses = clauses(json!([{"field": "price", "op": "<=", "value": "bid"}]));
+            let mut sel = Selection::new(q, 0);
+            sel.offer(&trade(&c, price, MS), Some(quote(&c, 1.00, 1.10)));
+            sel.kept.len()
+        };
+        assert_eq!(hit(1.00), 1, "a print at the bid hit it");
+        assert_eq!(hit(1.05), 0, "one inside the spread did not");
+
+        // A print with no quote ahead of it has nothing to compare against,
+        // and is not kept rather than being kept on a missing side.
+        let mut q = query(5);
+        q.clauses = clauses(json!([{"field": "price", "op": ">=", "value": "ask"}]));
+        let mut sel = Selection::new(q, 0);
+        sel.offer(&trade(&c, 1.25, MS), None);
+        assert!(
+            sel.kept.is_empty(),
+            "no quote before the print means the comparison has no right-hand side"
         );
     }
 
