@@ -46,7 +46,13 @@ for endpoint, mode, min_tier, rationale, call in CELLS:
                 "detail": f"timeout after {duration_ms//1000}s",
             })
             continue
-        if "permission" in msg or "subscription" in msg:
+        # Classify the entitlement skip on the typed error the SDK raises,
+        # not on prose. Matching "permission" or "subscription" anywhere in
+        # an arbitrary exception's message excuses any failure whose text
+        # happens to contain either word -- a wiring regression that raises
+        # about an invalid subscription kind was removed from the failure
+        # count, which is the sole input to the exit code.
+        if isinstance(exc, thetadatadx.SubscriptionError):
             print(f"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})", flush=True)
             skip_count += 1
             records.append({
@@ -94,4 +100,19 @@ ARTIFACT_PATH.write_text(json.dumps({
     "records": records,
 }, indent=2, sort_keys=True))
 print(f"artifact: {ARTIFACT_PATH}", flush=True)
+# An empty result is a failure to measure, not a pass. Every cell can land
+# in the SKIP branch -- a lapsed entitlement, a vendor-side outage refusing
+# every request -- and the exit code, derived from `fail_count` alone, would
+# still be 0. The live workflow reads only that code, and the release
+# validator sums these counts into its failure total, where zero passes is
+# indistinguishable from zero failures.
+if pass_count == 0:
+    print(
+        f"\nPython: nothing passed ({skip_count} SKIP, {fail_count} FAIL of "
+        f"{len(CELLS)} cells). An all-skip run measures nothing and is not a pass.",
+        file=sys.stderr,
+        flush=True,
+    )
+    sys.exit(1)
+
 sys.exit(1 if fail_count > 0 else 0)
