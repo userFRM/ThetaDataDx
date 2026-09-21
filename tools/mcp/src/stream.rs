@@ -727,7 +727,27 @@ impl Market {
             return;
         }
         match data {
-            StreamData::Quote { .. } => self.last_quote = Some(data.clone()),
+            StreamData::Quote { .. } => {
+                // The two quotes the feed sends after a print belong to it.
+                // On a whole market they arrive interleaved with every other
+                // contract's, so the contract is what pairs them, where a
+                // per-contract buffer can take the next two unconditionally.
+                // Only prints this selection kept can take one: the rest were
+                // never built, which is the point of selecting at ingest.
+                if let (Some(selection), Some(c)) = (&mut self.selection, contract_of(data)) {
+                    for kept in selection
+                        .kept
+                        .iter_mut()
+                        .filter(|p| p.quotes_after.len() < 2 && contract_of(&p.trade) == Some(c))
+                    {
+                        kept.quotes_after.push(data.clone());
+                    }
+                }
+                // The same quote is also the one standing before the next
+                // print on its contract. A quote after one trade and before
+                // the next is both, and the feed sends it once.
+                self.last_quote = Some(data.clone());
+            }
             StreamData::Trade { contract, .. } => {
                 self.received += 1;
                 self.newest_ms = seen_ms(data);
@@ -785,7 +805,7 @@ impl Selection {
             self.unranked + other.unranked,
         );
         for print in other.kept {
-            self.offer(&print.trade, print.quote_before);
+            self.offer_print(&print.trade, print.quote_before, print.quotes_after);
         }
         self.examined = examined;
         self.matched = matched;
@@ -807,6 +827,18 @@ impl Selection {
     /// print is built only when it is kept; `limit` is at least one, so
     /// the newest match always has a place.
     fn offer(&mut self, trade: &StreamData, quote_before: Option<StreamData>) {
+        self.offer_print(trade, quote_before, Vec::new());
+    }
+
+    /// The same, for a print that already has the quotes that followed it.
+    /// A restored selection hands its kept prints back through here, so the
+    /// quotes it had collected are not dropped on the way.
+    fn offer_print(
+        &mut self,
+        trade: &StreamData,
+        quote_before: Option<StreamData>,
+        quotes_after: Vec<StreamData>,
+    ) {
         self.examined += 1;
         if !self.query.selects(trade, quote_before.as_ref()) {
             return;
@@ -857,7 +889,7 @@ impl Selection {
             Print {
                 trade: trade.clone(),
                 quote_before,
-                quotes_after: Vec::new(),
+                quotes_after,
             },
         );
         self.kept.truncate(limit);
@@ -2535,7 +2567,12 @@ pub fn tool_definitions() -> Vec<Value> {
                 new_since_last_read counts prints taken since your last read, and each print \
                 carries the contract it traded on, because a whole market spans all of them, \
                 and quote_before, the quote that stood when it traded, with its own age_ms \
-                beside it; date is the trading date \
+                beside it. Ask for quotes_after and each print also carries the two quotes \
+                the feed sent after it, which is what says whether the market moved on that \
+                print; it is absent, never empty, on a print whose quotes have not arrived \
+                yet, because an empty list would read as a market that did not move. \
+                A clause cannot select on them: a selection runs as each print arrives, and \
+                a print's later quotes do not exist yet. date is the trading date \
                 the prints share, absent and carried on each print when they span more than \
                 one. \
                 unranked counts matches without the rank field, such as a quote field on \
@@ -2570,12 +2607,13 @@ pub fn tool_definitions() -> Vec<Value> {
                 "type": "object",
                 "properties": {
                     "sec_type": {"type": "string", "enum": sec_types_for("stream_market")},
+                    "quotes_after": {"type": "boolean", "description": "Include the two quotes the feed sent after each print returned, which is what says whether the market moved on it. Default false."},
                     "root": {"type": "string", "description": "Only this ticker or option root."},
                     "expiration": {"type": "integer", "description": "YYYYMMDD. Options only."},
                     "right": {"type": "string", "enum": ["C", "P"], "description": "Options only."},
                     "strike_min": {"type": "number", "description": "Dollars, inclusive. Options only."},
                     "strike_max": {"type": "number", "description": "Dollars, inclusive. Options only."},
-                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it. Every field is the vendor's own except spread, which is ask minus bid. At most 8.", &PRINT_FIELDS),
+                    "where": clauses_schema("Clauses that must all hold, over the trade's fields and the quote before it. Every field is the vendor's own except spread, which is ask minus bid. A clause's value may name another of these fields instead of a number, which is how you ask for a print against the quote it traded on: price >= ask took the offer, price <= bid hit the bid, size >= ask_size took more than was shown. Ranking those by size says where the aggressive size went. At most 8.", &PRINT_FIELDS),
                     "rank_by": {"type": "string", "enum": PRINT_FIELDS, "description": "Keep the top rows by this field of the trade or the quote before it. Default: the newest."},
                     "ascending": {"type": "boolean", "description": "Smallest first. Default false."},
                     "limit": {"type": "integer", "minimum": 1, "description": "Rows kept between reads. Default 20, capped at 50."}
@@ -3482,15 +3520,16 @@ fn market_response(
     feed: String,
     q: &MarketQuery,
     m: &MarketReading,
+    with_quotes_after: bool,
     now: u64,
 ) -> Value {
     // One date for the whole selection while the prints agree; otherwise it
     // travels on each print.
-    let market_date = one_date(
-        m.rows
-            .iter()
-            .flat_map(|p| std::iter::once(&p.trade).chain(p.quote_before.iter())),
-    );
+    let market_date = one_date(m.rows.iter().flat_map(|p| {
+        std::iter::once(&p.trade)
+            .chain(p.quote_before.iter())
+            .chain(p.quotes_after.iter())
+    }));
     json!({
         "sec_type": sec.as_str().to_ascii_lowercase(),
         "feed": feed,
@@ -3518,6 +3557,14 @@ fn market_response(
             "trade": object(&p.trade),
             "quote_before": p.quote_before.as_ref().map(|q| {
                 aged_object_dated(q, now, market_date.is_none())
+            }),
+            // Absent unless asked for, and absent rather than empty when a
+            // print's quotes have not arrived: an empty list would read as
+            // "the market did not move", which is a claim nobody made.
+            "quotes_after": (with_quotes_after && !p.quotes_after.is_empty()).then(|| {
+                p.quotes_after.iter()
+                    .map(|q| aged_object_dated(q, now, market_date.is_none()))
+                    .collect::<Vec<_>>()
             })
         })).collect::<Vec<_>>()
     })
@@ -3740,6 +3787,8 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
 
     if name == "stream_market" {
         let sec = parse_sec_of(args, sec_types_for("stream_market"))?;
+        let with_quotes_after =
+            arg(args, "quotes_after", "true or false", Value::as_bool)?.unwrap_or(false);
         if sec != SecType::Option {
             if let Some(named) = ["expiration", "right", "strike_min", "strike_max"]
                 .iter()
@@ -3787,7 +3836,14 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
             return Err(e);
         }
         reg.commit_market(sec, &m.settle, now);
-        return Ok(market_response(sec, feed_state(client), &q, &m, now));
+        return Ok(market_response(
+            sec,
+            feed_state(client),
+            &q,
+            &m,
+            with_quotes_after,
+            now,
+        ));
     }
 
     if name == "stream_stop" && args.get("root").is_none() {
@@ -3963,6 +4019,40 @@ mod tests {
 
     fn trade(c: &Contract, price: f64, received_at_ns: u64) -> StreamData {
         trade_with(c, price, 0, received_at_ns)
+    }
+
+    /// A quote stamped when the decoder saw it, so a rendered age is real.
+    fn quote_at(c: &Contract, bid: f64, ask: f64, received_at_ns: u64) -> StreamData {
+        match quote(c, bid, ask) {
+            StreamData::Quote {
+                contract,
+                ms_of_day,
+                bid_size,
+                bid_exchange,
+                bid,
+                bid_condition,
+                ask_size,
+                ask_exchange,
+                ask,
+                ask_condition,
+                date,
+                ..
+            } => StreamData::Quote {
+                contract,
+                ms_of_day,
+                bid_size,
+                bid_exchange,
+                bid,
+                bid_condition,
+                ask_size,
+                ask_exchange,
+                ask,
+                ask_condition,
+                date,
+                received_at_ns,
+            },
+            other => other,
+        }
     }
 
     fn quote(c: &Contract, bid: f64, ask: f64) -> StreamData {
@@ -5090,7 +5180,7 @@ mod tests {
         reg.ingest(trade(&other, 2.0, 5_000 * MS));
         let m = market_now(&reg, SecType::Stock, q.clone(), 0, 6_000).expect("nothing to refuse");
 
-        let v = market_response(SecType::Stock, "Connected".into(), &q, &m, 6_000);
+        let v = market_response(SecType::Stock, "Connected".into(), &q, &m, false, 6_000);
         let get = |k: &str| v.get(k).cloned().unwrap_or_default();
         assert_eq!(
             get("age_ms").as_u64(),
@@ -5141,7 +5231,7 @@ mod tests {
         reg.gap(6_100);
         let after =
             market_now(&reg, SecType::Stock, q.clone(), 0, 6_200).expect("nothing to refuse");
-        let after_v = market_response(SecType::Stock, "Connected".into(), &q, &after, 6_200);
+        let after_v = market_response(SecType::Stock, "Connected".into(), &q, &after, false, 6_200);
         assert_eq!(
             after_v["feed_interrupted"].as_bool(),
             Some(true),
@@ -5171,7 +5261,14 @@ mod tests {
         next.root = Some("MSFT".into());
         let changed =
             market_now(&reg, SecType::Stock, next.clone(), 0, 7_000).expect("nothing to refuse");
-        let changed_v = market_response(SecType::Stock, "Connected".into(), &next, &changed, 7_000);
+        let changed_v = market_response(
+            SecType::Stock,
+            "Connected".into(),
+            &next,
+            &changed,
+            false,
+            7_000,
+        );
         assert_eq!(
             changed_v["selection"]["root"].as_str(),
             Some("MSFT"),
@@ -5706,7 +5803,8 @@ mod tests {
         let m = market_now(&reg, SecType::Stock, q.clone(), 0, 6_000).expect("nothing to refuse");
         assert_eq!(m.rows.len(), 2, "two prints, stamped apart");
         assert_eq!(
-            market_response(SecType::Stock, "Connected".into(), &q, &m, 6_000)["age_ms"].as_u64(),
+            market_response(SecType::Stock, "Connected".into(), &q, &m, false, 6_000)["age_ms"]
+                .as_u64(),
             Some(1_000),
             "the newest of them is 1 s old; the oldest is 4 s and is not the answer"
         );
@@ -5949,6 +6047,136 @@ mod tests {
     }
 
     #[test]
+    fn a_market_print_takes_the_two_quotes_the_feed_sent_after_it() {
+        // On one contract the next two quotes belong to the print. On a whole
+        // market they arrive interleaved with every other contract's, so the
+        // contract is what pairs them, and a print must not take a quote
+        // belonging to a different one.
+        let reg = Registry::default();
+        let (a, b) = (stock("AAPL"), stock("MSFT"));
+        market_now(&reg, SecType::Stock, query(5), 0, 1_000).expect("nothing to refuse");
+
+        reg.ingest(quote(&a, 1.00, 1.10));
+        reg.ingest(trade(&a, 1.10, 2_000 * MS));
+        // One for the other contract in between, which this print must ignore.
+        reg.ingest(quote(&b, 9.00, 9.10));
+        reg.ingest(quote_at(&a, 1.05, 1.15, 2_100 * MS));
+        reg.ingest(quote_at(&a, 1.06, 1.16, 2_200 * MS));
+        // A third on the contract: the print already holds its two.
+        reg.ingest(quote(&a, 1.07, 1.17));
+
+        let m = market_now(&reg, SecType::Stock, query(5), 0, 3_000).expect("nothing to refuse");
+        let p = m.rows.first().expect("the print was kept");
+        assert_eq!(
+            contract_of(&p.trade).map(ToString::to_string),
+            Some(a.to_string()),
+            "the kept print is the one that traded"
+        );
+        assert_eq!(
+            p.quotes_after.len(),
+            2,
+            "two quotes follow a print and no more, whatever else the market sent"
+        );
+        for q in &p.quotes_after {
+            assert_eq!(
+                contract_of(q).map(ToString::to_string),
+                Some(a.to_string()),
+                "and both are its own contract's, not another's"
+            );
+        }
+
+        // Rendered only when asked for, and the quote's own age travels with it.
+        let plain = market_response(
+            SecType::Stock,
+            "Connected".into(),
+            &query(5),
+            &m,
+            false,
+            3_000,
+        );
+        assert!(
+            plain["prints"][0]["quotes_after"].is_null(),
+            "absent unless asked for"
+        );
+        let asked = market_response(
+            SecType::Stock,
+            "Connected".into(),
+            &query(5),
+            &m,
+            true,
+            3_000,
+        );
+        let after = asked["prints"][0]["quotes_after"]
+            .as_array()
+            .cloned()
+            .expect("asked for, so present");
+        assert_eq!(after.len(), 2, "both come back");
+        assert_eq!(
+            after[0].get("age_ms").and_then(|v| v.as_u64()),
+            Some(900),
+            "each carries its own age, which is the quote's and not the print's"
+        );
+    }
+
+    #[test]
+    fn a_clause_can_compare_the_trade_against_the_quote_that_stood_before_it() {
+        // A print carries its trade's fields and the quote that stood before
+        // it, so a clause may name one of each. That is what asks "did this
+        // print lift the offer" without the surface ever classifying it: the
+        // feed chose the quote, the comparison is arithmetic, and the word
+        // for what it means stays with the caller.
+        //
+        // The other test of a two-field clause compares a quote against
+        // itself on one row. Nothing reached the case that matters on a whole
+        // market, where the two sides of the comparison arrive as separate
+        // messages and are paired here.
+        let c = stock("AAPL");
+        let lifted = |price: f64| {
+            let mut q = query(5);
+            q.clauses = clauses(json!([{"field": "price", "op": ">=", "value": "ask"}]));
+            let mut sel = Selection::new(q, 0);
+            // The quote that stood before the print: 1.00 bid, 1.10 ask.
+            sel.offer(&trade(&c, price, MS), Some(quote(&c, 1.00, 1.10)));
+            sel.kept.len()
+        };
+
+        assert_eq!(
+            lifted(1.10),
+            1,
+            "a print at the offer lifted it and is kept"
+        );
+        assert_eq!(lifted(1.25), 1, "and one through the offer is kept too");
+        assert_eq!(
+            lifted(1.05),
+            0,
+            "a print inside the spread did not, and is not"
+        );
+
+        // The mirror, so a clause that quietly compared a field against
+        // itself would fail here rather than pass both ways.
+        let hit = |price: f64| {
+            let mut q = query(5);
+            q.clauses = clauses(json!([{"field": "price", "op": "<=", "value": "bid"}]));
+            let mut sel = Selection::new(q, 0);
+            sel.offer(&trade(&c, price, MS), Some(quote(&c, 1.00, 1.10)));
+            sel.kept.len()
+        };
+        assert_eq!(hit(1.00), 1, "a print at the bid hit it");
+        assert_eq!(hit(1.05), 0, "one inside the spread did not");
+
+        // A print with no quote ahead of it has nothing to compare against,
+        // and is not kept rather than being kept on a missing side.
+        let mut q = query(5);
+        q.clauses = clauses(json!([{"field": "price", "op": ">=", "value": "ask"}]));
+        let mut sel = Selection::new(q, 0);
+        sel.offer(&trade(&c, 1.25, MS), None);
+        assert!(
+            sel.kept.is_empty(),
+            "no quote before the print means the comparison has no right-hand side"
+        );
+    }
+
+    #[test]
     fn a_market_read_over_an_interval_no_selection_watched_reports_no_span() {
         // `since_seconds` is how long the selection stood before this read
         // took it. The sweep frees the market, the release fails, and it goes
@@ -5963,7 +6191,14 @@ mod tests {
 
         let at = PAST_TTL + 1_000;
         let back = market_now(&reg, SecType::Stock, query(5), 0, at).expect("nothing to refuse");
-        let v = market_response(SecType::Stock, "Connected".into(), &query(5), &back, at);
+        let v = market_response(
+            SecType::Stock,
+            "Connected".into(),
+            &query(5),
+            &back,
+            false,
+            at,
+        );
         assert!(
             v["since_seconds"].is_null(),
             "no selection stood over that interval, so there is no span: {}",
@@ -5979,6 +6214,7 @@ mod tests {
             "Connected".into(),
             &query(5),
             &next,
+            false,
             at + 2_000,
         );
         assert_eq!(
