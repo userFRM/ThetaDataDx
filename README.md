@@ -64,7 +64,7 @@ client = Client(api_key="td1_...")                                              
 > The real-time feed is a **single live session per account**. Run one `StreamingClient` (or one unified `Client` that streams) per account and fan out to your consumers in-process. Opening a second streaming session on the same account takes over the connection and drops the first. Market-data is unaffected: it is per-request, so it runs alongside streaming and across as many `MarketDataClient` instances as you like.
 
 > [!NOTE]
-> Market-data concurrency is **account-wide** and enforced server-side (base allowance set by your highest subscription tier; accounts can be boosted above it). Each client's request pool defaults to your tier's allowance — set `max_concurrent_requests` to use a boosted one — and multiple `MarketDataClient` instances share the one server-side budget, with extra requests queuing and running in order. The real-time feed requires a paid subscription — FREE accounts get delayed market-data but no streaming.
+> Market-data concurrency is **account-wide** and enforced server-side (base allowance set by your highest subscription tier; accounts can be boosted above it). Each client's request pool defaults to your tier's allowance — set `max_concurrent_requests` to use a boosted one — and multiple `MarketDataClient` instances share the one server-side budget, with extra requests queuing and running in order. The real-time feed requires a Standard subscription or above. A FREE account gets delayed market-data and no streaming, and so does a Value account, which is paid.
 
 ## Install
 
