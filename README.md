@@ -345,7 +345,7 @@ common `ThetaDataError` base.
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp-server` (npm) | MCP server exposing every market-data endpoint to AI clients |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp-server` (npm) | MCP server exposing every market-data endpoint, plus the live feed, to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation

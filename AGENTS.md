@@ -368,9 +368,8 @@ teardown as visible outside this program.
 
 ### Telling a caller what you do not know
 
-Any surface that answers a question about data it holds rather than data it fetches only works if
-every answer is honest about its own limits. These rules are the repository's standard for that, and
-they are why the streaming MCP tools are parked on `wip/mcp-streaming-parked` rather than shipped.
+The live surfaces exist to answer questions that cannot be answered by reading a feed directly. That
+only works if every answer is honest about its own limits.
 
 - An age describes the rows returned, not the newest thing on the feed.
 - A window's stated bounds contain the rows it came back with.
