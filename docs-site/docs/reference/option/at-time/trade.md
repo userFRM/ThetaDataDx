@@ -66,7 +66,7 @@ Rows of `TradeTick`:
 | `price` | f64 | Trade price. |
 | `condition_flags` | i32 | Trade condition flags bitmap. |
 | `price_flags` | i32 | Trade price flags bitmap. |
-| `volume_type` | i32 | Volume reporting mode: 0 = incremental, 1 = cumulative. |
+| `volume_type` | i32 | Volume reporting mode, as sent. The vendor does not define this column. |
 | `records_back` | i32 | Offset of this record behind the most recent record. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
