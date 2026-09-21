@@ -1109,6 +1109,23 @@ const EARLIER_LOSS: &str = "earlier_loss_in_window";
 /// Returned in a stable order so an answer does not shuffle between reads.
 /// Empty exactly when the window is whole — [`clipped`] is defined as this
 /// being non-empty, so the flag and the reasons can never disagree.
+/// The kinds recorded on a loss, as the words a caller reads. One list, so
+/// the listing and a read never describe the same loss differently.
+fn kind_names(kinds: u8) -> Vec<&'static str> {
+    [
+        (LOST_INTERRUPTED, INTERRUPTED),
+        (LOST_DISCARDED, FEED_DISCARDED),
+        (LOST_UNPLACEABLE, UNPLACEABLE),
+        (LOST_REOPENED, REOPENED),
+        (LOST_REFUSED, REFUSED),
+        (LOST_ELSEWHERE, ELSEWHERE),
+    ]
+    .into_iter()
+    .filter(|(bit, _)| kinds & bit != 0)
+    .map(|(_, name)| name)
+    .collect()
+}
+
 fn incomplete_because(window: Option<u64>, floor: u64, c: &Coverage) -> Vec<&'static str> {
     let mut why = Vec::new();
     // A dated loss counts when the window reaches back over it. For the
@@ -1342,6 +1359,15 @@ struct Holding {
     read_ms: Option<u64>,
     /// The newest row this holding holds, never the newest the feed carried.
     newest_ms: Option<u64>,
+    /// When this buffer last lost rows, and what the loss was. A listing that
+    /// shows only what a buffer holds cannot say whether to believe it: a
+    /// quiet buffer and one that missed an hour look identical from a count.
+    incomplete_at_ms: u64,
+    lost_kinds: u8,
+    /// Where this buffer began watching. With the loss above, it is the
+    /// difference between a buffer that has seen everything since it opened
+    /// and one that has a hole in it.
+    watched_since_ms: u64,
 }
 
 /// The two shapes a subscription takes. `Subscription` is non-exhaustive
@@ -2185,6 +2211,13 @@ impl Registry {
                     opened_ms: b.opened_ms,
                     read_ms: Some(b.touched_ms).filter(|t| *t > 0),
                     newest_ms: b.ring.back().and_then(seen_ms),
+                    incomplete_at_ms: b.incomplete_at_ms,
+                    lost_kinds: b.lost_kinds,
+                    watched_since_ms: if b.dropped > 0 {
+                        b.ring.front().and_then(seen_ms).unwrap_or(b.opened_ms)
+                    } else {
+                        b.opened_ms
+                    },
                 })
             })
             .chain(held.markets.iter().map(|(sec, m)| {
@@ -2196,6 +2229,13 @@ impl Registry {
                     dropped: 0,
                     opened_ms: m.opened_ms,
                     read_ms: Some(m.touched_ms).filter(|t| *t > 0),
+                    // A whole market records that it lost prints, never when
+                    // or what: it has a count and nothing else (see #1294).
+                    // Nought here is "no date to give", and the listing says
+                    // so rather than rendering it as "nothing was lost".
+                    incomplete_at_ms: 0,
+                    lost_kinds: 0,
+                    watched_since_ms: m.opened_ms,
                     // The newest print this row is holding, which is not the
                     // newest the market received: a narrow selection keeps an old
                     // one while the market stays busy, and the listing's age is of
@@ -2865,7 +2905,15 @@ pub fn tool_definitions() -> Vec<Value> {
                 expires_in_seconds until the sweep releases it, plus the feed's \
                 state. dropped counts rows a buffer's ring has pushed out since it opened, and \
                 open_for_seconds is how long ago it opened, which is not idle_seconds: a busy \
-                buffer is old and never idle. on_feed is whether the feed itself still carries \
+                buffer is old and never idle. \
+                This is also where you find out whether to believe a buffer at all, which a \
+                count of rows cannot tell you: a quiet buffer and one that missed an hour hold \
+                the same nothing. watched_for_seconds is how far back it is known to have seen \
+                everything, and last_loss is when it last lost rows and what the loss was, \
+                absent on a buffer that has lost none. Its kinds are the same words a read \
+                gives in incomplete_because. A whole market keeps a count of its losses and no \
+                date or kind, so last_loss is absent there whether or not it has lost prints, \
+                and its watched_for_seconds runs from when it opened. on_feed is whether the feed itself still carries \
                 the subscription; a \
                 buffer the feed dropped is released on its next read. on_feed_not_held lists \
                 subscriptions the feed carries for no buffer. last_rejection is the most recent \
@@ -3844,6 +3892,20 @@ fn list_response(
             "dropped": h.dropped,
             "age_ms": h.newest_ms.and_then(|s| age_ms(s, now)),
             "open_for_seconds": seconds(now.saturating_sub(h.opened_ms)),
+            // Whether to believe this buffer, which a count of rows cannot
+            // say: a quiet one and one that missed an hour hold the same
+            // nothing. Absent when it has lost nothing, so a caller scanning
+            // a listing sees only the buffers with a history.
+            "last_loss": (h.incomplete_at_ms > 0).then(|| json!({
+                "seconds_ago": seconds(now.saturating_sub(h.incomplete_at_ms)),
+                "kinds": kind_names(h.lost_kinds),
+            })),
+            // How far back this buffer is known to have seen everything,
+            // before any loss above is folded in. Null where the holding
+            // keeps no such record rather than nought, which would read as
+            // "since the epoch".
+            "watched_for_seconds": (h.watched_since_ms > 0)
+                .then(|| seconds(now.saturating_sub(h.watched_since_ms))),
             // A buffer the sweep has marked has no idle time to report and is
             // due for release now, which is what the caller acts on.
             "idle_seconds": h.read_ms.map(|r| seconds(now.saturating_sub(r))),
@@ -6512,6 +6574,68 @@ mod tests {
             !named.incomplete_because.contains(&"feed_discarded"),
             "and does not call it a discard: {:?}",
             named.incomplete_because
+        );
+    }
+
+    #[test]
+    fn a_listing_says_whether_to_believe_each_buffer() {
+        // A count of rows cannot say whether a buffer is trustworthy: a quiet
+        // contract and one that missed an hour both hold nothing. The listing
+        // has to carry the loss, and name it the same way a read does, or a
+        // caller checking the listing and a caller reading the buffer are
+        // told two different stories about one event.
+        let reg = Registry::default();
+        let (quiet, holed) = (stock("AAPL"), stock("MSFT"));
+        for c in [&quiet, &holed] {
+            read_now(&reg, c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+                .expect("nothing to refuse");
+        }
+
+        // One of them loses rows; the other stays quiet.
+        let mut unplaceable = Contract::stock("__pending:7");
+        unplaceable.sec_type = SecType::Unknown;
+        reg.ingest(trade(&unplaceable, 1.0, 2_000 * MS));
+
+        let v = list_response("Connected".into(), 0, None, &reg.list(), Some(&[]), 3_000);
+        let rows = v["held"].as_array().cloned().unwrap_or_default();
+        let row = |name: &str| {
+            rows.iter()
+                .find(|r| r["contract"].as_str() == Some(name))
+                .cloned()
+                .unwrap_or_default()
+        };
+
+        // A sentinel row is lost by every open buffer, so both carry it —
+        // what matters is that the listing names it, and names it the same
+        // way a read of the same buffer does.
+        let seen = row(&holed.to_string());
+        assert_eq!(
+            seen["last_loss"]["kinds"],
+            json!(["row_unplaceable"]),
+            "the listing names the loss the way a read does: {}",
+            seen["last_loss"]
+        );
+        // Dated, whatever the value: the ingest path stamps a loss from the
+        // host clock while this test drives a synthetic one, so the age is
+        // not comparable here. That it is present is the check.
+        assert!(
+            seen["last_loss"]["seconds_ago"].is_number(),
+            "and dates it: {}",
+            seen["last_loss"]
+        );
+        let r = read_now(&reg, &holed, SubscriptionKind::Trade, None, TAIL, 0, 3_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            seen["last_loss"]["kinds"],
+            json!(r.incomplete_because),
+            "one vocabulary, not two"
+        );
+
+        // Watched-for is a real span, not nought rendered as the epoch.
+        assert_eq!(
+            row(&quiet.to_string())["watched_for_seconds"].as_f64(),
+            Some(2.0),
+            "a buffer opened two seconds ago has watched for two seconds"
         );
     }
 
