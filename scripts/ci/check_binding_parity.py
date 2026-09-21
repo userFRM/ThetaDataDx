@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-binding parity check (Gate 2 / issue #545 + #595).
+"""Cross-binding parity check.
 
 Reads `parity.toml` — the declared cross-binding presence matrix
 — and compares each row's `python` / `typescript` / `cpp` claims to
@@ -7317,7 +7317,7 @@ def _sig_extract_python_pyi(
     consumers see.
 
     This lane verifies the stub against the cross-binding SPEC (the
-    `python_pyi` type-map column), which is a DIFFERENT axis from Gate 6's
+    `python_pyi` type-map column), which is a DIFFERENT axis from the stub
     stubtest: stubtest compares the stub against the RUNTIME and pins the
     parameter list / arity, but a compiled pyo3 method exposes no runtime
     return annotation, so stubtest cannot see a stub RETURN drift. This lane
@@ -7823,7 +7823,7 @@ def _sig_check_method_signatures(
     The `python` flag drives TWO lanes: `python` reads the pyo3 Rust source
     (the runtime contract), `python_pyi` reads the shipped PEP 561 stub (the
     client-facing type surface). The stub lane checks params + RETURN against
-    the cross-binding spec; its return check is coverage Gate 6's stubtest
+    the cross-binding spec; its return check is coverage the stubtest
     cannot give (a compiled pyo3 method has no runtime return annotation, so
     stubtest validates only the stub-vs-runtime parameter list / arity).
     """
@@ -7883,7 +7883,7 @@ def _sig_check_method_signatures(
             # already targets the public stub class + member (e.g.
             # `flatFileToPath` → `Client.flatfile_to_path`,
             # `count` → `FlatFileRowList.__len__`), so reuse it when present.
-            # DIVISION OF LABOUR: Gate 6's stubtest checks the stub against the
+            # DIVISION OF LABOUR: stubtest checks the stub against the
             # RUNTIME (params + arity); this lane checks it against the
             # cross-binding SPEC (params + RETURN) — the return is the coverage
             # stubtest lacks, since a compiled pyo3 method exposes no runtime

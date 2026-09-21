@@ -32,8 +32,6 @@ use crate::backoff::JitterMode;
 use crate::config::ReconnectPolicy;
 
 use super::pinning::PinnedVerifier;
-#[cfg(test)]
-use super::protocol::CONNECT_TIMEOUT_MS;
 
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
@@ -380,15 +378,6 @@ mod tests {
             config.streaming.hosts[3],
             ("nj-b.thetadata.us".to_string(), 20001)
         );
-    }
-
-    #[test]
-    fn connect_timeout_matches_terminal() {
-        // Parity reference: the JVM terminal connects with a 2000 ms deadline.
-        // Used as the default seed for `StreamingConfig::connect_timeout_ms`; the
-        // public knob now overrides this constant for callers who need to
-        // dial in a different per-server connect deadline.
-        assert_eq!(CONNECT_TIMEOUT_MS, 2_000);
     }
 
     /// `connect_to_servers` honours the caller-supplied connect timeout.

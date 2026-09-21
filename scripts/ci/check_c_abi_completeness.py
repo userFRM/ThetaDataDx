@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""C ABI completeness check (Gate 4 / issue #547).
+"""C ABI completeness check.
 
 Every exported `thetadatadx_*` C ABI symbol that ends up in the compiled
 shared library `libthetadatadx_ffi.so` MUST appear as a function
@@ -57,7 +57,6 @@ import sys
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-FFI_SRC = REPO_ROOT / "thetadatadx-ffi" / "src"
 CPP_INCLUDE = REPO_ROOT / "thetadatadx-cpp" / "include"
 # Linux / macOS share the .so / .dylib output naming; the loader
 # helper below tries each in turn so the gate runs unchanged on
@@ -70,7 +69,6 @@ _SO_NAMES = ("libthetadatadx_ffi.so", "libthetadatadx_ffi.dylib")
 # regex misses macro-emitted symbols, which is exactly the gap C4
 # closes. Kept for diagnostic-only paths; the production gate prefers
 # `nm`.
-EXTERN_RE = re.compile(r'extern\s+"C"\s+fn\s+(thetadatadx_\w+)')
 SYMBOL_RE = re.compile(r"\bthetadatadx_\w+\b")
 # A header symbol counts as DECLARED only when it appears in C function
 # *declaration position*: the symbol name preceded by a return-type token
@@ -224,48 +222,6 @@ def collect_ffi_symbols_via_nm() -> set[str] | None:
     return syms
 
 
-def collect_ffi_symbols_via_regex() -> set[str]:
-    """Fallback: scan `thetadatadx-ffi/src/**/*.rs` for literal
-    `extern "C" fn thetadatadx_<name>` declarations. This MISSES macro-emitted
-    symbols (`tick_array_free!`, etc.) and is intentionally only the
-    diagnostic-fallback path — `collect_ffi_symbols_via_nm` is the
-    SSOT when the .so is available.
-    """
-    out: set[str] = set()
-    for rs in FFI_SRC.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
-        for match in EXTERN_RE.finditer(text):
-            name = match.group(1)
-            if name.startswith("thetadatadx_test_"):
-                continue
-            out.add(name)
-    return out
-
-
-def collect_ffi_symbols() -> set[str]:
-    """Production entry point: prefer nm-based inventory; fall back
-    to the regex pass with a loud warning if nm cannot run. The
-    warning surfaces in CI logs so the operator sees that the gate
-    is running in degraded mode.
-    """
-    via_nm = collect_ffi_symbols_via_nm()
-    if via_nm is not None:
-        print(
-            f"check_c_abi_completeness: sourced symbol inventory from "
-            f"compiled .so ({len(via_nm)} exported symbols)"
-        )
-        return via_nm
-    print(
-        "check_c_abi_completeness: WARNING — falling back to regex pass "
-        "(libthetadatadx_ffi.{so,dylib} not found under `target/release/` "
-        "or `nm` unavailable). Macro-emitted symbols may be missed. "
-        "Build with `cargo build -p thetadatadx-ffi --release` before "
-        "running this gate for full coverage.",
-        file=sys.stderr,
-    )
-    return collect_ffi_symbols_via_regex()
-
-
 def _is_c_decl_header(path: pathlib.Path) -> bool:
     """True for the C-ABI *declaration* headers, false for the C++
     inline-body headers.
@@ -328,7 +284,22 @@ HEADER_ONLY_ALLOWLIST: set[str] = set()
 
 
 def main() -> int:
-    rust = collect_ffi_symbols()
+    # The compiled library is the only honest inventory. A source scan
+    # cannot see the macro-emitted symbols (`tick_array_free!` and its
+    # siblings), which is the class this gate exists to catch, so running
+    # without the .so would pass green while blind. Say so and stop.
+    rust = collect_ffi_symbols_via_nm()
+    if rust is None:
+        print(
+            "check_c_abi_completeness: no compiled FFI library to read. "
+            "Run `cargo build -p thetadatadx-ffi --release` first.",
+            file=sys.stderr,
+        )
+        return 2
+    print(
+        f"check_c_abi_completeness: sourced symbol inventory from "
+        f"compiled .so ({len(rust)} exported symbols)"
+    )
     header = collect_header_symbols()
     missing_in_header = sorted(rust - header)
     if missing_in_header:

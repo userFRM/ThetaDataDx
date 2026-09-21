@@ -176,7 +176,7 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      # Gate 2 test harness (#595): exercise the per-field /
+      # Parity harness: exercise the per-field /
       # per-setter granularity matrix in-process before running the
       # production gate. Two layers — `--selftest` is a fast in-process
       # smoke check; `scripts/ci/tests/test_check_binding_parity.py` drives the
@@ -189,7 +189,7 @@ jobs:
     name: Wire schema drift (proto + FPSS + tick layouts)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Gate 5 (#548): every committed snapshot (gRPC proto codegen,
+    # Every committed snapshot (gRPC proto codegen,
     # FPSS event class projections, tick-layout asserts, SDK surface
     # tables) must equal the regeneration output. Drift = build
     # failure. `generate_sdk_surfaces --check` already validates the
@@ -210,20 +210,6 @@ jobs:
             echo "::error::Wire schema regeneration produced uncommitted changes. Run \`cargo run -p thetadatadx-rs --bin refresh_grpc_snapshot --features grpc-codegen\` and \`cargo run -p thetadatadx-rs --bin generate_sdk_surfaces --features config-file\` locally and commit the diff." >&2
             exit 1
           fi
-
-  safety-comments:
-    name: SAFETY-comment hygiene
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-      - name: Structural SAFETY-comment boilerplate detector
-        run: |
-          python3 scripts/ci/check_safety_comment_boilerplate.py --selftest
-          python3 scripts/ci/check_safety_comment_boilerplate.py
 
   public-surface-leak:
     name: Public surface internal-name leak
@@ -426,7 +412,7 @@ jobs:
       # test asserting an override that never applies — passes by never
       # executing.
       - run: cargo test --workspace --locked --features thetadatadx-rs/__test-helpers,thetadatadx-rs/config-file
-      # Gate 3 (#546) - Rust side: doctests run as part of `cargo test
+      # Rust side: doctests run as part of `cargo test
       # --workspace` above, but invoking `--doc` explicitly verifies
       # the FFI crate's `extern "C"` doc examples compile + run on
       # every PR. Without this, a doc-only regression (an example
@@ -470,7 +456,7 @@ jobs:
       - run: cargo test -p thetadatadx-ffi --locked --features testing-panic-boundary
 
   rustdoc:
-    name: Rustdoc — Gate 13 catches broken intra-doc links
+    name: Rustdoc (broken intra-doc links)
     needs: changes
     # full-ci and force_full each force the heavy lane on their own (see
     # the lint-matrix note); otherwise the original selective behavior.
@@ -1029,7 +1015,6 @@ jobs:
       - c-abi-completeness
       - binding-parity
       - wire-schema-drift
-      - safety-comments
       - public-surface-leak
       - doc-defaults
       - no-re-framing

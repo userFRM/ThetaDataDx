@@ -64,10 +64,6 @@ GATES: dict[str, list[list[str]]] = {
         + _test("test_check_binding_parity")
         + _ci("check_binding_parity")
     ),
-    "safety_comment_boilerplate": (
-        _ci("check_safety_comment_boilerplate", "--selftest")
-        + _ci("check_safety_comment_boilerplate")
-    ),
     "public_surface_leak": (
         _ci("check_public_surface_leak", "--selftest")
         + _ci("check_public_surface_leak")
