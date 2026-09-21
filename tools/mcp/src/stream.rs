@@ -32,7 +32,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Mutex, MutexGuard, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use sonic_rs::{json, JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value};
 use thetadatadx::streaming::{
@@ -89,6 +89,42 @@ const TAIL: usize = 10;
 /// as it takes to clone the ring. Fifty rows is more than a model can use
 /// and short enough that the critical section stays negligible.
 const TAIL_MAX: usize = 50;
+
+/// Longest a read may wait for a row to arrive.
+///
+/// The bound is not about the server. A tool call costs a caller seconds of
+/// its own turn, so a wait it cannot interrupt is time it cannot spend
+/// elsewhere; thirty seconds is long enough to catch a print on a quiet
+/// contract and short enough that a caller that changed its mind is not held.
+const WAIT_MAX_S: u64 = 30;
+
+/// How often a wait looks again.
+///
+/// A caller's own round trip is seconds, so nothing finer than this is
+/// visible to it, and a coarser one would spend the wait it was given.
+/// ponytail: a poll, not a notification. Ingest must neither allocate nor
+/// take a second lock, and a hundred-millisecond look costs one uncontended
+/// lock acquisition against a round trip a thousand times longer. If a
+/// caller ever needs sub-tick latency this becomes a notify on the buffer.
+const WAIT_POLL: Duration = Duration::from_millis(100);
+
+/// How long a read was asked to wait, or `None` for not at all.
+///
+/// Pulled out of the request arm for the same reason as [`tail_rows`]: the
+/// arm needs a live client, and a bound that exists only inside an
+/// untestable branch is a bound nobody can prove is there. Nought is not a
+/// wait, so it reads as absent rather than as a zero-length one.
+fn wait_for(args: &Value) -> Result<Option<Duration>, ToolError> {
+    let Some(seconds) = arg(args, "wait_seconds", "whole seconds", Value::as_u64)? else {
+        return Ok(None);
+    };
+    if seconds > WAIT_MAX_S {
+        return Err(ToolError::InvalidParams(format!(
+            "wait_seconds is at most {WAIT_MAX_S}; {seconds} were asked for"
+        )));
+    }
+    Ok((seconds > 0).then(|| Duration::from_secs(seconds)))
+}
 
 /// Rows to serve verbatim for a requested tail.
 ///
@@ -2481,12 +2517,18 @@ pub fn tool_definitions() -> Vec<Value> {
                 window came from your seconds or from your last read, window_seconds is how far \
                 back it reaches, columns names the fields of each tail row in order, and date is \
                 the trading date they share, absent and carried on each row instead when they \
-                span more than one.",
+                span more than one. \
+                wait_seconds holds the call until a row arrives rather than answering an empty \
+                one straight away, which is how you wait for the next print on a quiet contract \
+                without calling over and over. It returns the moment one arrives. A wait that \
+                runs out answers exactly as it would have without it and consumes nothing, so \
+                the next read still sees everything this one would have.",
             "inputSchema": with_kinds(contract_schema(sec_types_for("stream_read"), json!({
                 "kind": {"type": "string",
                          "description": "Default quote, or trade for an index."},
                 "seconds": {"type": "number", "minimum": 0, "description": "Fixed lookback. Default: since your last read."},
-                "tail": {"type": "integer", "minimum": 0, "description": "Newest rows served verbatim. Default 10, capped at 50. Read more often rather than asking for more rows."}
+                "tail": {"type": "integer", "minimum": 0, "description": "Newest rows served verbatim. Default 10, capped at 50. Read more often rather than asking for more rows."},
+                "wait_seconds": {"type": "integer", "minimum": 0, "maximum": WAIT_MAX_S, "description": "Wait this long for a row to arrive when none has. Returns as soon as one does, or when the wait runs out, whichever comes first. Default 0, which answers with whatever is there."}
             })), sec_types_for("stream_read"))
         }),
         json!({
@@ -3411,7 +3453,7 @@ pub async fn try_execute(
     if let Err(e) = only_declared_arguments(name, args) {
         return Some(Err(e));
     }
-    Some(execute(client, name, args))
+    Some(execute(client, name, args).await)
 }
 
 /// Refuse an argument the tool does not declare.
@@ -3756,7 +3798,7 @@ fn read_response(
 /// reading the next), so a registry mutation and the feed call that follows
 /// it are never interleaved with another tool call. That ordering is what
 /// lets a read hand back subscriptions to open or close outside the lock.
-fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError> {
+async fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError> {
     let reg = registry();
     let now = now_ms();
     let num_of = |k: &str, d: usize| count_arg(args, k, "a whole number of rows, zero or more", d);
@@ -3871,6 +3913,7 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 v.as_str().map(str::to_string)
             })?;
             let kind = resolve_kind(sec, kind.as_deref())?;
+            let wait = wait_for(args)?;
             let feed_drops = ensure_streaming(client, reg)?;
             let now = now_ms();
             let r = reg.read(
@@ -3886,6 +3929,30 @@ fn execute(client: &Client, name: &str, args: &Value) -> Result<Value, ToolError
                 open_on_feed(client, reg, &[sub])?;
             } else {
                 reconcile(client, reg, &[sub], now)?;
+            }
+            // Asked to wait, and nothing has arrived: look again until one
+            // does or the wait runs out. The subscription is open by now, so
+            // this waits on a feed that is actually being delivered.
+            //
+            // Each look is a whole read that is never committed, so a wait
+            // that times out leaves every cursor where the first read found
+            // them and the answer is the one that first read would have
+            // given. Nothing is consumed by waiting.
+            let (mut r, mut now) = (r, now);
+            if let Some(wait) = wait {
+                let deadline = Instant::now() + wait;
+                while r.new_since_last_read == 0 && Instant::now() < deadline {
+                    tokio::time::sleep(WAIT_POLL).await;
+                    now = now_ms();
+                    r = reg.read(
+                        &contract,
+                        kind,
+                        window,
+                        tail_rows(num_of("tail", TAIL)?),
+                        feed_drops,
+                        now,
+                    )?;
+                }
             }
             // The answer is going to reach the caller, so the cursors move.
             // A call that failed above left all of it for the next read.
@@ -6047,6 +6114,70 @@ mod tests {
     }
 
     #[test]
+    fn a_wait_is_bounded_and_nought_is_not_a_wait() {
+        assert_eq!(wait_for(&json!({})).expect("absent is fine"), None);
+        assert_eq!(
+            wait_for(&json!({"wait_seconds": 0})).expect("nought is fine"),
+            None,
+            "nought is not a wait of no length, it is not waiting"
+        );
+        assert_eq!(
+            wait_for(&json!({"wait_seconds": 5})).expect("in range"),
+            Some(Duration::from_secs(5))
+        );
+        assert_eq!(
+            wait_for(&json!({"wait_seconds": WAIT_MAX_S})).expect("the bound itself is in range"),
+            Some(Duration::from_secs(WAIT_MAX_S))
+        );
+        let why = refused(wait_for(&json!({"wait_seconds": WAIT_MAX_S + 1})));
+        assert!(
+            why.contains(&WAIT_MAX_S.to_string()),
+            "and past it says what the bound is: {why}"
+        );
+    }
+
+    #[test]
+    fn a_read_that_is_not_committed_consumes_nothing() {
+        // This is what makes waiting safe. A wait reads again on every look
+        // and commits only the answer it returns, so a wait that finds
+        // nothing must leave the cursors exactly where the first look found
+        // them. If an uncommitted read advanced anything, a caller that
+        // waited would be told less than one that did not.
+        let reg = Registry::default();
+        let c = stock("AAPL");
+        read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 1_000)
+            .expect("nothing to refuse");
+        for (price, at) in [(1.0, 2_000), (2.0, 3_000)] {
+            reg.ingest(trade(&c, price, at * MS));
+        }
+
+        // Three looks, none committed, as a wait would take them.
+        let look = || {
+            reg.read(&c, SubscriptionKind::Trade, None, TAIL, 0, 4_000)
+                .expect("nothing to refuse")
+        };
+        let (a, b, d) = (look(), look(), look());
+        for r in [&a, &b, &d] {
+            assert_eq!(
+                r.new_since_last_read, 2,
+                "every look sees the same two rows, because none of them took any"
+            );
+        }
+
+        // And the answer a wait finally returns is the one the first look
+        // would have given.
+        let served = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 4_000)
+            .expect("nothing to refuse");
+        assert_eq!(served.new_since_last_read, 2, "the rows were still owed");
+        let after = read_now(&reg, &c, SubscriptionKind::Trade, None, TAIL, 0, 5_000)
+            .expect("nothing to refuse");
+        assert_eq!(
+            after.new_since_last_read, 0,
+            "and taking them once is what consumes them"
+        );
+    }
+
+    #[test]
     fn a_market_print_takes_the_two_quotes_the_feed_sent_after_it() {
         // On one contract the next two quotes belong to the print. On a whole
         // market they arrive interleaved with every other contract's, so the
@@ -8157,6 +8288,7 @@ mod tests {
                     "kind",
                     "seconds",
                     "tail",
+                    "wait_seconds",
                 ][..],
             ),
             (
