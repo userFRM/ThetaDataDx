@@ -250,7 +250,7 @@ def check_static_docs() -> None:
     expect_contains(ROOT / "README.md", "Documentation site (GitHub Pages)")
     expect_contains(
         ROOT / "README.md",
-        "MCP server exposing every market-data endpoint, plus the live feed, to AI clients",
+        "MCP server exposing every market-data endpoint to AI clients",
     )
 
     expect_contains(

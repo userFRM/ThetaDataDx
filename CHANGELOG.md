@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **`connection_status()` now answers when a session has stopped trying.** A streaming session that exhausts its reconnect budget publishes `ReconnectsExhausted` and leaves its loop, but the status went on reporting `Reconnecting` for ever. The two states follow the same disconnect and want opposite responses: one is wait, the other is this session is over and a caller that wants a feed has to start another. Telling them apart meant watching the event stream and latching a flag, which every consumer that cared had to reinvent. `ConnectionStatus` has a terminal `ReconnectsExhausted` variant, and the MCP stream tools now read it instead of carrying their own flag.
+- **`connection_status()` now answers when a session has stopped trying.** A streaming session that exhausts its reconnect budget publishes `ReconnectsExhausted` and leaves its loop, but the status went on reporting `Reconnecting` for ever. The two states follow the same disconnect and want opposite responses: one is wait, the other is this session is over and a caller that wants a feed has to start another. Telling them apart meant watching the event stream and latching a flag, which every consumer that cared had to reinvent. `ConnectionStatus` has a terminal `ReconnectsExhausted` variant.
 
 - **The MCP server still answers `2025-11-25` and `2024-11-05` clients unchanged.** The `initialize` handshake, the negotiated `protocolVersion` in its result and the existing tool surface all behave as before; an older client sends no revision in `_meta` and is not asked to. Nothing in the tool set, the argument shapes or the returned rows changes with this revision.
 
