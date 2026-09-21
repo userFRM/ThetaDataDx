@@ -22,7 +22,7 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 | Invalid parameters / configuration | `Config` | `ThetaDataError` | `thetadatadx::ThetaDataError` |
 
 - **Python** exceptions all derive from `ThetaDataError`, so `except ThetaDataError` is the catch-all.
-- **TypeScript** throws the standard `Error`; the message carries the same stable text as the Rust `Display` output, so the failure category is recognizable without a class tree.
+- **TypeScript** throws a typed subclass, the same hierarchy the other bindings expose: `catch (e) { if (e instanceof SubscriptionError) ... }`. A rate-limit error carries `retryAfter`. The message still carries the same stable text as the Rust `Display` output, but an instance check is the reliable test, not a pattern over the message.
 - **C++** exceptions derive from `thetadatadx::ThetaDataError`; `NoData` and `Timeout` ride the generic `thetadatadx::Error` with a `kind` discriminator.
 
 ```python

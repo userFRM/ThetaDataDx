@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A subscription the feed does not publish is refused.** An index has no quote stream and a stock has no open-interest stream: the server accepts either subscribe, answers that it is subscribed, and then never sends a tick, so the caller waits on a book that stays silent for the life of the connection. Both are now refused at the subscribe boundary, naming what that contract kind does publish. The streaming guide offered both and now says what each kind carries.
+
+- **The error reference describes the TypeScript error hierarchy the binding ships.** It told TypeScript callers to recognise a failure from the message text because there was no class tree. The binding throws a typed subclass, the same hierarchy the other bindings expose, with the retry hint on the rate-limit error, so an instance check works and a pattern over the message was never needed.
+
+- **The README states the subscription tier streaming actually requires.** It drew the line between free and paid. The vendor draws it between Value and Standard, so a Value subscriber, who is paying, followed the front page to a streaming client whose login is refused.
+
 - **A market value arrives while a quote stream is running.** A contract's quote and market-value streams share one delta baseline upstream: the server encodes both against a single per-contract row. This SDK kept one baseline per message type, so a market-value row for a contract whose quote stream was already running arrived as a partial delta with no baseline of its own, was taken for a first absolute row, failed the exact-width check and was dropped. Every later market-value row for that contract did the same, so the stream went silent for the rest of the session while the quote stream went on accumulating onto a row the server had moved past, publishing prices that drifted further from the feed with no error and no counter. Both streams now accumulate onto the contract's single baseline.
 
 - **The streaming delta decoder no longer keeps a second per-contract map.** It recorded a field width that was always the width the caller had just passed in, read it back through a fallback that could not fire, and returned it to callers that all discarded it, at the cost of a hash lookup per tick on a path that runs per message.

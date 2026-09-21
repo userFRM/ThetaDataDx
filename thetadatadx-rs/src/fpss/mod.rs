@@ -393,6 +393,37 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
     matches!(sec_type, SecType::Stock | SecType::Option)
 }
 
+/// Whether the feed publishes `kind` for `sec_type` per contract.
+///
+/// The streaming reference is generated from `fpss_event_schema.toml`, and
+/// it has no index quote page and no stock open-interest page, because
+/// neither stream exists upstream. An index publishes its prints through
+/// the trade feed; open interest counts option contracts outstanding and a
+/// stock does not have one.
+///
+/// The server accepts either subscribe and answers `Subscribed`, then never
+/// sends a tick, so the caller waits on a book that stays silent for ever.
+/// Refusing at the subscribe boundary names what is missing instead.
+#[must_use]
+pub(crate) fn per_contract_kind_supported(sec_type: SecType, kind: SubscriptionKind) -> bool {
+    match kind {
+        SubscriptionKind::Quote => !matches!(sec_type, SecType::Index),
+        SubscriptionKind::OpenInterest => matches!(sec_type, SecType::Option),
+        // Trade carries index prints, and market value is published for
+        // every security type the terminal addresses per contract.
+        SubscriptionKind::Trade | SubscriptionKind::MarketValue => true,
+    }
+}
+
+/// What `sec_type` does publish per contract, for a refusal message.
+fn per_contract_kinds_offered(sec_type: SecType) -> &'static str {
+    match sec_type {
+        SecType::Index => "trade and market_value",
+        SecType::Option => "quote, trade, open_interest and market_value",
+        _ => "quote, trade and market_value",
+    }
+}
+
 // ---------------------------------------------------------------------------
 // StreamingClientBuilder — fluent constructor for `StreamingClient`
 // ---------------------------------------------------------------------------
@@ -2197,6 +2228,24 @@ impl StreamingClient {
         contract: &Contract,
         unsubscribe: bool,
     ) -> Result<(), Error> {
+        // An unsubscribe for a stream that was never opened is harmless and
+        // is left alone; a subscribe to one the feed does not publish is
+        // refused by name rather than accepted and answered with silence.
+        if !unsubscribe && !per_contract_kind_supported(contract.sec_type, kind) {
+            let offered = per_contract_kinds_offered(contract.sec_type);
+            return Err(Error::Config {
+                kind: crate::error::ConfigErrorKind::InvalidValue {
+                    field: "Subscription::contract".to_string(),
+                    message: format!(
+                        "{:?} contracts have no {:?} stream upstream; the server accepts the \
+                         subscribe and then never sends a tick. {:?} publishes {offered}.",
+                        contract.sec_type, kind, contract.sec_type
+                    ),
+                },
+                message: "unsupported per-contract subscription".to_string(),
+                source: None,
+            });
+        }
         if unsubscribe {
             self.send_unsub_contract(kind, contract)
         } else {
@@ -4624,5 +4673,44 @@ mod ring_occupancy_tests {
             Some("scope boom"),
             "the propagated payload must be the scope closure's own panic",
         );
+    }
+}
+
+#[cfg(test)]
+mod subscription_availability_tests {
+    /// The generated streaming reference is built from the event schema and
+    /// is the statement of what the feed publishes. It has no index quote
+    /// page and no stock open-interest page, so neither stream exists: the
+    /// server accepts the subscribe, answers `Subscribed`, and never sends a
+    /// tick. A predicate that accepted either would leave a caller waiting on
+    /// a book that stays silent for the life of the connection.
+    #[test]
+    fn per_contract_availability_matches_the_published_streams() {
+        use crate::fpss::protocol::SubscriptionKind;
+        use crate::tdbe::types::enums::SecType;
+        use SubscriptionKind::{MarketValue, OpenInterest, Quote, Trade};
+
+        // Published: docs-site/docs/streaming/{indices,stocks,options}/
+        let published: &[(SecType, SubscriptionKind, bool)] = &[
+            (SecType::Index, Trade, true),
+            (SecType::Index, MarketValue, true),
+            (SecType::Index, Quote, false),
+            (SecType::Index, OpenInterest, false),
+            (SecType::Stock, Quote, true),
+            (SecType::Stock, Trade, true),
+            (SecType::Stock, MarketValue, true),
+            (SecType::Stock, OpenInterest, false),
+            (SecType::Option, Quote, true),
+            (SecType::Option, Trade, true),
+            (SecType::Option, OpenInterest, true),
+            (SecType::Option, MarketValue, true),
+        ];
+        for (sec_type, kind, expected) in published {
+            assert_eq!(
+                super::per_contract_kind_supported(*sec_type, *kind),
+                *expected,
+                "{sec_type:?} / {kind:?}"
+            );
+        }
     }
 }
