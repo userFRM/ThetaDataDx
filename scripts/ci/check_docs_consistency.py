@@ -71,7 +71,6 @@ FLATFILE_TYPES_RS = ROOT / "thetadatadx-rs/src/flatfiles/types.rs"
 # than the docs carrying a hand-maintained count that silently drifts.
 MCP_MAIN_RS = ROOT / "tools/mcp/src/main.rs"
 MCP_FLATFILE_TOOLS_RS = ROOT / "tools/mcp/src/flatfile_tools.rs"
-MCP_STREAM_RS = ROOT / "tools/mcp/src/stream.rs"
 MCP_UTILITIES_RS = ROOT / "tools/mcp/src/utilities.rs"
 
 # Docs that must enumerate the connection-only MCP tools by name, each paired
@@ -260,7 +259,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 5 streaming tools, 6 flat-file tools and `entitlements`.",
+        "Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools and `entitlements`.",
     )
 
     expect_contains(
@@ -1063,7 +1062,6 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
       ``OFFLINE_TOOL_NAMES`` in ``main.rs``.
     - ``flatfile``: the flat-file tools advertised by
       ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs``.
-    - ``stream``: the streaming tools, read from ``TOOL_NAMES`` in ``stream.rs``.
     - ``utility``: the generated utility tools in ``utilities.rs``, which
       include the offline ones; the offline set is subtracted so a tool is
       reported under one origin only.
@@ -1072,7 +1070,7 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
     enumerate it, so a tool added in code but absent from the docs fails here.
     Every source of tool names the connected list draws from is read here: a
     family parsed from none of these files would be undocumented with this
-    gate green, which is how the streaming tools shipped with no entry.
+    gate green.
     """
     registry = [ep["name"] for ep in REGISTRY_ENDPOINTS]
 
@@ -1081,10 +1079,6 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
     )
     if not offline:
         fail(f"{MCP_MAIN_RS.relative_to(ROOT)} OFFLINE_TOOL_NAMES parsed to no tools")
-
-    stream = _rust_str_array_items(MCP_STREAM_RS.read_text(), "TOOL_NAMES", MCP_STREAM_RS)
-    if not stream:
-        fail(f"{MCP_STREAM_RS.relative_to(ROOT)} TOOL_NAMES parsed to no tools")
 
     utility_body = _rust_fn_body(
         MCP_UTILITIES_RS.read_text(),
@@ -1124,7 +1118,6 @@ def mcp_tool_inventory() -> dict[str, list[str]]:
         "registry": registry,
         "offline": offline,
         "flatfile": flatfile,
-        "stream": stream,
         "utility": utility,
     }
 
@@ -1212,7 +1205,7 @@ def check_mcp_tool_inventory() -> None:
     connection-only tools are pinned there.
     """
     inv = mcp_tool_inventory()
-    connection_only = inv["offline"] + inv["flatfile"] + inv["stream"] + inv["utility"]
+    connection_only = inv["offline"] + inv["flatfile"] + inv["utility"]
 
     for doc, heading in MCP_DOC_TOOL_SECTIONS:
         section = _markdown_section(doc.read_text(), heading, doc)

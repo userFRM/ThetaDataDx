@@ -534,11 +534,7 @@ fn tool_definitions_for(access: Option<SubscriptionAccess>) -> Vec<Value> {
 }
 
 fn tool_definitions() -> Vec<Value> {
-    let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3 + stream::TOOL_NAMES.len());
-
-    // Live-state tools over the streaming feed. They need a connected client,
-    // so they sit with the connected set rather than the offline one.
-    tools.extend(stream::tool_definitions());
+    let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
 
     // Registry-driven: every MarketDataClient endpoint
     for ep in ENDPOINTS {
@@ -1280,7 +1276,6 @@ macro_rules! param {
 include!("utilities.rs");
 
 mod flatfile_tools;
-mod stream;
 
 async fn execute_tool(
     client: Option<&Client>,
@@ -1291,10 +1286,6 @@ async fn execute_tool(
     if let Some(result) = try_execute_generated_utility(client, name, args, start_time).await {
         return result;
     }
-    if let Some(result) = stream::try_execute(client, name, args).await {
-        return result;
-    }
-
     if let Some(result) = flatfile_tools::try_execute_flatfile_tool(client, name, args).await {
         return result;
     }
