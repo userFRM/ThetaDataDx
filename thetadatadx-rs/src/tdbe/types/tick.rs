@@ -73,24 +73,6 @@ impl TradeTick {
     pub fn is_cancelled(&self) -> bool {
         flags::trade::CANCELLED_RANGE.contains(&self.condition)
     }
-
-    /// `true` when the condition flags carry the "do not update last" bit.
-    #[must_use]
-    pub fn trade_condition_no_last(&self) -> bool {
-        self.condition_flags & flags::condition_flags::NO_LAST == flags::condition_flags::NO_LAST
-    }
-
-    /// `true` when the price flags carry the "sets last" bit.
-    #[must_use]
-    pub fn price_condition_set_last(&self) -> bool {
-        self.price_flags & flags::price_flags::SET_LAST == flags::price_flags::SET_LAST
-    }
-
-    /// `true` when `volume_type` marks this trade as incremental volume.
-    #[must_use]
-    pub fn is_incremental_volume(&self) -> bool {
-        self.volume_type == flags::volume::INCREMENTAL
-    }
 }
 
 impl OptionContract {

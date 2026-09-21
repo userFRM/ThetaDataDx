@@ -549,17 +549,21 @@ pub(crate) fn row_contract_right(
 /// [`crate::tdbe::types::enums::CalendarStatus`].
 ///
 /// Accepts the vendor's `Text` vocabulary (`"open"` / `"early_close"`
-/// / `"full_close"` / `"weekend"`) and the integer codes `0..=3`.
+/// / `"full_close"` / `"weekend"`), which is what the wire carries: the
+/// vendor publishes the day class as a string and defines no integer
+/// coding for it. A `Number` is refused rather than resolved through
+/// `CalendarStatus`'s declaration order, which is an ordering chosen
+/// here and would attach this SDK's meaning to a server value.
 /// Unknown values fail loudly so schema drift surfaces as a typed
 /// error instead of a silent mis-classification. `NullValue` yields
 /// `Ok(None)`.
 ///
 /// # Errors
 ///
-/// Returns [`DecodeError::UnknownEnumVariant`] for values outside the
-/// documented vocabulary, [`DecodeError::TypeMismatch`] on any other
-/// variant, and [`DecodeError::MissingCell`] when the row is shorter
-/// than `idx`.
+/// Returns [`DecodeError::UnknownEnumVariant`] for text outside the
+/// documented vocabulary, [`DecodeError::TypeMismatch`] for any other
+/// wire variant including `Number`, and [`DecodeError::MissingCell`]
+/// when the row is shorter than `idx`.
 #[inline]
 pub(crate) fn row_calendar_status(
     row: &proto::DataValueList,
@@ -578,22 +582,10 @@ pub(crate) fn row_calendar_status(
                 }),
             }
         }
-        Some(proto::data_value::DataType::Number(n)) => {
-            let code = i32::try_from(*n)
-                .ok()
-                .and_then(crate::tdbe::CalendarStatus::from_code);
-            match code {
-                Some(status) => Ok(Some(status)),
-                None => Err(DecodeError::UnknownEnumVariant {
-                    field: "calendar.type",
-                    raw: n.to_string(),
-                }),
-            }
-        }
         Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
         other => Err(DecodeError::TypeMismatch {
             column: idx,
-            expected: "Text|Number",
+            expected: "Text",
             observed: observed_name(other),
         }),
     }

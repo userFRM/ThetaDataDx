@@ -682,12 +682,6 @@ pub struct TradeTick {
     pub right: Option<String>,
     /// True when the trade carries a cancelled-trade condition (codes 40-44).
     pub is_cancelled: bool,
-    /// True when the trade condition flags set the 'no last' bit (this trade must not update the last price).
-    pub trade_condition_no_last: bool,
-    /// True when the price flags set the 'set last' bit (this trade sets the last price).
-    pub price_condition_set_last: bool,
-    /// True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively.
-    pub is_incremental_volume: bool,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
@@ -1341,9 +1335,6 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 is_cancelled: (40..=44).contains(&t.condition),
-                trade_condition_no_last: t.condition_flags & 1 == 1,
-                price_condition_set_last: t.price_flags & 1 == 1,
-                is_incremental_volume: t.volume_type == 0,
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })

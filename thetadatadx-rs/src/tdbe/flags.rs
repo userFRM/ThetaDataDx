@@ -1,28 +1,13 @@
 //! Bit flags and condition codes for market data records.
 //!
-//! `ThetaData` encodes trade conditions and price flags as integer bit fields.
-//! This module provides named constants and helper functions for decoding them.
+//! The vendor publishes a table of trade and quote condition codes; these
+//! constants carry the ranges the SDK reads from it. The `condition_flags`,
+//! `price_flags` and `volume_type` columns are carried on the tick exactly as
+//! sent and are not interpreted here: the vendor has stated it does not define
+//! them, and its documentation marks them reserved.
 
 /// Trade condition codes (from `ext_condition1` through `condition` fields).
 pub mod trade {
     /// Cancelled trade condition range (40..=44).
     pub const CANCELLED_RANGE: std::ops::RangeInclusive<i32> = 40..=44;
-}
-
-/// Condition flags (bit fields in `condition_flags`).
-pub mod condition_flags {
-    /// Bit 0: trade condition "no last" -- this trade should not update the last price.
-    pub const NO_LAST: i32 = 1;
-}
-
-/// Price flags (bit fields in `price_flags`).
-pub mod price_flags {
-    /// Bit 0: price condition "set last" -- this trade should set the last price.
-    pub const SET_LAST: i32 = 1;
-}
-
-/// Volume type discriminants.
-pub mod volume {
-    /// Incremental volume (each trade adds to daily total).
-    pub const INCREMENTAL: i32 = 0;
 }

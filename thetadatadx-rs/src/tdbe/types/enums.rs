@@ -371,8 +371,14 @@ impl CalendarStatus {
         }
     }
 
-    /// Resolve a wire-level integer code to the typed variant. Returns
-    /// `None` for codes outside `0..=3`.
+    /// Resolve one of this enum's own discriminants to its variant.
+    /// Returns `None` outside `0..=3`.
+    ///
+    /// The codes are this type's declaration order, not a vendor coding:
+    /// the calendar wire carries the day class as text, and the vendor
+    /// publishes no integer for it. This exists so a caller holding a
+    /// `CalendarStatus` as an integer across a binding boundary can name
+    /// it again, and never to interpret a number the server sent.
     #[must_use]
     pub const fn from_code(code: i32) -> Option<Self> {
         match code {

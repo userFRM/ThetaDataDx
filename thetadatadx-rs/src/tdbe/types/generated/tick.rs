@@ -1307,7 +1307,7 @@ pub struct TradeQuoteTick {
     pub condition_flags: i32,
     /// Trade price flags bitmap.
     pub price_flags: i32,
-    /// Volume reporting mode: 0 = incremental, 1 = cumulative.
+    /// Volume reporting mode, as sent. The vendor does not define this column.
     pub volume_type: i32,
     /// Offset of this record behind the most recent record.
     pub records_back: i32,
@@ -1389,7 +1389,7 @@ pub struct TradeTick {
     pub condition_flags: i32,
     /// Trade price flags bitmap.
     pub price_flags: i32,
-    /// Volume reporting mode: 0 = incremental, 1 = cumulative.
+    /// Volume reporting mode, as sent. The vendor does not define this column.
     pub volume_type: i32,
     /// Offset of this record behind the most recent record.
     pub records_back: i32,
