@@ -73,6 +73,42 @@ pub fn error_envelope(error_type: &str, message: &str) -> sonic_rs::Value {
 /// The `StringList` arm is handled upstream in [`response_rows`] / [`list_rows`]
 /// (the keyless variant cannot tell a symbol list from a date / strike list);
 /// this returns an empty `Vec` for it so the function stays total.
+/// The response's per-row `symbol` values, when the wire carried a `symbol`
+/// column that varies across rows.
+///
+/// A multi-symbol snapshot returns one row per symbol and the decoder keeps
+/// each row's own value. Labelling every row with the request's comma-joined
+/// `symbol` parameter instead would attribute five of six rows to the wrong
+/// underlying, so the wire's value is used wherever the response carries one.
+fn per_row_symbols(output: &EndpointOutput) -> Option<&[Box<str>]> {
+    match output {
+        EndpointOutput::StringList(_)
+        | EndpointOutput::CalendarDays(_)
+        | EndpointOutput::OptionContracts(_) => None,
+        EndpointOutput::EodTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::GreeksAllTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::GreeksEodTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::GreeksFirstOrderTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::GreeksSecondOrderTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::GreeksThirdOrderTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::IndexPriceAtTimeTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::InterestRateTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::IvTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::MarketValueTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::OhlcTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::OpenInterestTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::PriceTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::QuoteTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::TradeGreeksAllTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::TradeQuoteTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::TradeTicks(ticks) => ticks.columns().symbols(),
+    }
+}
+
 fn serialize_rows(ep: &EndpointMeta, output: &EndpointOutput) -> Vec<Row> {
     let shape = RowShape::for_endpoint(ep);
     match output {
@@ -461,8 +497,19 @@ fn build_rows(
     match contract.symbol {
         Some(sym) if !sym.is_empty() && slot != IdentitySlot::None => {
             let is_option = endpoint_is_option_tick(ep);
+            // Prefer the wire's own per-row symbol. `contract.symbol` is the
+            // raw request parameter, which for the snapshot family is a
+            // comma-separated list: stamping it on every row labels each one
+            // with the whole request.
+            let per_row = per_row_symbols(output);
             rows.into_iter()
-                .map(|row| splice_identity(row, slot, sym, is_option, contract))
+                .enumerate()
+                .map(|(i, row)| {
+                    let symbol = per_row
+                        .and_then(|symbols| symbols.get(i))
+                        .map_or(sym, |s| &**s);
+                    splice_identity(row, slot, symbol, is_option, contract)
+                })
                 .collect()
         }
         _ => rows,
@@ -4474,4 +4521,54 @@ mod tests {
             assert!(hrow.get(kept).is_some(), "history IV keeps {kept}");
         }
     }
+    /// A multi-symbol snapshot returns one row per symbol, and each row must
+    /// carry its own. The `symbol` request parameter for this family is a
+    /// comma-separated list, so stamping it on every row labels five of six
+    /// rows with the wrong underlying, in a column a caller joins on.
+    #[test]
+    fn multi_symbol_snapshot_rows_carry_their_own_symbol() {
+        use thetadatadx::columns::{ColumnPresence, Ticks};
+
+        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
+        let wire = ["AAPL", "MSFT", "TSLA"];
+        let rows: Vec<QuoteTick> = wire
+            .iter()
+            .enumerate()
+            .map(|(i, _)| QuoteTick {
+                ms_of_day: 34_200_000 + i as i32,
+                bid_size: 10,
+                bid_exchange: 1,
+                bid: 100.0 + i as f64,
+                bid_condition: 0,
+                ask_size: 10,
+                ask_exchange: 1,
+                ask: 101.0 + i as f64,
+                ask_condition: 0,
+                date: 20_260_922,
+                expiration: 0,
+                strike: 0.0,
+                right: '\0',
+            })
+            .collect();
+        let columns = ColumnPresence::default().with_symbols(wire);
+        let output = EndpointOutput::QuoteTicks(Ticks::new(rows, columns));
+
+        // The request parameter is the whole list, as the server received it.
+        let contract = ContractParams {
+            symbol: Some("AAPL,MSFT,TSLA"),
+            ..ContractParams::default()
+        };
+
+        let built = response_rows(ep, &contract, &output);
+        assert_eq!(built.len(), wire.len(), "one row per requested symbol");
+        for (row, expected) in built.iter().zip(wire) {
+            let symbol = row.get("symbol").expect("identity carries a symbol");
+            assert_eq!(
+                symbol.as_str().expect("symbol renders as text"),
+                expected,
+                "row must carry the symbol the wire gave it, not the request list"
+            );
+        }
+    }
+
 }
