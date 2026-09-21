@@ -678,33 +678,3 @@
         thetadatadx_config_get_reconnect_jitter(handle_.get(), &out);
         return out;
     }
-
-    /// Set the Prometheus exporter port. Pass @c std::nullopt to leave
-    /// the exporter disabled (the @c None default); pass an explicit
-    /// @c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
-    /// when the @c metrics-prometheus feature is compiled in.
-    ///
-    /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
-    /// routing through the typed class the FFI error code selects.
-    void set_metrics_port(std::optional<std::uint16_t> port) {
-        const bool has_value = port.has_value();
-        const std::uint16_t arg = port.value_or(0);
-        if (thetadatadx_config_set_metrics_port(handle_.get(), has_value, arg) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /// Read the current @c metrics.port setting. Returns
-    /// @c std::nullopt for the disabled sentinel; returns the wrapped
-    /// @c std::uint16_t when an explicit port is set.
-    ///
-    /// Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
-    /// routing through the typed class the FFI error code selects.
-    std::optional<std::uint16_t> get_metrics_port() const {
-        bool has_value = false;
-        std::uint16_t port = 0;
-        if (thetadatadx_config_get_metrics_port(handle_.get(), &has_value, &port) != 0) {
-            detail::throw_last_ffi_error();
-        }
-        return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
-    }

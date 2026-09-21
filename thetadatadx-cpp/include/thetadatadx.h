@@ -1891,32 +1891,6 @@ int32_t thetadatadx_config_set_client_type(ThetaDataDxConfig* config, const char
  */
 char* thetadatadx_config_get_client_type(const ThetaDataDxConfig* config);
 
-/* ── MetricsConfig field setter/getter ── */
-
-/**
- * Set the Prometheus exporter port on a config handle, using the widened
- * (has_value, port) shape.
- * @param config Config handle to mutate.
- * @param has_value false leaves the exporter disabled and ignores port;
- *                  true enables it. When enabled and the metrics-prometheus
- *                  feature is compiled in, the exporter binds an HTTP
- *                  listener on 0.0.0.0:<port>.
- * @param port The exporter port, honoured only when has_value is true.
- * @return 0 on success, -1 if config is null.
- */
-int32_t thetadatadx_config_set_metrics_port(ThetaDataDxConfig* config, bool has_value, uint16_t port);
-
-/**
- * Read the configured Prometheus exporter port, using the same widened
- * (has_value, port) shape.
- * @param config Config handle to read.
- * @param out_has_value Receives false when the exporter is disabled, true
- *                      when a port is set.
- * @param out_port Receives the port (0 when disabled, the set port otherwise).
- * @return 0 on success, -1 if any pointer is null.
- */
-int32_t thetadatadx_config_get_metrics_port(const ThetaDataDxConfig* config, bool* out_has_value, uint16_t* out_port);
-
 /**
  * Read the market-data environment carried by the config: "PROD"
  * for the production cluster or "STAGE" for staging. The market-data and

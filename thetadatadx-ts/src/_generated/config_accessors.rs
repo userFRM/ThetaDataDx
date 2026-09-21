@@ -1166,42 +1166,4 @@ impl Config {
         Ok(guard.reconnect.jitter.as_str())
     }
 
-    /// Set the Prometheus exporter port. Pass `null` or `undefined`
-    /// to leave the exporter disabled (the default); pass a
-    /// `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
-    /// `metrics-prometheus` feature is compiled in.
-    ///
-    /// Rejects values outside the `0..=65535` port range.
-    #[napi(js_name = "setMetricsPort")]
-    pub fn set_metrics_port(&self, port: Option<f64>) -> napi::Result<()> {
-        let resolved = match port {
-            Some(v) => {
-                let v = crate::validate_u32_arg("setMetricsPort", v)?;
-                Some(u16::try_from(v).map_err(|_| {
-                    crate::invalid_parameter_err(format!(
-                        "setMetricsPort: port must be in 0..=65535; got {v}"
-                    ))
-                })?)
-            }
-            None => None,
-        };
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.metrics.port = resolved;
-        Ok(())
-    }
-
-    /// Current `metrics.port` setting. `null` means the exporter is
-    /// disabled; a `number` is the bound port.
-    #[napi(getter, js_name = "metricsPort")]
-    pub fn metrics_port(&self) -> napi::Result<Option<u32>> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.metrics.port.map(u32::from))
-    }
-
 }

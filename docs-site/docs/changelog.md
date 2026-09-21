@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **The metrics port is no longer a setter on the bindings.** One schema row generated a getter and setter into the C ABI, C++, Python and TypeScript. The only reader of that value is the Prometheus exporter, whose body sits behind a cargo feature that no binding crate, no CI job and no release artifact enables, so setting the port succeeded on every binding, reported no error and could never take effect. The configuration field stays for an embedder who compiles the feature in and sets it directly.
+
 - **`MarketDataClient::bulk_fetch_plan`, and the public `ShardPlan` and `ShardQuery` types.** Bulk-fetch sharding is automatic on the history builders. This Rust-only method handed back the shard plan for you to run the sub-requests yourself; it had no counterpart on the other bindings and exposed the internal planner types on the public API, which kept the sharding strategy from being a free-to-change implementation detail. The automatic sharding is unchanged. This is a breaking change to the Rust API.
 - **The `[grpc] max_message_size_mb` config-file key.** The inbound gRPC message ceiling is set in bytes via `[market_data] max_message_size`; the megabyte-denominated duplicate that mirrored it is gone. A config file that still sets `max_message_size_mb` now fails to load. This is a breaking change to the configuration file.
 
