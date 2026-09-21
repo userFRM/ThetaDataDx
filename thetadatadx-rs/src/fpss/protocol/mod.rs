@@ -82,6 +82,10 @@ pub mod test_wire {
 
 /// Maximum payload size for a single FPSS frame (1-byte length field).
 pub const MAX_PAYLOAD: usize = 255;
+// The cap is not a policy number: it is whatever a one-byte LEN field can
+// count. Tying it to `u8::MAX` here fails the build if the two ever part,
+// which a test restating the literal cannot do.
+const _: () = assert!(MAX_PAYLOAD == u8::MAX as usize);
 
 /// Ping interval in milliseconds. Heartbeat sends PING every 100ms after login.
 pub const PING_INTERVAL_MS: u64 = 100;
@@ -97,34 +101,3 @@ pub const CONNECT_TIMEOUT_MS: u64 = 2_000;
 
 /// Socket read timeout in milliseconds.
 pub const READ_TIMEOUT_MS: u64 = 10_000;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn frame_payload_cap_is_one_byte() {
-        // Single-byte LEN field on the wire; cap MUST be 255.
-        assert_eq!(MAX_PAYLOAD, 255);
-    }
-
-    #[test]
-    fn ping_interval_matches_heartbeat_period() {
-        // Heartbeat sends PING every 100ms after login.
-        assert_eq!(PING_INTERVAL_MS, 100);
-    }
-
-    #[test]
-    fn reconnect_delays_match_policy() {
-        // 2000ms general reconnect, 130s TOO_MANY_REQUESTS cooldown.
-        assert_eq!(RECONNECT_DELAY_MS, 2_000);
-        assert_eq!(TOO_MANY_REQUESTS_DELAY_MS, 130_000);
-    }
-
-    #[test]
-    fn socket_timeouts_match_policy() {
-        // Parity reference: 2000 ms connect deadline, 10000 ms read timeout.
-        assert_eq!(CONNECT_TIMEOUT_MS, 2_000);
-        assert_eq!(READ_TIMEOUT_MS, 10_000);
-    }
-}

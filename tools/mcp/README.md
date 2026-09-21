@@ -6,6 +6,8 @@
 
 MCP (Model Context Protocol) server for [ThetaDataDx](https://github.com/userFRM/ThetaDataDx) — gives any LLM instant access to ThetaData market data via structured tool calls over stdio JSON-RPC 2.0.
 
+Speaks the `2026-07-28` revision of the protocol and still answers `2025-11-25` and `2024-11-05` clients. Call `server/discover` to read the revisions, capabilities and identity in one request.
+
 > **FLATFILES coverage:** the MCP server advertises six FLATFILES tools — `thetadatadx_flatfile_request` plus five convenience wrappers covering the datasets the distribution serves (`thetadatadx_flatfile_option_trade_quote`, `thetadatadx_flatfile_option_open_interest`, `thetadatadx_flatfile_option_eod`, `thetadatadx_flatfile_stock_trade_quote`, `thetadatadx_flatfile_stock_eod`). Each call writes the decoded CSV / JSONL blob to disk and returns the path; the generic tool rejects an unserved `(sec_type, req_type)` pair with a typed invalid-parameter error.
 
 ## Architecture
@@ -24,7 +26,7 @@ The server authenticates **once** at startup, keeps the `Client` client alive, a
 
 ## Install
 
-No install step is needed: point your MCP client at `npx -y thetadatadx-mcp-server` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it on demand.
+No install step is needed: point your MCP client at `npx -y thetadatadx-mcp-server` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux and macOS on x64 and arm64, Windows on x64) and runs it on demand.
 
 Rust users can install the binary directly instead:
 
@@ -122,7 +124,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.
+Every generated market-data endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools and `entitlements`. The counts below are the full surface; what a given account is shown depends on the tiers it holds.
 
 ### Offline (1 total: `ping`)
 
@@ -130,7 +132,7 @@ This tool does not require a ThetaData account or a network round-trip; it is av
 
 - `ping` - server status
 
-### Stock Data (14 tools)
+### Stock Data (13 tools)
 - `stock_list_symbols`, `stock_list_dates`
 - `stock_snapshot_ohlc`, `stock_snapshot_trade`, `stock_snapshot_quote`, `stock_snapshot_market_value`
 - `stock_history_eod`, `stock_history_ohlc`, `stock_history_trade`, `stock_history_quote`, `stock_history_trade_quote`
@@ -168,9 +170,15 @@ This matches the current JVM terminal behavior. The v3 REST surface uses `*` for
 - `calendar_open_today`, `calendar_on_date`, `calendar_year`
 - `interest_rate_history_eod`
 
+### Entitlements (1 tool)
+
+Advertised only when a client is connected.
+
+- `entitlements` - the subscription tier held for each asset class, which is what decides the rest of the tool list
+
 ### Flat Files (6 tools)
 
-Advertised only when a client is connected. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
+Advertised only when a client is connected, and by class: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
 
 - `thetadatadx_flatfile_request` - generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error
 - `thetadatadx_flatfile_option_trade_quote` - option trade-quote flat file

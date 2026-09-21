@@ -1878,7 +1878,7 @@ class MarketDataView:
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = False,
+        exclusive: Optional[bool] = True,
         venue: Optional[str] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
@@ -1892,7 +1892,7 @@ class MarketDataView:
         Defaults (upstream):
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
         - `venue`: `"nqb"`
         """
         ...
@@ -1918,7 +1918,7 @@ class MarketDataView:
         Defaults (upstream):
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
         - `venue`: `"nqb"`
 
 
@@ -3216,7 +3216,7 @@ class MarketDataView:
         date: Optional[Union[str, date, datetime]] = None,
         start_time: Optional[Union[str, time, datetime]] = None,
         end_time: Optional[Union[str, time, datetime]] = None,
-        exclusive: Optional[bool] = False,
+        exclusive: Optional[bool] = True,
         max_dte: Optional[int] = None,
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
@@ -3235,7 +3235,7 @@ class MarketDataView:
         - `right`: `"both"`
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
         """
         ...
 
@@ -3268,7 +3268,7 @@ class MarketDataView:
         - `right`: `"both"`
         - `start_time`: `"09:30:00"`
         - `end_time`: `"16:00:00"`
-        - `exclusive`: `false`
+        - `exclusive`: `true`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -5230,7 +5230,7 @@ class Client:
         none, or two different ones, raises ``ConfigError`` before any
         network round-trip. ``market_data_type`` (``"PROD"`` / ``"STAGE"``,
         case-insensitive) selects the market-data environment and
-        ``streaming_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
+        ``streaming_type`` (``"PROD"`` / ``"STAGE"`` / ``"DEV"``, case-insensitive) the
         streaming environment, independently; ``config`` supplies a full
         :class:`Config` whose environments and hosts win. Streaming is not
         started. The call is interruptible with ``Ctrl+C`` if the
@@ -5243,7 +5243,7 @@ class Client:
             email: Inline account email, paired with ``password``.
             password: Inline account password, paired with ``email``.
             market_data_type: Market-data environment selector (``"PROD"`` / ``"STAGE"``).
-            streaming_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
+            streaming_type: Streaming environment selector (``"PROD"`` / ``"STAGE"`` / ``"DEV"``).
 
         Raises:
             ConfigError: If no authentication argument is given, two
@@ -5272,7 +5272,7 @@ class Client:
             config: Connection configuration; defaults to
                 ``Config.production()`` when omitted.
             market_data_type: Market-data environment selector (``"PROD"`` / ``"STAGE"``).
-            streaming_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
+            streaming_type: Streaming environment selector (``"PROD"`` / ``"STAGE"`` / ``"DEV"``).
 
         Returns:
             A connected :class:`Client`.

@@ -47,9 +47,6 @@ set(THETADATADX_CPP_TEST_SOURCES
     # InterestRateTick is a 2-field shape (date/rate); guards against a
     # regression to a fictitious 3-field ms_of_day layout.
     interest_rate.cpp
-    # Gate 3 - C++ doctest harness. Compiles + runs
-    # `// @example` blocks extracted from the public headers.
-    doctest_examples.cpp
     # String rendering on the fluent value types (operator<< / str) plus
     # the streaming-contract strike accessor — cross-binding parity with
     # the Python __repr__ / TypeScript toString surfaces.

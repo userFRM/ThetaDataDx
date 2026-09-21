@@ -65,7 +65,7 @@ impl Util {
         thetadatadx::utils::exchange::exchange_name(code).to_string()
     }
 
-    /// Short ticker-tape symbol for an `exchange` code (e.g. `3` ->
+    /// Short exchange symbol for an `exchange` code (e.g. `3` ->
     /// `"NYSE"`).
     #[napi(js_name = "exchangeSymbol")]
     pub fn exchange_symbol(code: i32) -> String {

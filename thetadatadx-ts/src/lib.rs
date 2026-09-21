@@ -314,7 +314,7 @@ pub struct ClientConnectOptions {
     /// streaming channels are selected independently. For full host-level
     /// control, build a `Config` and use `Client.connect(creds, config)`.
     pub market_data_type: Option<String>,
-    /// Streaming environment selector (`"PROD"` / `"DEV"`,
+    /// Streaming environment selector (`"PROD"` / `"STAGE"` / `"DEV"`,
     /// case-insensitive). Defaults to production. Selected independently of
     /// the market-data channel.
     pub streaming_type: Option<String>,
@@ -1014,7 +1014,7 @@ impl Client {
     /// or `credentialsFile`. Passing none, or two different ones, rejects
     /// with a `ConfigError` before any network round-trip. `marketDataType`
     /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the market-data
-    /// environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
+    /// environment and `streamingType` (`"PROD"` / `"STAGE"` / `"DEV"`, case-insensitive)
     /// the streaming environment, independently. For a pre-built full
     /// `Config` (or a pre-built `Credentials` handle), use
     /// [`Client::connect`], which takes both.

@@ -1658,18 +1658,6 @@ impl TradeTick {
     fn is_incremental_volume(&self) -> bool {
         self.volume_type == 0
     }
-
-    /// True when the trade occurred during regular trading hours (9:30 AM - 4:00 PM ET).
-    #[getter]
-    fn regular_trading_hours(&self) -> bool {
-        (34200000..=57600000).contains(&self.ms_of_day)
-    }
-
-    /// True when the trade is seller-initiated (ext_condition1 == 12).
-    #[getter]
-    fn is_seller(&self) -> bool {
-        self.ext_condition1 == 12
-    }
 }
 
 /// Typed list of `CalendarDay` returned by every market-data endpoint

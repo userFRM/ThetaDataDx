@@ -234,9 +234,14 @@ fn bench_decode_allocations(c: &mut Criterion) {
         );
     }
 
-    let out = PathBuf::from(
-        std::env::var("PERF_GATE_OUT_DIR").unwrap_or_else(|_| "target/perf-gate".to_string()),
-    )
+    // Cargo runs a bench with the package directory as its working
+    // directory, so a relative default would write under
+    // `thetadatadx-rs/target/` while the gate reads the workspace
+    // `target/`, and the gate then reports the metric missing however many
+    // times the bench is run. Anchor the default to the workspace instead.
+    let out = PathBuf::from(std::env::var("PERF_GATE_OUT_DIR").unwrap_or_else(|_| {
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../target/perf-gate").to_string()
+    }))
     .join("decode_allocations.json");
     write_metric_file(
         &out,

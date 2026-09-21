@@ -29,7 +29,7 @@
        Positioned completely safely far right to respect perfect brand formatting limits natively -->
   <g transform="translate(370, 0)">
 
-      <!-- LAYER 1: Stocks (Raw unfiltered Web-Socket quote streaming tape) -->
+      <!-- LAYER 1: Stocks (Raw unfiltered Web-Socket quote streaming feed) -->
       <line x1="20" y1="36" x2="430" y2="36" stroke="url(#dataStreamLine)" stroke-width="1.5" stroke-dasharray="14 6" opacity="0.8"/>
       <rect x="180" y="34" width="38" height="4" rx="2" fill="#00D4FF" opacity="0.9" />
       <rect x="60"  y="34" width="12" height="4" rx="2" fill="#1074FF" />

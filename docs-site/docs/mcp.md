@@ -25,7 +25,7 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
 }
 ```
 
-`npx -y thetadatadx-mcp-server@next` fetches a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
+`npx -y thetadatadx-mcp-server@next` fetches a prebuilt binary for your platform (Linux and macOS on x64 and arm64, Windows on x64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
 
 ```json
 {
@@ -60,9 +60,9 @@ Keep credentials in environment variables or a secrets manager — not in config
 
 Every generated market-data endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
 
-Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools, so the model never sees a tool it cannot call. FREE-tier classes stay listed because FREE grants delayed data. The account-agnostic tools (`ping`, the trading calendar, the generic flat-file request) are always offered, and each tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
+Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools. FREE-tier classes stay listed because FREE grants delayed data. `ping` and the trading calendar are offered to every account. The flat-file tools follow the class in their name, and the generic flat-file request appears for any account holding a stock or option tier, since those are the only classes with flat files. Each market-data tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
 
-When credentials are present the connected surface also carries six flat-file tools. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV or JSON Lines, and returns the written path:
+When credentials are present the connected surface also carries the flat-file tools, advertised by class the way the endpoint tools are: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV or JSON Lines, and returns the written path:
 
 - `thetadatadx_flatfile_request`: generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error.
 - `thetadatadx_flatfile_option_trade_quote`: option trade-quote flat file.
@@ -70,6 +70,8 @@ When credentials are present the connected surface also carries six flat-file to
 - `thetadatadx_flatfile_option_eod`: option end-of-day flat file.
 - `thetadatadx_flatfile_stock_trade_quote`: stock trade-quote flat file.
 - `thetadatadx_flatfile_stock_eod`: stock end-of-day flat file.
+
+The `entitlements` tool reports the subscription tier held for each asset class, which is what decides the rest of the tool list.
 
 Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools and the market-data endpoints need a live connection.
 

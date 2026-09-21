@@ -11,6 +11,16 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
             "required": []
         }
     }));
+    tools.push(json!({
+        "name": "entitlements",
+        "description": "The authenticated account's subscription tier for each asset class: stock, options, indices and interest rate. Tools are advertised per asset class: a class this account holds no tier for is withheld from tools/list entirely, so a whole family of missing tools usually means a class you are not subscribed to. Within a class every tool is advertised, so an individual endpoint can still refuse a call when it needs a higher tier than the one held. Check here before concluding an endpoint is missing, and read the tier back from the error when a call is refused.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+            },
+            "required": []
+        }
+    }));
 }
 
 async fn try_execute_generated_utility(
@@ -28,6 +38,20 @@ async fn try_execute_generated_utility(
                 "version": VERSION,
                 "uptime_secs": uptime.as_secs(),
                 "connected": client.is_some(),
+            })))
+        }
+        "entitlements" => {
+            let Some(client) = client else {
+                return Some(Err(ToolError::ServerError(
+                 "not connected to ThetaData yet; retry shortly".into(),
+)));
+            };
+            let info = client.subscription_info();
+            Some(Ok(json!({
+                "stock": info.stock,
+                "options": info.options,
+                "indices": info.indices,
+                "interest_rate": info.interest_rate,
             })))
         }
         _ => None,

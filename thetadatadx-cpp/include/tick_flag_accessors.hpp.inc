@@ -20,13 +20,3 @@ inline bool is_incremental_volume(const TradeTick& c) noexcept {
     return c.volume_type == 0;
 }
 
-/// True when the trade occurred during regular trading hours (9:30 AM - 4:00 PM ET).
-inline bool regular_trading_hours(const TradeTick& c) noexcept {
-    return c.ms_of_day >= 34200000 && c.ms_of_day <= 57600000;
-}
-
-/// True when the trade is seller-initiated (ext_condition1 == 12).
-inline bool is_seller(const TradeTick& c) noexcept {
-    return c.ext_condition1 == 12;
-}
-

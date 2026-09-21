@@ -209,6 +209,13 @@ doc = "Check MCP server status."
 mcp_description = "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers."
 targets = ["mcp"]
 
+[[utilities]]
+name = "entitlements"
+kind = "entitlements"
+doc = "Report the account's per-asset-class subscription tier."
+mcp_description = "The authenticated account's subscription tier for each asset class: stock, options, indices and interest rate. Tools are advertised per asset class: a class this account holds no tier for is withheld from tools/list entirely, so a whole family of missing tools usually means a class you are not subscribed to. Within a class every tool is advertised, so an individual endpoint can still refuse a call when it needs a higher tier than the one held. Check here before concluding an endpoint is missing, and read the tier back from the error when a call is refused."
+targets = ["mcp"]
+
 # ── Cross-language lookup-table helpers ──────────────────────────────────
 #
 # The `thetadatadx.util` Python submodule and the TypeScript `Util` class.
@@ -305,7 +312,7 @@ name = "exchange_symbol"
 kind = "forwarder"
 forward_call = "thetadatadx::utils::exchange::exchange_symbol"
 forward_return = "str"
-doc = "Short ticker-tape symbol for an `exchange` code (e.g. `3` ->\n`\"NYSE\"`)."
+doc = "Short exchange symbol for an `exchange` code (e.g. `3` ->\n`\"NYSE\"`)."
 targets = ["python", "typescript"]
 params = [{ name = "code", type = "i32", doc = "Exchange code." }]
 

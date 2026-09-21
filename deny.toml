@@ -118,10 +118,6 @@ skip-tree = [
     # TLS stack and clear themselves once ring releases against a
     # unified getrandom line.
     { name = "ring", version = "0.17" },
-    # Reason: petgraph (pulled in by prost-build at build time only) is
-    # still on hashbrown 0.15 while the rest of the tree is on 0.17.
-    # Duplicate is upstream-rooted and resolves once petgraph updates.
-    { name = "petgraph", version = "0.8" },
     # Reason: windows-sys is pulled at two minor lines by independent
     # upstreams -- 0.52 via rustls-platform-verifier (reqwest's TLS
     # verifier) and tempfile/proptest, 0.61 via clap's anstyle stack

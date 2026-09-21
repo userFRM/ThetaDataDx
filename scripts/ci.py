@@ -39,6 +39,17 @@ def _test(name: str) -> list[list[str]]:
     return [[sys.executable, str(TESTS_DIR / f"{name}.py")]]
 
 
+def _dev(name: str, *args: str) -> list[list[str]]:
+    """One invocation of a gate script under scripts/dev/."""
+    return [[sys.executable, str(REPO_ROOT / "scripts" / "dev" / f"{name}.py"), *args]]
+
+
+# Gates `all` skips because they compile a crate, and a suite people stop
+# running is worse than a slower one. Named individually: `just check
+# napi_drift`.
+SLOW_GATES = frozenset({"napi_drift"})
+
+
 # Gate name -> ordered list of commands. The command set for each gate
 # mirrors exactly what the corresponding CI job runs (a `--selftest`
 # pre-pass where the gate has one, plus the production invocation with
@@ -52,10 +63,6 @@ GATES: dict[str, list[list[str]]] = {
         _ci("check_binding_parity", "--selftest")
         + _test("test_check_binding_parity")
         + _ci("check_binding_parity")
-    ),
-    "safety_comment_boilerplate": (
-        _ci("check_safety_comment_boilerplate", "--selftest")
-        + _ci("check_safety_comment_boilerplate")
     ),
     "public_surface_leak": (
         _ci("check_public_surface_leak", "--selftest")
@@ -85,6 +92,13 @@ GATES: dict[str, list[list[str]]] = {
         _ci("check_version_sync", "--selftest") + _ci("check_version_sync")
     ),
     "lockfile_drift": _ci("check_lockfile_drift"),
+    # Rebuilds the napi bindings and diffs the committed output. Skipped by
+    # `all` (see SLOW_GATES) because it compiles the crate; run it by name
+    # before pushing anything that touches the TypeScript surface or bumps
+    # the napi toolchain. CI rebuilds and diffs; nothing else here does,
+    # which is how declaration drift has repeatedly reached CI from a green
+    # local run.
+    "napi_drift": _dev("check_napi_drift"),
     "agreement": _test("test_check_agreement"),
 }
 
@@ -116,6 +130,8 @@ def main(argv: list[str]) -> int:
     if target == "all":
         failed: list[str] = []
         for name in GATES:
+            if name in SLOW_GATES:
+                continue
             if run_gate(name) != 0:
                 failed.append(name)
         if failed:

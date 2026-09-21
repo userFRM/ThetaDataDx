@@ -46,7 +46,7 @@ Fetch combined trade + quote ticks for an option contract.
 | `date` | date | no | — | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
-| `exclusive` | bool | no | `false` | When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. |
+| `exclusive` | bool | no | `true` | When true, quotes whose timestamp equals the trade timestamp are excluded; only quotes strictly before the trade are paired. Defaults to true, matching the terminal, which injects exclusive=true when the value is omitted. |
 | `max_dte` | int | no | — | Maximum days to expiration |
 | `strike_range` | int | no | — | Strike range filter |
 | `start_date` | date | no | — | Start date YYYYMMDD |

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **The MCP server can report what the account is entitled to.** A new `entitlements` tool returns the subscription tier for each asset class. Tools are advertised per asset class, so a class the account holds no tier for is withheld from `tools/list` entirely and a caller sees a whole family of tools missing with no way to learn why. This turns "those tools do not exist" into "you hold no options tier". Within a class every tool is advertised, so an individual endpoint can still refuse a call that needs a higher tier than the one held.
+
+- **The MCP server speaks the `2026-07-28` revision of the Model Context Protocol.** That revision drops the handshake: a client declares the revision it speaks on every request, in `_meta`, rather than agreeing one once at `initialize`. The server implements `server/discover`, the mandatory RPC that reports the revisions it speaks, its capabilities and its identity in a single call, so a client can pick a revision up front instead of probing. A request that declares a revision the server does not speak is refused with `-32022` and the list of revisions it does speak, so the client can retry without a second round trip. Results carry `resultType`, and `tools/list` carries the `ttlMs` freshness hint and a `cacheScope` of `private`, because the advertised tool set depends on the authenticated account's subscription and a shared cache must never hand one caller's list to another.
+
+### Changed
+
+- **`trade_quote` pairs each trade with the quote strictly before it by default.** The `exclusive` argument on `option_history_trade_quote` and `stock_history_trade_quote` defaulted to false, which is the documented default in the vendor's protocol definition. The terminal does not use it: when the value is omitted the terminal sends true, pairing each trade with the last NBBO quote strictly before the trade rather than one that may carry the trade's own timestamp. A caller who omitted the argument got a different quote against the same trade than the terminal returned for the same request, a systematic divergence in the paired ask and size. The default is true on every surface now, so an omitted `exclusive` matches the terminal. Pass it as false for the previous pairing.
+
+- **`connection_status()` now answers when a session has stopped trying.** A streaming session that exhausts its reconnect budget publishes `ReconnectsExhausted` and leaves its loop, but the status went on reporting `Reconnecting` for ever. The two states follow the same disconnect and want opposite responses: one is wait, the other is this session is over and a caller that wants a feed has to start another. Telling them apart meant watching the event stream and latching a flag, which every consumer that cared had to reinvent. `ConnectionStatus` has a terminal `ReconnectsExhausted` variant.
+
+- **The MCP server still answers `2025-11-25` and `2024-11-05` clients unchanged.** The `initialize` handshake, the negotiated `protocolVersion` in its result and the existing tool surface all behave as before; an older client sends no revision in `_meta` and is not asked to. Nothing in the tool set, the argument shapes or the returned rows changes with this revision.
+
 ## [0.4.0] - 2026-08-08
 
 ### Removed

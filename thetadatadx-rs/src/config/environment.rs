@@ -7,24 +7,27 @@
 //!   [`MarketDataEnvironment::Stage`]. The market-data environment also drives
 //!   the auth wire marker (the `authEnv` object on the Nexus auth request):
 //!   staging carries the staging marker, production carries none.
-//! * The streaming channel runs in [`StreamingEnvironment::Prod`] or
-//!   [`StreamingEnvironment::Dev`]. The streaming environment selects only the
-//!   streaming hosts; it never affects auth.
+//! * The streaming channel runs in [`StreamingEnvironment::Prod`],
+//!   [`StreamingEnvironment::Stage`] or [`StreamingEnvironment::Dev`]. The
+//!   streaming environment selects only the streaming hosts; it never affects
+//!   auth.
 //!
 //! The two are chosen independently: a config can be market-data-staging with
 //! streaming-production, market-data-production with streaming-dev, and so on.
-//! There is no market-data dev cluster and no streaming staging cluster; the
-//! enums encode exactly the environments each channel supports.
+//! There is no market-data dev cluster; the enums encode exactly the
+//! environments each channel supports.
 //!
 //! The selectors are set by the [`DirectConfig`] presets:
 //! [`DirectConfig::production`] selects production on both channels;
 //! [`DirectConfig::stage`] selects market-data-staging while streaming stays on
 //! production; [`DirectConfig::dev`] selects streaming-dev while market-data
-//! stays on production. They can also be chosen directly with
+//! stays on production. The streaming channel has a staging cluster of its own,
+//! which no preset selects because it is the live feed on a build that reboots
+//! often; it is chosen explicitly. They can also be chosen directly with
 //! [`DirectConfig::with_market_data_environment`] /
 //! [`DirectConfig::with_streaming_environment`], or via the
 //! `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`) and `THETADATA_STREAMING_TYPE`
-//! (`PROD` / `DEV`) environment variables.
+//! (`PROD` / `STAGE` / `DEV`) environment variables.
 //!
 //! [`DirectConfig`]: crate::config::DirectConfig
 //! [`DirectConfig::production`]: crate::config::DirectConfig::production
@@ -57,20 +60,25 @@ pub enum MarketDataEnvironment {
 
 /// Which `ThetaData` streaming environment the SDK targets.
 ///
-/// The streaming channel runs in production or dev only. This value selects
-/// only the streaming hosts and has no effect on auth — a dev session
-/// authenticates exactly as a production session. Defaults to
-/// [`StreamingEnvironment::Prod`].
+/// This value selects only the streaming hosts and has no effect on auth — a
+/// session on any of them authenticates exactly as a production one. Defaults
+/// to [`StreamingEnvironment::Prod`].
 ///
-/// Selected with [`DirectConfig::dev`](crate::config::DirectConfig::dev), the
+/// Selected with [`DirectConfig::dev`](crate::config::DirectConfig::dev) or
+/// [`DirectConfig::stage`](crate::config::DirectConfig::stage), the
 /// [`with_streaming_environment`](crate::config::DirectConfig::with_streaming_environment)
-/// builder, or `THETADATA_STREAMING_TYPE=DEV`.
+/// builder, or `THETADATA_STREAMING_TYPE=DEV` / `=STAGE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum StreamingEnvironment {
     /// Production streaming cluster — the standard live `ThetaData` cluster.
     #[default]
     Prod,
+    /// Staging streaming cluster, which runs the server build bound for
+    /// production. It carries the live feed rather than a replay, and is
+    /// rebooted often, so it is for validating against pre-release server
+    /// changes and not for data a caller depends on.
+    Stage,
     /// Dev streaming cluster, which replays a random historical trading day in
     /// an infinite loop at maximum speed for development and testing when
     /// markets are closed. It is a streaming-only offering; selecting it does
@@ -125,19 +133,38 @@ impl StreamingEnvironment {
     pub fn as_str(self) -> &'static str {
         match self {
             StreamingEnvironment::Prod => "PROD",
+            StreamingEnvironment::Stage => "STAGE",
             StreamingEnvironment::Dev => "DEV",
         }
     }
 
+    /// Every streaming environment the SDK ships, so a caller enumerating
+    /// them cannot silently miss one.
+    ///
+    /// The TLS hostname allowlist is checked against this list, and a host
+    /// missing from the allowlist fails the handshake with `NotValidForName`,
+    /// which costs that environment its failover. A variant added here without
+    /// its hosts being allowlisted trips that check rather than shipping a
+    /// dead environment.
+    ///
+    /// Test-only, like [`DirectConfig::dev_streaming_hosts`]: production code
+    /// selects one environment rather than walking them all, and the
+    /// enumeration exists so the checks cannot be written against a list that
+    /// quietly falls behind the enum.
+    ///
+    /// [`DirectConfig::dev_streaming_hosts`]: crate::config::DirectConfig
+    #[cfg(test)]
+    pub(crate) const ALL: &'static [Self] = &[Self::Prod, Self::Stage, Self::Dev];
+
     /// Parse the stable string label (case-insensitive, surrounding whitespace
-    /// ignored). `"PROD"` maps to [`Self::Prod`] and `"DEV"` to [`Self::Dev`];
-    /// any other input (including `"STAGE"`, which the streaming channel does
-    /// not support) returns `None`. The round-trip inverse of [`Self::as_str`]
+    /// ignored). `"PROD"`, `"STAGE"` and `"DEV"` map to their variants; any
+    /// other input returns `None`. The round-trip inverse of [`Self::as_str`]
     /// and the parser behind `THETADATA_STREAMING_TYPE`.
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_uppercase().as_str() {
             "PROD" => Some(StreamingEnvironment::Prod),
+            "STAGE" => Some(StreamingEnvironment::Stage),
             "DEV" => Some(StreamingEnvironment::Dev),
             _ => None,
         }
@@ -145,9 +172,9 @@ impl StreamingEnvironment {
 
     /// Streaming hosts for this environment's cluster.
     ///
-    /// Production spans two machines with two ports each; dev uses the replay
-    /// cluster on port 20200. This is the single place that maps the streaming
-    /// environment to its hosts. Production delegates to
+    /// Production spans two machines with two ports each; staging is on port
+    /// 20100 and dev on 20200. This is the single place that maps the
+    /// streaming environment to its hosts. Production delegates to
     /// [`StreamingConfig::production_defaults`](super::StreamingConfig::production_defaults)
     /// so the host list is never duplicated.
     #[must_use]
@@ -163,6 +190,12 @@ impl StreamingEnvironment {
             // failing over. `nj-a.thetadata.us:20200` is the publicly
             // reachable dev host.
             StreamingEnvironment::Dev => vec![("nj-a.thetadata.us".to_string(), 20200)],
+            // The staging cluster runs the build bound for production and
+            // carries the live feed. Its host list has the same shape as dev's
+            // in the terminal's own config, with `test-server` failovers that
+            // resolve only inside ThetaData's network, so the same single
+            // publicly reachable host is all an external caller can dial.
+            StreamingEnvironment::Stage => vec![("nj-a.thetadata.us".to_string(), 20100)],
         }
     }
 }
@@ -187,7 +220,10 @@ impl std::str::FromStr for StreamingEnvironment {
         Self::parse(s).ok_or_else(|| {
             crate::error::Error::config_invalid(
                 "streaming environment",
-                format!("streaming environment must be one of \"PROD\", \"DEV\"; got {s:?}"),
+                format!(
+                    "streaming environment must be one of \"PROD\", \"STAGE\", \"DEV\"; \
+                     got {s:?}"
+                ),
             )
         })
     }
@@ -211,8 +247,8 @@ mod tests {
         for env in [MarketDataEnvironment::Prod, MarketDataEnvironment::Stage] {
             assert_eq!(MarketDataEnvironment::parse(env.as_str()), Some(env));
         }
-        for env in [StreamingEnvironment::Prod, StreamingEnvironment::Dev] {
-            assert_eq!(StreamingEnvironment::parse(env.as_str()), Some(env));
+        for env in StreamingEnvironment::ALL {
+            assert_eq!(StreamingEnvironment::parse(env.as_str()), Some(*env));
         }
         assert_eq!(
             MarketDataEnvironment::parse("  stage  "),
@@ -225,17 +261,41 @@ mod tests {
     }
 
     #[test]
-    fn each_channel_rejects_the_other_channels_env() {
+    fn the_market_data_channel_rejects_the_streaming_only_env() {
         use std::str::FromStr;
-        // The market-data channel has no dev; the streaming channel has no
-        // stage. A cross-channel value must NOT silently fall back — it parses
-        // to None and `from_str` yields a typed error naming the valid set.
+        // There is no market-data dev cluster. A streaming-only value must NOT
+        // silently fall back — it parses to None and `from_str` yields a typed
+        // error naming the valid set.
         assert_eq!(MarketDataEnvironment::parse("DEV"), None);
-        assert_eq!(StreamingEnvironment::parse("STAGE"), None);
         assert!(MarketDataEnvironment::from_str("DEV").is_err());
-        assert!(StreamingEnvironment::from_str("STAGE").is_err());
         assert!(MarketDataEnvironment::from_str("bogus").is_err());
+        assert!(StreamingEnvironment::from_str("bogus").is_err());
         assert!(StreamingEnvironment::from_str("").is_err());
+    }
+
+    #[test]
+    fn all_holds_every_streaming_environment_exactly_once() {
+        // `ALL` is what the TLS hostname-allowlist coverage test enumerates,
+        // so an environment missing from it ships without its hosts ever
+        // being checked against the allowlist. The labels come from the
+        // exhaustive `as_str` match, which a new variant does not compile
+        // without, so a variant that never reached `ALL` is short a label
+        // here.
+        let labels: Vec<&str> = StreamingEnvironment::ALL
+            .iter()
+            .map(|e| e.as_str())
+            .collect();
+        assert_eq!(
+            labels,
+            vec!["PROD", "STAGE", "DEV"],
+            "every streaming environment is listed once, in a stable order"
+        );
+        for env in StreamingEnvironment::ALL {
+            assert!(
+                !env.hosts().is_empty(),
+                "{env:?} has no hosts to dial, so selecting it cannot connect"
+            );
+        }
     }
 
     #[test]
@@ -258,6 +318,14 @@ mod tests {
         assert_eq!(
             MarketDataEnvironment::Stage.host(),
             "mdds-stage.thetadata.us"
+        );
+    }
+
+    #[test]
+    fn stage_streaming_uses_the_staging_host() {
+        assert_eq!(
+            StreamingEnvironment::Stage.hosts(),
+            vec![("nj-a.thetadata.us".to_string(), 20100)]
         );
     }
 
