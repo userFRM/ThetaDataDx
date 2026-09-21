@@ -15,7 +15,9 @@ use crate::tdbe::types::enums::StreamMsgType;
 use crate::tdbe::types::price::Price;
 use metrics::Counter;
 
-use super::delta::{DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
+use super::delta::{
+    Baseline, DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS,
+};
 use super::events::{FpssEventInternal, StreamControl, StreamData};
 use super::framing;
 use super::protocol::{
@@ -369,8 +371,14 @@ pub fn decode_frame(
 
         StreamMsgType::Quote => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
-                Some((contract_id, _n)) => {
+            match delta_state.decode_tick(
+                Baseline::Quote,
+                msg_code,
+                payload,
+                QUOTE_FIELDS,
+                &mut buf,
+            ) {
+                Some(contract_id) => {
                     warn_unknown_contract(contract_id, "quote", delta_state, local_contracts);
                     let pt = buf[9];
                     let (Some(bid_f64), Some(ask_f64)) =
@@ -412,8 +420,14 @@ pub fn decode_frame(
 
         StreamMsgType::Trade => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS, &mut buf) {
-                Some((contract_id, _n)) => {
+            match delta_state.decode_tick(
+                Baseline::Trade,
+                msg_code,
+                payload,
+                TRADE_FIELDS,
+                &mut buf,
+            ) {
+                Some(contract_id) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
 
                     // `decode_tick` rejects any row whose width is not exactly
@@ -457,8 +471,14 @@ pub fn decode_frame(
 
         StreamMsgType::OpenInterest => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, OI_FIELDS, &mut buf) {
-                Some((contract_id, _n)) => {
+            match delta_state.decode_tick(
+                Baseline::OpenInterest,
+                msg_code,
+                payload,
+                OI_FIELDS,
+                &mut buf,
+            ) {
+                Some(contract_id) => {
                     warn_unknown_contract(
                         contract_id,
                         "open_interest",
@@ -484,8 +504,14 @@ pub fn decode_frame(
 
         StreamMsgType::Ohlcvc => {
             let msg_code = code as u8;
-            match delta_state.decode_tick(msg_code, payload, OHLCVC_FIELDS, &mut buf) {
-                Some((contract_id, _n)) => {
+            match delta_state.decode_tick(
+                Baseline::Ohlcvc,
+                msg_code,
+                payload,
+                OHLCVC_FIELDS,
+                &mut buf,
+            ) {
+                Some(contract_id) => {
                     warn_unknown_contract(contract_id, "ohlcvc", delta_state, local_contracts);
                     let pt = buf[7];
                     let (Some(o), Some(h), Some(l), Some(c)) = (
@@ -533,9 +559,19 @@ pub fn decode_frame(
             // The MARKET_VALUE frame carries the same 11-field FIT quote
             // layout as a Quote frame, so decode it with `QUOTE_FIELDS`,
             // then apply the market-value calculation to the decoded
-            // bid/ask.
-            match delta_state.decode_tick(msg_code, payload, QUOTE_FIELDS, &mut buf) {
-                Some((contract_id, _n)) => {
+            // bid/ask. It accumulates onto the contract's QUOTE baseline,
+            // not one of its own: the server encodes both streams against
+            // a single per-contract row, as the terminal's own client
+            // does, so a separate baseline here would decode each stream
+            // against a row the server has already moved past.
+            match delta_state.decode_tick(
+                Baseline::Quote,
+                msg_code,
+                payload,
+                QUOTE_FIELDS,
+                &mut buf,
+            ) {
+                Some(contract_id) => {
                     warn_unknown_contract(
                         contract_id,
                         "market_value",
@@ -1042,7 +1078,7 @@ mod tests {
         );
         assert!(seed.is_some(), "seed trade must decode");
         assert_ne!(
-            delta_state.state_sizes().0,
+            delta_state.state_sizes(),
             0,
             "seed trade must populate the delta baseline"
         );
@@ -1061,7 +1097,7 @@ mod tests {
             other => panic!("expected Control(Restart), got {other:?}"),
         }
         assert_eq!(
-            delta_state.state_sizes().0,
+            delta_state.state_sizes(),
             0,
             "Restart must clear delta state so downstream deltas don't \
              decode against a stale baseline"
@@ -1845,15 +1881,20 @@ mod tests {
         for id in 0..n {
             let payload = encode_fit_row(&[id, 34_200_000, 0, 50, 6, 5_500_000, 57, 6, 20_250_428]);
             delta_state
-                .decode_tick(StreamMsgType::Trade as u8, &payload, TRADE_FIELDS, &mut out)
+                .decode_tick(
+                    Baseline::Trade,
+                    StreamMsgType::Trade as u8,
+                    &payload,
+                    TRADE_FIELDS,
+                    &mut out,
+                )
                 .expect("absolute tick decodes");
         }
 
-        let (prev, field_counts) = delta_state.state_sizes();
-        assert_eq!(prev, n as usize, "every distinct id retained in prev");
         assert_eq!(
-            field_counts, n as usize,
-            "every distinct id retained in field_counts"
+            delta_state.state_sizes(),
+            n as usize,
+            "every distinct id retained in the baseline map"
         );
     }
 }
