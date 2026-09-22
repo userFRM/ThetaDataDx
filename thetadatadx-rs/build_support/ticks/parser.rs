@@ -192,6 +192,12 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     for col in &def.columns {
         let (_, seed) = column_decoder(def, col);
         writeln!(out, "            {}: {seed},", col.field).unwrap();
+        // A column the response omitted entirely is absent for every row, the
+        // same as a column present with a null cell. Seeding the flag false
+        // means the only thing that can set it true is a decoded value.
+        if col.nullable {
+            writeln!(out, "            has_{}: false,", col.field).unwrap();
+        }
     }
     if def.contract_id {
         out.push_str("            expiration: 0,\n");
@@ -213,9 +219,15 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         let (decoder, fill) = column_decoder(def, col);
         let name = &col.name;
         let field = &col.field;
-        let call = format!(
-            "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {fill}, {decoder}, |t, v| t.{field} = v)?;"
-        );
+        let call = if col.nullable {
+            format!(
+                "crate::decode::column::extract_nullable_column(rows, ticks, row_base, {{idx}}, \"{name}\", {fill}, {decoder}, |t, v, present| {{ t.{field} = v; t.has_{field} = present; }})?;"
+            )
+        } else {
+            format!(
+                "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {fill}, {decoder}, |t, v| t.{field} = v)?;"
+            )
+        };
         if def.required.contains(&col.name) {
             writeln!(out, "        {}", call.replace("{idx}", &var)).unwrap();
         } else {

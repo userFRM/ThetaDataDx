@@ -97,6 +97,35 @@ fn attach_column_context(err: DecodeError, header: &'static str, row: usize) -> 
 /// [`DecodeError::TypeMismatch`], which is re-shaped to
 /// [`DecodeError::ColumnTypeMismatch`] with the schema column name and
 /// absolute row index attached.
+/// Bulk-extract one column whose absent cell must stay absent.
+///
+/// Identical to [`extract_column`] except that the setter is told whether the
+/// row carried a value. A column here is one where the vendor assigns zero a
+/// meaning — quote condition 0 is `REGULAR`, a firm two-sided quote, and
+/// exchange 0 is the composite — so filling a wire null with zero publishes a
+/// code the vendor never sent and nothing downstream can recover the
+/// difference. The field still holds `absent` so the struct stays `repr(C)`
+/// and the layout is unchanged; the presence flag beside it is what carries
+/// the distinction.
+pub(crate) fn extract_nullable_column<T, V: Clone>(
+    rows: &[proto::DataValueList],
+    ticks: &mut [T],
+    row_base: usize,
+    column: usize,
+    header: &'static str,
+    absent: V,
+    cell: impl Fn(&proto::DataValueList, usize) -> Result<Option<V>, DecodeError>,
+    set: impl Fn(&mut T, V, bool),
+) -> Result<(), DecodeError> {
+    for (offset, (row, tick)) in rows.iter().zip(ticks.iter_mut()).enumerate() {
+        let decoded = cell(row, column)
+            .map_err(|err| attach_column_context(err, header, row_base + offset))?;
+        let present = decoded.is_some();
+        set(tick, decoded.unwrap_or_else(|| absent.clone()), present);
+    }
+    Ok(())
+}
+
 pub(crate) fn extract_column<T, V: Clone>(
     rows: &[proto::DataValueList],
     ticks: &mut [T],

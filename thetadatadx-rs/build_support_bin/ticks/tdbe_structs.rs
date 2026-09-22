@@ -225,6 +225,34 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
             rust_field_ident(&column.field)
         )
         .unwrap();
+
+        // A nullable column carries its own presence flag. The vendor assigns
+        // zero a meaning on every one of them — quote condition 0 is
+        // `REGULAR`, exchange 0 is the composite — so a filled zero is
+        // indistinguishable from a reported one and the absence has to be
+        // recorded beside the value rather than encoded in it.
+        //
+        // The pair rather than `Option<i32>`: these structs are `repr(C)` and
+        // cross the C ABI, where `Option<i32>` has no defined layout. The C
+        // ABI already spells an optional this way, as the `(has_value, n)`
+        // shape on the config setters, so this follows the convention it
+        // already has instead of introducing a second one.
+        if column.nullable {
+            writeln!(
+                out,
+                "    /// Whether the response carried a value for `{}`. False means the\n\
+                 \x20   /// vendor sent no value, which is not the same as the zero this\n\
+                 \x20   /// field then holds: zero is a code the vendor assigns a meaning.",
+                column.field
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "    pub has_{}: bool,",
+                rust_field_ident(&column.field)
+            )
+            .unwrap();
+        }
     }
 
     // Field order MUST match the legacy `tick.rs` layout for FFI ABI

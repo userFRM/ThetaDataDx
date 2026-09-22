@@ -125,6 +125,16 @@ fn trade_event_to_tick(event: &StreamEvent) -> Option<thetadatadx::TradeTick> {
             exchange: *exchange,
             price: *price,
             date: *date,
+            // The stream sends `condition` and `exchange`; it sends no
+            // extended-condition column at all, so those carry a cleared
+            // presence flag and reach Arrow as nulls rather than as the
+            // condition code zero.
+            has_condition: true,
+            has_exchange: true,
+            has_ext_condition1: false,
+            has_ext_condition2: false,
+            has_ext_condition3: false,
+            has_ext_condition4: false,
             // The FPSS trade event carries no extended-condition or flag
             // columns, and a stock trade has no option fields. `TradeTick`
             // uses sentinel values for these absent columns (the Arrow

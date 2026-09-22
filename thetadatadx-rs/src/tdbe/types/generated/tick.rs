@@ -62,18 +62,34 @@ pub struct EodTick {
     pub bid_size: i32,
     /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
+    /// Whether the response carried a value for `bid_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_exchange: bool,
     /// Last NBBO bid price.
     pub bid: f64,
     /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
+    /// Whether the response carried a value for `bid_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_condition: bool,
     /// Last NBBO ask size.
     pub ask_size: i32,
     /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
+    /// Whether the response carried a value for `ask_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_exchange: bool,
     /// Last NBBO ask price.
     pub ask: f64,
     /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
+    /// Whether the response carried a value for `ask_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_condition: bool,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
@@ -245,18 +261,34 @@ pub struct GreeksEodTick {
     pub bid_size: i32,
     /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
+    /// Whether the response carried a value for `bid_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_exchange: bool,
     /// Last NBBO bid price.
     pub bid: f64,
     /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
+    /// Whether the response carried a value for `bid_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_condition: bool,
     /// Last NBBO ask size.
     pub ask_size: i32,
     /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
+    /// Whether the response carried a value for `ask_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_exchange: bool,
     /// Last NBBO ask price.
     pub ask: f64,
     /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
+    /// Whether the response carried a value for `ask_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_condition: bool,
     /// Sensitivity of the option value to a one-dollar move in the underlying.
     pub delta: f64,
     /// Sensitivity of the option value to the passage of time.
@@ -545,18 +577,42 @@ pub struct IndexPriceAtTimeTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Index value at the requested time.
     pub price: f64,
     /// Trading date as a YYYYMMDD integer.
@@ -836,18 +892,34 @@ pub struct QuoteTick {
     pub bid_size: i32,
     /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
+    /// Whether the response carried a value for `bid_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_exchange: bool,
     /// Last NBBO bid price.
     pub bid: f64,
     /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
+    /// Whether the response carried a value for `bid_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_condition: bool,
     /// Last NBBO ask size.
     pub ask_size: i32,
     /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
+    /// Whether the response carried a value for `ask_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_exchange: bool,
     /// Last NBBO ask price.
     pub ask: f64,
     /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
+    /// Whether the response carried a value for `ask_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_condition: bool,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
@@ -889,18 +961,42 @@ pub struct TradeGreeksAllTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Trade price.
     pub price: f64,
     /// Sensitivity of the option value to a one-dollar move in the underlying.
@@ -995,18 +1091,42 @@ pub struct TradeGreeksFirstOrderTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Trade price.
     pub price: f64,
     /// Sensitivity of the option value to a one-dollar move in the underlying.
@@ -1074,18 +1194,42 @@ pub struct TradeGreeksImpliedVolatilityTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Trade price.
     pub price: f64,
     /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
@@ -1140,18 +1284,42 @@ pub struct TradeGreeksSecondOrderTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Trade price.
     pub price: f64,
     /// Rate of change of delta with respect to the underlying price.
@@ -1217,18 +1385,42 @@ pub struct TradeGreeksThirdOrderTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Trade price.
     pub price: f64,
     /// Rate of change of gamma with respect to the underlying price.
@@ -1289,18 +1481,42 @@ pub struct TradeQuoteTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Trade price.
     pub price: f64,
     /// Trade condition flags bitmap.
@@ -1317,18 +1533,34 @@ pub struct TradeQuoteTick {
     pub bid_size: i32,
     /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
+    /// Whether the response carried a value for `bid_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_exchange: bool,
     /// NBBO bid at the time of the trade.
     pub bid: f64,
     /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
+    /// Whether the response carried a value for `bid_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_bid_condition: bool,
     /// Last NBBO ask size.
     pub ask_size: i32,
     /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
+    /// Whether the response carried a value for `ask_exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_exchange: bool,
     /// NBBO ask at the time of the trade.
     pub ask: f64,
     /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
+    /// Whether the response carried a value for `ask_condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ask_condition: bool,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
     /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
@@ -1371,18 +1603,42 @@ pub struct TradeTick {
     pub sequence: i32,
     /// Additional trade condition code.
     pub ext_condition1: i32,
+    /// Whether the response carried a value for `ext_condition1`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition1: bool,
     /// Additional trade condition code.
     pub ext_condition2: i32,
+    /// Whether the response carried a value for `ext_condition2`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition2: bool,
     /// Additional trade condition code.
     pub ext_condition3: i32,
+    /// Whether the response carried a value for `ext_condition3`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition3: bool,
     /// Additional trade condition code.
     pub ext_condition4: i32,
+    /// Whether the response carried a value for `ext_condition4`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_ext_condition4: bool,
     /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
+    /// Whether the response carried a value for `condition`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_condition: bool,
     /// Number of contracts or shares traded.
     pub size: i32,
     /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
+    /// Whether the response carried a value for `exchange`. False means the
+    /// vendor sent no value, which is not the same as the zero this
+    /// field then holds: zero is a code the vendor assigns a meaning.
+    pub has_exchange: bool,
     /// Trade price.
     pub price: f64,
     /// Trade condition flags bitmap.

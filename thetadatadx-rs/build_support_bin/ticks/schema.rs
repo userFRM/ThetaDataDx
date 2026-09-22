@@ -128,24 +128,24 @@ impl FlagAccessorDef {
             .unwrap_or_else(|| panic!("flag_accessor '{}': {} needs `value`", self.name, self.kind))
     }
 
-    /// Render the predicate as a boolean Rust expression over `{src}.<field>`
-    /// (e.g. `self` for a pyclass getter, `t` for a TS factory closure).
-    /// Shared by the Python and TypeScript emitters, which both generate
-    /// Rust source.
-    pub(crate) fn rust_predicate(&self, src: &str) -> String {
-        let field = &self.field;
+    /// Render the predicate as a boolean Rust expression over `cell`, an
+    /// `i32` expression naming the column the predicate reads. The caller
+    /// supplies it, so a surface that carries the column as `Option<i32>`
+    /// can test the unwrapped cell. Shared by the Python and TypeScript
+    /// emitters, which both generate Rust source.
+    pub(crate) fn rust_predicate(&self, cell: &str) -> String {
         match self.kind.as_str() {
             "range_inclusive" => {
                 let (lo, hi) = self.range_bounds();
-                format!("({lo}..={hi}).contains(&{src}.{field})")
+                format!("({lo}..={hi}).contains(&{cell})")
             }
             "bit_set" => {
                 let mask = self.operand();
-                format!("{src}.{field} & {mask} == {mask}")
+                format!("{cell} & {mask} == {mask}")
             }
             "eq" => {
                 let value = self.operand();
-                format!("{src}.{field} == {value}")
+                format!("{cell} == {value}")
             }
             other => panic!(
                 "unsupported flag_accessor kind '{other}' for '{}'; expected range_inclusive / bit_set / eq",
@@ -196,6 +196,18 @@ pub(crate) struct ColumnDef {
     /// untouched; the docs generator fails loudly on a missing doc.
     /// Only the docs generator reads it, so the field is dead code in
     /// the `generate_sdk_surfaces` compile unit (no `__internal`).
+    /// Whether an absent cell must be carried as "no value" rather than
+    /// filled with the column's zero.
+    ///
+    /// Most columns can fill: a null size or count is absent data, and zero
+    /// reads the same way. These cannot. The vendor assigns zero a meaning on
+    /// every condition and exchange column — quote condition 0 is `REGULAR`,
+    /// a firm two-sided quote, and exchange 0 is the composite — so filling a
+    /// wire null with zero publishes a positive assertion the vendor never
+    /// made, and nothing downstream can tell the two apart. The vendor's own
+    /// client renders such a cell as null rather than as a code.
+    #[serde(default)]
+    pub(crate) nullable: bool,
     #[serde(default)]
     #[cfg_attr(not(feature = "__internal"), allow(dead_code))]
     pub(crate) doc: Option<String>,

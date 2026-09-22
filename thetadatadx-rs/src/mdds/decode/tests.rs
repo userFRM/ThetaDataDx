@@ -1388,6 +1388,53 @@ fn quote_tick_decodes_current_eleven_field_shape_unchanged() {
     assert_eq!(t.date, 20_240_605);
 }
 
+/// A null cell on a condition or exchange column decodes as absent, not as
+/// the code that shares its zero seed. Quote condition 0 is REGULAR and
+/// exchange 0 is the composite, so a parser that filled the zero would
+/// publish two assertions the vendor never made, and the presence flag is
+/// the only place the distinction survives: the response headers list the
+/// column either way.
+#[test]
+fn a_null_quote_cell_decodes_as_absent_rather_than_as_code_zero() {
+    let table = proto::DataTable {
+        headers: vec![
+            "ms_of_day".into(),
+            "bid_size".into(),
+            "bid_exchange".into(),
+            "bid".into(),
+            "bid_condition".into(),
+            "ask_size".into(),
+            "ask_exchange".into(),
+            "ask".into(),
+            "ask_condition".into(),
+            "date".into(),
+        ],
+        data_table: vec![row_of(vec![
+            dv_number(34_200_000),
+            dv_number(50),
+            dv_null(),
+            dv_price(15022, 6),
+            dv_null(),
+            dv_number(75),
+            dv_number(8),
+            dv_price(15041, 6),
+            dv_number(0),
+            dv_number(20_240_605),
+        ])],
+    };
+    let ticks = parse_quote_ticks(&table).unwrap();
+    let t = &ticks[0];
+
+    assert!(!t.has_bid_exchange, "a null exchange cell is absent");
+    assert!(!t.has_bid_condition, "a null condition cell is absent");
+    // A sent zero is a code the vendor chose, and stays distinguishable from
+    // the null beside it.
+    assert!(t.has_ask_condition, "a sent zero is a present code");
+    assert_eq!(t.ask_condition, 0);
+    assert!(t.has_ask_exchange);
+    assert_eq!(t.ask_exchange, 8);
+}
+
 // ─────────────────── Invalid-text propagation ───────────────────
 //
 // Malformed date / time text surfaces as `DecodeError::InvalidDate`
