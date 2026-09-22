@@ -115,6 +115,34 @@ impl Disconnected {
     }
 }
 
+/// Streaming index MarketValue tick (wire code 25, index contracts). The vendor publishes `ms_of_day`, `date` and `market_price` for an index and no bid or ask: an index has no NBBO, so the size-imbalance nudge that produces `market_bid` / `market_ask` for a stock or an option does not apply. `market_price` is served exactly as the feed sent it. Per-contract only (no full-stream variant).
+#[must_use]
+#[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
+pub(crate) struct IndexMarketValue {
+    pub contract: fpss::protocol::Contract,
+    #[pyo3(get)] pub ms_of_day: i32,
+    #[pyo3(get)] pub market_price: f64,
+    #[pyo3(get)] pub date: i32,
+    #[pyo3(get)] pub received_at_ns: u64,
+}
+#[pymethods]
+impl IndexMarketValue {
+    fn __repr__(&self) -> String {
+        format!("IndexMarketValue(ms_of_day={}, market_price={}, date={})", self.ms_of_day, self.market_price, self.date)
+    }
+
+    /// Streaming contract identity (`symbol`, `sec_type`,
+    /// `expiration`, `right`, `strike`). Built on access from the
+    /// event's inline contract.
+    #[getter]
+    fn contract(&self, py: Python<'_>) -> PyResult<Py<ContractRef>> {
+        Py::new(py, ContractRef::from_core(&self.contract))
+    }
+
+    #[getter]
+    fn kind(&self) -> &'static str { "index_market_value" }
+}
+
 /// Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
@@ -503,6 +531,24 @@ pub(crate) fn fpss_event_to_typed(
 ) -> PyResult<Py<PyAny>> {
     match event {
         fpss::StreamEvent::Data(data) => match data {
+            fpss::StreamData::IndexMarketValue {
+                contract,
+                ms_of_day,
+                market_price,
+                date,
+                received_at_ns,
+                ..
+            } => Py::new(
+                py,
+                IndexMarketValue {
+                    contract: (**contract).clone(),
+                    ms_of_day: *ms_of_day,
+                    market_price: *market_price,
+                    date: *date,
+                    received_at_ns: *received_at_ns,
+                },
+            )
+            .map(|p| p.into_any()),
             fpss::StreamData::MarketValue {
                 contract,
                 ms_of_day,
@@ -725,6 +771,7 @@ pub(crate) fn register_fpss_event_classes(m: &Bound<'_, PyModule>) -> PyResult<(
     m.add_class::<Connected>()?;
     m.add_class::<ContractAssigned>()?;
     m.add_class::<Disconnected>()?;
+    m.add_class::<IndexMarketValue>()?;
     m.add_class::<LoginSuccess>()?;
     m.add_class::<MarketClose>()?;
     m.add_class::<MarketOpen>()?;

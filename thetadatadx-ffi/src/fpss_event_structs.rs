@@ -19,44 +19,46 @@ pub enum ThetaDataDxStreamEventKind {
     ContractAssigned = 1,
     /// `Disconnected` event; the `disconnected` field carries its payload.
     Disconnected = 2,
+    /// `IndexMarketValue` event; the `index_market_value` field carries its payload.
+    IndexMarketValue = 3,
     /// `LoginSuccess` event; the `login_success` field carries its payload.
-    LoginSuccess = 3,
+    LoginSuccess = 4,
     /// `MarketClose` event; the `market_close` field carries its payload.
-    MarketClose = 4,
+    MarketClose = 5,
     /// `MarketOpen` event; the `market_open` field carries its payload.
-    MarketOpen = 5,
+    MarketOpen = 6,
     /// `MarketValue` event; the `market_value` field carries its payload.
-    MarketValue = 6,
+    MarketValue = 7,
     /// `Ohlcvc` event; the `ohlcvc` field carries its payload.
-    Ohlcvc = 7,
+    Ohlcvc = 8,
     /// `OpenInterest` event; the `open_interest` field carries its payload.
-    OpenInterest = 8,
+    OpenInterest = 9,
     /// `ParseError` event; the `parse_error` field carries its payload.
-    ParseError = 9,
+    ParseError = 10,
     /// `Ping` event; the `ping` field carries its payload.
-    Ping = 10,
+    Ping = 11,
     /// `Quote` event; the `quote` field carries its payload.
-    Quote = 11,
+    Quote = 12,
     /// `Reconnected` event; the `reconnected` field carries its payload.
-    Reconnected = 12,
+    Reconnected = 13,
     /// `ReconnectedServer` event; the `reconnected_server` field carries its payload.
-    ReconnectedServer = 13,
+    ReconnectedServer = 14,
     /// `Reconnecting` event; the `reconnecting` field carries its payload.
-    Reconnecting = 14,
+    Reconnecting = 15,
     /// `ReconnectsExhausted` event; the `reconnects_exhausted` field carries its payload.
-    ReconnectsExhausted = 15,
+    ReconnectsExhausted = 16,
     /// `ReqResponse` event; the `req_response` field carries its payload.
-    ReqResponse = 16,
+    ReqResponse = 17,
     /// `Restart` event; the `restart` field carries its payload.
-    Restart = 17,
+    Restart = 18,
     /// `ServerError` event; the `server_error` field carries its payload.
-    ServerError = 18,
+    ServerError = 19,
     /// `Trade` event; the `trade` field carries its payload.
-    Trade = 19,
+    Trade = 20,
     /// `UnknownControl` event; the `unknown_control` field carries its payload.
-    UnknownControl = 20,
+    UnknownControl = 21,
     /// `UnknownFrame` event; the `unknown_frame` field carries its payload.
-    UnknownFrame = 21,
+    UnknownFrame = 22,
 }
 
 /// FPSS `Contract` shared across every data event.
@@ -104,6 +106,21 @@ has_strike: false,
 strike: 0.0,
 strike_thousandths: 0,
 };
+
+/// Streaming index MarketValue tick (wire code 25, index contracts). The vendor publishes `ms_of_day`, `date` and `market_price` for an index and no bid or ask: an index has no NBBO, so the size-imbalance nudge that produces `market_bid` / `market_ask` for a stock or an option does not apply. `market_price` is served exactly as the feed sent it. Per-contract only (no full-stream variant).
+#[repr(C)]
+pub struct ThetaDataDxStreamIndexMarketValue {
+    /// Contract this event refers to.
+    pub contract: ThetaDataDxContract,
+    /// Milliseconds since midnight Eastern Time when the event was recorded.
+    pub ms_of_day: i32,
+    /// Integer midpoint of `market_bid` / `market_ask` (dollars).
+    pub market_price: f64,
+    /// Trading date as `YYYYMMDD`.
+    pub date: i32,
+    /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
+    pub received_at_ns: u64,
+}
 
 /// Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
 #[repr(C)]
@@ -375,6 +392,8 @@ pub struct ThetaDataDxStreamUnknownFrame {
 pub struct ThetaDataDxStreamEvent {
     /// Discriminant selecting which payload field below is valid.
     pub kind: ThetaDataDxStreamEventKind,
+    /// `IndexMarketValue` payload; valid when `kind` is `IndexMarketValue`.
+    pub index_market_value: ThetaDataDxStreamIndexMarketValue,
     /// `MarketValue` payload; valid when `kind` is `MarketValue`.
     pub market_value: ThetaDataDxStreamMarketValue,
     /// `Ohlcvc` payload; valid when `kind` is `Ohlcvc`.
@@ -428,6 +447,10 @@ pub struct ThetaDataDxStreamEvent {
 const _: () = {
     assert!(core::mem::size_of::<ThetaDataDxContract>() == 40);
     assert!(core::mem::align_of::<ThetaDataDxContract>() == 8);
+};
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStreamIndexMarketValue>() == 72);
+    assert!(core::mem::align_of::<ThetaDataDxStreamIndexMarketValue>() == 8);
 };
 const _: () = {
     assert!(core::mem::size_of::<ThetaDataDxStreamMarketValue>() == 88);
@@ -518,11 +541,18 @@ const _: () = {
     assert!(core::mem::align_of::<ThetaDataDxStreamUnknownFrame>() == 8);
 };
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxStreamEvent>() == 656);
+    assert!(core::mem::size_of::<ThetaDataDxStreamEvent>() == 728);
     assert!(core::mem::align_of::<ThetaDataDxStreamEvent>() == 8);
 };
 
 // Zero-initialized defaults for inactive union-style fields.
+pub(crate) const ZERO_INDEX_MARKET_VALUE: ThetaDataDxStreamIndexMarketValue = ThetaDataDxStreamIndexMarketValue {
+    contract: ZERO_CONTRACT_STRUCT,
+    ms_of_day: 0,
+    market_price: 0.0,
+    date: 0,
+    received_at_ns: 0,
+};
 pub(crate) const ZERO_MARKET_VALUE: ThetaDataDxStreamMarketValue = ThetaDataDxStreamMarketValue {
     contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
@@ -637,6 +667,7 @@ pub(crate) const ZERO_UNKNOWN_FRAME: ThetaDataDxStreamUnknownFrame = ThetaDataDx
 };
 pub(crate) const ZERO_STREAM_EVENT: ThetaDataDxStreamEvent = ThetaDataDxStreamEvent {
     kind: ThetaDataDxStreamEventKind::UnknownControl,
+    index_market_value: ZERO_INDEX_MARKET_VALUE,
     market_value: ZERO_MARKET_VALUE,
     ohlcvc: ZERO_OHLCVC,
     open_interest: ZERO_OI,

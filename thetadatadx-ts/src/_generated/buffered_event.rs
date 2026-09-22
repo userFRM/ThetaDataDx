@@ -16,6 +16,14 @@ pub(crate) enum BufferedEvent {
     Disconnected {
         reason: i32,
     },
+    /// Streaming index MarketValue tick (wire code 25, index contracts). The vendor publishes `ms_of_day`, `date` and `market_price` for an index and no bid or ask: an index has no NBBO, so the size-imbalance nudge that produces `market_bid` / `market_ask` for a stock or an option does not apply. `market_price` is served exactly as the feed sent it. Per-contract only (no full-stream variant).
+    IndexMarketValue {
+        contract: fpss::protocol::Contract,
+        ms_of_day: i32,
+        market_price: f64,
+        date: i32,
+        received_at_ns: u64,
+    },
     /// Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
     LoginSuccess {
         permissions: String,
@@ -128,6 +136,20 @@ pub(crate) enum BufferedEvent {
 pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent {
     match event {
         fpss::StreamEvent::Data(data) => match data {
+            fpss::StreamData::IndexMarketValue {
+                contract,
+                ms_of_day,
+                market_price,
+                date,
+                received_at_ns,
+                ..
+            } => BufferedEvent::IndexMarketValue {
+                contract: (**contract).clone(),
+                ms_of_day: *ms_of_day,
+                market_price: *market_price,
+                date: *date,
+                received_at_ns: *received_at_ns,
+            },
             fpss::StreamData::MarketValue {
                 contract,
                 ms_of_day,

@@ -82,6 +82,7 @@ import pathlib
 import re
 import sys
 import tempfile
+import functools
 import tomllib
 from typing import Any
 
@@ -962,33 +963,30 @@ def _is_implicitly_tracked(name: str, lang: str) -> bool:
             "SubscriptionRef",
         }:
             return True
-    if name in {
-        "Quote",
-        "Trade",
-        "Ohlcvc",
-        "OpenInterest",
-        "MarketValue",
-        "ContractAssigned",
-        "Connected",
-        "Disconnected",
+    # Streaming event payload classes are generated one-per-variant from
+    # `fpss_event_schema.toml`, so the set is read from that schema rather
+    # than restated here: a literal list silently stops covering the surface
+    # the moment a variant is added, which is the drift this scan exists to
+    # catch. The names below are the ones no schema declares.
+    if name in _fpss_event_class_names() | {
         "Error",
-        "LoginSuccess",
-        "MarketOpen",
-        "MarketClose",
-        "Ping",
-        "Reconnected",
-        "ReconnectedServer",
-        "Reconnecting",
-        "ReconnectsExhausted",
-        "ReqResponse",
-        "Restart",
-        "ServerError",
         "UnknownControl",
-        "UnknownFrame",
         "OptionContract",
     }:
         return True
     return False
+
+
+@functools.lru_cache(maxsize=1)
+def _fpss_event_class_names() -> frozenset[str]:
+    """Every `[events.<Variant>]` name in the FPSS event schema.
+
+    Each one is generated into a payload class on Python, TypeScript and C++,
+    so each is enrolled by construction rather than by a parity row.
+    """
+    schema = REPO_ROOT / "thetadatadx-rs/fpss_event_schema.toml"
+    data = tomllib.loads(schema.read_text(encoding="utf-8"))
+    return frozenset(data.get("events", {}))
 
 
 def _declared_class_names_for_binding(rows: list[dict[str, Any]], lang: str) -> set[str]:

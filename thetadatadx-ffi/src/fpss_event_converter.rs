@@ -34,6 +34,52 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
     }
 
     match event {
+        StreamEvent::Data(StreamData::IndexMarketValue {
+            contract,
+            ms_of_day,
+            market_price,
+            date,
+            received_at_ns,
+            ..
+        }) => {
+            let contract_symbol_cstring = if contract.symbol.is_empty() {
+                None
+            } else {
+                Some(cstring_for_ffi(&contract.symbol[..]))
+            };
+            let contract_symbol_ptr = contract_symbol_cstring
+                .as_ref()
+                .map_or(ptr::null(), |cs| cs.as_ptr());
+            let thetadatadx_contract = ThetaDataDxContract {
+                symbol: contract_symbol_ptr,
+                sec_type: contract.sec_type as i32,
+                has_expiration: contract.expiration.is_some(),
+                expiration: contract.expiration.unwrap_or(0),
+                has_right: contract.is_call.is_some(),
+                right: contract.right().map_or(0, |r| r.as_char() as c_char),
+                has_strike: contract.strike_thousandths.is_some(),
+                strike: contract.strike_dollars().unwrap_or(0.0),
+                strike_thousandths: contract.strike_thousandths.unwrap_or(0),
+            };
+            FfiBufferedEvent {
+                event: ThetaDataDxStreamEvent {
+                    kind: ThetaDataDxStreamEventKind::IndexMarketValue,
+                    index_market_value: ThetaDataDxStreamIndexMarketValue {
+                        contract: thetadatadx_contract,
+                        ms_of_day: *ms_of_day,
+                        market_price: *market_price,
+                        date: *date,
+                        received_at_ns: *received_at_ns,
+                    },
+                    ..ZERO_STREAM_EVENT
+                },
+                _contract_symbol: contract_symbol_cstring,
+                _login_permissions: None,
+                _control_message: None,
+                _payload_bytes: None,
+            }
+        }
+
         StreamEvent::Data(StreamData::MarketValue {
             contract,
             ms_of_day,

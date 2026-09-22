@@ -7,7 +7,7 @@ description: "Real-time calculated market value for an index."
 
 # Index Market Value
 
-Streams the calculated market value for an index, delivered as a `MarketValue` event. For an index only `market_price` is populated; the bid/ask market values that accompany stock and option market-value events do not apply to indices. Market value is a per-index subscription with no full-stream broadcast.
+Streams the market value for an index, delivered as an `IndexMarketValue` event carrying `ms_of_day`, `market_price` and `date`. An index has no NBBO, so there is no `market_bid` or `market_ask` beside the price and no midpoint between them: the event type is distinct from the stock and option `MarketValue` for that reason, rather than carrying fields that do not apply. The price is served exactly as the feed sent it. Market value is a per-index subscription with no full-stream broadcast.
 
 The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
@@ -20,7 +20,7 @@ use thetadatadx::streaming::Contract;
 use thetadatadx::streaming::{StreamData, StreamEvent};
 
 client.stream().start_streaming(|event: &StreamEvent| {
-    if let StreamEvent::Data(StreamData::MarketValue { contract, market_price, .. }) = event {
+    if let StreamEvent::Data(StreamData::IndexMarketValue { contract, market_price, .. }) = event {
         println!("{} market_price={market_price}", contract.symbol);
     }
 })?;
@@ -40,7 +40,7 @@ client.stream().unsubscribe(sub)?;
 from thetadatadx import Contract
 
 def on_event(event):
-    if event.kind == "market_value":
+    if event.kind == "index_market_value":
         print(event.contract.symbol, event.market_price)
 
 client.stream.start_streaming(on_event)
@@ -60,8 +60,8 @@ client.stream.unsubscribe(sub)
 import { Contract } from 'thetadatadx-ts';
 
 await client.stream.startStreaming((event) => {
-  if (event.kind === 'market_value') {
-    const e = event.marketValue!;
+  if (event.kind === 'index_market_value') {
+    const e = event.indexMarketValue!;
     console.log(e.contract.symbol, e.marketPrice);
   }
 });
@@ -79,8 +79,8 @@ client.stream.unsubscribe(sub);
 
 ```cpp
 client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
-    if (event.kind == THETADATADX_STREAM_MARKET_VALUE) {
-        auto& e = event.market_value;
+    if (event.kind == THETADATADX_STREAM_INDEX_MARKET_VALUE) {
+        auto& e = event.index_market_value;
         std::cout << e.contract.symbol << " market_price=" << e.market_price << "\n";
     }
 });
@@ -113,16 +113,14 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## `MarketValue` event fields
+## `IndexMarketValue` event fields
 
-Each update arrives as a `MarketValue` event with these fields:
+Each update arrives as a `IndexMarketValue` event with these fields:
 
 | Field | Type | Description |
 |---|---|---|
 | `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
-| `market_bid` | f64 | Calculated market-value bid (stocks and options only). |
-| `market_ask` | f64 | Calculated market-value ask (stocks and options only). |
 | `market_price` | f64 | Calculated market value; the only populated value for an index. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 | `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
@@ -131,5 +129,5 @@ The `contract` field carries `symbol`, the security type, and — for options �
 
 ## WebSocket frame
 
-The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "market_value": {…} }`: `header` and `contract` are always present, while the `market_value` payload object carries only the terminal-compatible subset: `ms_of_day`, `market_bid`, `market_ask`, `market_price`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `market_value` payload object.
+The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "index_market_value": {…} }`: `header` and `contract` are always present, while the `index_market_value` payload object carries only the terminal-compatible subset: `ms_of_day`, `market_price`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `index_market_value` payload object.
 
