@@ -113,7 +113,7 @@ doc = "Streaming index MarketValue tick (wire code 25, index contracts). The ven
 columns = [
     { name = "contract",      type = "Contract" },
     { name = "ms_of_day",     type = "i32" },
-    { name = "market_price",  type = "f64" },
+    { name = "market_price",  type = "f64", doc = "The index market price (dollars), as the feed sent it. An index has no NBBO, so this is not a midpoint of anything." },
     { name = "date",          type = "i32" },
     { name = "received_at_ns", type = "u64" },
 ]
