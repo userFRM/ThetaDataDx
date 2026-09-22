@@ -68,18 +68,6 @@ pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
 /// `price`, `eod_price`, and contract-`strike` decode), text
 /// (`row_text`), and the EOD wildcard-report shapes that additionally
 /// accept `Price` cells (`row_eod_*`).
-/// Whether a column's absent-cell seed is also a value the vendor sends.
-///
-/// Condition codes and exchange codes both start at zero and both assign it
-/// a meaning: quote condition 0 is `REGULAR`, a firm two-sided quote, and
-/// exchange 0 is the composite. Seeding those with zero on a wire null turns
-/// "the vendor sent nothing" into a positive assertion it never made, so
-/// they refuse the response instead. Every other column's zero is either
-/// genuinely absent data (a size, a count) or a value no vendor table names.
-fn seed_collides_with_vendor_code(name: &str) -> bool {
-    name.ends_with("condition") || name.ends_with("exchange") || name.starts_with("ext_condition")
-}
-
 fn column_decoder(def: &TickTypeDef, col: &ColumnDef) -> (&'static str, &'static str) {
     match col.r#type.as_str() {
         "i32" => {
@@ -210,16 +198,8 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         let (decoder, fill) = column_decoder(def, col);
         let name = &col.name;
         let field = &col.field;
-        // A column whose seed is a live vendor code cannot substitute it for
-        // the wire's null: doing so publishes a condition or a venue the
-        // vendor never sent. Those columns refuse instead.
-        let policy = if seed_collides_with_vendor_code(name) {
-            "crate::decode::column::NullFill::Refuse".to_string()
-        } else {
-            format!("crate::decode::column::NullFill::Value({fill})")
-        };
         let call = format!(
-            "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {policy}, {decoder}, |t, v| t.{field} = v)?;"
+            "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {fill}, {decoder}, |t, v| t.{field} = v)?;"
         );
         if def.required.contains(&col.name) {
             writeln!(out, "        {}", call.replace("{idx}", &var)).unwrap();
@@ -239,13 +219,13 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     // "CALL"/"C"/"PUT"/"P") to the logical character — strict dispatch.
     if def.contract_id {
         out.push_str("        if let Some(idx) = _cid_exp_idx {\n");
-        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"expiration\", crate::decode::column::NullFill::Value(0), row_contract_expiration, |t, v| t.expiration = v)?;\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"expiration\", 0, row_contract_expiration, |t, v| t.expiration = v)?;\n");
         out.push_str("        }\n");
         out.push_str("        if let Some(idx) = _cid_strike_idx {\n");
-        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"strike\", crate::decode::column::NullFill::Value(0.0), row_price_f64, |t, v| t.strike = v)?;\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"strike\", 0.0, row_price_f64, |t, v| t.strike = v)?;\n");
         out.push_str("        }\n");
         out.push_str("        if let Some(idx) = _cid_right_idx {\n");
-        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"right\", crate::decode::column::NullFill::Value('\\0'), row_contract_right, |t, v| t.right = v)?;\n");
+        out.push_str("            crate::decode::column::extract_column(rows, ticks, row_base, idx, \"right\", '\\0', row_contract_right, |t, v| t.right = v)?;\n");
         out.push_str("        }\n");
     }
 
