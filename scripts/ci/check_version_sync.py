@@ -385,6 +385,47 @@ def main() -> int:
                 f"{package_json_version(platform_pkg)}, expected {canonical}"
             )
 
+    # `thetadatadx-ts/index.js` is napi-generated from package.json and ships
+    # to npm inside package.json's `files`. It hardcodes the version at every
+    # native-binding load path, so a bump that does not regenerate it publishes
+    # a package whose loader rejects its own binary once
+    # NAPI_RS_ENFORCE_VERSION_CHECK is set. Nothing in this gate read it and
+    # nothing in ci.yml did either: the only check that caught it is the
+    # `git diff --exit-code` in typescript.yml, which `verified` does not
+    # include, so crates.io and PyPI would publish while npm failed and the
+    # release would land in pieces. It has gone stale before -- the 0.3.0
+    # release commit still said 0.2.0.
+    ts_index = ROOT / "thetadatadx-ts" / "index.js"
+    if ts_index.is_file():
+        pinned_versions = set(re.findall(r"\b\d+\.\d+\.\d+\b", ts_index.read_text()))
+        stale = sorted(v for v in pinned_versions if v != canonical)
+        if stale:
+            failures.append(
+                f"{ts_index.relative_to(ROOT)} pins {', '.join(stale)}, expected "
+                f"{canonical}; regenerate it with `npm run build` in thetadatadx-ts"
+            )
+        elif not pinned_versions:
+            failures.append(
+                f"{ts_index.relative_to(ROOT)} carries no version pin at all; it is "
+                "generated, so an empty scan means the generator or this check moved"
+            )
+
+    # `package-lock.json` records the package's own version in two places and
+    # is published-adjacent: `npm ci` reads it, and a stale one describes the
+    # tree as the previous release. `bump_version.py` rewrote package.json and
+    # left this behind, so it shipped two releases out of date.
+    ts_lock = ROOT / "thetadatadx-ts" / "package-lock.json"
+    if ts_lock.is_file():
+        lock = json.loads(ts_lock.read_text())
+        for where, value in (
+            ("version", lock.get("version")),
+            ('packages[""].version', lock.get("packages", {}).get("", {}).get("version")),
+        ):
+            if value != canonical:
+                failures.append(
+                    f"{ts_lock.relative_to(ROOT)} {where} is {value}, expected {canonical}"
+                )
+
     # The MCP server ships to npm as well (`npx -y thetadatadx-mcp-server`): a
     # launcher package plus one prebuilt-binary package per platform, all
     # under `tools/mcp/npm/`. They pin the canonical version exactly like
