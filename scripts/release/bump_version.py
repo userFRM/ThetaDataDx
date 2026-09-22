@@ -160,6 +160,13 @@ def bump_package_lock(path: Path, current: str, target: str, first_party_prefix:
         holder["version"] = target
 
     moved = 0
+    # The launcher records its dependency pins a second time inside the
+    # lockfile; `npm ci` resolves from these, so leaving them behind asks for
+    # the previous release's binaries by name.
+    for dep, pinned in list(root_pkg.get("optionalDependencies", {}).items()):
+        if dep.startswith(first_party_prefix) and pinned == current:
+            root_pkg["optionalDependencies"][dep] = target
+            moved += 1
     for name, entry in data.get("packages", {}).items():
         if not name.startswith("node_modules/"):
             continue

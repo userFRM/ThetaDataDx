@@ -403,8 +403,18 @@ def main() -> int:
     # release would land in pieces. It has gone stale before -- the 0.3.0
     # release commit still said 0.2.0.
     ts_index = ROOT / "thetadatadx-ts" / "index.js"
-    if ts_index.is_file():
-        pinned_versions = set(re.findall(r"\b\d+\.\d+\.\d+\b", ts_index.read_text()))
+    if not ts_index.is_file():
+        failures.append(
+            f"{ts_index.relative_to(ROOT)} is missing; it is generated and published, "
+            "so its absence is drift rather than nothing to check"
+        )
+    else:
+        # The suffix is part of the version: `0.5.0-rc.1` and `0.5.0` are
+        # different packages, and a pattern that stops at the patch digit reads
+        # a loader still pinned to the release candidate as current.
+        pinned_versions = set(
+            re.findall(r"\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", ts_index.read_text())
+        )
         stale = sorted(v for v in pinned_versions if v != canonical)
         if stale:
             failures.append(
@@ -422,7 +432,12 @@ def main() -> int:
     # tree as the previous release. `bump_version.py` rewrote package.json and
     # left this behind, so it shipped two releases out of date.
     ts_lock = ROOT / "thetadatadx-ts" / "package-lock.json"
-    if ts_lock.is_file():
+    if not ts_lock.is_file():
+        failures.append(
+            f"{ts_lock.relative_to(ROOT)} is missing; `npm ci` reads it, so its "
+            "absence is drift rather than nothing to check"
+        )
+    else:
         lock = json.loads(ts_lock.read_text())
         for where, value in (
             ("version", lock.get("version")),
@@ -457,6 +472,19 @@ def main() -> int:
             if version != canonical:
                 failures.append(
                     f"{ts_lock.relative_to(ROOT)} {name} is {version}, expected {canonical}"
+                )
+
+        # The launcher's own dependency pins, recorded a second time inside the
+        # lockfile. `npm ci` resolves from these, so leaving them behind asks
+        # for the previous release's binaries by name no matter what the
+        # resolved entries above say.
+        for dep, pinned in sorted(
+            lock.get("packages", {}).get("", {}).get("optionalDependencies", {}).items()
+        ):
+            if dep.startswith("thetadatadx-ts") and pinned != canonical:
+                failures.append(
+                    f'{ts_lock.relative_to(ROOT)} packages[""].optionalDependencies'
+                    f"['{dep}'] is {pinned}, expected {canonical}"
                 )
 
     # The MCP server ships to npm as well (`npx -y thetadatadx-mcp-server`): a

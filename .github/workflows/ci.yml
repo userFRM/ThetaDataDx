@@ -1029,7 +1029,11 @@ jobs:
         with:
           pattern: thetadatadx-server-*
           path: server-assets/
-          merge-multiple: true
+          # Not merge-multiple: that flattens every matching artifact into one
+          # directory inside the action, where a shared filename is resolved by
+          # overwriting before the staging guard below can see two of them.
+          # Landing each artifact in its own subdirectory keeps the clash
+          # visible, and `stage` refuses it by basename.
       - name: Stage the release assets
         shell: bash
         run: |
