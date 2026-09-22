@@ -3,6 +3,7 @@
 // Source-of-truth: thetadatadx-rs/data/vendor_vocabulary.toml
 
 /// The vendor's `AccountType` vocabulary (4 names).
+#[rustfmt::skip]
 pub const ACCOUNT_TYPE: [&str; 4] = [
     "FREE",
     "VALUE",
@@ -11,12 +12,14 @@ pub const ACCOUNT_TYPE: [&str; 4] = [
 ];
 
 /// The vendor's `CalendarType` vocabulary (2 names).
+#[rustfmt::skip]
 pub const CALENDAR_TYPE: [&str; 2] = [
     "DATE",
     "YEAR_HOLIDAYS",
 ];
 
 /// The vendor's `DataType` vocabulary (91 names).
+#[rustfmt::skip]
 pub const DATA_TYPE: [&str; 91] = [
     "DATE",
     "MS_OF_DAY",
@@ -112,6 +115,7 @@ pub const DATA_TYPE: [&str; 91] = [
 ];
 
 /// The vendor's `ReqArg` vocabulary (29 names).
+#[rustfmt::skip]
 pub const REQ_ARG: [&str; 29] = [
     "ID",
     "MSG_CODE",
@@ -145,6 +149,7 @@ pub const REQ_ARG: [&str; 29] = [
 ];
 
 /// The vendor's `ReqType` vocabulary (40 names).
+#[rustfmt::skip]
 pub const REQ_TYPE: [&str; 40] = [
     "TRAILING_DIV",
     "EOD",
@@ -189,6 +194,7 @@ pub const REQ_TYPE: [&str; 40] = [
 ];
 
 /// The vendor's `ResultsFormat` vocabulary (6 names).
+#[rustfmt::skip]
 pub const RESULTS_FORMAT: [&str; 6] = [
     "CSV",
     "JSON",
@@ -197,4 +203,3 @@ pub const RESULTS_FORMAT: [&str; 6] = [
     "NDJSON",
     "HTML",
 ];
-

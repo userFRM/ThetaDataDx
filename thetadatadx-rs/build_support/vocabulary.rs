@@ -86,6 +86,12 @@ pub fn generate() -> Result<(), Box<dyn std::error::Error>> {
             t.name,
             t.names.len()
         );
+        // `rustfmt::skip` because this file is rewritten on every build:
+        // any layout the formatter would reflow leaves the tree dirty for
+        // `cargo fmt --check` immediately after a build, and re-running the
+        // formatter does not fix it because the next build undoes it. One
+        // name per line is also the readable form for a vocabulary.
+        s.push_str("#[rustfmt::skip]\n");
         let _ = writeln!(s, "pub const {konst}: [&str; {}] = [", t.names.len());
         for n in &t.names {
             let _ = writeln!(s, "    {n:?},");
@@ -93,6 +99,9 @@ pub fn generate() -> Result<(), Box<dyn std::error::Error>> {
         s.push_str("];\n\n");
     }
 
+    // A single trailing newline, which is what the formatter expects; the
+    // per-table emission leaves a blank line after the last one.
+    let s = format!("{}\n", s.trim_end());
     fs::write(&out, s)?;
     Ok(())
 }
