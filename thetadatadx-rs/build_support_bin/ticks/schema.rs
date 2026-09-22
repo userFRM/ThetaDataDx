@@ -74,19 +74,60 @@ pub(crate) struct FlagAccessorDef {
     /// Predicate shape — `"range_inclusive"`, `"bit_set"`, or `"eq"`.
     pub(crate) kind: String,
     /// `range_inclusive`: inclusive lower bound. Unused by other kinds.
+    ///
+    /// Optional in the type and required by kind: a missing bound used to
+    /// default to zero, and zero is a bound a predicate can act on. Omitting
+    /// `lo` from the cancellation range silently widened it from `40..=44` to
+    /// `0..=44`, which covers `REGULAR`, so every ordinary trade would have
+    /// reported itself cancelled on four language surfaces.
     #[serde(default)]
-    pub(crate) lo: i32,
+    pub(crate) lo: Option<i32>,
     /// `range_inclusive`: inclusive upper bound. Unused by other kinds.
     #[serde(default)]
-    pub(crate) hi: i32,
+    pub(crate) hi: Option<i32>,
     /// `bit_set`: bitmask tested with `field & mask == mask`.
     /// `eq`: the value `field` is compared equal to. Unused by
     /// `range_inclusive`.
+    ///
+    /// Optional in the type and required by kind: a missing mask defaulted to
+    /// zero, and `field & 0 == 0` is true for every input, so the accessor
+    /// became a predicate that cannot be false.
     #[serde(default)]
-    pub(crate) value: i32,
+    pub(crate) value: Option<i32>,
 }
 
 impl FlagAccessorDef {
+    /// The inclusive bounds of a `range_inclusive` predicate.
+    ///
+    /// Panics when either is missing. The bound a predicate acts on cannot be
+    /// defaulted: zero is a code the vendor sends, so a missing `lo` would
+    /// quietly widen the range over it on four language surfaces at once.
+    fn range_bounds(&self) -> (i32, i32) {
+        match (self.lo, self.hi) {
+            (Some(lo), Some(hi)) => {
+                assert!(
+                    lo <= hi,
+                    "flag_accessor '{}': range_inclusive has lo {lo} above hi {hi}",
+                    self.name
+                );
+                (lo, hi)
+            }
+            _ => panic!(
+                "flag_accessor '{}': range_inclusive needs both `lo` and `hi`",
+                self.name
+            ),
+        }
+    }
+
+    /// The operand of a `bit_set` or `eq` predicate.
+    ///
+    /// Panics when missing. A defaulted mask makes `field & 0 == 0`, which is
+    /// true for every input: an accessor that cannot be false.
+    fn operand(&self) -> i32 {
+        self.value
+            .unwrap_or_else(|| panic!("flag_accessor '{}': {} needs `value`", self.name, self.kind))
+    }
+
     /// Render the predicate as a boolean Rust expression over `{src}.<field>`
     /// (e.g. `self` for a pyclass getter, `t` for a TS factory closure).
     /// Shared by the Python and TypeScript emitters, which both generate
@@ -95,15 +136,15 @@ impl FlagAccessorDef {
         let field = &self.field;
         match self.kind.as_str() {
             "range_inclusive" => {
-                let (lo, hi) = (self.lo, self.hi);
+                let (lo, hi) = self.range_bounds();
                 format!("({lo}..={hi}).contains(&{src}.{field})")
             }
             "bit_set" => {
-                let mask = self.value;
+                let mask = self.operand();
                 format!("{src}.{field} & {mask} == {mask}")
             }
             "eq" => {
-                let value = self.value;
+                let value = self.operand();
                 format!("{src}.{field} == {value}")
             }
             other => panic!(
@@ -119,15 +160,15 @@ impl FlagAccessorDef {
         let field = &self.field;
         match self.kind.as_str() {
             "range_inclusive" => {
-                let (lo, hi) = (self.lo, self.hi);
+                let (lo, hi) = self.range_bounds();
                 format!("{src}.{field} >= {lo} && {src}.{field} <= {hi}")
             }
             "bit_set" => {
-                let mask = self.value;
+                let mask = self.operand();
                 format!("({src}.{field} & {mask}) == {mask}")
             }
             "eq" => {
-                let value = self.value;
+                let value = self.operand();
                 format!("{src}.{field} == {value}")
             }
             other => panic!(

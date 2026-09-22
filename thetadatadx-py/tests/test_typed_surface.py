@@ -107,9 +107,15 @@ def test_calendar_day_status_carries_vendor_vocabulary():
     assert day.status == "early_close"
 
 
-def test_calendar_day_defaults_to_closed():
-    day = thetadatadx.CalendarDay()
-    assert day.status == "full_close"
+def test_calendar_day_requires_a_status():
+    """A day without a classification is not a calendar day.
+
+    The constructor used to default `status` to `full_close`, so
+    `CalendarDay(date=...)` asserted the market was shut that day when the
+    caller had said nothing at all. `full_close` is one of the vendor's four
+    real day types, not a way to say "unknown"."""
+    with pytest.raises(TypeError):
+        thetadatadx.CalendarDay(date=20260102)
 
 
 def test_calendar_day_list_rejects_unknown_status_text():
