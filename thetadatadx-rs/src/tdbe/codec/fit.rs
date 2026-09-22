@@ -290,6 +290,12 @@ impl<'a> FitReader<'a> {
 /// budget, so the surplus digits were never buffered; saturate to the signed
 /// bound by sign rather than return the truncated low-order value.
 ///
+/// `MAX_DIGITS` is the reference client's own bound: its power-of-ten table
+/// has ten entries, so a longer run indexes past it and the reference throws.
+/// A run that long is outside what the reference can represent at all rather
+/// than a value this decoder disagrees with it about, so saturating here is
+/// a decision about undefined input, not a divergence.
+///
 /// An empty digit buffer (count == 0) flushes as 0, so back-to-back
 /// separators in the wire format emit a 0 field.
 #[inline]
@@ -297,15 +303,26 @@ fn flush_digits(digits: &[u8; MAX_DIGITS], count: usize, negative: bool, overflo
     if overflow {
         return if negative { i32::MIN } else { i32::MAX };
     }
-    let mut val: i64 = 0;
+    // Accumulate in wrapping 32-bit arithmetic, which is what the reference
+    // client does: it sums `digit * 10^position` into a 32-bit signed
+    // accumulator, so a run that exceeds the signed range wraps rather than
+    // clamping. Widening to 64 bits and clamping here produced a different
+    // number from the same bytes -- the ten-digit run `4294967295` read as
+    // `2147483647` where the reference reads `-1` -- and that number goes on
+    // to seed the delta baseline for the contract, so every later row for
+    // the field accumulates onto a value the reference never held.
+    //
+    // Wrapping is associative over the modulus, so folding the digits
+    // (Horner) and summing the scaled terms (the reference's loop) agree on
+    // every input, in range and out.
+    let mut val: i32 = 0;
     for &digit in digits.iter().take(count) {
-        val = val * 10 + i64::from(digit);
+        val = val.wrapping_mul(10).wrapping_add(i32::from(digit));
     }
     if negative {
-        val = -val;
+        val = val.wrapping_neg();
     }
-    // Saturate to i32 range if the accumulated value overflows.
-    i32::try_from(val).unwrap_or(if val > 0 { i32::MAX } else { i32::MIN })
+    val
 }
 
 /// Apply delta decompression to a tick row.
@@ -344,6 +361,29 @@ mod tests {
     // Helper: pack two nibbles into a byte.
     fn pack(high: u8, low: u8) -> u8 {
         (high << 4) | (low & 0x0F)
+    }
+
+    /// A digit run that exceeds the signed 32-bit range wraps, because the
+    /// reference client accumulates into a 32-bit signed integer. Clamping
+    /// would return a number the reference never produces from these bytes,
+    /// and the value seeds the delta baseline for the contract, so the
+    /// disagreement compounds across every later row for that field.
+    #[test]
+    fn flush_digits_wraps_like_the_reference_accumulator() {
+        // 4294967295 is ten digits, the widest run the reference's own
+        // power-of-ten table can address, and it is 2^32 - 1.
+        let mut d = [0u8; MAX_DIGITS];
+        for (slot, digit) in d.iter_mut().zip([4, 2, 9, 4, 9, 6, 7, 2, 9, 5]) {
+            *slot = digit;
+        }
+        assert_eq!(flush_digits(&d, MAX_DIGITS, false, false), -1);
+
+        // 2147483648 is i32::MAX + 1, which wraps to i32::MIN.
+        let mut d = [0u8; MAX_DIGITS];
+        for (slot, digit) in d.iter_mut().zip([2, 1, 4, 7, 4, 8, 3, 6, 4, 8]) {
+            *slot = digit;
+        }
+        assert_eq!(flush_digits(&d, MAX_DIGITS, false, false), i32::MIN);
     }
 
     #[test]
@@ -951,14 +991,29 @@ mod tests {
             prop_assert_eq!(&alloc[..row.len()], row.as_slice());
         }
 
-        /// `flush_digits` is monotone in `count` for non-negative input:
+        /// `flush_digits` is monotone in `count` for non-negative input
+        /// while the accumulator stays inside the signed 32-bit range:
         /// appending a digit produces a value `>=` the prior accumulator.
-        /// (Same property the decoder relies on for digit accumulation.)
+        ///
+        /// The qualifier is the whole point. Past that range the accumulator
+        /// wraps, because the reference client sums into a 32-bit signed
+        /// accumulator and this decoder matches it. An unqualified
+        /// monotonicity property asserts the opposite and would have to be
+        /// satisfied by clamping, which is a value chosen here rather than
+        /// the one the reference produces from the same bytes.
         #[test]
-        fn flush_digits_monotone_nonneg(digits in proptest::collection::vec(0u8..=9u8, 1..=MAX_DIGITS)) {
+        fn flush_digits_monotone_while_in_range(
+            digits in proptest::collection::vec(0u8..=9u8, 1..=MAX_DIGITS)
+        ) {
             let mut buf = [0u8; MAX_DIGITS];
             buf[..digits.len()].copy_from_slice(&digits);
+            let mut exact: i64 = 0;
             for k in 1..digits.len() {
+                exact = exact * 10 + i64::from(digits[k - 1]);
+                let next_exact = exact * 10 + i64::from(digits[k]);
+                if next_exact > i64::from(i32::MAX) {
+                    break;
+                }
                 let prev = flush_digits(&buf, k, false, false);
                 let next = flush_digits(&buf, k + 1, false, false);
                 prop_assert!(next >= prev);
