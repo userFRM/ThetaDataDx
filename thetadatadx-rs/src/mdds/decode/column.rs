@@ -103,15 +103,47 @@ pub(crate) fn extract_column<T, V: Clone>(
     row_base: usize,
     column: usize,
     header: &'static str,
-    null_fill: V,
+    null_fill: NullFill<V>,
     cell: impl Fn(&proto::DataValueList, usize) -> Result<Option<V>, DecodeError>,
     set: impl Fn(&mut T, V),
 ) -> Result<(), DecodeError> {
     for (offset, (row, tick)) in rows.iter().zip(ticks.iter_mut()).enumerate() {
-        let value = cell(row, column)
-            .map_err(|err| attach_column_context(err, header, row_base + offset))?
-            .unwrap_or_else(|| null_fill.clone());
+        let decoded = cell(row, column)
+            .map_err(|err| attach_column_context(err, header, row_base + offset))?;
+        let value = match (decoded, &null_fill) {
+            (Some(v), _) => v,
+            (None, NullFill::Value(fill)) => fill.clone(),
+            (None, NullFill::Refuse) => {
+                return Err(attach_column_context(
+                    DecodeError::TypeMismatch {
+                        column,
+                        expected: "a value; this column's zero is a live vendor code",
+                        observed: "NullValue",
+                    },
+                    header,
+                    row_base + offset,
+                ));
+            }
+        };
         set(tick, value);
     }
     Ok(())
+}
+
+/// What a column does with the wire's explicit null.
+///
+/// Most columns substitute a seed. Some cannot: their seed collides with a
+/// value the vendor assigns a meaning, so substituting it publishes an
+/// assertion the vendor never made. A quote tick seeds `bid_condition` at
+/// `0`, which is the vendor's `REGULAR` condition, and `bid_exchange` at
+/// `0`, which is the composite. Nothing downstream can recover the
+/// difference: column presence is derived from the response headers, so the
+/// column reports as present either way.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum NullFill<V> {
+    /// Substitute this value for a wire null.
+    Value(V),
+    /// Refuse the response. The column has no value that means "the vendor
+    /// sent nothing" and is not already a value the vendor sends.
+    Refuse,
 }
