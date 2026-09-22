@@ -136,23 +136,93 @@ def bump_napi_index_js(path: Path, current: str, target: str) -> None:
     path.write_text(text.replace(current, target))
 
 
-def bump_package_lock(path: Path, current: str, target: str) -> None:
-    """Move the package's own version in `package-lock.json`.
+def bump_package_lock(path: Path, current: str, target: str, first_party_prefix: str) -> None:
+    """Move this package's version, and its own platform packages, in a lockfile.
 
-    Only the two self-referential fields change on a version bump; the
-    dependency tree below them is untouched. Left alone, the lockfile describes
-    the tree as the previous release, which it did for two of them.
+    Three kinds of entry carry it: the top-level `version`, `packages[""]`, and
+    the `node_modules/<first-party>` entries for the per-platform binary
+    packages this project publishes alongside the launcher. Third-party
+    dependencies that happen to sit at the same version are left alone.
+
+    The platform entries matter as much as the self-version: the launcher pins
+    them through `optionalDependencies`, so a lockfile left behind makes
+    `npm ci` install the previous release's binaries under the new launcher,
+    which is the exact mismatch `index.js` throws on.
     """
     data = json.loads(path.read_text())
     root_pkg = data.get("packages", {}).get("", {})
-    for where, holder, key in (("version", data, "version"), ('packages[""].version', root_pkg, "version")):
-        if holder.get(key) != current:
+    for where, holder in (("version", data), ('packages[""].version', root_pkg)):
+        if holder.get("version") != current:
             sys.exit(
-                f"{path.relative_to(ROOT)} {where} is {holder.get(key)!r}, "
+                f"{path.relative_to(ROOT)} {where} is {holder.get('version')!r}, "
                 f"expected {current!r}"
             )
-        holder[key] = target
+        holder["version"] = target
+
+    moved = 0
+    for name, entry in data.get("packages", {}).items():
+        if not name.startswith("node_modules/"):
+            continue
+        if not name.rsplit("/", 1)[-1].startswith(first_party_prefix):
+            continue
+        if isinstance(entry, dict) and entry.get("version") == current:
+            entry["version"] = target
+            moved += 1
+    if moved == 0:
+        sys.exit(
+            f"{path.relative_to(ROOT)}: found no `node_modules/{first_party_prefix}*` "
+            f"entry at {current!r}; the platform packages are pinned through "
+            "optionalDependencies and must move with the launcher"
+        )
+
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def bump_cmake(path: Path, current: str, target: str) -> None:
+    """Move the `project(... VERSION x.y.z ...)` pin in the C++ CMakeLists."""
+    text = path.read_text()
+    needle = f"VERSION {current}"
+    if text.count(needle) != 1:
+        sys.exit(
+            f"{path.relative_to(ROOT)}: expected exactly one {needle!r}, "
+            f"found {text.count(needle)}"
+        )
+    path.write_text(text.replace(needle, f"VERSION {target}"))
+
+
+def bump_openapi_yaml(path: Path, current: str, target: str) -> None:
+    """Move `info.version` in the published OpenAPI document."""
+    text = path.read_text()
+    needle = f"version: {current}"
+    if text.count(needle) != 1:
+        sys.exit(
+            f"{path.relative_to(ROOT)}: expected exactly one {needle!r}, "
+            f"found {text.count(needle)}"
+        )
+    path.write_text(text.replace(needle, f"version: {target}"))
+
+
+def bump_doc_pins(current: str, target: str) -> list[Path]:
+    """Move every `thetadatadx-rs = "<version>"` pin in the docs.
+
+    The file set and the pin pattern come from `check_version_sync.py` rather
+    than being restated here, so the files the bump writes are exactly the
+    files the gate reads. Restating them is how `index.js` and
+    `package-lock.json` came to be written by one and checked by neither.
+    """
+    sys.path.insert(0, str(ROOT / "scripts" / "ci"))
+    import check_version_sync as sync
+
+    touched: list[Path] = []
+    for doc in sync._discover_doc_pin_files():
+        text = doc.read_text()
+        replaced = sync.DOC_PIN_RE.sub(
+            lambda m: m.group(0).replace(f'"{current}"', f'"{target}"'), text
+        )
+        if replaced != text:
+            doc.write_text(replaced)
+            touched.append(doc)
+    return touched
 
 
 def cargo_update(manifest: Path) -> None:
@@ -189,7 +259,9 @@ def main(argv: list[str]) -> int:
     bump_napi_index_js(ROOT / "thetadatadx-ts" / "index.js", current, target)
     print("  bumped thetadatadx-ts/index.js (napi binding-version pins)")
 
-    bump_package_lock(ROOT / "thetadatadx-ts" / "package-lock.json", current, target)
+    bump_package_lock(
+        ROOT / "thetadatadx-ts" / "package-lock.json", current, target, "thetadatadx-ts"
+    )
     print("  bumped thetadatadx-ts/package-lock.json")
 
     # The MCP server ships to npm too (`npx -y thetadatadx-mcp-server`): a launcher
@@ -207,6 +279,17 @@ def main(argv: list[str]) -> int:
             continue  # the launcher package, bumped above
         bump_platform_package_json(platform_pkg, current, target)
         print(f"  bumped {platform_pkg.relative_to(ROOT)}")
+
+    bump_cmake(ROOT / "thetadatadx-cpp" / "CMakeLists.txt", current, target)
+    print("  bumped thetadatadx-cpp/CMakeLists.txt")
+
+    bump_openapi_yaml(
+        ROOT / "docs-site" / "docs" / "public" / "thetadatadx.yaml", current, target
+    )
+    print("  bumped docs-site/docs/public/thetadatadx.yaml")
+
+    for doc in bump_doc_pins(current, target):
+        print(f"  bumped {doc.relative_to(ROOT)} (doc pin)")
 
     print("refreshing Cargo.lock files ...")
     cargo_update(WORKSPACE_CARGOS[0])

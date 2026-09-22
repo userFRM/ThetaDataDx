@@ -92,7 +92,13 @@ def cargo_version(path: Path) -> str:
 #
 # Build output and vendored trees never carry a first-party manifest, so
 # they are pruned from the walk.
-_MANIFEST_EXCLUDE_FRAGMENTS = ("/target/", "/node_modules/", "/.git/")
+# `/worktrees/` holds gitignored checkouts of this same repository, so every
+# scan below would otherwise find a second, third and fourth copy of every
+# manifest, lockfile and doc in the tree. The bump runs this gate immediately
+# after rewriting the versions, and on a machine with four worktrees it
+# reported eighty stale pins in files that are not part of any release,
+# burying the six real ones.
+_MANIFEST_EXCLUDE_FRAGMENTS = ("/target/", "/node_modules/", "/.git/", "/worktrees/")
 
 
 def _is_excluded_manifest(path: Path) -> bool:
@@ -261,6 +267,7 @@ _DOC_PIN_EXCLUDE_FRAGMENTS = (
     "/.git/",
     "/.github/",
     "/migration/",
+    "/worktrees/",
 )
 _DOC_PIN_EXCLUDE_NAMES = frozenset({"CHANGELOG.md", "changelog.md"})
 
@@ -424,6 +431,32 @@ def main() -> int:
             if value != canonical:
                 failures.append(
                     f"{ts_lock.relative_to(ROOT)} {where} is {value}, expected {canonical}"
+                )
+
+        # The launcher pins its per-platform binary packages through
+        # `optionalDependencies`, and the lockfile records a resolved version
+        # for each. Left behind, `npm ci` installs the previous release's
+        # binaries under the new launcher, which is the exact mismatch the
+        # generated `index.js` throws on. Third-party packages that happen to
+        # sit at the same version are not ours to move, so only entries named
+        # for this package are read.
+        platform_entries = {
+            name: entry.get("version")
+            for name, entry in lock.get("packages", {}).items()
+            if name.startswith("node_modules/")
+            and name.rsplit("/", 1)[-1].startswith("thetadatadx-ts")
+            and isinstance(entry, dict)
+        }
+        if not platform_entries:
+            failures.append(
+                f"{ts_lock.relative_to(ROOT)} records no thetadatadx-ts platform "
+                "package; the launcher pins them through optionalDependencies, so "
+                "an empty scan means the lockfile or this check moved"
+            )
+        for name, version in sorted(platform_entries.items()):
+            if version != canonical:
+                failures.append(
+                    f"{ts_lock.relative_to(ROOT)} {name} is {version}, expected {canonical}"
                 )
 
     # The MCP server ships to npm as well (`npx -y thetadatadx-mcp-server`): a

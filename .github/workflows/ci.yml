@@ -570,10 +570,10 @@ jobs:
         #
         # Between releases the crate version sits at the published
         # baseline while main accumulates breaking changes, so the action
-        # compares 0.4.0 against 0.4.0, assumes a minor bump, and reports
-        # every break as requiring a major. That is the normal state of an
-        # unreleased line, not a defect, and hard-failing on it would red
-        # main until someone bumped the version for no release.
+        # compares that version against itself, assumes a minor bump, and
+        # reports every break as requiring a major. That is the normal state
+        # of an unreleased line, not a defect, and hard-failing on it would
+        # red main until someone bumped the version for no release.
         #
         # At a tag the version HAS moved: the action diffs the published
         # baseline against the version about to be uploaded, and cargo's
