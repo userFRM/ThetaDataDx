@@ -39,6 +39,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const wrapperImportPath = '../streaming-session.js';
 
@@ -48,7 +50,11 @@ const wrapperImportPath = '../streaming-session.js';
 // any network I/O, so a connected client is enough to exercise it. When
 // no credentials file is present the block skips, keeping the suite
 // runnable offline and on CI.
-const TEST_CREDS_PATH = process.env.THETADATADX_TEST_CREDS ?? '/home/theta-gamma/thetadx/creds.txt';
+// `THETADATADX_TEST_CREDS` first, otherwise `creds.txt` at the repository
+// root. The fallback was an absolute path into one machine's home directory,
+// so this block skipped on every other checkout and on CI without saying why.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const TEST_CREDS_PATH = process.env.THETADATADX_TEST_CREDS ?? path.join(REPO_ROOT, 'creds.txt');
 
 // Build a client from the credentials file, or return `null` when none
 // is available / the connect fails — the caller skips in that case.

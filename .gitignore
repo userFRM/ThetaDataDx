@@ -31,3 +31,7 @@ worktrees/
 /AUDIT_v12_to_main.md
 /TRACE_issues.md
 /CODEX_SUMMARY.md
+
+# Build and tool logs. A maturin log was committed inside the Python binding
+# crate and carried an absolute home-directory path into the public tree.
+*.log
