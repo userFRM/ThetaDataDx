@@ -22,16 +22,6 @@ impl Right {
         }
     }
 
-    /// Parses an option-right character (`C`/`P`, case-insensitive); `None` if unrecognized.
-    #[must_use]
-    pub fn from_char(c: char) -> Option<Self> {
-        match c {
-            'C' | 'c' => Some(Self::Call),
-            'P' | 'p' => Some(Self::Put),
-            _ => None,
-        }
-    }
-
     /// Returns the single-character option-right code (`C`/`P`/`*`).
     #[must_use]
     pub fn as_char(&self) -> char {
