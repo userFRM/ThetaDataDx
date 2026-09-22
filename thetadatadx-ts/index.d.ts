@@ -3589,13 +3589,13 @@ export interface EodTick {
   volume: bigint
   count: bigint
   bidSize: number
-  bidExchange: number
+  bidExchange?: number
   bid: number
-  bidCondition: number
+  bidCondition?: number
   askSize: number
-  askExchange: number
+  askExchange?: number
   ask: number
-  askCondition: number
+  askCondition?: number
   date: number
   expiration?: number
   strike?: number
@@ -3801,13 +3801,13 @@ export interface GreeksEodTick {
   volume: bigint
   count: bigint
   bidSize: number
-  bidExchange: number
+  bidExchange?: number
   bid: number
-  bidCondition: number
+  bidCondition?: number
   askSize: number
-  askExchange: number
+  askExchange?: number
   ask: number
-  askCondition: number
+  askCondition?: number
   delta: number
   theta: number
   vega: number
@@ -4333,13 +4333,13 @@ export interface IndexMarketValue {
 export interface IndexPriceAtTimeTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   date: number
   /**
@@ -6273,13 +6273,13 @@ export interface Quote {
 export interface QuoteTick {
   msOfDay: number
   bidSize: number
-  bidExchange: number
+  bidExchange?: number
   bid: number
-  bidCondition: number
+  bidCondition?: number
   askSize: number
-  askExchange: number
+  askExchange?: number
   ask: number
-  askCondition: number
+  askCondition?: number
   date: number
   expiration?: number
   strike?: number
@@ -6788,13 +6788,13 @@ export interface Trade {
 export interface TradeGreeksAllTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   delta: number
   theta: number
@@ -6907,13 +6907,13 @@ export interface TradeGreeksAllTickWithColumns {
 export interface TradeGreeksFirstOrderTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   delta: number
   theta: number
@@ -7012,13 +7012,13 @@ export interface TradeGreeksFirstOrderTickWithColumns {
 export interface TradeGreeksImpliedVolatilityTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   impliedVolatility: number
   ivError: number
@@ -7111,13 +7111,13 @@ export interface TradeGreeksImpliedVolatilityTickWithColumns {
 export interface TradeGreeksSecondOrderTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   gamma: number
   vanna: number
@@ -7215,13 +7215,13 @@ export interface TradeGreeksSecondOrderTickWithColumns {
 export interface TradeGreeksThirdOrderTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   speed: number
   zomma: number
@@ -7318,13 +7318,13 @@ export interface TradeGreeksThirdOrderTickWithColumns {
 export interface TradeQuoteTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   conditionFlags: number
   priceFlags: number
@@ -7332,13 +7332,13 @@ export interface TradeQuoteTick {
   recordsBack: number
   quoteMsOfDay: number
   bidSize: number
-  bidExchange: number
+  bidExchange?: number
   bid: number
-  bidCondition: number
+  bidCondition?: number
   askSize: number
-  askExchange: number
+  askExchange?: number
   ask: number
-  askCondition: number
+  askCondition?: number
   date: number
   expiration?: number
   strike?: number
@@ -7426,13 +7426,13 @@ export interface TradeQuoteTickWithColumns {
 export interface TradeTick {
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
-  condition: number
+  extCondition1?: number
+  extCondition2?: number
+  extCondition3?: number
+  extCondition4?: number
+  condition?: number
   size: number
-  exchange: number
+  exchange?: number
   price: number
   conditionFlags: number
   priceFlags: number

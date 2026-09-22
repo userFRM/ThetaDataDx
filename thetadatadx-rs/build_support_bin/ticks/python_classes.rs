@@ -397,6 +397,7 @@ fn repr_fields_for_tick(_type_name: &str, def: &TickTypeDef, max_fields: usize) 
         fields.push(ReprField {
             name: python_field_ident(&column.field),
             is_string,
+            nullable: column.nullable,
         });
     }
     fields
@@ -405,6 +406,10 @@ fn repr_fields_for_tick(_type_name: &str, def: &TickTypeDef, max_fields: usize) 
 struct ReprField {
     name: String,
     is_string: bool,
+    /// Rendered through `Option::map_or_else` so the repr reads as the
+    /// Python value (`bid_condition=None`) rather than as the Rust one
+    /// (`Some(4)`).
+    nullable: bool,
 }
 
 fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
@@ -446,7 +451,14 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub(crate) struct {class} {{").unwrap();
     for column in &def.columns {
-        let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
+        let mut rust_type = pyclass_field_type(column.r#type.as_str(), type_name).to_string();
+        // A nullable column reaches Python as `Optional[int]`. The core keeps
+        // the value and a presence flag side by side because its struct is
+        // `repr(C)`; nothing constrains the pyclass, so the absence is carried
+        // the way a Python caller expects to meet it, as `None`.
+        if column.nullable {
+            rust_type = format!("Option<{rust_type}>");
+        }
         // Keyword-colliding column names take the PEP 8 trailing
         // underscore (`lambda` -> `lambda_`) so the attribute stays
         // reachable with normal Python syntax; Arrow / pandas columns
@@ -506,11 +518,24 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
             fmt_string.push('=');
             // `{:?}` quotes strings (`right="C"`), `{}` for numerics —
             // matches the shape an engineer expects in a debugger line.
-            fmt_string.push_str(if field.is_string { "{:?}" } else { "{}" });
+            fmt_string.push_str(if field.is_string && !field.nullable {
+                "{:?}"
+            } else {
+                "{}"
+            });
         }
         let args = repr_fields
             .iter()
-            .map(|f| format!("self.{}", f.name))
+            .map(|f| {
+                if f.nullable {
+                    format!(
+                        "self.{}.map_or_else(|| \"None\".to_string(), |v| v.to_string())",
+                        f.name
+                    )
+                } else {
+                    format!("self.{}", f.name)
+                }
+            })
             .collect::<Vec<_>>()
             .join(", ");
         writeln!(out, "    fn __repr__(&self) -> String {{").unwrap();
@@ -556,7 +581,23 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
         writeln!(out, "\n    /// {}", flag.doc).unwrap();
         writeln!(out, "    #[getter]").unwrap();
         writeln!(out, "    fn {}(&self) -> bool {{", flag.name).unwrap();
-        writeln!(out, "        {}", flag.rust_predicate("self")).unwrap();
+        // A pyclass carries a nullable column as `Option<i32>`. An absent
+        // cell holds no code, so the predicate is false rather than run
+        // against the zero fill beside the cleared flag.
+        let cell = python_field_ident(&flag.field);
+        let nullable = def
+            .columns
+            .iter()
+            .any(|c| c.field == flag.field && c.nullable);
+        let predicate = if nullable {
+            format!(
+                "self.{cell}.is_some_and(|cell| {})",
+                flag.rust_predicate("cell")
+            )
+        } else {
+            flag.rust_predicate(&format!("self.{cell}"))
+        };
+        writeln!(out, "        {predicate}").unwrap();
         out.push_str("    }\n");
     }
     out.push_str("}\n");
@@ -594,6 +635,22 @@ fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
     let mut fields: Vec<CtorField> = Vec::new();
     for column in &def.columns {
         let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
+        if column.nullable {
+            // `None` is the absence convention on this surface, and it is
+            // also the default: a fixture row that says nothing about a
+            // condition has not asserted that the wire carried code zero.
+            assert_eq!(
+                rust_type, "i32",
+                "a nullable column must be i32; {} is {rust_type}",
+                column.field
+            );
+            fields.push(CtorField {
+                name: python_field_ident(&column.field),
+                rust_type: "Option<i32>",
+                default: Some("None"),
+            });
+            continue;
+        }
         let default = match column.r#type.as_str() {
             // No default. `full_close` was the old one, chosen so a bare
             // fixture row read as a closed day rather than a phantom open
@@ -698,6 +755,23 @@ fn pyclass_to_tick_expr(
     for column in &def.columns {
         let field = &column.field;
         let py_ident = python_field_ident(field);
+        if column.nullable {
+            // Inverse of the forward conversion: `None` returns as the
+            // column's zero beside a cleared presence flag, so the round
+            // trip carries "the wire did not send this" rather than minting
+            // a code.
+            writeln!(
+                out,
+                "{indent}    {field}: {source_expr}.{py_ident}.unwrap_or(0),"
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "{indent}    has_{field}: {source_expr}.{py_ident}.is_some(),"
+            )
+            .unwrap();
+            continue;
+        }
         match column.r#type.as_str() {
             "right" => {
                 writeln!(
@@ -787,6 +861,16 @@ fn pyclass_from_tick_expr(
                 writeln!(
                     out,
                     "{indent}    {py_ident}: {source_expr}.{field}.clone(),"
+                )
+                .unwrap();
+            }
+            _ if column.nullable => {
+                // The presence flag decides; the value beside it is the
+                // column's zero when absent, which is a code the vendor
+                // assigns a meaning and must not reach Python as one.
+                writeln!(
+                    out,
+                    "{indent}    {py_ident}: if {source_expr}.has_{field} {{ Some({source_expr}.{field}) }} else {{ None }},"
                 )
                 .unwrap();
             }

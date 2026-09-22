@@ -10,7 +10,7 @@ static_assert(offsetof(CalendarDay, close_time) == 8,
               "ThetaDataDxCalendarDay.close_time offset drifted from Rust");
 static_assert(offsetof(CalendarDay, status) == 12,
               "ThetaDataDxCalendarDay.status offset drifted from Rust");
-static_assert(sizeof(EodTick) == 128 && alignof(EodTick) == 64,
+static_assert(sizeof(EodTick) == 192 && alignof(EodTick) == 64,
               "ThetaDataDxEodTick layout drifted from Rust");
 static_assert(offsetof(EodTick, created_ms_of_day) == 0,
               "ThetaDataDxEodTick.created_ms_of_day offset drifted from Rust");
@@ -32,25 +32,33 @@ static_assert(offsetof(EodTick, bid_size) == 56,
               "ThetaDataDxEodTick.bid_size offset drifted from Rust");
 static_assert(offsetof(EodTick, bid_exchange) == 60,
               "ThetaDataDxEodTick.bid_exchange offset drifted from Rust");
-static_assert(offsetof(EodTick, bid) == 64,
+static_assert(offsetof(EodTick, has_bid_exchange) == 64,
+              "ThetaDataDxEodTick.has_bid_exchange offset drifted from Rust");
+static_assert(offsetof(EodTick, bid) == 72,
               "ThetaDataDxEodTick.bid offset drifted from Rust");
-static_assert(offsetof(EodTick, bid_condition) == 72,
+static_assert(offsetof(EodTick, bid_condition) == 80,
               "ThetaDataDxEodTick.bid_condition offset drifted from Rust");
-static_assert(offsetof(EodTick, ask_size) == 76,
+static_assert(offsetof(EodTick, has_bid_condition) == 84,
+              "ThetaDataDxEodTick.has_bid_condition offset drifted from Rust");
+static_assert(offsetof(EodTick, ask_size) == 88,
               "ThetaDataDxEodTick.ask_size offset drifted from Rust");
-static_assert(offsetof(EodTick, ask_exchange) == 80,
+static_assert(offsetof(EodTick, ask_exchange) == 92,
               "ThetaDataDxEodTick.ask_exchange offset drifted from Rust");
-static_assert(offsetof(EodTick, ask) == 88,
+static_assert(offsetof(EodTick, has_ask_exchange) == 96,
+              "ThetaDataDxEodTick.has_ask_exchange offset drifted from Rust");
+static_assert(offsetof(EodTick, ask) == 104,
               "ThetaDataDxEodTick.ask offset drifted from Rust");
-static_assert(offsetof(EodTick, ask_condition) == 96,
+static_assert(offsetof(EodTick, ask_condition) == 112,
               "ThetaDataDxEodTick.ask_condition offset drifted from Rust");
-static_assert(offsetof(EodTick, date) == 100,
+static_assert(offsetof(EodTick, has_ask_condition) == 116,
+              "ThetaDataDxEodTick.has_ask_condition offset drifted from Rust");
+static_assert(offsetof(EodTick, date) == 120,
               "ThetaDataDxEodTick.date offset drifted from Rust");
-static_assert(offsetof(EodTick, expiration) == 104,
+static_assert(offsetof(EodTick, expiration) == 124,
               "ThetaDataDxEodTick.expiration offset drifted from Rust");
-static_assert(offsetof(EodTick, strike) == 112,
+static_assert(offsetof(EodTick, strike) == 128,
               "ThetaDataDxEodTick.strike offset drifted from Rust");
-static_assert(offsetof(EodTick, right) == 120,
+static_assert(offsetof(EodTick, right) == 136,
               "ThetaDataDxEodTick.right offset drifted from Rust");
 static_assert(sizeof(GreeksAllTick) == 256 && alignof(GreeksAllTick) == 64,
               "ThetaDataDxGreeksAllTick layout drifted from Rust");
@@ -116,7 +124,7 @@ static_assert(offsetof(GreeksAllTick, strike) == 224,
               "ThetaDataDxGreeksAllTick.strike offset drifted from Rust");
 static_assert(offsetof(GreeksAllTick, right) == 232,
               "ThetaDataDxGreeksAllTick.right offset drifted from Rust");
-static_assert(sizeof(GreeksEodTick) == 320 && alignof(GreeksEodTick) == 64,
+static_assert(sizeof(GreeksEodTick) == 384 && alignof(GreeksEodTick) == 64,
               "ThetaDataDxGreeksEodTick layout drifted from Rust");
 static_assert(offsetof(GreeksEodTick, ms_of_day) == 0,
               "ThetaDataDxGreeksEodTick.ms_of_day offset drifted from Rust");
@@ -136,73 +144,81 @@ static_assert(offsetof(GreeksEodTick, bid_size) == 56,
               "ThetaDataDxGreeksEodTick.bid_size offset drifted from Rust");
 static_assert(offsetof(GreeksEodTick, bid_exchange) == 60,
               "ThetaDataDxGreeksEodTick.bid_exchange offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, bid) == 64,
+static_assert(offsetof(GreeksEodTick, has_bid_exchange) == 64,
+              "ThetaDataDxGreeksEodTick.has_bid_exchange offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, bid) == 72,
               "ThetaDataDxGreeksEodTick.bid offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, bid_condition) == 72,
+static_assert(offsetof(GreeksEodTick, bid_condition) == 80,
               "ThetaDataDxGreeksEodTick.bid_condition offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, ask_size) == 76,
+static_assert(offsetof(GreeksEodTick, has_bid_condition) == 84,
+              "ThetaDataDxGreeksEodTick.has_bid_condition offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ask_size) == 88,
               "ThetaDataDxGreeksEodTick.ask_size offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, ask_exchange) == 80,
+static_assert(offsetof(GreeksEodTick, ask_exchange) == 92,
               "ThetaDataDxGreeksEodTick.ask_exchange offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, ask) == 88,
+static_assert(offsetof(GreeksEodTick, has_ask_exchange) == 96,
+              "ThetaDataDxGreeksEodTick.has_ask_exchange offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, ask) == 104,
               "ThetaDataDxGreeksEodTick.ask offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, ask_condition) == 96,
+static_assert(offsetof(GreeksEodTick, ask_condition) == 112,
               "ThetaDataDxGreeksEodTick.ask_condition offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, delta) == 104,
+static_assert(offsetof(GreeksEodTick, has_ask_condition) == 116,
+              "ThetaDataDxGreeksEodTick.has_ask_condition offset drifted from Rust");
+static_assert(offsetof(GreeksEodTick, delta) == 120,
               "ThetaDataDxGreeksEodTick.delta offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, theta) == 112,
+static_assert(offsetof(GreeksEodTick, theta) == 128,
               "ThetaDataDxGreeksEodTick.theta offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, vega) == 120,
+static_assert(offsetof(GreeksEodTick, vega) == 136,
               "ThetaDataDxGreeksEodTick.vega offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, rho) == 128,
+static_assert(offsetof(GreeksEodTick, rho) == 144,
               "ThetaDataDxGreeksEodTick.rho offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, epsilon) == 136,
+static_assert(offsetof(GreeksEodTick, epsilon) == 152,
               "ThetaDataDxGreeksEodTick.epsilon offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, lambda) == 144,
+static_assert(offsetof(GreeksEodTick, lambda) == 160,
               "ThetaDataDxGreeksEodTick.lambda offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, gamma) == 152,
+static_assert(offsetof(GreeksEodTick, gamma) == 168,
               "ThetaDataDxGreeksEodTick.gamma offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, vanna) == 160,
+static_assert(offsetof(GreeksEodTick, vanna) == 176,
               "ThetaDataDxGreeksEodTick.vanna offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, charm) == 168,
+static_assert(offsetof(GreeksEodTick, charm) == 184,
               "ThetaDataDxGreeksEodTick.charm offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, vomma) == 176,
+static_assert(offsetof(GreeksEodTick, vomma) == 192,
               "ThetaDataDxGreeksEodTick.vomma offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, veta) == 184,
+static_assert(offsetof(GreeksEodTick, veta) == 200,
               "ThetaDataDxGreeksEodTick.veta offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, vera) == 192,
+static_assert(offsetof(GreeksEodTick, vera) == 208,
               "ThetaDataDxGreeksEodTick.vera offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, speed) == 200,
+static_assert(offsetof(GreeksEodTick, speed) == 216,
               "ThetaDataDxGreeksEodTick.speed offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, zomma) == 208,
+static_assert(offsetof(GreeksEodTick, zomma) == 224,
               "ThetaDataDxGreeksEodTick.zomma offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, color) == 216,
+static_assert(offsetof(GreeksEodTick, color) == 232,
               "ThetaDataDxGreeksEodTick.color offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, ultima) == 224,
+static_assert(offsetof(GreeksEodTick, ultima) == 240,
               "ThetaDataDxGreeksEodTick.ultima offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, d1) == 232,
+static_assert(offsetof(GreeksEodTick, d1) == 248,
               "ThetaDataDxGreeksEodTick.d1 offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, d2) == 240,
+static_assert(offsetof(GreeksEodTick, d2) == 256,
               "ThetaDataDxGreeksEodTick.d2 offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, dual_delta) == 248,
+static_assert(offsetof(GreeksEodTick, dual_delta) == 264,
               "ThetaDataDxGreeksEodTick.dual_delta offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, dual_gamma) == 256,
+static_assert(offsetof(GreeksEodTick, dual_gamma) == 272,
               "ThetaDataDxGreeksEodTick.dual_gamma offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, implied_volatility) == 264,
+static_assert(offsetof(GreeksEodTick, implied_volatility) == 280,
               "ThetaDataDxGreeksEodTick.implied_volatility offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, iv_error) == 272,
+static_assert(offsetof(GreeksEodTick, iv_error) == 288,
               "ThetaDataDxGreeksEodTick.iv_error offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, underlying_ms_of_day) == 280,
+static_assert(offsetof(GreeksEodTick, underlying_ms_of_day) == 296,
               "ThetaDataDxGreeksEodTick.underlying_ms_of_day offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, underlying_price) == 288,
+static_assert(offsetof(GreeksEodTick, underlying_price) == 304,
               "ThetaDataDxGreeksEodTick.underlying_price offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, date) == 296,
+static_assert(offsetof(GreeksEodTick, date) == 312,
               "ThetaDataDxGreeksEodTick.date offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, expiration) == 300,
+static_assert(offsetof(GreeksEodTick, expiration) == 316,
               "ThetaDataDxGreeksEodTick.expiration offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, strike) == 304,
+static_assert(offsetof(GreeksEodTick, strike) == 320,
               "ThetaDataDxGreeksEodTick.strike offset drifted from Rust");
-static_assert(offsetof(GreeksEodTick, right) == 312,
+static_assert(offsetof(GreeksEodTick, right) == 328,
               "ThetaDataDxGreeksEodTick.right offset drifted from Rust");
 static_assert(sizeof(GreeksFirstOrderTick) == 128 && alignof(GreeksFirstOrderTick) == 64,
               "ThetaDataDxGreeksFirstOrderTick layout drifted from Rust");
@@ -306,7 +322,7 @@ static_assert(offsetof(GreeksThirdOrderTick, strike) == 96,
               "ThetaDataDxGreeksThirdOrderTick.strike offset drifted from Rust");
 static_assert(offsetof(GreeksThirdOrderTick, right) == 104,
               "ThetaDataDxGreeksThirdOrderTick.right offset drifted from Rust");
-static_assert(sizeof(IndexPriceAtTimeTick) == 64 && alignof(IndexPriceAtTimeTick) == 64,
+static_assert(sizeof(IndexPriceAtTimeTick) == 128 && alignof(IndexPriceAtTimeTick) == 64,
               "ThetaDataDxIndexPriceAtTimeTick layout drifted from Rust");
 static_assert(offsetof(IndexPriceAtTimeTick, ms_of_day) == 0,
               "ThetaDataDxIndexPriceAtTimeTick.ms_of_day offset drifted from Rust");
@@ -314,21 +330,33 @@ static_assert(offsetof(IndexPriceAtTimeTick, sequence) == 4,
               "ThetaDataDxIndexPriceAtTimeTick.sequence offset drifted from Rust");
 static_assert(offsetof(IndexPriceAtTimeTick, ext_condition1) == 8,
               "ThetaDataDxIndexPriceAtTimeTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, ext_condition2) == 12,
+static_assert(offsetof(IndexPriceAtTimeTick, has_ext_condition1) == 12,
+              "ThetaDataDxIndexPriceAtTimeTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ext_condition2) == 16,
               "ThetaDataDxIndexPriceAtTimeTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, ext_condition3) == 16,
+static_assert(offsetof(IndexPriceAtTimeTick, has_ext_condition2) == 20,
+              "ThetaDataDxIndexPriceAtTimeTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ext_condition3) == 24,
               "ThetaDataDxIndexPriceAtTimeTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, ext_condition4) == 20,
+static_assert(offsetof(IndexPriceAtTimeTick, has_ext_condition3) == 28,
+              "ThetaDataDxIndexPriceAtTimeTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, ext_condition4) == 32,
               "ThetaDataDxIndexPriceAtTimeTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, condition) == 24,
+static_assert(offsetof(IndexPriceAtTimeTick, has_ext_condition4) == 36,
+              "ThetaDataDxIndexPriceAtTimeTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, condition) == 40,
               "ThetaDataDxIndexPriceAtTimeTick.condition offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, size) == 28,
+static_assert(offsetof(IndexPriceAtTimeTick, has_condition) == 44,
+              "ThetaDataDxIndexPriceAtTimeTick.has_condition offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, size) == 48,
               "ThetaDataDxIndexPriceAtTimeTick.size offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, exchange) == 32,
+static_assert(offsetof(IndexPriceAtTimeTick, exchange) == 52,
               "ThetaDataDxIndexPriceAtTimeTick.exchange offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, price) == 40,
+static_assert(offsetof(IndexPriceAtTimeTick, has_exchange) == 56,
+              "ThetaDataDxIndexPriceAtTimeTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(IndexPriceAtTimeTick, price) == 64,
               "ThetaDataDxIndexPriceAtTimeTick.price offset drifted from Rust");
-static_assert(offsetof(IndexPriceAtTimeTick, date) == 48,
+static_assert(offsetof(IndexPriceAtTimeTick, date) == 72,
               "ThetaDataDxIndexPriceAtTimeTick.date offset drifted from Rust");
 static_assert(sizeof(InterestRateTick) == 64 && alignof(InterestRateTick) == 64,
               "ThetaDataDxInterestRateTick layout drifted from Rust");
@@ -440,25 +468,33 @@ static_assert(offsetof(QuoteTick, bid_size) == 4,
               "ThetaDataDxQuoteTick.bid_size offset drifted from Rust");
 static_assert(offsetof(QuoteTick, bid_exchange) == 8,
               "ThetaDataDxQuoteTick.bid_exchange offset drifted from Rust");
+static_assert(offsetof(QuoteTick, has_bid_exchange) == 12,
+              "ThetaDataDxQuoteTick.has_bid_exchange offset drifted from Rust");
 static_assert(offsetof(QuoteTick, bid) == 16,
               "ThetaDataDxQuoteTick.bid offset drifted from Rust");
 static_assert(offsetof(QuoteTick, bid_condition) == 24,
               "ThetaDataDxQuoteTick.bid_condition offset drifted from Rust");
-static_assert(offsetof(QuoteTick, ask_size) == 28,
+static_assert(offsetof(QuoteTick, has_bid_condition) == 28,
+              "ThetaDataDxQuoteTick.has_bid_condition offset drifted from Rust");
+static_assert(offsetof(QuoteTick, ask_size) == 32,
               "ThetaDataDxQuoteTick.ask_size offset drifted from Rust");
-static_assert(offsetof(QuoteTick, ask_exchange) == 32,
+static_assert(offsetof(QuoteTick, ask_exchange) == 36,
               "ThetaDataDxQuoteTick.ask_exchange offset drifted from Rust");
-static_assert(offsetof(QuoteTick, ask) == 40,
+static_assert(offsetof(QuoteTick, has_ask_exchange) == 40,
+              "ThetaDataDxQuoteTick.has_ask_exchange offset drifted from Rust");
+static_assert(offsetof(QuoteTick, ask) == 48,
               "ThetaDataDxQuoteTick.ask offset drifted from Rust");
-static_assert(offsetof(QuoteTick, ask_condition) == 48,
+static_assert(offsetof(QuoteTick, ask_condition) == 56,
               "ThetaDataDxQuoteTick.ask_condition offset drifted from Rust");
-static_assert(offsetof(QuoteTick, date) == 52,
+static_assert(offsetof(QuoteTick, has_ask_condition) == 60,
+              "ThetaDataDxQuoteTick.has_ask_condition offset drifted from Rust");
+static_assert(offsetof(QuoteTick, date) == 64,
               "ThetaDataDxQuoteTick.date offset drifted from Rust");
-static_assert(offsetof(QuoteTick, expiration) == 56,
+static_assert(offsetof(QuoteTick, expiration) == 68,
               "ThetaDataDxQuoteTick.expiration offset drifted from Rust");
-static_assert(offsetof(QuoteTick, strike) == 64,
+static_assert(offsetof(QuoteTick, strike) == 72,
               "ThetaDataDxQuoteTick.strike offset drifted from Rust");
-static_assert(offsetof(QuoteTick, right) == 72,
+static_assert(offsetof(QuoteTick, right) == 80,
               "ThetaDataDxQuoteTick.right offset drifted from Rust");
 static_assert(sizeof(TradeGreeksAllTick) == 320 && alignof(TradeGreeksAllTick) == 64,
               "ThetaDataDxTradeGreeksAllTick layout drifted from Rust");
@@ -468,75 +504,87 @@ static_assert(offsetof(TradeGreeksAllTick, sequence) == 4,
               "ThetaDataDxTradeGreeksAllTick.sequence offset drifted from Rust");
 static_assert(offsetof(TradeGreeksAllTick, ext_condition1) == 8,
               "ThetaDataDxTradeGreeksAllTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, ext_condition2) == 12,
+static_assert(offsetof(TradeGreeksAllTick, has_ext_condition1) == 12,
+              "ThetaDataDxTradeGreeksAllTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksAllTick, ext_condition2) == 16,
               "ThetaDataDxTradeGreeksAllTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, ext_condition3) == 16,
+static_assert(offsetof(TradeGreeksAllTick, has_ext_condition2) == 20,
+              "ThetaDataDxTradeGreeksAllTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksAllTick, ext_condition3) == 24,
               "ThetaDataDxTradeGreeksAllTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, ext_condition4) == 20,
+static_assert(offsetof(TradeGreeksAllTick, has_ext_condition3) == 28,
+              "ThetaDataDxTradeGreeksAllTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksAllTick, ext_condition4) == 32,
               "ThetaDataDxTradeGreeksAllTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, condition) == 24,
+static_assert(offsetof(TradeGreeksAllTick, has_ext_condition4) == 36,
+              "ThetaDataDxTradeGreeksAllTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksAllTick, condition) == 40,
               "ThetaDataDxTradeGreeksAllTick.condition offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, size) == 28,
+static_assert(offsetof(TradeGreeksAllTick, has_condition) == 44,
+              "ThetaDataDxTradeGreeksAllTick.has_condition offset drifted from Rust");
+static_assert(offsetof(TradeGreeksAllTick, size) == 48,
               "ThetaDataDxTradeGreeksAllTick.size offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, exchange) == 32,
+static_assert(offsetof(TradeGreeksAllTick, exchange) == 52,
               "ThetaDataDxTradeGreeksAllTick.exchange offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, price) == 40,
+static_assert(offsetof(TradeGreeksAllTick, has_exchange) == 56,
+              "ThetaDataDxTradeGreeksAllTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(TradeGreeksAllTick, price) == 64,
               "ThetaDataDxTradeGreeksAllTick.price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, delta) == 48,
+static_assert(offsetof(TradeGreeksAllTick, delta) == 72,
               "ThetaDataDxTradeGreeksAllTick.delta offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, theta) == 56,
+static_assert(offsetof(TradeGreeksAllTick, theta) == 80,
               "ThetaDataDxTradeGreeksAllTick.theta offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, vega) == 64,
+static_assert(offsetof(TradeGreeksAllTick, vega) == 88,
               "ThetaDataDxTradeGreeksAllTick.vega offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, rho) == 72,
+static_assert(offsetof(TradeGreeksAllTick, rho) == 96,
               "ThetaDataDxTradeGreeksAllTick.rho offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, epsilon) == 80,
+static_assert(offsetof(TradeGreeksAllTick, epsilon) == 104,
               "ThetaDataDxTradeGreeksAllTick.epsilon offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, lambda) == 88,
+static_assert(offsetof(TradeGreeksAllTick, lambda) == 112,
               "ThetaDataDxTradeGreeksAllTick.lambda offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, gamma) == 96,
+static_assert(offsetof(TradeGreeksAllTick, gamma) == 120,
               "ThetaDataDxTradeGreeksAllTick.gamma offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, vanna) == 104,
+static_assert(offsetof(TradeGreeksAllTick, vanna) == 128,
               "ThetaDataDxTradeGreeksAllTick.vanna offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, charm) == 112,
+static_assert(offsetof(TradeGreeksAllTick, charm) == 136,
               "ThetaDataDxTradeGreeksAllTick.charm offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, vomma) == 120,
+static_assert(offsetof(TradeGreeksAllTick, vomma) == 144,
               "ThetaDataDxTradeGreeksAllTick.vomma offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, veta) == 128,
+static_assert(offsetof(TradeGreeksAllTick, veta) == 152,
               "ThetaDataDxTradeGreeksAllTick.veta offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, vera) == 136,
+static_assert(offsetof(TradeGreeksAllTick, vera) == 160,
               "ThetaDataDxTradeGreeksAllTick.vera offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, speed) == 144,
+static_assert(offsetof(TradeGreeksAllTick, speed) == 168,
               "ThetaDataDxTradeGreeksAllTick.speed offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, zomma) == 152,
+static_assert(offsetof(TradeGreeksAllTick, zomma) == 176,
               "ThetaDataDxTradeGreeksAllTick.zomma offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, color) == 160,
+static_assert(offsetof(TradeGreeksAllTick, color) == 184,
               "ThetaDataDxTradeGreeksAllTick.color offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, ultima) == 168,
+static_assert(offsetof(TradeGreeksAllTick, ultima) == 192,
               "ThetaDataDxTradeGreeksAllTick.ultima offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, d1) == 176,
+static_assert(offsetof(TradeGreeksAllTick, d1) == 200,
               "ThetaDataDxTradeGreeksAllTick.d1 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, d2) == 184,
+static_assert(offsetof(TradeGreeksAllTick, d2) == 208,
               "ThetaDataDxTradeGreeksAllTick.d2 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, dual_delta) == 192,
+static_assert(offsetof(TradeGreeksAllTick, dual_delta) == 216,
               "ThetaDataDxTradeGreeksAllTick.dual_delta offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, dual_gamma) == 200,
+static_assert(offsetof(TradeGreeksAllTick, dual_gamma) == 224,
               "ThetaDataDxTradeGreeksAllTick.dual_gamma offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, implied_volatility) == 208,
+static_assert(offsetof(TradeGreeksAllTick, implied_volatility) == 232,
               "ThetaDataDxTradeGreeksAllTick.implied_volatility offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, iv_error) == 216,
+static_assert(offsetof(TradeGreeksAllTick, iv_error) == 240,
               "ThetaDataDxTradeGreeksAllTick.iv_error offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, underlying_ms_of_day) == 224,
+static_assert(offsetof(TradeGreeksAllTick, underlying_ms_of_day) == 248,
               "ThetaDataDxTradeGreeksAllTick.underlying_ms_of_day offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, underlying_price) == 232,
+static_assert(offsetof(TradeGreeksAllTick, underlying_price) == 256,
               "ThetaDataDxTradeGreeksAllTick.underlying_price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, date) == 240,
+static_assert(offsetof(TradeGreeksAllTick, date) == 264,
               "ThetaDataDxTradeGreeksAllTick.date offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, expiration) == 244,
+static_assert(offsetof(TradeGreeksAllTick, expiration) == 268,
               "ThetaDataDxTradeGreeksAllTick.expiration offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, strike) == 248,
+static_assert(offsetof(TradeGreeksAllTick, strike) == 272,
               "ThetaDataDxTradeGreeksAllTick.strike offset drifted from Rust");
-static_assert(offsetof(TradeGreeksAllTick, right) == 256,
+static_assert(offsetof(TradeGreeksAllTick, right) == 280,
               "ThetaDataDxTradeGreeksAllTick.right offset drifted from Rust");
 static_assert(sizeof(TradeGreeksFirstOrderTick) == 192 && alignof(TradeGreeksFirstOrderTick) == 64,
               "ThetaDataDxTradeGreeksFirstOrderTick layout drifted from Rust");
@@ -546,47 +594,59 @@ static_assert(offsetof(TradeGreeksFirstOrderTick, sequence) == 4,
               "ThetaDataDxTradeGreeksFirstOrderTick.sequence offset drifted from Rust");
 static_assert(offsetof(TradeGreeksFirstOrderTick, ext_condition1) == 8,
               "ThetaDataDxTradeGreeksFirstOrderTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, ext_condition2) == 12,
+static_assert(offsetof(TradeGreeksFirstOrderTick, has_ext_condition1) == 12,
+              "ThetaDataDxTradeGreeksFirstOrderTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksFirstOrderTick, ext_condition2) == 16,
               "ThetaDataDxTradeGreeksFirstOrderTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, ext_condition3) == 16,
+static_assert(offsetof(TradeGreeksFirstOrderTick, has_ext_condition2) == 20,
+              "ThetaDataDxTradeGreeksFirstOrderTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksFirstOrderTick, ext_condition3) == 24,
               "ThetaDataDxTradeGreeksFirstOrderTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, ext_condition4) == 20,
+static_assert(offsetof(TradeGreeksFirstOrderTick, has_ext_condition3) == 28,
+              "ThetaDataDxTradeGreeksFirstOrderTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksFirstOrderTick, ext_condition4) == 32,
               "ThetaDataDxTradeGreeksFirstOrderTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, condition) == 24,
+static_assert(offsetof(TradeGreeksFirstOrderTick, has_ext_condition4) == 36,
+              "ThetaDataDxTradeGreeksFirstOrderTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksFirstOrderTick, condition) == 40,
               "ThetaDataDxTradeGreeksFirstOrderTick.condition offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, size) == 28,
+static_assert(offsetof(TradeGreeksFirstOrderTick, has_condition) == 44,
+              "ThetaDataDxTradeGreeksFirstOrderTick.has_condition offset drifted from Rust");
+static_assert(offsetof(TradeGreeksFirstOrderTick, size) == 48,
               "ThetaDataDxTradeGreeksFirstOrderTick.size offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, exchange) == 32,
+static_assert(offsetof(TradeGreeksFirstOrderTick, exchange) == 52,
               "ThetaDataDxTradeGreeksFirstOrderTick.exchange offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, price) == 40,
+static_assert(offsetof(TradeGreeksFirstOrderTick, has_exchange) == 56,
+              "ThetaDataDxTradeGreeksFirstOrderTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(TradeGreeksFirstOrderTick, price) == 64,
               "ThetaDataDxTradeGreeksFirstOrderTick.price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, delta) == 48,
+static_assert(offsetof(TradeGreeksFirstOrderTick, delta) == 72,
               "ThetaDataDxTradeGreeksFirstOrderTick.delta offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, theta) == 56,
+static_assert(offsetof(TradeGreeksFirstOrderTick, theta) == 80,
               "ThetaDataDxTradeGreeksFirstOrderTick.theta offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, vega) == 64,
+static_assert(offsetof(TradeGreeksFirstOrderTick, vega) == 88,
               "ThetaDataDxTradeGreeksFirstOrderTick.vega offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, rho) == 72,
+static_assert(offsetof(TradeGreeksFirstOrderTick, rho) == 96,
               "ThetaDataDxTradeGreeksFirstOrderTick.rho offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, epsilon) == 80,
+static_assert(offsetof(TradeGreeksFirstOrderTick, epsilon) == 104,
               "ThetaDataDxTradeGreeksFirstOrderTick.epsilon offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, lambda) == 88,
+static_assert(offsetof(TradeGreeksFirstOrderTick, lambda) == 112,
               "ThetaDataDxTradeGreeksFirstOrderTick.lambda offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, implied_volatility) == 96,
+static_assert(offsetof(TradeGreeksFirstOrderTick, implied_volatility) == 120,
               "ThetaDataDxTradeGreeksFirstOrderTick.implied_volatility offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, iv_error) == 104,
+static_assert(offsetof(TradeGreeksFirstOrderTick, iv_error) == 128,
               "ThetaDataDxTradeGreeksFirstOrderTick.iv_error offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, underlying_ms_of_day) == 112,
+static_assert(offsetof(TradeGreeksFirstOrderTick, underlying_ms_of_day) == 136,
               "ThetaDataDxTradeGreeksFirstOrderTick.underlying_ms_of_day offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, underlying_price) == 120,
+static_assert(offsetof(TradeGreeksFirstOrderTick, underlying_price) == 144,
               "ThetaDataDxTradeGreeksFirstOrderTick.underlying_price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, date) == 128,
+static_assert(offsetof(TradeGreeksFirstOrderTick, date) == 152,
               "ThetaDataDxTradeGreeksFirstOrderTick.date offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, expiration) == 132,
+static_assert(offsetof(TradeGreeksFirstOrderTick, expiration) == 156,
               "ThetaDataDxTradeGreeksFirstOrderTick.expiration offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, strike) == 136,
+static_assert(offsetof(TradeGreeksFirstOrderTick, strike) == 160,
               "ThetaDataDxTradeGreeksFirstOrderTick.strike offset drifted from Rust");
-static_assert(offsetof(TradeGreeksFirstOrderTick, right) == 144,
+static_assert(offsetof(TradeGreeksFirstOrderTick, right) == 168,
               "ThetaDataDxTradeGreeksFirstOrderTick.right offset drifted from Rust");
 static_assert(sizeof(TradeGreeksImpliedVolatilityTick) == 128 && alignof(TradeGreeksImpliedVolatilityTick) == 64,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick layout drifted from Rust");
@@ -596,35 +656,47 @@ static_assert(offsetof(TradeGreeksImpliedVolatilityTick, sequence) == 4,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.sequence offset drifted from Rust");
 static_assert(offsetof(TradeGreeksImpliedVolatilityTick, ext_condition1) == 8,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, ext_condition2) == 12,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, has_ext_condition1) == 12,
+              "ThetaDataDxTradeGreeksImpliedVolatilityTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, ext_condition2) == 16,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, ext_condition3) == 16,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, has_ext_condition2) == 20,
+              "ThetaDataDxTradeGreeksImpliedVolatilityTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, ext_condition3) == 24,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, ext_condition4) == 20,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, has_ext_condition3) == 28,
+              "ThetaDataDxTradeGreeksImpliedVolatilityTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, ext_condition4) == 32,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, condition) == 24,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, has_ext_condition4) == 36,
+              "ThetaDataDxTradeGreeksImpliedVolatilityTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, condition) == 40,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.condition offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, size) == 28,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, has_condition) == 44,
+              "ThetaDataDxTradeGreeksImpliedVolatilityTick.has_condition offset drifted from Rust");
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, size) == 48,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.size offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, exchange) == 32,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, exchange) == 52,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.exchange offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, price) == 40,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, has_exchange) == 56,
+              "ThetaDataDxTradeGreeksImpliedVolatilityTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, price) == 64,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, implied_volatility) == 48,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, implied_volatility) == 72,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.implied_volatility offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, iv_error) == 56,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, iv_error) == 80,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.iv_error offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, underlying_ms_of_day) == 64,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, underlying_ms_of_day) == 88,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.underlying_ms_of_day offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, underlying_price) == 72,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, underlying_price) == 96,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.underlying_price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, date) == 80,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, date) == 104,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.date offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, expiration) == 84,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, expiration) == 108,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.expiration offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, strike) == 88,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, strike) == 112,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.strike offset drifted from Rust");
-static_assert(offsetof(TradeGreeksImpliedVolatilityTick, right) == 96,
+static_assert(offsetof(TradeGreeksImpliedVolatilityTick, right) == 120,
               "ThetaDataDxTradeGreeksImpliedVolatilityTick.right offset drifted from Rust");
 static_assert(sizeof(TradeGreeksSecondOrderTick) == 192 && alignof(TradeGreeksSecondOrderTick) == 64,
               "ThetaDataDxTradeGreeksSecondOrderTick layout drifted from Rust");
@@ -634,45 +706,57 @@ static_assert(offsetof(TradeGreeksSecondOrderTick, sequence) == 4,
               "ThetaDataDxTradeGreeksSecondOrderTick.sequence offset drifted from Rust");
 static_assert(offsetof(TradeGreeksSecondOrderTick, ext_condition1) == 8,
               "ThetaDataDxTradeGreeksSecondOrderTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, ext_condition2) == 12,
+static_assert(offsetof(TradeGreeksSecondOrderTick, has_ext_condition1) == 12,
+              "ThetaDataDxTradeGreeksSecondOrderTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksSecondOrderTick, ext_condition2) == 16,
               "ThetaDataDxTradeGreeksSecondOrderTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, ext_condition3) == 16,
+static_assert(offsetof(TradeGreeksSecondOrderTick, has_ext_condition2) == 20,
+              "ThetaDataDxTradeGreeksSecondOrderTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksSecondOrderTick, ext_condition3) == 24,
               "ThetaDataDxTradeGreeksSecondOrderTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, ext_condition4) == 20,
+static_assert(offsetof(TradeGreeksSecondOrderTick, has_ext_condition3) == 28,
+              "ThetaDataDxTradeGreeksSecondOrderTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksSecondOrderTick, ext_condition4) == 32,
               "ThetaDataDxTradeGreeksSecondOrderTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, condition) == 24,
+static_assert(offsetof(TradeGreeksSecondOrderTick, has_ext_condition4) == 36,
+              "ThetaDataDxTradeGreeksSecondOrderTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksSecondOrderTick, condition) == 40,
               "ThetaDataDxTradeGreeksSecondOrderTick.condition offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, size) == 28,
+static_assert(offsetof(TradeGreeksSecondOrderTick, has_condition) == 44,
+              "ThetaDataDxTradeGreeksSecondOrderTick.has_condition offset drifted from Rust");
+static_assert(offsetof(TradeGreeksSecondOrderTick, size) == 48,
               "ThetaDataDxTradeGreeksSecondOrderTick.size offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, exchange) == 32,
+static_assert(offsetof(TradeGreeksSecondOrderTick, exchange) == 52,
               "ThetaDataDxTradeGreeksSecondOrderTick.exchange offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, price) == 40,
+static_assert(offsetof(TradeGreeksSecondOrderTick, has_exchange) == 56,
+              "ThetaDataDxTradeGreeksSecondOrderTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(TradeGreeksSecondOrderTick, price) == 64,
               "ThetaDataDxTradeGreeksSecondOrderTick.price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, gamma) == 48,
+static_assert(offsetof(TradeGreeksSecondOrderTick, gamma) == 72,
               "ThetaDataDxTradeGreeksSecondOrderTick.gamma offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, vanna) == 56,
+static_assert(offsetof(TradeGreeksSecondOrderTick, vanna) == 80,
               "ThetaDataDxTradeGreeksSecondOrderTick.vanna offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, charm) == 64,
+static_assert(offsetof(TradeGreeksSecondOrderTick, charm) == 88,
               "ThetaDataDxTradeGreeksSecondOrderTick.charm offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, vomma) == 72,
+static_assert(offsetof(TradeGreeksSecondOrderTick, vomma) == 96,
               "ThetaDataDxTradeGreeksSecondOrderTick.vomma offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, veta) == 80,
+static_assert(offsetof(TradeGreeksSecondOrderTick, veta) == 104,
               "ThetaDataDxTradeGreeksSecondOrderTick.veta offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, implied_volatility) == 88,
+static_assert(offsetof(TradeGreeksSecondOrderTick, implied_volatility) == 112,
               "ThetaDataDxTradeGreeksSecondOrderTick.implied_volatility offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, iv_error) == 96,
+static_assert(offsetof(TradeGreeksSecondOrderTick, iv_error) == 120,
               "ThetaDataDxTradeGreeksSecondOrderTick.iv_error offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, underlying_ms_of_day) == 104,
+static_assert(offsetof(TradeGreeksSecondOrderTick, underlying_ms_of_day) == 128,
               "ThetaDataDxTradeGreeksSecondOrderTick.underlying_ms_of_day offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, underlying_price) == 112,
+static_assert(offsetof(TradeGreeksSecondOrderTick, underlying_price) == 136,
               "ThetaDataDxTradeGreeksSecondOrderTick.underlying_price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, date) == 120,
+static_assert(offsetof(TradeGreeksSecondOrderTick, date) == 144,
               "ThetaDataDxTradeGreeksSecondOrderTick.date offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, expiration) == 124,
+static_assert(offsetof(TradeGreeksSecondOrderTick, expiration) == 148,
               "ThetaDataDxTradeGreeksSecondOrderTick.expiration offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, strike) == 128,
+static_assert(offsetof(TradeGreeksSecondOrderTick, strike) == 152,
               "ThetaDataDxTradeGreeksSecondOrderTick.strike offset drifted from Rust");
-static_assert(offsetof(TradeGreeksSecondOrderTick, right) == 136,
+static_assert(offsetof(TradeGreeksSecondOrderTick, right) == 160,
               "ThetaDataDxTradeGreeksSecondOrderTick.right offset drifted from Rust");
 static_assert(sizeof(TradeGreeksThirdOrderTick) == 192 && alignof(TradeGreeksThirdOrderTick) == 64,
               "ThetaDataDxTradeGreeksThirdOrderTick layout drifted from Rust");
@@ -682,43 +766,55 @@ static_assert(offsetof(TradeGreeksThirdOrderTick, sequence) == 4,
               "ThetaDataDxTradeGreeksThirdOrderTick.sequence offset drifted from Rust");
 static_assert(offsetof(TradeGreeksThirdOrderTick, ext_condition1) == 8,
               "ThetaDataDxTradeGreeksThirdOrderTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, ext_condition2) == 12,
+static_assert(offsetof(TradeGreeksThirdOrderTick, has_ext_condition1) == 12,
+              "ThetaDataDxTradeGreeksThirdOrderTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksThirdOrderTick, ext_condition2) == 16,
               "ThetaDataDxTradeGreeksThirdOrderTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, ext_condition3) == 16,
+static_assert(offsetof(TradeGreeksThirdOrderTick, has_ext_condition2) == 20,
+              "ThetaDataDxTradeGreeksThirdOrderTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksThirdOrderTick, ext_condition3) == 24,
               "ThetaDataDxTradeGreeksThirdOrderTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, ext_condition4) == 20,
+static_assert(offsetof(TradeGreeksThirdOrderTick, has_ext_condition3) == 28,
+              "ThetaDataDxTradeGreeksThirdOrderTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksThirdOrderTick, ext_condition4) == 32,
               "ThetaDataDxTradeGreeksThirdOrderTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, condition) == 24,
+static_assert(offsetof(TradeGreeksThirdOrderTick, has_ext_condition4) == 36,
+              "ThetaDataDxTradeGreeksThirdOrderTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(TradeGreeksThirdOrderTick, condition) == 40,
               "ThetaDataDxTradeGreeksThirdOrderTick.condition offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, size) == 28,
+static_assert(offsetof(TradeGreeksThirdOrderTick, has_condition) == 44,
+              "ThetaDataDxTradeGreeksThirdOrderTick.has_condition offset drifted from Rust");
+static_assert(offsetof(TradeGreeksThirdOrderTick, size) == 48,
               "ThetaDataDxTradeGreeksThirdOrderTick.size offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, exchange) == 32,
+static_assert(offsetof(TradeGreeksThirdOrderTick, exchange) == 52,
               "ThetaDataDxTradeGreeksThirdOrderTick.exchange offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, price) == 40,
+static_assert(offsetof(TradeGreeksThirdOrderTick, has_exchange) == 56,
+              "ThetaDataDxTradeGreeksThirdOrderTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(TradeGreeksThirdOrderTick, price) == 64,
               "ThetaDataDxTradeGreeksThirdOrderTick.price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, speed) == 48,
+static_assert(offsetof(TradeGreeksThirdOrderTick, speed) == 72,
               "ThetaDataDxTradeGreeksThirdOrderTick.speed offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, zomma) == 56,
+static_assert(offsetof(TradeGreeksThirdOrderTick, zomma) == 80,
               "ThetaDataDxTradeGreeksThirdOrderTick.zomma offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, color) == 64,
+static_assert(offsetof(TradeGreeksThirdOrderTick, color) == 88,
               "ThetaDataDxTradeGreeksThirdOrderTick.color offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, ultima) == 72,
+static_assert(offsetof(TradeGreeksThirdOrderTick, ultima) == 96,
               "ThetaDataDxTradeGreeksThirdOrderTick.ultima offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, implied_volatility) == 80,
+static_assert(offsetof(TradeGreeksThirdOrderTick, implied_volatility) == 104,
               "ThetaDataDxTradeGreeksThirdOrderTick.implied_volatility offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, iv_error) == 88,
+static_assert(offsetof(TradeGreeksThirdOrderTick, iv_error) == 112,
               "ThetaDataDxTradeGreeksThirdOrderTick.iv_error offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, underlying_ms_of_day) == 96,
+static_assert(offsetof(TradeGreeksThirdOrderTick, underlying_ms_of_day) == 120,
               "ThetaDataDxTradeGreeksThirdOrderTick.underlying_ms_of_day offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, underlying_price) == 104,
+static_assert(offsetof(TradeGreeksThirdOrderTick, underlying_price) == 128,
               "ThetaDataDxTradeGreeksThirdOrderTick.underlying_price offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, date) == 112,
+static_assert(offsetof(TradeGreeksThirdOrderTick, date) == 136,
               "ThetaDataDxTradeGreeksThirdOrderTick.date offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, expiration) == 116,
+static_assert(offsetof(TradeGreeksThirdOrderTick, expiration) == 140,
               "ThetaDataDxTradeGreeksThirdOrderTick.expiration offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, strike) == 120,
+static_assert(offsetof(TradeGreeksThirdOrderTick, strike) == 144,
               "ThetaDataDxTradeGreeksThirdOrderTick.strike offset drifted from Rust");
-static_assert(offsetof(TradeGreeksThirdOrderTick, right) == 128,
+static_assert(offsetof(TradeGreeksThirdOrderTick, right) == 152,
               "ThetaDataDxTradeGreeksThirdOrderTick.right offset drifted from Rust");
 static_assert(sizeof(TradeQuoteTick) == 192 && alignof(TradeQuoteTick) == 64,
               "ThetaDataDxTradeQuoteTick layout drifted from Rust");
@@ -728,53 +824,73 @@ static_assert(offsetof(TradeQuoteTick, sequence) == 4,
               "ThetaDataDxTradeQuoteTick.sequence offset drifted from Rust");
 static_assert(offsetof(TradeQuoteTick, ext_condition1) == 8,
               "ThetaDataDxTradeQuoteTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, ext_condition2) == 12,
+static_assert(offsetof(TradeQuoteTick, has_ext_condition1) == 12,
+              "ThetaDataDxTradeQuoteTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, ext_condition2) == 16,
               "ThetaDataDxTradeQuoteTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, ext_condition3) == 16,
+static_assert(offsetof(TradeQuoteTick, has_ext_condition2) == 20,
+              "ThetaDataDxTradeQuoteTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, ext_condition3) == 24,
               "ThetaDataDxTradeQuoteTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, ext_condition4) == 20,
+static_assert(offsetof(TradeQuoteTick, has_ext_condition3) == 28,
+              "ThetaDataDxTradeQuoteTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, ext_condition4) == 32,
               "ThetaDataDxTradeQuoteTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, condition) == 24,
+static_assert(offsetof(TradeQuoteTick, has_ext_condition4) == 36,
+              "ThetaDataDxTradeQuoteTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, condition) == 40,
               "ThetaDataDxTradeQuoteTick.condition offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, size) == 28,
+static_assert(offsetof(TradeQuoteTick, has_condition) == 44,
+              "ThetaDataDxTradeQuoteTick.has_condition offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, size) == 48,
               "ThetaDataDxTradeQuoteTick.size offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, exchange) == 32,
+static_assert(offsetof(TradeQuoteTick, exchange) == 52,
               "ThetaDataDxTradeQuoteTick.exchange offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, price) == 40,
+static_assert(offsetof(TradeQuoteTick, has_exchange) == 56,
+              "ThetaDataDxTradeQuoteTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, price) == 64,
               "ThetaDataDxTradeQuoteTick.price offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, condition_flags) == 48,
+static_assert(offsetof(TradeQuoteTick, condition_flags) == 72,
               "ThetaDataDxTradeQuoteTick.condition_flags offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, price_flags) == 52,
+static_assert(offsetof(TradeQuoteTick, price_flags) == 76,
               "ThetaDataDxTradeQuoteTick.price_flags offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, volume_type) == 56,
+static_assert(offsetof(TradeQuoteTick, volume_type) == 80,
               "ThetaDataDxTradeQuoteTick.volume_type offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, records_back) == 60,
+static_assert(offsetof(TradeQuoteTick, records_back) == 84,
               "ThetaDataDxTradeQuoteTick.records_back offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, quote_ms_of_day) == 64,
+static_assert(offsetof(TradeQuoteTick, quote_ms_of_day) == 88,
               "ThetaDataDxTradeQuoteTick.quote_ms_of_day offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, bid_size) == 68,
+static_assert(offsetof(TradeQuoteTick, bid_size) == 92,
               "ThetaDataDxTradeQuoteTick.bid_size offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, bid_exchange) == 72,
+static_assert(offsetof(TradeQuoteTick, bid_exchange) == 96,
               "ThetaDataDxTradeQuoteTick.bid_exchange offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, bid) == 80,
+static_assert(offsetof(TradeQuoteTick, has_bid_exchange) == 100,
+              "ThetaDataDxTradeQuoteTick.has_bid_exchange offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, bid) == 104,
               "ThetaDataDxTradeQuoteTick.bid offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, bid_condition) == 88,
+static_assert(offsetof(TradeQuoteTick, bid_condition) == 112,
               "ThetaDataDxTradeQuoteTick.bid_condition offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, ask_size) == 92,
+static_assert(offsetof(TradeQuoteTick, has_bid_condition) == 116,
+              "ThetaDataDxTradeQuoteTick.has_bid_condition offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, ask_size) == 120,
               "ThetaDataDxTradeQuoteTick.ask_size offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, ask_exchange) == 96,
+static_assert(offsetof(TradeQuoteTick, ask_exchange) == 124,
               "ThetaDataDxTradeQuoteTick.ask_exchange offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, ask) == 104,
+static_assert(offsetof(TradeQuoteTick, has_ask_exchange) == 128,
+              "ThetaDataDxTradeQuoteTick.has_ask_exchange offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, ask) == 136,
               "ThetaDataDxTradeQuoteTick.ask offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, ask_condition) == 112,
+static_assert(offsetof(TradeQuoteTick, ask_condition) == 144,
               "ThetaDataDxTradeQuoteTick.ask_condition offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, date) == 116,
+static_assert(offsetof(TradeQuoteTick, has_ask_condition) == 148,
+              "ThetaDataDxTradeQuoteTick.has_ask_condition offset drifted from Rust");
+static_assert(offsetof(TradeQuoteTick, date) == 152,
               "ThetaDataDxTradeQuoteTick.date offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, expiration) == 120,
+static_assert(offsetof(TradeQuoteTick, expiration) == 156,
               "ThetaDataDxTradeQuoteTick.expiration offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, strike) == 128,
+static_assert(offsetof(TradeQuoteTick, strike) == 160,
               "ThetaDataDxTradeQuoteTick.strike offset drifted from Rust");
-static_assert(offsetof(TradeQuoteTick, right) == 136,
+static_assert(offsetof(TradeQuoteTick, right) == 168,
               "ThetaDataDxTradeQuoteTick.right offset drifted from Rust");
 static_assert(sizeof(TradeTick) == 128 && alignof(TradeTick) == 64,
               "ThetaDataDxTradeTick layout drifted from Rust");
@@ -784,33 +900,45 @@ static_assert(offsetof(TradeTick, sequence) == 4,
               "ThetaDataDxTradeTick.sequence offset drifted from Rust");
 static_assert(offsetof(TradeTick, ext_condition1) == 8,
               "ThetaDataDxTradeTick.ext_condition1 offset drifted from Rust");
-static_assert(offsetof(TradeTick, ext_condition2) == 12,
+static_assert(offsetof(TradeTick, has_ext_condition1) == 12,
+              "ThetaDataDxTradeTick.has_ext_condition1 offset drifted from Rust");
+static_assert(offsetof(TradeTick, ext_condition2) == 16,
               "ThetaDataDxTradeTick.ext_condition2 offset drifted from Rust");
-static_assert(offsetof(TradeTick, ext_condition3) == 16,
+static_assert(offsetof(TradeTick, has_ext_condition2) == 20,
+              "ThetaDataDxTradeTick.has_ext_condition2 offset drifted from Rust");
+static_assert(offsetof(TradeTick, ext_condition3) == 24,
               "ThetaDataDxTradeTick.ext_condition3 offset drifted from Rust");
-static_assert(offsetof(TradeTick, ext_condition4) == 20,
+static_assert(offsetof(TradeTick, has_ext_condition3) == 28,
+              "ThetaDataDxTradeTick.has_ext_condition3 offset drifted from Rust");
+static_assert(offsetof(TradeTick, ext_condition4) == 32,
               "ThetaDataDxTradeTick.ext_condition4 offset drifted from Rust");
-static_assert(offsetof(TradeTick, condition) == 24,
+static_assert(offsetof(TradeTick, has_ext_condition4) == 36,
+              "ThetaDataDxTradeTick.has_ext_condition4 offset drifted from Rust");
+static_assert(offsetof(TradeTick, condition) == 40,
               "ThetaDataDxTradeTick.condition offset drifted from Rust");
-static_assert(offsetof(TradeTick, size) == 28,
+static_assert(offsetof(TradeTick, has_condition) == 44,
+              "ThetaDataDxTradeTick.has_condition offset drifted from Rust");
+static_assert(offsetof(TradeTick, size) == 48,
               "ThetaDataDxTradeTick.size offset drifted from Rust");
-static_assert(offsetof(TradeTick, exchange) == 32,
+static_assert(offsetof(TradeTick, exchange) == 52,
               "ThetaDataDxTradeTick.exchange offset drifted from Rust");
-static_assert(offsetof(TradeTick, price) == 40,
+static_assert(offsetof(TradeTick, has_exchange) == 56,
+              "ThetaDataDxTradeTick.has_exchange offset drifted from Rust");
+static_assert(offsetof(TradeTick, price) == 64,
               "ThetaDataDxTradeTick.price offset drifted from Rust");
-static_assert(offsetof(TradeTick, condition_flags) == 48,
+static_assert(offsetof(TradeTick, condition_flags) == 72,
               "ThetaDataDxTradeTick.condition_flags offset drifted from Rust");
-static_assert(offsetof(TradeTick, price_flags) == 52,
+static_assert(offsetof(TradeTick, price_flags) == 76,
               "ThetaDataDxTradeTick.price_flags offset drifted from Rust");
-static_assert(offsetof(TradeTick, volume_type) == 56,
+static_assert(offsetof(TradeTick, volume_type) == 80,
               "ThetaDataDxTradeTick.volume_type offset drifted from Rust");
-static_assert(offsetof(TradeTick, records_back) == 60,
+static_assert(offsetof(TradeTick, records_back) == 84,
               "ThetaDataDxTradeTick.records_back offset drifted from Rust");
-static_assert(offsetof(TradeTick, date) == 64,
+static_assert(offsetof(TradeTick, date) == 88,
               "ThetaDataDxTradeTick.date offset drifted from Rust");
-static_assert(offsetof(TradeTick, expiration) == 68,
+static_assert(offsetof(TradeTick, expiration) == 92,
               "ThetaDataDxTradeTick.expiration offset drifted from Rust");
-static_assert(offsetof(TradeTick, strike) == 72,
+static_assert(offsetof(TradeTick, strike) == 96,
               "ThetaDataDxTradeTick.strike offset drifted from Rust");
-static_assert(offsetof(TradeTick, right) == 80,
+static_assert(offsetof(TradeTick, right) == 104,
               "ThetaDataDxTradeTick.right offset drifted from Rust");

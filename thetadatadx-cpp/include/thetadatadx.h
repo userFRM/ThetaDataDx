@@ -92,13 +92,29 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int64_t count;
     int32_t bid_size;
     int32_t bid_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_exchange;
     double bid;
     int32_t bid_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_exchange;
     /* 4 bytes padding before the double field */
     double ask;
     int32_t ask_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_condition;
     int32_t date;
     int32_t expiration;
     /* 4 bytes padding before the double field */
@@ -107,7 +123,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[4];
+    uint8_t _tail_padding[52];
 } ThetaDataDxEodTick THETADATADX_ALIGN64_END;
 
 /* Full-union Greeks tick (option_*_greeks_all, interval-sampled). */
@@ -167,12 +183,28 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int64_t count;
     int32_t bid_size;
     int32_t bid_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_exchange;
     double bid;
     int32_t bid_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_exchange;
     double ask;
     int32_t ask_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_condition;
     /* 4 bytes padding before the double field */
     double delta;
     double theta;
@@ -206,7 +238,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[4];
+    uint8_t _tail_padding[52];
 } ThetaDataDxGreeksEodTick THETADATADX_ALIGN64_END;
 
 /* First-order Greeks subset tick (option_*_greeks_first_order). */
@@ -296,12 +328,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     double delta;
@@ -336,7 +392,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[60];
+    uint8_t _tail_padding[36];
 } ThetaDataDxTradeGreeksAllTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade first-order Greeks tick
@@ -345,12 +401,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     double delta;
@@ -371,7 +451,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[44];
+    uint8_t _tail_padding[20];
 } ThetaDataDxTradeGreeksFirstOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade second-order Greeks tick
@@ -380,12 +460,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     double gamma;
@@ -405,7 +509,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[52];
+    uint8_t _tail_padding[28];
 } ThetaDataDxTradeGreeksSecondOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade third-order Greeks tick
@@ -415,12 +519,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     double speed;
@@ -439,7 +567,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[60];
+    uint8_t _tail_padding[36];
 } ThetaDataDxTradeGreeksThirdOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade implied-volatility tick
@@ -450,12 +578,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     double implied_volatility;
@@ -470,7 +622,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[28];
+    uint8_t _tail_padding[4];
 } ThetaDataDxTradeGreeksImpliedVolatilityTick THETADATADX_ALIGN64_END;
 
 /* InterestRateTick (2 fields). End-of-day interest rate (percent).
@@ -587,16 +739,40 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     int32_t date;
-    uint8_t _tail_padding[12];
+    uint8_t _tail_padding[52];
 } ThetaDataDxIndexPriceAtTimeTick THETADATADX_ALIGN64_END;
 
 /* NBBO quote tick (*_history_quote): the bid/ask quote with sizes,
@@ -605,14 +781,30 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_exchange;
     /* 4 bytes padding before the double field */
     double bid;
     int32_t bid_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_exchange;
     /* 4 bytes padding before the double field */
     double ask;
     int32_t ask_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_condition;
     int32_t date;
     int32_t expiration;
     /* 4 bytes padding before the double field */
@@ -621,7 +813,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[52];
+    uint8_t _tail_padding[44];
 } ThetaDataDxQuoteTick THETADATADX_ALIGN64_END;
 
 /* Trade-with-quote tick (*_history_trade_quote): each trade print fused
@@ -630,12 +822,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     int32_t condition_flags;
@@ -645,14 +861,30 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t quote_ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_exchange;
     /* 4 bytes padding before the double field */
     double bid;
     int32_t bid_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_exchange;
     /* 4 bytes padding before the double field */
     double ask;
     int32_t ask_condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ask_condition;
     int32_t date;
     int32_t expiration;
     /* 4 bytes padding before the double field */
@@ -661,7 +893,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[52];
+    uint8_t _tail_padding[20];
 } ThetaDataDxTradeQuoteTick THETADATADX_ALIGN64_END;
 
 /* Single trade-print tick (*_history_trade): one OPRA/SIP execution with
@@ -670,12 +902,36 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition1;
     int32_t ext_condition2;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition2;
     int32_t ext_condition3;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition3;
     int32_t ext_condition4;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_ext_condition4;
     int32_t condition;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_condition;
     int32_t size;
     int32_t exchange;
+    /* False when the response carried no value for the field above.
+     * Zero is a code the vendor assigns a meaning, so an absent cell
+     * cannot be told apart from a reported one by the value alone. */
+    bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
     int32_t condition_flags;
@@ -689,7 +945,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[44];
+    uint8_t _tail_padding[20];
 } ThetaDataDxTradeTick THETADATADX_ALIGN64_END;
 
 /* ═══════════════════════════════════════════════════════════════════════ */

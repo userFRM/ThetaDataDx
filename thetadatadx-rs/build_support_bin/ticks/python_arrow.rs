@@ -22,7 +22,7 @@
 
 use std::fmt::Write as _;
 
-use super::schema::{Schema, TickTypeDef};
+use super::schema::{ColumnDef, Schema, TickTypeDef};
 use super::{pyclass_name, sorted_type_names};
 
 /// Tick types whose non-projected full-reader (`read_arrow_batch_from_<tick>_slice`)
@@ -182,7 +182,7 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
 /// columnar projections: `right` and `calendar_status` buffer `String`
 /// (built into `StringArray`), `bool` buffers `bool` (built into
 /// `BooleanArray`).
-pub(super) fn tick_struct_field_type(column_type: &str) -> &'static str {
+fn tick_struct_field_type(column_type: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "i32",
         "i64" | "eod_num64" => "i64",
@@ -197,7 +197,7 @@ pub(super) fn tick_struct_field_type(column_type: &str) -> &'static str {
 /// buffer. Logical columns project here: `right` chars become one-char
 /// strings (`'\0'` -> `""`), the calendar status enum becomes its
 /// vendor-vocabulary string.
-pub(super) fn column_push_expr(column_type: &str, field: &str) -> String {
+fn column_push_expr(column_type: &str, field: &str) -> String {
     match column_type {
         "right" => {
             format!("if t.{field} == '\\0' {{ String::new() }} else {{ t.{field}.to_string() }}")
@@ -206,6 +206,28 @@ pub(super) fn column_push_expr(column_type: &str, field: &str) -> String {
         "String" => format!("t.{field}.clone()"),
         _ => format!("t.{field}"),
     }
+}
+
+/// The Rust scalar a column buffers before its Arrow array is built.
+/// A nullable column buffers `Option<T>`: the Arrow array carries a null
+/// where the vendor sent no cell, which is what the columnar readers
+/// already do for absent contract identity.
+pub(super) fn arrow_buffer_type(column: &ColumnDef) -> String {
+    let scalar = tick_struct_field_type(column.r#type.as_str());
+    if column.nullable {
+        format!("Option<{scalar}>")
+    } else {
+        scalar.to_owned()
+    }
+}
+
+/// Per-column push expression, with the presence flag consulted for a
+/// nullable column.
+pub(super) fn arrow_push_expr(column_type: &str, field: &str, nullable: bool) -> String {
+    if nullable {
+        return format!("t.has_{field}.then_some(t.{field})");
+    }
+    column_push_expr(column_type, field)
 }
 
 /// Emit `read_arrow_batch_from_<tick>_slice` — iterates a `&[tick::T]`
@@ -233,16 +255,16 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
     // Column vectors: match the Arrow schema's concrete types. One
     // pass per column so the inner loop stays branch-free on the hot
     // path.
-    let mut column_decls: Vec<(String, String)> = Vec::new();
+    let mut column_decls: Vec<(String, String, bool)> = Vec::new();
     for column in &def.columns {
-        let rust_ty = tick_struct_field_type(column.r#type.as_str());
+        let rust_ty = arrow_buffer_type(column);
         writeln!(
             out,
             "    let mut col_{field}: Vec<{rust_ty}> = Vec::with_capacity(n);",
             field = column.field
         )
         .unwrap();
-        column_decls.push((column.field.clone(), column.r#type.clone()));
+        column_decls.push((column.field.clone(), column.r#type.clone(), column.nullable));
     }
     if is_contract {
         // Absent contract identity (single-contract queries) buffers
@@ -254,11 +276,11 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
     }
 
     out.push_str("    for t in ticks {\n");
-    for (field, column_type) in &column_decls {
+    for (field, column_type, nullable) in &column_decls {
         writeln!(
             out,
             "        col_{field}.push({});",
-            column_push_expr(column_type, field)
+            arrow_push_expr(column_type, field, *nullable)
         )
         .unwrap();
     }
@@ -274,7 +296,7 @@ fn render_python_slice_reader(type_name: &str, def: &TickTypeDef) -> String {
     // Build columns — same constructor set as the pyclass path so the
     // RecordBatch schemas line up byte-for-byte.
     out.push_str("    let columns: Vec<ArrayRef> = vec![\n");
-    for (field, column_type) in &column_decls {
+    for (field, column_type, _) in &column_decls {
         let ctor = arrow_array_ctor(column_type);
         writeln!(
             out,
@@ -373,7 +395,7 @@ fn render_python_slice_public_helper(type_name: &str) -> String {
 /// column set (and order) the Rust `to_arrow_projected` builder emits.
 struct ProjCol {
     name: String,
-    buf_ty: &'static str,
+    buf_ty: String,
     data_type: &'static str,
     ctor: &'static str,
     push: String,
@@ -386,17 +408,17 @@ fn projected_columns(def: &TickTypeDef) -> Vec<ProjCol> {
         .iter()
         .map(|c| ProjCol {
             name: c.field.clone(),
-            buf_ty: tick_struct_field_type(c.r#type.as_str()),
+            buf_ty: arrow_buffer_type(c),
             data_type: arrow_data_type_expr(c.r#type.as_str()),
             ctor: arrow_array_ctor(c.r#type.as_str()),
-            push: column_push_expr(c.r#type.as_str(), &c.field),
-            nullable: false,
+            push: arrow_push_expr(c.r#type.as_str(), &c.field, c.nullable),
+            nullable: c.nullable,
         })
         .collect();
     if def.contract_id {
         cols.push(ProjCol {
             name: "expiration".into(),
-            buf_ty: "Option<i32>",
+            buf_ty: "Option<i32>".into(),
             data_type: "DataType::Int32",
             ctor: "Int32Array",
             push: "t.has_contract_id().then_some(t.expiration)".into(),
@@ -404,7 +426,7 @@ fn projected_columns(def: &TickTypeDef) -> Vec<ProjCol> {
         });
         cols.push(ProjCol {
             name: "strike".into(),
-            buf_ty: "Option<f64>",
+            buf_ty: "Option<f64>".into(),
             data_type: "DataType::Float64",
             ctor: "Float64Array",
             push: "t.has_contract_id().then_some(t.strike)".into(),
@@ -412,7 +434,7 @@ fn projected_columns(def: &TickTypeDef) -> Vec<ProjCol> {
         });
         cols.push(ProjCol {
             name: "right".into(),
-            buf_ty: "Option<String>",
+            buf_ty: "Option<String>".into(),
             data_type: "DataType::Utf8",
             ctor: "StringArray",
             push: "if t.right == '\\0' { None } else { Some(t.right.to_string()) }".into(),
@@ -616,8 +638,9 @@ fn render_python_arrow_schema_map(schema: &Schema) -> String {
             // identifiers.
             writeln!(
                 out,
-                "            Field::new(\"{name}\", {dt}, false),",
+                "            Field::new(\"{name}\", {dt}, {null}),",
                 name = column.field,
+                null = column.nullable,
             )
             .unwrap();
         }
