@@ -952,6 +952,33 @@ class MarketValue:
 
 
 @final
+class IndexMarketValue:
+    """A real-time index MarketValue tick — the index price as the feed sent it."""
+
+    contract: ContractRef
+    """The index this market-value tick is for."""
+    ms_of_day: int
+    """Milliseconds since midnight Eastern Time when the market value was recorded."""
+    market_price: float
+    """The index market price, in dollars, as the feed sent it. An index has no
+    NBBO, so this is not a midpoint of anything and there is no ``market_bid``
+    or ``market_ask`` beside it."""
+    date: int
+    """Trading date as a ``YYYYMMDD`` integer."""
+    received_at_ns: int
+    """Wall-clock nanoseconds since the UNIX epoch, captured when the frame was decoded."""
+
+    @property
+    def kind(self) -> str:
+        """Event kind discriminator (``"index_market_value"``)."""
+        ...
+
+    def __repr__(self) -> str:
+        """Return a representation of the event."""
+        ...
+
+
+@final
 class ContractAssigned:
     """The server assigned a numeric id to a subscribed contract."""
 
