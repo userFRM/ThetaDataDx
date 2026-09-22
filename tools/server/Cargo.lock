@@ -2020,7 +2020,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-rs"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -2060,7 +2060,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-server"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "axum",
  "clap",
