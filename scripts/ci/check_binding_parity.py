@@ -8005,6 +8005,49 @@ def _sig_check_method_signatures(
     return errors
 
 
+def _check_fpss_event_surfaces() -> list[str]:
+    """Every streaming event must reach the two hand-maintained surfaces.
+
+    `fpss_event_schema.toml` drives the generated structs for every binding,
+    but two surfaces are written by hand and neither generator nor any other
+    gate reads them: the `using Stream<Name> = ThetaDataDx...` aliases in
+    `thetadatadx.hpp`, which are how a C++ caller names an event idiomatically,
+    and the event classes in the Python stub, which are what a type checker
+    sees. `IndexMarketValue` shipped as a runtime pyclass and a C struct while
+    absent from both, so `thetadatadx::StreamIndexMarketValue` did not compile
+    and the Python class had no declared type, in the release that introduced
+    the event.
+    """
+    schema = REPO_ROOT / "thetadatadx-rs" / "fpss_event_schema.toml"
+    cpp_hpp = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.hpp"
+    py_stub = REPO_ROOT / "thetadatadx-py" / "python" / "thetadatadx" / "__init__.pyi"
+    for path in (schema, cpp_hpp, py_stub):
+        if not path.is_file():
+            return [f"  missing {path.relative_to(REPO_ROOT)}; cannot check event surfaces"]
+
+    events = tomllib.loads(schema.read_text(encoding="utf-8")).get("events", {})
+    if not events:
+        return ["  fpss_event_schema.toml declares no events; the schema or this check moved"]
+
+    cpp_text = cpp_hpp.read_text(encoding="utf-8")
+    py_text = py_stub.read_text(encoding="utf-8")
+
+    errors: list[str] = []
+    for name in sorted(events):
+        alias = f"using Stream{name} = ThetaDataDxStream{name};"
+        if alias not in cpp_text:
+            errors.append(
+                f"  {name}: thetadatadx-cpp/include/thetadatadx.hpp has no "
+                f"`{alias}`; a C++ caller cannot name the event"
+            )
+        if f"class {name}:" not in py_text:
+            errors.append(
+                f"  {name}: thetadatadx-py/python/thetadatadx/__init__.pyi has no "
+                f"`class {name}:`; the runtime class ships with no declared type"
+            )
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     if "--selftest" in argv:
@@ -8423,7 +8466,19 @@ def main(argv: list[str] | None = None) -> int:
         cpp_classes,
     )
 
+    fpss_event_surface_errors = _check_fpss_event_surfaces()
+
     had_errors = False
+    if fpss_event_surface_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(fpss_event_surface_errors)} streaming "
+            f"event(s) missing from a hand-maintained surface:"
+        )
+        for e in fpss_event_surface_errors:
+            print(e)
+        print()
+
     if class_mismatches:
         had_errors = True
         print(
