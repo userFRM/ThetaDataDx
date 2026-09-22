@@ -111,11 +111,54 @@ pub(crate) const ZERO_CONTRACT_STRUCT: ThetaDataDxContract = ThetaDataDxContract
 };\n\n"
 }
 
+/// Fail the build when a field's doc names a sibling field the event does
+/// not carry.
+///
+/// The default docs are keyed on the column name alone, so a name that means
+/// one thing on one event and something else on another gets one description
+/// for both. That is invisible in the generator and lands on the C ABI as a
+/// confident sentence about a field that is not there: `market_price` on an
+/// index market value once read "Integer midpoint of `market_bid` /
+/// `market_ask`", on an event that has neither.
+///
+/// A doc referring to a sibling by name is the signal, and the event's own
+/// column list is the evidence, so the mismatch is decidable here rather than
+/// by a reader noticing it.
+fn assert_doc_names_only_present_fields(event: &str, column: &str, doc: &str, columns: &[&str]) {
+    // Backticked lowercase identifiers are how these docs name a sibling.
+    for referenced in doc.split('`').skip(1).step_by(2) {
+        let looks_like_a_field = !referenced.is_empty()
+            && referenced
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+        if !looks_like_a_field || referenced == column {
+            continue;
+        }
+        assert!(
+            !is_known_column_name(referenced) || columns.contains(&referenced),
+            "{event}.{column}: its doc names `{referenced}`, which {event} does not carry. \
+             Give the column its own `doc` in fpss_event_schema.toml."
+        );
+    }
+}
+
+/// Whether `name` is a column name this schema uses anywhere, as opposed to a
+/// Rust type or a prose word that happens to be backticked.
+fn is_known_column_name(name: &str) -> bool {
+    !fpss_column_doc(name).starts_with("The ")
+}
+
 /// Factual one-line doc for a generated event-struct field, keyed on the
 /// schema column name. Mirrors the field docs on the matching Rust core
 /// `StreamData::*` / `StreamControl::*` variant so the C-ABI surface reads the
 /// same as the native one. Unknown names fall back to a humanized form of
 /// the column name so every emitted field still carries a doc.
+///
+/// A column whose meaning is particular to its event carries its own `doc` in
+/// the schema, which wins over this table. Keying on the name alone cannot
+/// distinguish `market_price` on a market value, where it is the midpoint of
+/// a bid and an ask, from `market_price` on an index, where there is no bid
+/// and no ask and the value is the one the feed sent.
 fn fpss_column_doc(name: &str) -> String {
     let doc = match name {
         "ask" => "Ask price.",
@@ -198,8 +241,13 @@ fn render_event_struct_rust(out: &mut String, event_name: &str, def: &EventDef) 
         out.push_str("    /// MSVC; the byte keeps the layout consistent across both.\n");
         out.push_str("    pub _padding: u8,\n");
     } else {
+        let column_names: Vec<&str> = def.columns.iter().map(|c| c.name.as_str()).collect();
         for column in &def.columns {
-            let col_doc = fpss_column_doc(&column.name);
+            let col_doc = column
+                .doc
+                .clone()
+                .unwrap_or_else(|| fpss_column_doc(&column.name));
+            assert_doc_names_only_present_fields(event_name, &column.name, &col_doc, &column_names);
             if is_byte_buffer(&column.r#type) {
                 writeln!(
                     out,
