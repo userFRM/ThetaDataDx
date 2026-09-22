@@ -52,49 +52,130 @@ def _sdk_src_root() -> Path:
     raise RuntimeError("could not locate thetadatadx-py/src from test file")
 
 
-def test_every_block_on_is_preceded_by_detach() -> None:
-    """Audit gate: no bare `block_on` call site in the binding.
+def _detach_closure_spans(src: str) -> list[tuple[int, int]]:
+    """Character spans of every `detach(|...|  { ... })` closure body.
 
-    Walks every `.rs` file under `thetadatadx-py/src/`, finds every
-    non-comment line containing a `block_on(` call, and asserts the
-    immediately preceding non-blank, non-comment line opens a
-    `py.detach(||` envelope. Matches the Kairos meta-rule that no
-    blocking call may hold the GIL.
+    Found by matching braces forward from the closure's opening brace, so a
+    span is the region where the GIL is actually released rather than a
+    window of nearby lines. String and character literals are skipped, since
+    a brace inside one does not open or close a block.
+    """
+    spans: list[tuple[int, int]] = []
+    for opener in re.finditer(r"detach\s*\(\s*\|[^|]*\|", src):
+        brace = src.find("{", opener.end())
+        if brace == -1:
+            continue
+        depth, i, n = 0, brace, len(src)
+        in_str = in_chr = False
+        while i < n:
+            c = src[i]
+            if in_str:
+                if c == "\\":
+                    i += 2
+                    continue
+                if c == '"':
+                    in_str = False
+            elif in_chr:
+                if c == "\\":
+                    i += 2
+                    continue
+                if c == "'":
+                    in_chr = False
+            elif c == '"':
+                in_str = True
+            elif c == "'":
+                in_chr = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    spans.append((brace, i))
+                    break
+            i += 1
+    return spans
+
+
+def _strip_comments(src: str) -> str:
+    """Blank out `//` comments, preserving offsets so spans stay valid."""
+    out = list(src)
+    for m in re.finditer(r"//[^\n]*", src):
+        for i in range(m.start(), m.end()):
+            out[i] = " "
+    return "".join(out)
+
+
+def test_every_block_on_runs_inside_a_detach_closure() -> None:
+    """Audit gate: no `block_on` call site holds the GIL.
+
+    Every `block_on(` in `thetadatadx-py/src/` must sit *inside* the body of
+    a `detach(|| { ... })` closure, which is where the GIL is released.
+
+    This used to walk back five lines looking for the text `detach(`
+    anywhere among them. That accepts the arrangement it exists to forbid:
+
+        py.detach(|| ());
+        let result = runtime().block_on(fut);
+
+    The closure opens and closes before the blocking call, so the GIL is
+    held across it, and the scan passes because `detach(` appeared nearby.
+    Proximity is not containment, so the spans are matched by brace instead.
     """
     root = _sdk_src_root()
     offenders: list[tuple[Path, int, str]] = []
     for path in sorted(root.rglob("*.rs")):
-        lines = path.read_text().splitlines()
-        for idx, line in enumerate(lines):
-            if _COMMENT_LINE.match(line):
+        raw = path.read_text()
+        src = _strip_comments(raw)
+        spans = _detach_closure_spans(src)
+        for m in _BLOCK_ON_CALL_SITE.finditer(src):
+            if any(lo < m.start() < hi for lo, hi in spans):
                 continue
-            if not _BLOCK_ON_CALL_SITE.search(line):
-                continue
-            # Walk backwards up to a small window of code lines looking
-            # for the enclosing `py.detach(||` (or `.detach(||`) frame.
-            # A bare `block_on` may span two source lines (`runtime` on
-            # one line, `.block_on(...)` on the next), so we permit up
-            # to four non-comment, non-blank code lines of separation
-            # — enough to cover formatter-induced splits without
-            # smuggling in unrelated frames.
-            window = []
-            for back in range(idx - 1, -1, -1):
-                if _COMMENT_LINE.match(lines[back]):
-                    continue
-                if not lines[back].strip():
-                    continue
-                window.append(lines[back])
-                if len(window) >= 5:
-                    break
-            if not any("detach(" in w for w in window):
-                offenders.append((path, idx + 1, line.strip()))
+            line_no = src.count("\n", 0, m.start()) + 1
+            offenders.append((path, line_no, raw.splitlines()[line_no - 1].strip()))
 
     assert not offenders, (
-        "every `block_on(...)` call must be preceded by a `py.detach(||` "
-        "envelope so the GIL is released for the duration of the future. "
-        "Offenders:\n"
+        "every `block_on(...)` must run inside a `detach(|| { ... })` closure "
+        "so the GIL is released for the duration of the future. A closure "
+        "that has already closed does not count. Offenders:\n"
         + "\n".join(f"  {p}:{ln}  {src}" for p, ln, src in offenders)
     )
+
+
+def test_the_gil_audit_rejects_a_closure_that_closed_first() -> None:
+    """The audit above is only worth running if it can fail.
+
+    Its predecessor walked back five lines looking for the text `detach(`,
+    which accepts a closure that opens and closes before the blocking call —
+    exactly the shape it existed to forbid. This pins the discrimination, so
+    a future simplification back to a proximity scan fails here rather than
+    going quiet.
+    """
+    closed_first = """
+    fn f(py: Python) -> i32 {
+        py.detach(|| ());
+        let result = runtime().block_on(fut);
+        result
+    }
+    """
+    wrapped = """
+    fn f(py: Python) -> i32 {
+        py.detach(|| {
+            runtime().block_on(fut)
+        })
+    }
+    """
+
+    def offenders(src: str) -> int:
+        stripped = _strip_comments(src)
+        spans = _detach_closure_spans(stripped)
+        return sum(
+            1
+            for m in _BLOCK_ON_CALL_SITE.finditer(stripped)
+            if not any(lo < m.start() < hi for lo, hi in spans)
+        )
+
+    assert offenders(closed_first) == 1, "a closure that already closed must not count"
+    assert offenders(wrapped) == 0, "a `block_on` inside the closure is the correct shape"
 
 
 def test_fpss_streaming_paths_release_the_gil() -> None:

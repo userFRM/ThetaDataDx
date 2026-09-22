@@ -32,20 +32,15 @@ TEST_CASE("ThetaDataDxInterestRateTick has the 2-field shape", "[interest_rate][
 TEST_CASE("InterestRateTick wrapper alias resolves to the C ABI struct", "[interest_rate][schema][offline]") {
     // The C++ wrapper exposes the schema name verbatim via a `using`
     // alias on top of the C type — both must be the same layout.
+    //
+    // This is where struct-shape drift is caught. A second case used to
+    // claim that job under the name "decodes the SOFR reference row"; it
+    // assigned two fields and asserted the assignments, so it held no
+    // decoder and no fixture and would have passed with the interest-rate
+    // decoder returning anything at all. The decode itself is exercised in
+    // the Rust core, which is where it happens.
     STATIC_REQUIRE(sizeof(thetadatadx::InterestRateTick) == sizeof(ThetaDataDxInterestRateTick));
     STATIC_REQUIRE(alignof(thetadatadx::InterestRateTick) == alignof(ThetaDataDxInterestRateTick));
     STATIC_REQUIRE(offsetof(thetadatadx::InterestRateTick, date) == offsetof(ThetaDataDxInterestRateTick, date));
     STATIC_REQUIRE(offsetof(thetadatadx::InterestRateTick, rate) == offsetof(ThetaDataDxInterestRateTick, rate));
-}
-
-TEST_CASE("InterestRateTick decodes the SOFR reference row", "[interest_rate][offline]") {
-    // The headline wire dump in the CHANGELOG is the SOFR
-    // 2025-04-28 row (`date=20250428`, `rate=4.36`). Pin the exact
-    // values on a hand-built tick so any future struct-shape drift
-    // fails this test before it ships.
-    thetadatadx::InterestRateTick tick{};
-    tick.date = 20250428;
-    tick.rate = 4.36;
-    REQUIRE(tick.date == 20250428);
-    REQUIRE(tick.rate == 4.36);
 }
