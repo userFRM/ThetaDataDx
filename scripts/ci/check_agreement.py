@@ -16,9 +16,9 @@ field values that differ across SDKs. Exits non-zero on any
 disagreement.
 
 Cells missing from any SDK's artifact are surfaced as "partial" but
-don't fail the run by default, since the CLI validator deliberately
-skips some per-optional-param modes the other SDKs run (PR #291). Pass
-`--require-all-sdks` to make missing cells a hard failure.
+don't fail the run by default, since a validator may deliberately skip
+per-optional-param modes the other SDKs run (PR #291). Pass
+`--require-all-sdks` to make a missing artifact a hard failure.
 
 Artifact format:
 
@@ -129,15 +129,19 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS_DIR = ROOT / "artifacts"
 
-LANGS = ("python", "cli", "cpp", "typescript")
+# The surfaces that emit a validator artifact. `cli` was one until the
+# CLI tool was dropped in #1011; nothing has written
+# `artifacts/validator_cli.json` since, so `--require-all-sdks` demanded
+# a file no code in this repository produces and could never pass.
+LANGS = ("python", "cpp", "typescript")
 
 # Languages whose `first_row` carries a SHAPE manifest (field-name set
 # only) rather than runtime values. The diff engine compares only the
 # field-name SET for these — value-vs-value diffs are suppressed
 # because the manifest cannot carry a real bid price / volume / etc.
 # This is what lets the TypeScript public-surface declarations
-# participate in the same agreement table as the runtime Python / CLI
-# / C++ artifacts without spinning up a per-method live-traffic
+# participate in the same agreement table as the runtime Python and
+# C++ artifacts without spinning up a per-method live-traffic
 # validator on the napi-rs side.
 SHAPE_ONLY_LANGS: frozenset[str] = frozenset({"typescript"})
 # The TypeScript artifact is emitted from a public-surface shape
