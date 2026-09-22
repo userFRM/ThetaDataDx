@@ -587,23 +587,29 @@ fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
     struct CtorField {
         name: String,
         rust_type: &'static str,
-        default: &'static str,
+        /// `None` when the field has no honest default and the caller must
+        /// supply it.
+        default: Option<&'static str>,
     }
     let mut fields: Vec<CtorField> = Vec::new();
     for column in &def.columns {
         let rust_type = pyclass_field_type(column.r#type.as_str(), type_name);
         let default = match column.r#type.as_str() {
-            // A bare fixture row reads as a closed day, never as a
-            // phantom open session.
-            "calendar_status" => "\"full_close\".to_string()",
-            _ => match rust_type {
+            // No default. `full_close` was the old one, chosen so a bare
+            // fixture row read as a closed day rather than a phantom open
+            // session. But it is one of the vendor's four real day types, so
+            // `CalendarDay(date=...)` asserted the market was shut that day
+            // when the caller had said nothing at all. A day without a
+            // classification is not a calendar day, so the caller supplies it.
+            "calendar_status" => None,
+            _ => Some(match rust_type {
                 "i32" => "0i32",
                 "i64" => "0i64",
                 "f64" => "0.0f64",
                 "bool" => "false",
                 "String" => "String::new()",
                 other => panic!("unhandled pyclass ctor default for {other}"),
-            },
+            }),
         };
         fields.push(CtorField {
             name: python_field_ident(&column.field),
@@ -615,17 +621,17 @@ fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
         fields.push(CtorField {
             name: "expiration".to_string(),
             rust_type: "Option<i32>",
-            default: "None",
+            default: Some("None"),
         });
         fields.push(CtorField {
             name: "strike".to_string(),
             rust_type: "Option<f64>",
-            default: "None",
+            default: Some("None"),
         });
         fields.push(CtorField {
             name: "right".to_string(),
             rust_type: "Option<String>",
-            default: "None",
+            default: Some("None"),
         });
     }
 
@@ -638,7 +644,12 @@ fn render_python_tick_class_new(type_name: &str, def: &TickTypeDef) -> String {
             out.push(',');
         }
         // pyo3 accepts literal Rust expressions for kwarg defaults.
-        out.push_str(&format!(" {} = {}", f.name, f.default));
+        match f.default {
+            Some(default) => out.push_str(&format!(" {} = {}", f.name, default)),
+            // A keyword-only argument with no default is required, which is
+            // what "the caller must say" looks like in Python.
+            None => out.push_str(&format!(" {}", f.name)),
+        }
     }
     out.push_str("))]\n");
     // `too_many_arguments` is suppressed at the crate build command
