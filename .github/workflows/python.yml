@@ -477,8 +477,14 @@ jobs:
   # from leaving the merge gate permanently unsatisfiable, and a newly
   # added job is covered the moment it appears in `needs` below.
   # ═══════════════════════════════════════════════════════════════
-  python-gate:
-    name: Python gate
+  # Everything in this workflow that VERIFIES, named once and excluding
+  # the publish job. The publishers in the other workflows wait on this
+  # across files, and the workflow's own merge gate below depends on it
+  # rather than restating the list. It must never come to include
+  # `publish`: that job waits on the sibling workflows' aggregates, so a
+  # gate that contained it would wait on itself.
+  verified:
+    name: Python verified
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -491,6 +497,39 @@ jobs:
       - compatibility
       - freethreaded
       - sdist
+    steps:
+      - name: Fail unless every verification job succeeded or was skipped
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = sorted(
+              name
+              for name, data in needs.items()
+              if data.get("result") not in ("success", "skipped")
+          )
+          for name in sorted(needs):
+              print(f"{name}: {needs[name].get('result')}")
+          if bad:
+              joined = ", ".join(bad)
+              sys.exit(f"not verified: {joined} did not succeed or skip")
+          print("verified: every verification job succeeded or was skipped")
+          PY
+
+  python-gate:
+    name: Python gate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - verified
       - publish
     steps:
       - name: Fail unless every dependency succeeded or was skipped

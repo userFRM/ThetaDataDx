@@ -955,9 +955,22 @@ jobs:
     runs-on: ubuntu-latest
     needs: [verified]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    timeout-minutes: 30
+    timeout-minutes: 130
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
+      - name: Require every verification aggregate green for this tag
+        # `verified` above covers this workflow only. The wheel tests live in
+        # python.yml, the generated-declaration check in typescript.yml and the
+        # allocations-per-row gate in perf-gate.yml, and a tag starts all of
+        # them independently. Without this, a red Python lane would leave the
+        # crate published and PyPI empty, which is the split release the
+        # aggregate was introduced to prevent, one workflow further out.
+        uses: ./.github/actions/require-ci-green
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: ./.github/actions/install-protoc
       - shell: bash
