@@ -60,19 +60,19 @@ pub struct EodTick {
     pub count: i64,
     /// Last NBBO bid size.
     pub bid_size: i32,
-    /// Exchange code of the NBBO bid.
+    /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
     /// Last NBBO bid price.
     pub bid: f64,
-    /// Quote condition code on the bid side.
+    /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
     /// Last NBBO ask size.
     pub ask_size: i32,
-    /// Exchange code of the NBBO ask.
+    /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
     /// Last NBBO ask price.
     pub ask: f64,
-    /// Quote condition code on the ask side.
+    /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
@@ -128,7 +128,7 @@ pub struct GreeksAllTick {
     pub bid: f64,
     /// Last NBBO ask price.
     pub ask: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Sensitivity of the option value to a one-dollar move in the underlying.
     pub delta: f64,
@@ -172,7 +172,7 @@ pub struct GreeksAllTick {
     pub lambda: f64,
     /// Sensitivity of rho to a change in implied volatility.
     pub vera: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -243,19 +243,19 @@ pub struct GreeksEodTick {
     pub count: i64,
     /// Last NBBO bid size.
     pub bid_size: i32,
-    /// Exchange code of the NBBO bid.
+    /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
     /// Last NBBO bid price.
     pub bid: f64,
-    /// Quote condition code on the bid side.
+    /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
     /// Last NBBO ask size.
     pub ask_size: i32,
-    /// Exchange code of the NBBO ask.
+    /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
     /// Last NBBO ask price.
     pub ask: f64,
-    /// Quote condition code on the ask side.
+    /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
     /// Sensitivity of the option value to a one-dollar move in the underlying.
     pub delta: f64,
@@ -297,11 +297,11 @@ pub struct GreeksEodTick {
     pub dual_delta: f64,
     /// Second derivative of the option value with respect to the strike.
     pub dual_gamma: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -362,11 +362,11 @@ pub struct GreeksFirstOrderTick {
     pub epsilon: f64,
     /// Percent change in the option value per percent change in the underlying.
     pub lambda: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -425,11 +425,11 @@ pub struct GreeksSecondOrderTick {
     pub vomma: f64,
     /// Rate of change of vega over time.
     pub veta: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -487,11 +487,11 @@ pub struct GreeksThirdOrderTick {
     pub color: f64,
     /// Sensitivity of vomma to a change in implied volatility.
     pub ultima: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -551,11 +551,11 @@ pub struct IndexPriceAtTimeTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Index value at the requested time.
     pub price: f64,
@@ -609,19 +609,19 @@ pub struct IvTick {
     pub ms_of_day: i32,
     /// Last NBBO bid price.
     pub bid: f64,
-    /// Implied volatility solved at the bid price.
+    /// Implied volatility solved at the bid price. The vendor names this column `BID_IMPLIED_VOL`.
     pub bid_implied_volatility: f64,
     /// Midpoint of the bid and ask prices.
     pub midpoint: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Last NBBO ask price.
     pub ask: f64,
-    /// Implied volatility solved at the ask price.
+    /// Implied volatility solved at the ask price. The vendor names this column `ASK_IMPLIED_VOL`.
     pub ask_implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -834,19 +834,19 @@ pub struct QuoteTick {
     pub ms_of_day: i32,
     /// Last NBBO bid size.
     pub bid_size: i32,
-    /// Exchange code of the NBBO bid.
+    /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
     /// Last NBBO bid price.
     pub bid: f64,
-    /// Quote condition code on the bid side.
+    /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
     /// Last NBBO ask size.
     pub ask_size: i32,
-    /// Exchange code of the NBBO ask.
+    /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
     /// Last NBBO ask price.
     pub ask: f64,
-    /// Quote condition code on the ask side.
+    /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
@@ -895,11 +895,11 @@ pub struct TradeGreeksAllTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Trade price.
     pub price: f64,
@@ -943,11 +943,11 @@ pub struct TradeGreeksAllTick {
     pub dual_delta: f64,
     /// Second derivative of the option value with respect to the strike.
     pub dual_gamma: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -1001,11 +1001,11 @@ pub struct TradeGreeksFirstOrderTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Trade price.
     pub price: f64,
@@ -1021,11 +1021,11 @@ pub struct TradeGreeksFirstOrderTick {
     pub epsilon: f64,
     /// Percent change in the option value per percent change in the underlying.
     pub lambda: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -1080,19 +1080,19 @@ pub struct TradeGreeksImpliedVolatilityTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Trade price.
     pub price: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -1146,11 +1146,11 @@ pub struct TradeGreeksSecondOrderTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Trade price.
     pub price: f64,
@@ -1164,11 +1164,11 @@ pub struct TradeGreeksSecondOrderTick {
     pub vomma: f64,
     /// Rate of change of vega over time.
     pub veta: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -1223,11 +1223,11 @@ pub struct TradeGreeksThirdOrderTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Trade price.
     pub price: f64,
@@ -1239,11 +1239,11 @@ pub struct TradeGreeksThirdOrderTick {
     pub color: f64,
     /// Sensitivity of vomma to a change in implied volatility.
     pub ultima: f64,
-    /// Implied volatility solved from the option price.
+    /// Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`.
     pub implied_volatility: f64,
     /// Residual pricing error of the implied-volatility solve.
     pub iv_error: f64,
-    /// Timestamp of the underlying price, milliseconds since midnight ET.
+    /// Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub underlying_ms_of_day: i32,
     /// Underlying price used in the calculation (midpoint of the underlying).
     pub underlying_price: f64,
@@ -1295,11 +1295,11 @@ pub struct TradeQuoteTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Trade price.
     pub price: f64,
@@ -1311,23 +1311,23 @@ pub struct TradeQuoteTick {
     pub volume_type: i32,
     /// Offset of this record behind the most recent record.
     pub records_back: i32,
-    /// Timestamp of the paired quote, milliseconds since midnight ET.
+    /// Timestamp of the paired quote, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`.
     pub quote_ms_of_day: i32,
     /// Last NBBO bid size.
     pub bid_size: i32,
-    /// Exchange code of the NBBO bid.
+    /// Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_exchange: i32,
     /// NBBO bid at the time of the trade.
     pub bid: f64,
-    /// Quote condition code on the bid side.
+    /// Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub bid_condition: i32,
     /// Last NBBO ask size.
     pub ask_size: i32,
-    /// Exchange code of the NBBO ask.
+    /// Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_exchange: i32,
     /// NBBO ask at the time of the trade.
     pub ask: f64,
-    /// Quote condition code on the ask side.
+    /// Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub ask_condition: i32,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
@@ -1377,11 +1377,11 @@ pub struct TradeTick {
     pub ext_condition3: i32,
     /// Additional trade condition code.
     pub ext_condition4: i32,
-    /// Trade condition code.
+    /// Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub condition: i32,
     /// Number of contracts or shares traded.
     pub size: i32,
-    /// Exchange code where the trade executed.
+    /// Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column.
     pub exchange: i32,
     /// Trade price.
     pub price: f64,

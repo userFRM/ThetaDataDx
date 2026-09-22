@@ -69,9 +69,9 @@ Rows of `GreeksThirdOrderTick`:
 | `zomma` | f64 | Sensitivity of gamma to a change in implied volatility. |
 | `color` | f64 | Rate of change of gamma over time. |
 | `ultima` | f64 | Sensitivity of vomma to a change in implied volatility. |
-| `implied_volatility` | f64 | Implied volatility solved from the option price. |
+| `implied_volatility` | f64 | Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`. |
 | `iv_error` | f64 | Residual pricing error of the implied-volatility solve. |
-| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. |
+| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 

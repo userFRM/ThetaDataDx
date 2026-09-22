@@ -65,23 +65,23 @@ Rows of `TradeQuoteTick`:
 | `ext_condition2` | i32 | Additional trade condition code. |
 | `ext_condition3` | i32 | Additional trade condition code. |
 | `ext_condition4` | i32 | Additional trade condition code. |
-| `condition` | i32 | Trade condition code. |
+| `condition` | i32 | Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `size` | i32 | Number of contracts or shares traded. |
-| `exchange` | i32 | Exchange code where the trade executed. |
+| `exchange` | i32 | Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `price` | f64 | Trade price. |
 | `condition_flags` | i32 | Trade condition flags bitmap. |
 | `price_flags` | i32 | Trade price flags bitmap. |
 | `volume_type` | i32 | Volume reporting mode, as sent. The vendor does not define this column. |
 | `records_back` | i32 | Offset of this record behind the most recent record. |
-| `quote_ms_of_day` | i32 | Timestamp of the paired quote, milliseconds since midnight ET. |
+| `quote_ms_of_day` | i32 | Timestamp of the paired quote, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `bid_size` | i32 | Last NBBO bid size. |
-| `bid_exchange` | i32 | Exchange code of the NBBO bid. |
+| `bid_exchange` | i32 | Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `bid` | f64 | NBBO bid at the time of the trade. |
-| `bid_condition` | i32 | Quote condition code on the bid side. |
+| `bid_condition` | i32 | Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `ask_size` | i32 | Last NBBO ask size. |
-| `ask_exchange` | i32 | Exchange code of the NBBO ask. |
+| `ask_exchange` | i32 | Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `ask` | f64 | NBBO ask at the time of the trade. |
-| `ask_condition` | i32 | Quote condition code on the ask side. |
+| `ask_condition` | i32 | Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
 Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
