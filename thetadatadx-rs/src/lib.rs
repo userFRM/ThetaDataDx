@@ -468,7 +468,7 @@ pub use right::{parse_right, parse_right_strict, ParsedRight, RightError};
 /// - [`utils::exchange`] — exchange-code to name mapping
 /// - [`utils::sequences`] — sequence-number utilities
 pub mod utils {
-    pub use crate::tdbe::{conditions, exchange, sequences};
+    pub use crate::tdbe::{conditions, exchange, sequences, vocabulary};
 }
 
 // ─── Doc-hidden data-layer internals reachable by tools/bindings/benches ──────
