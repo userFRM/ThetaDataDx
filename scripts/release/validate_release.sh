@@ -167,7 +167,10 @@ record "C++" "$cpp_pass" "$cpp_skip" "$cpp_fail"
 
 section "3/3  Cross-language agreement"
 
-agreement_result=$(python3 "$REPO/scripts/ci/check_agreement.py" 2>&1)
+# `--require-all-sdks`: without it a missing artifact is soft-skipped, so two
+# of the four bindings can be absent and the gate still passes. A release is
+# exactly where every binding must be present to compare.
+agreement_result=$(python3 "$REPO/scripts/ci/check_agreement.py" --require-all-sdks 2>&1)
 agreement_exit=$?
 echo "$agreement_result"
 if [ "$agreement_exit" -ne 0 ]; then
