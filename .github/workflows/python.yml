@@ -429,8 +429,23 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build, stubtest, fresh-install-smoke, compatibility, freethreaded, sdist]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 130
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
+      - name: Require CI green for this tag
+        # A tag push starts every workflow at once and none of them can see
+        # another's jobs. #1352 put crates.io and the GitHub Release behind
+        # ci.yml's `verified` aggregate, but that job lives in ci.yml, so this
+        # publisher kept uploading on its own file's jobs alone -- none of which
+        # are fmt, clippy, the core tests, binding parity, wire-schema drift,
+        # the surface gates or semver. A red core gate would have split the
+        # release across registries, with the parts that did upload unyankable.
+        uses: ./.github/actions/require-ci-green
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Preflight - tag matches package version
         shell: bash
         run: |
