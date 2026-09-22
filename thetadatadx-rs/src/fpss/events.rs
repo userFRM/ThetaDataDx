@@ -174,6 +174,27 @@ pub enum StreamData {
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
     },
+    /// Decoded index market-value tick (code 25 on an index contract).
+    ///
+    /// An index has no NBBO, so the vendor publishes a market price alone:
+    /// no `market_bid`, no `market_ask`, and no midpoint between them. The
+    /// price is served exactly as the feed sent it.
+    IndexMarketValue {
+        /// Full parsed contract for this tick. Holds the unresolved-
+        /// contract sentinel (`sec_type == SecType::Unknown`; the
+        /// `symbol` carries `__pending:<id>` for diagnostic surfacing)
+        /// when the matching `ContractAssigned` frame has not yet
+        /// arrived.
+        contract: Arc<Contract>,
+        /// Milliseconds since midnight Eastern Time.
+        ms_of_day: i32,
+        /// The index market price (dollars), as sent.
+        market_price: f64,
+        /// Trading date as `YYYYMMDD`.
+        date: i32,
+        /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
+        received_at_ns: u64,
+    },
 }
 
 /// Control/lifecycle events from the FPSS stream.

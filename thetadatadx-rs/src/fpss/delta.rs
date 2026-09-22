@@ -165,6 +165,37 @@ impl DeltaState {
         expected_fields: usize,
         out: &mut TickFields,
     ) -> Option<i32> {
+        self.decode_tick_with(msg_code, payload, out, |_| (baseline, expected_fields))
+            .map(|(contract_id, _, _)| contract_id)
+    }
+
+    /// Decode a FIT payload whose shape depends on the contract it names.
+    ///
+    /// `shape_for` receives the decoded `contract_id` and returns the baseline
+    /// the stream accumulates onto and the field count its rows carry. Every
+    /// stream but market value has one shape, and passes a closure that
+    /// ignores the id; market value carries the eleven-field quote layout for
+    /// a stock or an option and the eight-field trade layout for an index, as
+    /// the terminal routes it, so it cannot know its width until the row has
+    /// been read.
+    ///
+    /// The scratch is therefore sized for the widest tick shape rather than
+    /// for the caller's expectation: the contract id is the first FIT field,
+    /// and the shape is not known until it has been read. The buffer is
+    /// reused across ticks and never shrinks, so this costs one wider memset
+    /// per tick and no allocation.
+    ///
+    /// Returns `Some((contract_id, baseline, field_count))`.
+    pub(super) fn decode_tick_with<F>(
+        &mut self,
+        msg_code: u8,
+        payload: &[u8],
+        out: &mut TickFields,
+        shape_for: F,
+    ) -> Option<(i32, Baseline, usize)>
+    where
+        F: FnOnce(i32) -> (Baseline, usize),
+    {
         self.last_was_date = false;
 
         if payload.is_empty() {
@@ -173,7 +204,7 @@ impl DeltaState {
 
         // Reuse the FIT scratch buffer: resize if needed (retains
         // capacity), then zero-fill the portion we need.
-        let total_fields = expected_fields + 1;
+        let total_fields = MAX_DATA_FIELDS + 1;
         if self.alloc_buf.len() < total_fields {
             self.alloc_buf.resize(total_fields, 0);
         }
@@ -202,8 +233,11 @@ impl DeltaState {
             return None;
         }
 
-        // First FIT field is the contract_id.
+        // First FIT field is the contract_id, and it is what the shape
+        // resolves from: market value carries a different layout for an index
+        // than for anything else.
         let contract_id = self.alloc_buf[0];
+        let (baseline, expected_fields) = shape_for(contract_id);
 
         // Copy tick data (alloc[1..]) into the caller-owned stack buffer.
         // The slot count is bounded by MAX_DATA_FIELDS at the type level —
@@ -262,7 +296,7 @@ impl DeltaState {
         }
 
         out.fill(0);
-        out[..expected_fields].copy_from_slice(&self.alloc_buf[1..total_fields]);
+        out[..expected_fields].copy_from_slice(&self.alloc_buf[1..=expected_fields]);
 
         if let Some(prev) = self.prev.get(&key) {
             // Delta row: accumulate onto previous absolute values
@@ -280,7 +314,7 @@ impl DeltaState {
         // no `Vec::clone` per tick.
         self.prev.insert(key, *out);
 
-        Some(contract_id)
+        Some((contract_id, baseline, expected_fields))
     }
 
     /// Distinct-row count of the per-session baseline map, exposed for

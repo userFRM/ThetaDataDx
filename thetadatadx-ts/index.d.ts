@@ -4320,6 +4320,15 @@ export interface IndexListSymbolsOptions {
   timeoutMs?: number
 }
 
+/** Streaming index MarketValue tick (wire code 25, index contracts). The vendor publishes `ms_of_day`, `date` and `market_price` for an index and no bid or ask: an index has no NBBO, so the size-imbalance nudge that produces `market_bid` / `market_ask` for a stock or an option does not apply. `market_price` is served exactly as the feed sent it. Per-contract only (no full-stream variant). */
+export interface IndexMarketValue {
+  contract: Contract
+  msOfDay: number
+  marketPrice: number
+  date: number
+  receivedAtNs: bigint
+}
+
 /** Index price-at-time tick -- the trade-shaped row the v3 server */
 export interface IndexPriceAtTimeTick {
   msOfDay: number
@@ -6736,7 +6745,8 @@ export interface StreamEvent {
    * Narrowed to a literal union in TS so `switch (event.kind)`
    * correctly narrows the optional payload fields.
    */
-  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'login_success' | 'market_close' | 'market_open' | 'market_value' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
+  kind: 'connected' | 'contract_assigned' | 'disconnected' | 'index_market_value' | 'login_success' | 'market_close' | 'market_open' | 'market_value' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'
+  indexMarketValue?: IndexMarketValue
   marketValue?: MarketValue
   ohlcvc?: Ohlcvc
   openInterest?: OpenInterest

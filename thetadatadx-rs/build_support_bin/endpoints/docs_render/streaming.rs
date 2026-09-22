@@ -345,8 +345,8 @@ const STREAMS: &[StreamSpec] = &[
         path: "streaming/indices/market-value",
         title: "Index Market Value",
         description: "Real-time calculated market value for an index.",
-        prose: "Streams the calculated market value for an index, delivered as a `MarketValue` event. For an index only `market_price` is populated; the bid/ask market values that accompany stock and option market-value events do not apply to indices. Market value is a per-index subscription with no full-stream broadcast.",
-        event: "MarketValue",
+        prose: "Streams the market value for an index, delivered as an `IndexMarketValue` event carrying `ms_of_day`, `market_price` and `date`. An index has no NBBO, so there is no `market_bid` or `market_ask` beside the price and no midpoint between them: the event type is distinct from the stock and option `MarketValue` for that reason, rather than carrying fields that do not apply. The price is served exactly as the feed sent it. Market value is a per-index subscription with no full-stream broadcast.",
+        event: "IndexMarketValue",
         rust_sub: "Contract::index(\"SPX\").market_value()",
         python_sub: "Contract.index(\"SPX\").market_value()",
         ts_sub: "Contract.index('SPX').marketValue()",
@@ -393,6 +393,10 @@ fn rust_tab(spec: &StreamSpec) -> String {
                 "StreamEvent::Data(StreamData::MarketValue { contract, market_price, .. })",
                 "println!(\"{} market_price={market_price}\", contract.symbol);",
             ),
+            "IndexMarketValue" => (
+                "StreamEvent::Data(StreamData::IndexMarketValue { contract, market_price, .. })",
+                "println!(\"{} market_price={market_price}\", contract.symbol);",
+            ),
             other => panic!("no Rust callback template for event {other}"),
         };
         format!("client.stream().start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;")
@@ -429,6 +433,10 @@ fn python_tab(spec: &StreamSpec) -> String {
             ),
             "MarketValue" => (
                 "market_value",
+                "print(event.contract.symbol, event.market_price)",
+            ),
+            "IndexMarketValue" => (
+                "index_market_value",
                 "print(event.contract.symbol, event.market_price)",
             ),
             other => panic!("no Python callback template for event {other}"),
@@ -473,6 +481,11 @@ fn typescript_tab(spec: &StreamSpec) -> String {
                 "marketValue",
                 "console.log(e.contract.symbol, e.marketPrice);",
             ),
+            "IndexMarketValue" => (
+                "index_market_value",
+                "indexMarketValue",
+                "console.log(e.contract.symbol, e.marketPrice);",
+            ),
             other => panic!("no TypeScript callback template for event {other}"),
         };
         format!("await client.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});")
@@ -508,6 +521,11 @@ fn cpp_tab(spec: &StreamSpec) -> String {
             "MarketValue" => (
                 "THETADATADX_STREAM_MARKET_VALUE",
                 "market_value",
+                "std::cout << e.contract.symbol << \" market_price=\" << e.market_price << \"\\n\";",
+            ),
+            "IndexMarketValue" => (
+                "THETADATADX_STREAM_INDEX_MARKET_VALUE",
+                "index_market_value",
                 "std::cout << e.contract.symbol << \" market_price=\" << e.market_price << \"\\n\";",
             ),
             other => panic!("no C++ callback template for event {other}"),
@@ -664,6 +682,8 @@ fn ws_frame_fields(event: &str) -> Option<&'static [&'static str]> {
             "market_price",
             "date",
         ],
+        // An index has no NBBO: the vendor publishes the price alone.
+        "IndexMarketValue" => &["ms_of_day", "market_price", "date"],
         _ => return None,
     })
 }
@@ -769,6 +789,7 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
                 // lowercased `header.type` (`StreamData::Ohlcvc => "OHLC"`).
                 "Ohlcvc" => "ohlc",
                 "MarketValue" => "market_value",
+                "IndexMarketValue" => "index_market_value",
                 other => panic!("no WebSocket payload key for event {other}"),
             };
             let _ = write!(

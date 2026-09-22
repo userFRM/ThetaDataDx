@@ -29,6 +29,18 @@ pub struct Contract {
     pub strike_thousandths: Option<i32>,
 }
 
+/// Streaming index MarketValue tick (wire code 25, index contracts). The vendor publishes `ms_of_day`, `date` and `market_price` for an index and no bid or ask: an index has no NBBO, so the size-imbalance nudge that produces `market_bid` / `market_ask` for a stock or an option does not apply. `market_price` is served exactly as the feed sent it. Per-contract only (no full-stream variant).
+#[must_use]
+#[napi(object)]
+#[derive(Clone)]
+pub struct IndexMarketValue {
+    pub contract: Contract,
+    pub ms_of_day: i32,
+    pub market_price: f64,
+    pub date: i32,
+    pub received_at_ns: BigInt,
+}
+
 /// Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
 #[must_use]
 #[napi(object)]
@@ -259,8 +271,9 @@ pub struct StreamEvent {
     /// Discriminator matching one of the typed payload fields below.
     /// Narrowed to a literal union in TS so `switch (event.kind)`
     /// correctly narrows the optional payload fields.
-    #[napi(ts_type = "'connected' | 'contract_assigned' | 'disconnected' | 'login_success' | 'market_close' | 'market_open' | 'market_value' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'")]
+    #[napi(ts_type = "'connected' | 'contract_assigned' | 'disconnected' | 'index_market_value' | 'login_success' | 'market_close' | 'market_open' | 'market_value' | 'ohlcvc' | 'open_interest' | 'parse_error' | 'ping' | 'quote' | 'reconnected' | 'reconnected_server' | 'reconnecting' | 'reconnects_exhausted' | 'req_response' | 'restart' | 'server_error' | 'trade' | 'unknown_control' | 'unknown_frame'")]
     pub kind: &'static str,
+    pub index_market_value: Option<IndexMarketValue>,
     pub market_value: Option<MarketValue>,
     pub ohlcvc: Option<Ohlcvc>,
     pub open_interest: Option<OpenInterest>,
@@ -288,6 +301,7 @@ pub struct StreamEvent {
 pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
     let mut out = StreamEvent {
         kind: "unknown_control",
+        index_market_value: None,
         market_value: None,
         ohlcvc: None,
         open_interest: None,
@@ -312,6 +326,29 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
         unknown_frame: None,
     };
     match event {
+        BufferedEvent::IndexMarketValue {
+            contract,
+            ms_of_day,
+            market_price,
+            date,
+            received_at_ns,
+        } => {
+            out.kind = "index_market_value";
+            out.index_market_value = Some(IndexMarketValue {
+                contract: Contract {
+                    symbol: contract.symbol.to_string(),
+                    sec_type: contract.sec_type.as_str().to_string(),
+                    expiration: contract.expiration,
+                    right: contract.right().map(|r| r.as_char().to_string()),
+                    strike: contract.strike_dollars(),
+                    strike_thousandths: contract.strike_thousandths,
+                },
+                ms_of_day,
+                market_price,
+                date,
+                received_at_ns: BigInt::from(received_at_ns),
+            });
+        }
         BufferedEvent::MarketValue {
             contract,
             ms_of_day,

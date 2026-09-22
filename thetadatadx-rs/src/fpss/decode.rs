@@ -556,22 +556,59 @@ pub fn decode_frame(
 
         StreamMsgType::MarketValue => {
             let msg_code = code as u8;
-            // The MARKET_VALUE frame carries the same 11-field FIT quote
-            // layout as a Quote frame, so decode it with `QUOTE_FIELDS`,
-            // then apply the market-value calculation to the decoded
-            // bid/ask. It accumulates onto the contract's QUOTE baseline,
-            // not one of its own: the server encodes both streams against
-            // a single per-contract row, as the terminal's own client
-            // does, so a separate baseline here would decode each stream
-            // against a row the server has already moved past.
-            match delta_state.decode_tick(
-                Baseline::Quote,
-                msg_code,
-                payload,
-                QUOTE_FIELDS,
-                &mut buf,
-            ) {
-                Some(contract_id) => {
+            // A MARKET_VALUE frame carries one of two layouts, and which one
+            // depends on the contract it names, so the shape is resolved from
+            // the decoded contract id rather than assumed:
+            //
+            // * For a stock or an option it is the 11-field quote layout, and
+            //   it accumulates onto that contract's QUOTE baseline rather than
+            //   one of its own. The server encodes both streams against a
+            //   single per-contract row, as the terminal does, so a separate
+            //   baseline would decode each against a row the server has moved
+            //   past.
+            // * For an index it is the 8-field trade layout on the TRADE
+            //   baseline, again matching the terminal's routing. An index has
+            //   no NBBO, so the vendor publishes a price alone.
+            match delta_state.decode_tick_with(msg_code, payload, &mut buf, |id| {
+                if local_contracts
+                    .get(&id)
+                    .is_some_and(|c| c.sec_type == crate::tdbe::types::enums::SecType::Index)
+                {
+                    (Baseline::Trade, TRADE_FIELDS)
+                } else {
+                    (Baseline::Quote, QUOTE_FIELDS)
+                }
+            }) {
+                Some((contract_id, Baseline::Trade, _)) => {
+                    // Index: the vendor sends `ms_of_day`, the price and the
+                    // date. There is no bid, no ask, and so no midpoint
+                    // between them. The price is served as sent; the
+                    // terminal's own client replaces it with the price plus a
+                    // random offset of up to five cents, which is noise the
+                    // feed did not carry and this SDK does not reproduce.
+                    warn_unknown_contract(
+                        contract_id,
+                        "index_market_value",
+                        delta_state,
+                        local_contracts,
+                    );
+                    let pt = buf[6];
+                    let Some(market_price) = strict_fpss_price(buf[4], pt) else {
+                        FPSS_MARKET_VALUE_DECODE_FAILURES.increment(1);
+                        FPSS_INVALID_PRICE_TYPE_MARKET_VALUE.increment(1);
+                        warn_invalid_price_type("index_market_value", contract_id, pt);
+                        return Some(FpssEventInternal::Unparseable);
+                    };
+                    FPSS_MARKET_VALUE_EVENTS.increment(1);
+                    Some(FpssEventInternal::Data(StreamData::IndexMarketValue {
+                        contract: resolve_contract(contract_id, local_contracts),
+                        ms_of_day: buf[0],
+                        market_price,
+                        date: buf[7],
+                        received_at_ns,
+                    }))
+                }
+                Some((contract_id, _, _)) => {
                     warn_unknown_contract(
                         contract_id,
                         "market_value",
@@ -1756,6 +1793,63 @@ mod tests {
     /// MARKET_VALUE frame (same 11-field quote layout) and assert the
     /// emitted `StreamData::MarketValue` carries the calculated bid/ask/price
     /// reassembled to dollars via the same `Price` path as every other tick.
+    #[test]
+    fn decode_frame_index_market_value_serves_the_price_as_sent() {
+        // An index market value carries the 8-field trade layout, not the
+        // 11-field quote layout, because an index has no NBBO. The terminal
+        // routes it to the trade baseline for the same reason.
+        //
+        //   [contract_id, ms_of_day, seq, size, condition, price, exchange,
+        //    price_type, date]
+        let fit_payload = encode_fit_row(&[
+            200,        // contract_id
+            34_200_000, // ms_of_day
+            12_345,     // sequence
+            0,          // size
+            0,          // condition
+            560_012,    // price
+            0,          // exchange
+            8,          // price_type
+            20_250_428, // date
+        ]);
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(200, Arc::new(Contract::index("SPX")));
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let primary = decode_frame(
+            StreamMsgType::MarketValue,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        );
+        let evt = primary.expect("an index market value must decode");
+        match expect_public(&evt) {
+            StreamEvent::Data(StreamData::IndexMarketValue {
+                contract,
+                ms_of_day,
+                market_price,
+                date,
+                ..
+            }) => {
+                assert_eq!(&*contract.symbol, "SPX");
+                assert_eq!(*ms_of_day, 34_200_000);
+                assert_eq!(*date, 20_250_428);
+                // Exactly the price the feed sent, reassembled through
+                // Price(value, price_type). The terminal's own client adds a
+                // random offset of up to five cents here; that offset is not
+                // in the feed and is not reproduced.
+                assert!(
+                    (*market_price - Price::new(560_012, 8).to_f64()).abs() < f64::EPSILON,
+                    "index market price must be served as sent, got {market_price}"
+                );
+            }
+            other => panic!("expected an IndexMarketValue event, got {other:?}"),
+        }
+    }
+
     #[test]
     fn decode_frame_market_value_emits_calculated_fields() {
         // 11-field quote layout (FIT prefix: contract_id):
