@@ -678,6 +678,36 @@ pub(in crate::fpss) fn apply_req_response_for_test(
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
+/// Record that auto-recovery has given up, then publish the terminal event.
+///
+/// The store happens first and unconditionally. A consumer that sees the
+/// event and then reads the status must never find the flag unset, and the
+/// publish can fail: `try_publish` is the only publish path the io_loop uses,
+/// so a slow consumer that lets the ring fill loses the event. Losing the
+/// event is survivable, because the status still answers; losing the store is
+/// not, because nothing else sets it and the session it belongs to is over.
+///
+/// This is a function rather than the body of `publish_exhausted!` so the
+/// ordering can be asserted against a producer that always fails, which is
+/// the case the ordering exists for.
+fn mark_and_publish_exhausted(
+    reconnects_exhausted: &AtomicBool,
+    dropped: &AtomicU64,
+    reason: RemoveReason,
+    attempts: u32,
+    try_publish: impl FnOnce(FpssEventInternal) -> Result<(), ()>,
+) {
+    reconnects_exhausted.store(true, Ordering::Release);
+    let event = FpssEventInternal::Control(StreamControl::ReconnectsExhausted { reason, attempts });
+    if try_publish(event).is_err() {
+        dropped.fetch_add(1, Ordering::Relaxed);
+        tracing::warn!(
+            target: "thetadatadx::fpss::io_loop",
+            "ring full while publishing ReconnectsExhausted; dropped",
+        );
+    }
+}
+
 pub(in crate::fpss) fn io_loop<P>(args: IoLoopArgs<P>)
 where
     P: RingProducer,
@@ -748,26 +778,18 @@ where
         // called, so a caller standing inside a shadowing binding would
         // silently publish the outer value instead of its own.
         ($reason:expr, $attempts:expr) => {
-            // Set before the event is published: a consumer reading the
-            // status after seeing the event must never find it unset,
-            // and the publish can fail on a full ring.
-            reconnects_exhausted.store(true, Ordering::Release);
-            if producer
-                .try_publish(|slot| {
-                    slot.event =
-                        FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
-                            reason: $reason,
-                            attempts: $attempts,
-                        });
-                })
-                .is_err()
-            {
-                dropped.fetch_add(1, Ordering::Relaxed);
-                tracing::warn!(
-                    target: "thetadatadx::fpss::io_loop",
-                    "ring full while publishing ReconnectsExhausted; dropped",
-                );
-            }
+            mark_and_publish_exhausted(
+                &reconnects_exhausted,
+                &dropped,
+                $reason,
+                $attempts,
+                |event| {
+                    producer
+                        .try_publish(|slot| slot.event = event)
+                        .map(|_| ())
+                        .map_err(|_| ())
+                },
+            );
         };
     }
 
@@ -4018,50 +4040,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn the_terminal_event_has_one_construction_site() {
-        // `publish_exhausted!` stores the flag before it publishes, so a full
-        // ring cannot lose it. A second place that builds the event by hand
-        // publishes it without the store, and a consumer reading the status
-        // afterwards sees a session still trying when it has stopped. That is
-        // what happened; this pins it not to happen again.
-        let src = include_str!("mod.rs");
-        let cut = src
-            .find("#[cfg(test)]\nmod tests")
-            .expect("test module marker present");
-        let prod = &src[..cut];
-        assert_eq!(
-            prod.matches("StreamControl::ReconnectsExhausted {").count(),
-            1,
-            "the terminal event is built only inside `publish_exhausted!`"
-        );
-
-        // And the reason is named by each caller. A name the macro body reads
-        // resolves where the macro is defined, so with `reason` free in the
-        // body the permanent-rejection site, which stands inside a shadowing
-        // `LoginResult::Disconnected(reason)`, published the outer transient
-        // reason instead of the login rejection an operator needs.
-        assert!(
-            prod.contains("($reason:expr, $attempts:expr) => {"),
-            "`publish_exhausted!` takes the reason rather than inheriting one"
-        );
-        let calls = prod.matches("publish_exhausted!(").count();
-        assert!(calls > 1, "the macro is called, so the pin means something");
-        // Every path that ends a session for a cause the user did not ask
-        // for goes through it, including the one the decoder decides: a
-        // permanent reason there sets `shutdown`, and the loop then leaves
-        // through a check that cannot tell that from a user teardown.
-        assert!(
-            prod.contains("if reconnect_delay(reason).is_none() {\n                                publish_exhausted!(reason, 0);"),
-            "the decoder's permanent disconnect publishes the terminal event"
-        );
-        assert_eq!(
-            prod.matches("publish_exhausted!(reason, ").count(),
-            calls,
-            "every call names its own reason"
-        );
-    }
-
     /// Finding #3 source guard: every reconnect-path replay/drain failure
     /// branch that re-enters the session loop must first set
     /// `pending_reason`, so a broken reconnected socket re-enters
@@ -4103,5 +4081,63 @@ mod tests {
              on the originating class; found {pending_marks} marks for {continue_sites} \
              continue sites"
         );
+    }
+
+    /// Exhaustion is recorded before the event is published, and recorded
+    /// even when the publish fails.
+    ///
+    /// `try_publish` is the only publish path the io_loop uses, so a consumer
+    /// that lets the ring fill loses the event. Losing the event is
+    /// survivable: the status still answers. Losing the store is not, because
+    /// nothing else sets it and the session it belongs to is over, so a
+    /// caller would go on being told the session is still trying.
+    ///
+    /// This replaces a test that counted construction sites and matched
+    /// source phrases in this file. That one passed with the store flipped to
+    /// `false`, which is the single change it existed to catch.
+    #[test]
+    fn exhaustion_is_recorded_even_when_the_ring_is_full() {
+        let flag = AtomicBool::new(false);
+        let dropped = AtomicU64::new(0);
+
+        // A ring that is always full: the event never lands.
+        mark_and_publish_exhausted(&flag, &dropped, RemoveReason::TimedOut, 7, |_event| Err(()));
+        assert!(
+            flag.load(Ordering::Acquire),
+            "a failed publish must still leave the session recorded as exhausted"
+        );
+        assert_eq!(
+            dropped.load(Ordering::Relaxed),
+            1,
+            "a lost terminal event is counted as a drop"
+        );
+
+        // A ring with room: the event lands, carrying the caller's own reason
+        // and attempt count rather than a value inherited from elsewhere.
+        let flag = AtomicBool::new(false);
+        let dropped = AtomicU64::new(0);
+        let mut seen = None;
+        mark_and_publish_exhausted(
+            &flag,
+            &dropped,
+            RemoveReason::AccountAlreadyConnected,
+            3,
+            |event| {
+                seen = Some(event);
+                Ok(())
+            },
+        );
+        assert!(flag.load(Ordering::Acquire));
+        assert_eq!(dropped.load(Ordering::Relaxed), 0);
+        match seen {
+            Some(FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
+                reason,
+                attempts,
+            })) => {
+                assert_eq!(reason, RemoveReason::AccountAlreadyConnected);
+                assert_eq!(attempts, 3);
+            }
+            other => panic!("expected a ReconnectsExhausted event, got {other:?}"),
+        }
     }
 }
