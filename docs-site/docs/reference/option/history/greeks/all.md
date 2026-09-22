@@ -65,7 +65,7 @@ Rows of `GreeksAllTick`:
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `bid` | f64 | Last NBBO bid price. |
 | `ask` | f64 | Last NBBO ask price. |
-| `implied_volatility` | f64 | Implied volatility solved from the option price. |
+| `implied_volatility` | f64 | Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`. |
 | `delta` | f64 | Sensitivity of the option value to a one-dollar move in the underlying. |
 | `gamma` | f64 | Rate of change of delta with respect to the underlying price. |
 | `theta` | f64 | Sensitivity of the option value to the passage of time. |
@@ -87,7 +87,7 @@ Rows of `GreeksAllTick`:
 | `epsilon` | f64 | Sensitivity of the option value to the dividend yield. |
 | `lambda` | f64 | Percent change in the option value per percent change in the underlying. |
 | `vera` | f64 | Sensitivity of rho to a change in implied volatility. |
-| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. |
+| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 

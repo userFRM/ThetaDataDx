@@ -65,13 +65,13 @@ Rows of `GreeksEodTick`:
 | `volume` | i64 | Number of contracts or shares traded. |
 | `count` | i64 | Number of trades. |
 | `bid_size` | i32 | Last NBBO bid size. |
-| `bid_exchange` | i32 | Exchange code of the NBBO bid. |
+| `bid_exchange` | i32 | Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `bid` | f64 | Last NBBO bid price. |
-| `bid_condition` | i32 | Quote condition code on the bid side. |
+| `bid_condition` | i32 | Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `ask_size` | i32 | Last NBBO ask size. |
-| `ask_exchange` | i32 | Exchange code of the NBBO ask. |
+| `ask_exchange` | i32 | Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `ask` | f64 | Last NBBO ask price. |
-| `ask_condition` | i32 | Quote condition code on the ask side. |
+| `ask_condition` | i32 | Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `delta` | f64 | Sensitivity of the option value to a one-dollar move in the underlying. |
 | `theta` | f64 | Sensitivity of the option value to the passage of time. |
 | `vega` | f64 | Sensitivity of the option value to a change in implied volatility. |
@@ -92,9 +92,9 @@ Rows of `GreeksEodTick`:
 | `d2` | f64 | Black-Scholes d2 intermediate term. |
 | `dual_delta` | f64 | Sensitivity of the option value to the strike price. |
 | `dual_gamma` | f64 | Second derivative of the option value with respect to the strike. |
-| `implied_volatility` | f64 | Implied volatility solved from the option price. |
+| `implied_volatility` | f64 | Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`. |
 | `iv_error` | f64 | Residual pricing error of the implied-volatility solve. |
-| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. |
+| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 

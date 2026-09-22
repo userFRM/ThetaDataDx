@@ -66,9 +66,9 @@ Rows of `TradeGreeksFirstOrderTick`:
 | `ext_condition2` | i32 | Additional trade condition code. |
 | `ext_condition3` | i32 | Additional trade condition code. |
 | `ext_condition4` | i32 | Additional trade condition code. |
-| `condition` | i32 | Trade condition code. |
+| `condition` | i32 | Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `size` | i32 | Number of contracts or shares traded. |
-| `exchange` | i32 | Exchange code where the trade executed. |
+| `exchange` | i32 | Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `price` | f64 | Trade price. |
 | `delta` | f64 | Sensitivity of the option value to a one-dollar move in the underlying. |
 | `theta` | f64 | Sensitivity of the option value to the passage of time. |
@@ -76,9 +76,9 @@ Rows of `TradeGreeksFirstOrderTick`:
 | `rho` | f64 | Sensitivity of the option value to the risk-free rate. |
 | `epsilon` | f64 | Sensitivity of the option value to the dividend yield. |
 | `lambda` | f64 | Percent change in the option value per percent change in the underlying. |
-| `implied_volatility` | f64 | Implied volatility solved from the option price. |
+| `implied_volatility` | f64 | Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`. |
 | `iv_error` | f64 | Residual pricing error of the implied-volatility solve. |
-| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. |
+| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 

@@ -57,12 +57,12 @@ Rows of `QuoteTick`:
 |---|---|---|
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `bid_size` | i32 | Last NBBO bid size. |
-| `bid_exchange` | i32 | Exchange code of the NBBO bid. |
+| `bid_exchange` | i32 | Exchange code of the NBBO bid. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `bid` | f64 | Last NBBO bid price. |
-| `bid_condition` | i32 | Quote condition code on the bid side. |
+| `bid_condition` | i32 | Quote condition code on the bid side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `ask_size` | i32 | Last NBBO ask size. |
-| `ask_exchange` | i32 | Exchange code of the NBBO ask. |
+| `ask_exchange` | i32 | Exchange code of the NBBO ask. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `ask` | f64 | Last NBBO ask price. |
-| `ask_condition` | i32 | Quote condition code on the ask side. |
+| `ask_condition` | i32 | Quote condition code on the ask side. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
