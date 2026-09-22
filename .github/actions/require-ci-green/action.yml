@@ -69,8 +69,11 @@ runs:
         # started yet" would spend the whole timeout and then report a wait,
         # which reads as slow CI rather than as a refusal, so a short run of
         # consecutive failures is tolerated for a transient blip and anything
-        # beyond it stops.
-        api_failures=0
+        # beyond it stops. The count is PER GATE: a shared counter is reset by
+        # any other workflow reading successfully, so one endpoint failing
+        # persistently never reaches the limit and the wait runs to the
+        # deadline anyway.
+        declare -A api_failures=()
         MAX_API_FAILURES=3
 
         mapfile -t gates < <(printf '%s\n' "${REQUIRED_GATES}" | sed '/^[[:space:]]*$/d')
@@ -89,16 +92,16 @@ runs:
             [ -n "${passed[$gate]:-}" ] && continue
 
             if ! found="$(find_run "$workflow" 2>&1)"; then
-              api_failures=$((api_failures + 1))
-              if [ "$api_failures" -gt "$MAX_API_FAILURES" ]; then
-                echo "::error::refusing to publish: cannot read ${workflow} runs after ${api_failures} attempts: ${found}"
+              api_failures[$gate]=$(( ${api_failures[$gate]:-0} + 1 ))
+              if [ "${api_failures[$gate]}" -gt "$MAX_API_FAILURES" ]; then
+                echo "::error::refusing to publish: cannot read ${workflow} runs after ${api_failures[$gate]} attempts: ${found}"
                 exit 1
               fi
-              echo "  ${gate}: API read failed (${api_failures}/${MAX_API_FAILURES}), retrying"
+              echo "  ${gate}: API read failed (${api_failures[$gate]}/${MAX_API_FAILURES}), retrying"
               pending=1
               continue
             fi
-            api_failures=0
+            api_failures[$gate]=0
 
             if [ -z "$found" ]; then
               echo "  ${gate}: no run for this tag yet"
