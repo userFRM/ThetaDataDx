@@ -168,6 +168,27 @@ pub(super) fn fpss_event_to_ws_json(
                         "market_price": market_price,
                     }),
                 ),
+                StreamData::IndexMarketValue {
+                    ms_of_day,
+                    market_price,
+                    date,
+                    ..
+                } => (
+                    // The terminal serializes this under the SAME header type
+                    // as a per-contract market value. `serializeIndexMarketValue`
+                    // removes `market_bid` and `market_ask` from the payload
+                    // before writing it, because an index has no NBBO, and
+                    // leaves `date`, `ms_of_day` and `market_price`. Matching
+                    // that exactly: a strict terminal client reads the frame
+                    // by `header.type`, so a new type here would be a frame it
+                    // does not recognize.
+                    "MARKET_VALUE",
+                    sonic_rs::json!({
+                        "date": date,
+                        "ms_of_day": ms_of_day,
+                        "market_price": market_price,
+                    }),
+                ),
                 // The terminal's `EventSerializer` defines no open-interest
                 // WS frame: it serializes only STATUS / TRADE / QUOTE / OHLC
                 // / MARKET_VALUE / REQ_RESPONSE / STATE. Open-interest ticks
@@ -444,6 +465,55 @@ mod tests {
         assert!(
             json.contains("\"type\":\"TRADE\"") && json.contains("\"status\":\"CONNECTED\""),
             "Trade frame header type + status: {json}"
+        );
+    }
+
+    fn make_index_market_value(contract: Arc<Contract>) -> StreamEvent {
+        StreamEvent::Data(StreamData::IndexMarketValue {
+            contract,
+            ms_of_day: 1,
+            market_price: 3.0,
+            date: 20260617,
+            received_at_ns: 4,
+        })
+    }
+
+    /// An index market value reaches the WS surface, under the header type
+    /// the terminal uses and carrying exactly the columns it writes.
+    ///
+    /// `EventSerializer.serializeIndexMarketValue` sets `type` to
+    /// `MARKET_VALUE`, the same as the per-contract serializer, and REMOVES
+    /// `market_bid` and `market_ask` from the payload before writing it,
+    /// because an index has no NBBO. Emitting a new header type instead would
+    /// hand a strict terminal client a `header.type` it does not recognize,
+    /// and carrying a bid or an ask would publish two fields the feed never
+    /// sent. Before this, the formatter dropped the variant entirely, so an
+    /// index market-value subscription reported itself active and never
+    /// produced a frame.
+    #[test]
+    fn index_market_value_frame_matches_the_terminal_serializer() {
+        let contract = Arc::new(Contract::stock("SPX"));
+        let event = make_index_market_value(Arc::clone(&contract));
+        let json =
+            fpss_event_to_ws_json(&event, Some(&contract), "CONNECTED", StrikeFormat::Terminal)
+                .expect("index MARKET_VALUE serialization must succeed");
+
+        for key in ["ms_of_day", "market_price", "date"] {
+            assert!(
+                json.contains(&format!("\"{key}\":")),
+                "index MARKET_VALUE frame must carry the `{key}` column: {json}"
+            );
+        }
+        for absent in ["market_bid", "market_ask", "received_at_ns"] {
+            assert!(
+                !json.contains(&format!("\"{absent}\":")),
+                "index MARKET_VALUE frame must NOT carry `{absent}`: {json}"
+            );
+        }
+        assert!(
+            json.contains("\"type\":\"MARKET_VALUE\""),
+            "the terminal serializes an index market value under the MARKET_VALUE \
+             header type, not a type of its own: {json}"
         );
     }
 

@@ -125,7 +125,8 @@ Over the [server's WebSocket](/server/websocket), each event arrives as one JSON
 | `trade` | `price`, `size`, `exchange`, `condition`, `sequence`, `ms_of_day`, `date`, `received_at_ns` | [Trade](/streaming/stocks/trade), [full-trade](/streaming/options/full-trade), and [index price](/streaming/indices/price) streams |
 | `open_interest` | `open_interest`, `ms_of_day`, `date`, `received_at_ns` | [Open-interest streams](/streaming/options/open-interest) |
 | `ohlcvc` | `open`, `high`, `low`, `close`, `volume`, `count`, `ms_of_day`, `date`, `received_at_ns` | Bars that arrive from upstream automatically — one per traded contract, ahead of that contract's trade |
-| `market_value` | `market_price` (calculated value), `market_bid` / `market_ask` (stocks and options only), `ms_of_day`, `date`, `received_at_ns` | [Index market value](/streaming/indices/market-value) and per-contract market-value streams |
+| `market_value` | `market_price` (calculated value), `market_bid` / `market_ask`, `ms_of_day`, `date`, `received_at_ns` | Per-contract market-value streams for stocks and options |
+| `index_market_value` | `market_price` as the feed sent it, `ms_of_day`, `date`, `received_at_ns` | [Index market value](/streaming/indices/market-value). An index has no NBBO, so there is no `market_bid` or `market_ask` beside the price, and it arrives under its own discriminator rather than `market_value` |
 
 Each stream-type page in the sidebar lists its event's complete field table.
 

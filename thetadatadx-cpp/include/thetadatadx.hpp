@@ -997,6 +997,7 @@ using StreamTrade = ThetaDataDxStreamTrade;
 using StreamOpenInterest = ThetaDataDxStreamOpenInterest;
 using StreamOhlcvc = ThetaDataDxStreamOhlcvc;
 using StreamMarketValue = ThetaDataDxStreamMarketValue;
+using StreamIndexMarketValue = ThetaDataDxStreamIndexMarketValue;
 // Typed control variants — one alias per control event type.
 using StreamConnected = ThetaDataDxStreamConnected;
 using StreamContractAssigned = ThetaDataDxStreamContractAssigned;
