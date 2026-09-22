@@ -97,6 +97,28 @@ impl fmt::Display for ReqType {
     }
 }
 
+/// The `RemoveReason` ordinal a DISCONNECTED frame states, or `Unspecified`
+/// when the payload is too short to state one.
+///
+/// A payload under two bytes is an unreadable disconnect, not a stated one.
+/// Substituting `0` names it `InvalidCredentials`, which classifies permanent
+/// and stops the retry on what is usually a mid-frame reset. `Unspecified` is
+/// the vendor's own "no reason given" value and classifies transient, so the
+/// driver retries.
+///
+/// Shared by the login and download paths. They each carried their own copy of
+/// this, and only one of them was corrected: the login path went on
+/// substituting `0`, so a truncated disconnect during login was reported as
+/// rejected credentials and never retried.
+#[must_use]
+pub(crate) fn disconnect_reason_code(payload: &[u8]) -> u16 {
+    if payload.len() >= 2 {
+        u16::from_be_bytes([payload[0], payload[1]])
+    } else {
+        RemoveReason::Unspecified as i32 as u16
+    }
+}
+
 /// Single source of truth for the `(SecType, ReqType)` pairs the flat-file
 /// distribution actually serves.
 ///
@@ -340,6 +362,35 @@ impl fmt::Display for FlatFilesUnavailableReason {
 
 #[cfg(test)]
 mod tests {
+
+    /// An unreadable disconnect must stay retryable.
+    ///
+    /// A payload under two bytes cannot state a reason. Substituting `0` names
+    /// `InvalidCredentials`, which classifies permanent, so a mid-frame reset
+    /// during login was reported as rejected credentials and the retry
+    /// stopped. Both the login and download paths read this one function now;
+    /// they each had their own copy and only one was corrected.
+    #[test]
+    fn an_unreadable_disconnect_reason_is_unspecified_not_invalid_credentials() {
+        let unspecified = RemoveReason::Unspecified as i32 as u16;
+        for truncated in [&b""[..], &b"\x01"[..]] {
+            assert_eq!(
+                disconnect_reason_code(truncated),
+                unspecified,
+                "a {}-byte payload states no reason",
+                truncated.len()
+            );
+            assert_ne!(
+                disconnect_reason_code(truncated),
+                RemoveReason::InvalidCredentials as i32 as u16,
+                "substituting zero names a credential rejection the server never sent"
+            );
+        }
+        // A stated reason is still read verbatim, big-endian.
+        assert_eq!(disconnect_reason_code(&[0x00, 0x09]), 9);
+        assert_eq!(disconnect_reason_code(&[0x00, 0x00]), 0);
+    }
+
     use super::*;
 
     /// Every flat-file request type maps to its exact client-facing dataset

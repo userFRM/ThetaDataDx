@@ -36,9 +36,10 @@ use crate::error::Error;
 use crate::flatfiles::framing::{msg, read_frame, Frame};
 use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
 use crate::flatfiles::session::{connect_and_login, MddsHost};
-use crate::flatfiles::types::{flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType};
+use crate::flatfiles::types::{
+    disconnect_reason_code, flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType,
+};
 use crate::flatfiles::ScratchGuard;
-use crate::tdbe::types::enums::RemoveReason;
 
 /// Process-wide monotonic id generator. The server treats id as opaque; we
 /// use an `AtomicI64` so concurrent `flatfile_request_raw` calls cannot
@@ -425,17 +426,7 @@ fn classify_stream_frame(
         }
         msg::PING => Ok(FrameAction::Ignore),
         msg::DISCONNECTED => {
-            // A payload too short to carry a reason is an unreadable
-            // disconnect, not a stated one. Substituting `0` would name it
-            // INVALID_CREDENTIALS, which the classifier treats as permanent and
-            // which stops the retry on what is usually a mid-frame reset.
-            // `Unspecified` is the vendor's own "no reason given" value and
-            // classifies transient, so the driver retries.
-            let reason_code = if frame.payload.len() >= 2 {
-                u16::from_be_bytes([frame.payload[0], frame.payload[1]])
-            } else {
-                RemoveReason::Unspecified as i32 as u16
-            };
+            let reason_code = disconnect_reason_code(&frame.payload);
             tracing::debug!(
                 target: "flatfiles",
                 request_id,
