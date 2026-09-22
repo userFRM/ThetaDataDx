@@ -143,7 +143,9 @@ await client.stream.startStreaming((event) => {
 client.stream.subscribe(SecType.option().fullTrades());   // the callback runs per event — keep it fast
 ```
 
-When you are done, stop the stream and drain it. By the time `awaitDrain` resolves, the callback has stopped firing, so any state it closed over can be released safely:
+When you are done, stop the stream and drain it. `awaitDrain` waits for the consumer thread to stop reading events and calling your callback, and resolves `true` when that happened inside the timeout and `false` when the timeout elapsed first, so check what it returned rather than only that it resolved.
+
+It does not mean every callback has finished running. The consumer hands each event to the JavaScript event loop, so callbacks already queued can still run after the drain resolves. If your callback owns state that must outlive the last invocation, release it from the callback itself on a final event, or keep it alive until your own bookkeeping says the last one has returned:
 
 ```typescript
 client.stream.stopStreaming();
