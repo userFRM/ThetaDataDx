@@ -2,8 +2,17 @@
 // Live parameter-mode matrix validator for the C++ SDK. Every cell is
 // attempted against production; the server is the ground truth for what
 // the account can access. Cells whose documented min_tier exceeds the
-// live account tier come back as a permission error and are classified
+// live account tier come back as a SubscriptionError and are classified
 // SKIP: tier-permission. Real configuration bugs surface as FAIL.
+//
+// Every cell is classified by the exception's TYPE. The SDK's dispatcher
+// reads the typed discriminant the FFI boundary sets and throws the right
+// leaf, so the type is the SDK's own answer to what went wrong. Reading
+// the formatted message instead got it wrong both ways: a permission
+// error whose text did not happen to contain "permission" or
+// "subscription" was recorded as a configuration FAIL, and any unrelated
+// failure whose text did contain one of those words was recorded as an
+// entitlement SKIP -- which is a real failure removed from the count.
 //
 // Per-cell deadline: concrete and list-style cells set
 // EndpointRequestOptions::timeout_ms = 60_000; bulk-chain / all-strike
@@ -14,8 +23,6 @@
 // exceeded". RAII destructors run normally because the SDK has already
 // cleaned up its in-flight state. See issues #287, #290 and
 //
-#include <algorithm>
-#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
@@ -32,13 +39,6 @@ namespace {
 
 constexpr uint64_t kPerCellTimeoutMs = 60'000;
 constexpr uint64_t kSlowModeTimeoutMs = 180'000;
-
-std::string lower(std::string value) {
-    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-    return value;
-}
 
 struct CellRecord {
     std::string endpoint;
@@ -100,39 +100,39 @@ int main(int argc, char** argv) {
                 std::cout << "  " << std::left << std::setw(60) << label << " PASS" << std::endl;
                 ++pass;
                 rec.status = "PASS";
+            } catch (const thetadatadx::DeadlineExceededError&) {
+                // SDK cancelled the in-flight gRPC stream on deadline elapse;
+                // the next cell runs normally on the same MarketDataClient handle.
+                const long long elapsed_s = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count();
+                std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after " << elapsed_s << "s" << std::endl;
+                ++fail;
+                rec.status = "FAIL";
+                rec.detail = "timeout after " + std::to_string(elapsed_s) + "s";
+            } catch (const thetadatadx::SubscriptionError&) {
+                std::cout << "  " << std::left << std::setw(60) << label << " SKIP: tier-permission (declared min_tier=" << declared_min_tier << ")" << std::endl;
+                ++skip;
+                rec.status = "SKIP";
+                rec.detail = "tier-permission";
+            } catch (const thetadatadx::NotFoundError&) {
+                // The endpoint answered; the account simply has no row for
+                // this contract and date. That is a served response, not a
+                // failure to reach the surface under test.
+                std::cout << "  " << std::left << std::setw(60) << label << " PASS  (no data)" << std::endl;
+                ++pass;
+                rec.status = "PASS";
+                rec.detail = "no data";
             } catch (const std::exception& e) {
-                const std::string msg = lower(e.what());
-                if (msg.find("request deadline exceeded") != std::string::npos) {
-                    // SDK cancelled the in-flight gRPC stream on deadline elapse;
-                    // the next cell runs normally on the same MarketDataClient handle.
-                    const long long elapsed_s = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - t0).count();
-                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  timeout after " << elapsed_s << "s" << std::endl;
-                    ++fail;
-                    rec.status = "FAIL";
-                    rec.detail = "timeout after " + std::to_string(elapsed_s) + "s";
-                } else if (msg.find("permission") != std::string::npos || msg.find("subscription") != std::string::npos) {
-                    std::cout << "  " << std::left << std::setw(60) << label << " SKIP: tier-permission (declared min_tier=" << declared_min_tier << ")" << std::endl;
-                    ++skip;
-                    rec.status = "SKIP";
-                    rec.detail = "tier-permission";
-                } else if (msg.find("no data found") != std::string::npos) {
-                    std::cout << "  " << std::left << std::setw(60) << label << " PASS  (no data)" << std::endl;
-                    ++pass;
-                    rec.status = "PASS";
-                    rec.detail = "no data";
-                } else {
-                    std::cout << "  " << std::left << std::setw(60) << label << " FAIL  " << e.what() << std::endl;
-                    ++fail;
-                    rec.status = "FAIL";
-                    // Runtime error messages can contain embedded newlines;
-                    // escape them so the agreement-table row stays on one
-                    // line (see scripts/ci/check_agreement.py).
-                    std::string d = e.what();
-                    for (size_t pos = 0; (pos = d.find('\n', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\n"); pos += 2; }
-                    for (size_t pos = 0; (pos = d.find('\r', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\r"); pos += 2; }
-                    if (d.size() > 200) { d = d.substr(0, 200); }
-                    rec.detail = std::move(d);
-                }
+                std::cout << "  " << std::left << std::setw(60) << label << " FAIL  " << e.what() << std::endl;
+                ++fail;
+                rec.status = "FAIL";
+                // Runtime error messages can contain embedded newlines;
+                // escape them so the agreement-table row stays on one
+                // line (see scripts/ci/check_agreement.py).
+                std::string d = e.what();
+                for (size_t pos = 0; (pos = d.find('\n', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\n"); pos += 2; }
+                for (size_t pos = 0; (pos = d.find('\r', pos)) != std::string::npos; ) { d.replace(pos, 1, "\\r"); pos += 2; }
+                if (d.size() > 200) { d = d.substr(0, 200); }
+                rec.detail = std::move(d);
             }
             rec.duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
             records.push_back(rec);
@@ -1306,6 +1306,21 @@ int main(int argc, char** argv) {
         std::cerr << "artifact write failure: " << e.what() << std::endl;
     }
     std::cout.flush();
+    // An empty result is a failure to measure, not a pass. Every cell can land
+    // in the SKIP branch -- a lapsed entitlement, a vendor-side outage refusing
+    // every request -- and the exit code, derived from `fail` alone, would
+    // still be 0. The live workflow reads only that code, and the release
+    // validator sums these counts into its failure total, where zero passes is
+    // indistinguishable from zero failures. Mirrors the same guard in the
+    // Python validator (validate_python/postamble.py.tmpl).
+    if (pass == 0) {
+        std::cerr << "\nC++: nothing passed (" << skip << " SKIP, " << fail
+                  << " FAIL of " << records.size()
+                  << " cells). An all-skip run measures nothing and is not a pass."
+                  << std::endl;
+        std::cerr.flush();
+        return 1;
+    }
     std::cerr.flush();
     return fail > 0 ? 1 : 0;
 }

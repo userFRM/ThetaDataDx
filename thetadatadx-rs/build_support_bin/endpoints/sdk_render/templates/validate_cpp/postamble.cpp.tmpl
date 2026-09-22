@@ -29,6 +29,21 @@
         std::cerr << "artifact write failure: " << e.what() << std::endl;
     }
     std::cout.flush();
+    // An empty result is a failure to measure, not a pass. Every cell can land
+    // in the SKIP branch -- a lapsed entitlement, a vendor-side outage refusing
+    // every request -- and the exit code, derived from `fail` alone, would
+    // still be 0. The live workflow reads only that code, and the release
+    // validator sums these counts into its failure total, where zero passes is
+    // indistinguishable from zero failures. Mirrors the same guard in the
+    // Python validator (validate_python/postamble.py.tmpl).
+    if (pass == 0) {
+        std::cerr << "\nC++: nothing passed (" << skip << " SKIP, " << fail
+                  << " FAIL of " << records.size()
+                  << " cells). An all-skip run measures nothing and is not a pass."
+                  << std::endl;
+        std::cerr.flush();
+        return 1;
+    }
     std::cerr.flush();
     return fail > 0 ? 1 : 0;
 }
