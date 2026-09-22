@@ -677,14 +677,27 @@ fn yyyymmdd_to_iso(date: i32) -> sonic_rs::Value {
 /// `"2024-01-02T17:17:53.606"`). v3 folds the separate v2 `date` +
 /// `ms_of_day` columns into one ISO timestamp string.
 ///
-/// The sub-second fraction follows Java's `LocalDateTime.toString` (the JVM
-/// terminal's formatter), which is variable-precision rather than a fixed
-/// `.SSS`: the fraction is omitted entirely when the millisecond field is
-/// zero, and otherwise printed with trailing zeros stripped. So `0` ms ->
-/// no fraction, `100` ms -> `.1`, `20` ms -> `.02`, `430` ms -> `.43`,
-/// `606` ms -> `.606`. The spec's `text/csv` / JSON examples carry exactly
-/// these shapes (e.g. `2025-08-20T16:02:06`, `...T16:10:04.43`), so a fixed
-/// `.SSS` would mismatch the documented output.
+/// The sub-second fraction is a fixed three digits, always present: `0` ms ->
+/// `.000`, `100` ms -> `.100`, `430` ms -> `.430`.
+///
+/// Two sources disagree here and only one of them is executable.
+///
+/// The vendor's OpenAPI document (`scripts/ci/data/upstream_openapi.yaml`)
+/// carries trimmed examples — `...T16:10:04.43` beside `...T16:03:05.142` —
+/// and this rendered them that way for that reason. The terminal does not.
+/// It builds this same string from the same two columns, because the wire
+/// carries `date` and `ms_of_day` and never a timestamp cell, then formats
+/// the result with an explicit `HH:mm:ss.SSS` pattern. Every timestamp it
+/// emits therefore has three digits.
+///
+/// Neither side can be checked against a third: both the terminal and this
+/// server render the string locally, so there is no vendor-emitted timestamp
+/// to compare them with. This server exists to stand in for the terminal, and
+/// a client pointed at it was pointed at the terminal before, so the terminal
+/// is the one it has to agree with. Fixed width is also the easier parse: a
+/// consumer slicing a known offset, or ordering timestamps as strings, gets
+/// the same answer on every row rather than a field whose length depends on
+/// its value.
 fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
     let year = date / 10_000;
     let month = (date / 100) % 100;
@@ -703,18 +716,10 @@ fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
     )
 }
 
-/// Render the variable-precision sub-second fraction for a millisecond field
-/// (`0..=999`) per Java's `LocalDateTime.toString`: empty when zero, else a
-/// leading `.` followed by the millis with trailing zeros stripped (`100` ->
-/// `.1`, `20` -> `.02`, `606` -> `.606`).
+/// Render the sub-second fraction for a millisecond field (`0..=999`) as the
+/// terminal does: a leading `.` and exactly three digits, including `.000`.
 fn iso_millis_fraction(millis: i32) -> String {
-    if millis == 0 {
-        return String::new();
-    }
-    // Zero-pad to three digits, then strip trailing zeros (never the leading
-    // ones: `020` -> `02`, `100` -> `1`).
-    let padded = format!("{millis:03}");
-    format!(".{}", padded.trim_end_matches('0'))
+    format!(".{millis:03}")
 }
 
 /// Format a millisecond-of-day offset as the v3 `HH:mm:ss` clock string
@@ -3257,36 +3262,39 @@ mod tests {
     /// spec's `text/csv` / JSON examples carry exactly these shapes (e.g.
     /// `2025-08-20T16:02:06`, `...:04.43`, `2024-01-16T09:30:00.1`).
     #[test]
-    fn ms_of_day_to_iso_uses_variable_precision_fraction() {
+    fn ms_of_day_to_iso_uses_the_terminals_fixed_millisecond_fraction() {
         let at = |ms: i32| {
             ms_of_day_to_iso(20240102, ms)
                 .as_str()
                 .expect("iso string")
                 .to_string()
         };
-        // 09:30:00 exactly -> no fraction at all.
-        assert_eq!(at(34_200_000), "2024-01-02T09:30:00");
-        // +20 ms -> ".02" (leading zero kept, trailing zero stripped).
-        assert_eq!(at(34_200_020), "2024-01-02T09:30:00.02");
-        // +100 ms -> ".1" (two trailing zeros stripped).
-        assert_eq!(at(34_200_100), "2024-01-02T09:30:00.1");
-        // +606 ms -> ".606" (no trailing zero to strip).
+        // The terminal formats every timestamp with an explicit `.SSS`, so a
+        // whole second still carries its fraction and a value with trailing
+        // zeros keeps them. The vendor's published examples show the trimmed
+        // forms, which is what this used to emit; they do not match the
+        // terminal, and the terminal is what this server replaces.
+        assert_eq!(at(34_200_000), "2024-01-02T09:30:00.000");
+        assert_eq!(at(34_200_020), "2024-01-02T09:30:00.020");
+        assert_eq!(at(34_200_100), "2024-01-02T09:30:00.100");
         assert_eq!(at(34_200_606), "2024-01-02T09:30:00.606");
-        // +430 ms -> ".43" (matches the spec snapshot example).
-        assert_eq!(at(34_200_430), "2024-01-02T09:30:00.43");
+        assert_eq!(at(34_200_430), "2024-01-02T09:30:00.430");
     }
 
-    /// The fraction helper in isolation: 0 -> empty, else `.` + millis with
-    /// trailing zeros stripped, leading zeros preserved.
+    /// The fraction helper in isolation: always a dot and three digits, so
+    /// every rendered timestamp is the same width.
     #[test]
-    fn iso_millis_fraction_strips_trailing_zeros_only() {
-        assert_eq!(iso_millis_fraction(0), "");
+    fn iso_millis_fraction_is_always_three_digits() {
+        assert_eq!(iso_millis_fraction(0), ".000");
         assert_eq!(iso_millis_fraction(1), ".001");
-        assert_eq!(iso_millis_fraction(20), ".02");
-        assert_eq!(iso_millis_fraction(100), ".1");
-        assert_eq!(iso_millis_fraction(430), ".43");
+        assert_eq!(iso_millis_fraction(20), ".020");
+        assert_eq!(iso_millis_fraction(100), ".100");
+        assert_eq!(iso_millis_fraction(430), ".430");
         assert_eq!(iso_millis_fraction(606), ".606");
         assert_eq!(iso_millis_fraction(999), ".999");
+        let widths: std::collections::BTreeSet<usize> =
+            (0..1000).map(|ms| iso_millis_fraction(ms).len()).collect();
+        assert_eq!(widths, [4].into_iter().collect());
     }
 
     // -----------------------------------------------------------------------
@@ -3662,7 +3670,7 @@ mod tests {
         assert_eq!(
             row.get("timestamp")
                 .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("2024-01-02T09:30:00"),
+            Some("2024-01-02T09:30:00.000"),
             "market value must lead with the v3 timestamp (C4: not dropped)"
         );
         assert!(row.get("market_bid").is_some(), "stock MV keeps market_bid");
