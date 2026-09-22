@@ -208,7 +208,7 @@ fn row_price_type_returns_none_for_null_cell() {
 }
 
 #[test]
-fn null_cells_dont_corrupt_trade_ticks() {
+fn a_null_condition_cell_is_refused_not_filled() {
     // Build a minimal DataTable with one row that has a NullValue in a field.
     // Note: "price" header triggers Price-typed extraction, so we use a Price cell.
     let table = proto::DataTable {
@@ -248,13 +248,45 @@ fn null_cells_dont_corrupt_trade_ticks() {
         ])],
     };
 
-    let ticks = parse_trade_ticks(&table).unwrap();
+    // `ext_condition1` is a condition column, and condition code 0 is a value
+    // the vendor sends: filling the wire's null with it would publish a
+    // condition the vendor never reported, in a column a caller reads as fact.
+    // The response is refused instead, naming the column.
+    let err = parse_trade_ticks(&table).expect_err("a null condition cell must be refused");
+    let rendered = err.to_string();
+    assert!(
+        rendered.contains("ext_condition1"),
+        "the refusal must name the column, got {rendered}"
+    );
+
+    // The same null in a column whose zero means nothing in particular still
+    // fills, and still does not desync the columns after it. That is what this
+    // test guarded before, and it is unchanged.
+    let table = proto::DataTable {
+        headers: table.headers.clone(),
+        data_table: vec![row_of(vec![
+            dv_number(34200000), // ms_of_day
+            dv_number(1),        // sequence
+            dv_number(0),        // ext_condition1
+            dv_number(0),        // ext_condition2
+            dv_number(0),        // ext_condition3
+            dv_number(0),        // ext_condition4
+            dv_number(0),        // condition
+            dv_null(),           // size = NullValue
+            dv_number(4),        // exchange
+            dv_price(15000, 10), // price
+            dv_number(0),        // condition_flags
+            dv_number(0),        // price_flags
+            dv_number(0),        // volume_type
+            dv_number(0),        // records_back
+            dv_number(20240301), // date
+        ])],
+    };
+    let ticks = parse_trade_ticks(&table).expect("a null size fills and decodes");
     assert_eq!(ticks.len(), 1);
     let tick = &ticks[0];
     assert_eq!(tick.ms_of_day, 34200000);
-    // NullValue should default to 0, not corrupt subsequent fields.
-    assert_eq!(tick.ext_condition1, 0);
-    assert_eq!(tick.size, 100);
+    assert_eq!(tick.size, 0);
     assert!((tick.price - 15000.0).abs() < 1e-10);
     assert_eq!(tick.date, 20240301);
 }
