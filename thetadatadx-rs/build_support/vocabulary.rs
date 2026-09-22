@@ -102,6 +102,23 @@ pub fn generate() -> Result<(), Box<dyn std::error::Error>> {
     // A single trailing newline, which is what the formatter expects; the
     // per-table emission leaves a blank line after the last one.
     let s = format!("{}\n", s.trim_end());
-    fs::write(&out, s)?;
+
+    // Write only when the content differs, the way `conditions.rs` does for the
+    // sibling table it emits. Two reasons, and the second is the load-bearing
+    // one: an unconditional write touches the mtime and triggers a downstream
+    // rebuild on every build, and docs.rs mounts the crate source read-only, so
+    // a build script that writes into `src/` unconditionally fails there even
+    // when the committed file already matches its schema. That is the whole
+    // crate's documentation, not one file.
+    let needs_write = match fs::read_to_string(&out) {
+        Ok(existing) => existing != s,
+        Err(_) => true,
+    };
+    if needs_write {
+        if let Some(parent) = out.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&out, s)?;
+    }
     Ok(())
 }

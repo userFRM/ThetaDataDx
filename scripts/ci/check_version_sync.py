@@ -462,11 +462,43 @@ def main() -> int:
             and name.rsplit("/", 1)[-1].startswith("thetadatadx-ts")
             and isinstance(entry, dict)
         }
-        if not platform_entries:
+
+        # The set the repository publishes, taken from the per-platform package
+        # directories rather than from the lockfile, so the lockfile is checked
+        # against something independent of itself. Validating only the entries
+        # that happen to be present passes a lockfile missing one entirely,
+        # which npm then rejects at install with "Missing: <pkg> from lock file"
+        # -- after the release has already published.
+        expected_platforms = {
+            d.name
+            for d in (ts_root.parent / "npm").iterdir()
+            if d.is_dir() and (d / "package.json").is_file()
+        }
+        expected_platforms = {
+            json.loads((ts_root.parent / "npm" / name / "package.json").read_text())["name"]
+            for name in expected_platforms
+        }
+        if not expected_platforms:
             failures.append(
-                f"{ts_lock.relative_to(ROOT)} records no thetadatadx-ts platform "
-                "package; the launcher pins them through optionalDependencies, so "
-                "an empty scan means the lockfile or this check moved"
+                "thetadatadx-ts/npm contains no platform package; the launcher pins "
+                "them through optionalDependencies, so an empty scan means the "
+                "layout or this check moved"
+            )
+
+        locked_names = {n.rsplit("/", 1)[-1] for n in platform_entries}
+        for missing in sorted(expected_platforms - locked_names):
+            failures.append(
+                f"{ts_lock.relative_to(ROOT)} has no entry for {missing}; npm refuses "
+                "an install against a lockfile missing a declared optional dependency"
+            )
+
+        declared = set(
+            lock.get("packages", {}).get("", {}).get("optionalDependencies", {})
+        )
+        for missing in sorted(expected_platforms - declared):
+            failures.append(
+                f'{ts_lock.relative_to(ROOT)} packages[""].optionalDependencies is '
+                f"missing {missing}, which thetadatadx-ts/npm/ publishes"
             )
         for name, version in sorted(platform_entries.items()):
             if version != canonical:
