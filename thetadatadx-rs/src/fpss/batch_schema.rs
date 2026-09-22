@@ -53,6 +53,8 @@ pub mod event_type {
     pub const OHLCVC: &str = "ohlcvc";
     /// `event_type` tag for a [`super::super::StreamData::MarketValue`] row.
     pub const MARKET_VALUE: &str = "market_value";
+    /// Index market value: a price with no bid or ask beside it.
+    pub const INDEX_MARKET_VALUE: &str = "index_market_value";
 }
 
 /// Build the fixed Arrow schema shared by every batch the streaming reader
@@ -457,6 +459,30 @@ impl StreamBatchBuilder {
                 self.null_ohlcvc();
                 self.market_bid.append_value(*market_bid);
                 self.market_ask.append_value(*market_ask);
+                self.market_price.append_value(*market_price);
+            }
+            StreamData::IndexMarketValue {
+                contract,
+                ms_of_day,
+                market_price,
+                date,
+                received_at_ns,
+            } => {
+                self.push_header(
+                    event_type::INDEX_MARKET_VALUE,
+                    contract,
+                    *ms_of_day,
+                    *date,
+                    *received_at_ns,
+                );
+                self.null_quote();
+                self.null_trade();
+                self.null_open_interest();
+                self.null_ohlcvc();
+                // An index has no NBBO, so the bid and ask columns are null
+                // rather than zero: the feed did not send them.
+                self.market_bid.append_null();
+                self.market_ask.append_null();
                 self.market_price.append_value(*market_price);
             }
         }

@@ -13,25 +13,26 @@ typedef enum {
     THETADATADX_STREAM_CONNECTED = 0,
     THETADATADX_STREAM_CONTRACT_ASSIGNED = 1,
     THETADATADX_STREAM_DISCONNECTED = 2,
-    THETADATADX_STREAM_LOGIN_SUCCESS = 3,
-    THETADATADX_STREAM_MARKET_CLOSE = 4,
-    THETADATADX_STREAM_MARKET_OPEN = 5,
-    THETADATADX_STREAM_MARKET_VALUE = 6,
-    THETADATADX_STREAM_OHLCVC = 7,
-    THETADATADX_STREAM_OPEN_INTEREST = 8,
-    THETADATADX_STREAM_PARSE_ERROR = 9,
-    THETADATADX_STREAM_PING = 10,
-    THETADATADX_STREAM_QUOTE = 11,
-    THETADATADX_STREAM_RECONNECTED = 12,
-    THETADATADX_STREAM_RECONNECTED_SERVER = 13,
-    THETADATADX_STREAM_RECONNECTING = 14,
-    THETADATADX_STREAM_RECONNECTS_EXHAUSTED = 15,
-    THETADATADX_STREAM_REQ_RESPONSE = 16,
-    THETADATADX_STREAM_RESTART = 17,
-    THETADATADX_STREAM_SERVER_ERROR = 18,
-    THETADATADX_STREAM_TRADE = 19,
-    THETADATADX_STREAM_UNKNOWN_CONTROL = 20,
-    THETADATADX_STREAM_UNKNOWN_FRAME = 21,
+    THETADATADX_STREAM_INDEX_MARKET_VALUE = 3,
+    THETADATADX_STREAM_LOGIN_SUCCESS = 4,
+    THETADATADX_STREAM_MARKET_CLOSE = 5,
+    THETADATADX_STREAM_MARKET_OPEN = 6,
+    THETADATADX_STREAM_MARKET_VALUE = 7,
+    THETADATADX_STREAM_OHLCVC = 8,
+    THETADATADX_STREAM_OPEN_INTEREST = 9,
+    THETADATADX_STREAM_PARSE_ERROR = 10,
+    THETADATADX_STREAM_PING = 11,
+    THETADATADX_STREAM_QUOTE = 12,
+    THETADATADX_STREAM_RECONNECTED = 13,
+    THETADATADX_STREAM_RECONNECTED_SERVER = 14,
+    THETADATADX_STREAM_RECONNECTING = 15,
+    THETADATADX_STREAM_RECONNECTS_EXHAUSTED = 16,
+    THETADATADX_STREAM_REQ_RESPONSE = 17,
+    THETADATADX_STREAM_RESTART = 18,
+    THETADATADX_STREAM_SERVER_ERROR = 19,
+    THETADATADX_STREAM_TRADE = 20,
+    THETADATADX_STREAM_UNKNOWN_CONTROL = 21,
+    THETADATADX_STREAM_UNKNOWN_FRAME = 22,
 } ThetaDataDxStreamEventKind;
 
 /* Streaming Contract shared across every data event. `symbol` is a
@@ -53,6 +54,15 @@ bool has_strike;
 double strike;
 int32_t strike_thousandths;
 } ThetaDataDxContract;
+
+/* Streaming index MarketValue tick (wire code 25, index contracts). The vendor publishes `ms_of_day`, `date` and `market_price` for an index and no bid or ask: an index has no NBBO, so the size-imbalance nudge that produces `market_bid` / `market_ask` for a stock or an option does not apply. `market_price` is served exactly as the feed sent it. Per-contract only (no full-stream variant). */
+typedef struct {
+    ThetaDataDxContract contract;
+    int32_t ms_of_day;
+    double market_price;
+    int32_t date;
+    uint64_t received_at_ns;
+} ThetaDataDxStreamIndexMarketValue;
 
 /* Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */
 typedef struct {
@@ -222,6 +232,7 @@ typedef struct {
  * mirror the Rust `StreamControl::*` enum one-for-one. */
 typedef struct {
     ThetaDataDxStreamEventKind kind;
+    ThetaDataDxStreamIndexMarketValue index_market_value;
     ThetaDataDxStreamMarketValue market_value;
     ThetaDataDxStreamOhlcvc ohlcvc;
     ThetaDataDxStreamOpenInterest open_interest;
