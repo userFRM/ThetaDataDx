@@ -207,6 +207,29 @@ fn join_dispatcher_with_wake(
 /// the same function, so firing it on every stop would break a reconnected
 /// session; gating it behind the grace fires it only when it is the sole way to
 /// break a real deadlock.
+/// Abort in the one order that does not deadlock: wake first, mark second.
+///
+/// napi-rs holds `aborted.read()` across a blocking `call`, so taking
+/// `aborted.write()` before waking parks the aborter behind the very caller
+/// the wake is meant to release. The wake is lock-free and safe to issue
+/// while that read guard is held; the caller then returns `Closing` and drops
+/// it, after which the write succeeds.
+///
+/// This exists as a function, rather than as two copies of the sequence, so
+/// the ordering is asserted once. It was written twice before: here and in
+/// the test model that stands in for the N-API function. Reversing the order
+/// in this file left the model, and therefore the test, unchanged and green.
+pub(crate) fn abort_waking_before_marking(
+    already_marked: bool,
+    wake: impl FnOnce(),
+    mark: impl FnOnce(),
+) {
+    if !already_marked {
+        wake();
+    }
+    mark();
+}
+
 pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Send> {
     // Clone the SHARED handle (an `Arc<ThreadsafeFunctionHandle>`). Every clone
     // of the threadsafe function — including the one the blocked consumer holds
@@ -223,7 +246,9 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
         }
 
         let already_aborted = handle.with_read_aborted(|aborted| aborted);
-        if !already_aborted {
+        abort_waking_before_marking(
+            already_aborted,
+            || {
             let raw = handle.get_raw();
             if !raw.is_null() {
                 // SAFETY: `raw` is the live `napi_threadsafe_function` pointer
@@ -245,11 +270,13 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
                     "napi_release_threadsafe_function(abort) failed",
                 );
             }
-        }
-
-        handle.with_write_aborted(|mut aborted| {
-            *aborted = true;
-        });
+            },
+            || {
+                handle.with_write_aborted(|mut aborted| {
+                    *aborted = true;
+                });
+            },
+        );
     })
 }
 
@@ -1654,17 +1681,27 @@ mod teardown_deadlock_tests {
             }
         }
 
-        /// Abort the function: first send the lock-free N-API wake, then mark
-        /// the shared flag. This mirrors [`super::abort_hook`]. Taking the
-        /// `aborted.write()` lock before the wake would deadlock while a blocked
-        /// caller holds the read guard above.
+        /// Abort the function: wake, then mark. The ordering comes from
+        /// [`super::abort_waking_before_marking`], which production
+        /// `abort_hook` also calls, so the scenario below exercises the real
+        /// sequence rather than a second copy of it that could agree with a
+        /// broken original.
         fn abort(&self) {
-            if !self.released.swap(true, Ordering::AcqRel) {
-                let _depth = self.depth.lock().unwrap();
-                self.space.notify_all();
-            }
-            let mut aborted = self.aborted.write().unwrap();
-            *aborted = true;
+            // Routed through the production ordering rather than repeating
+            // it: the sequence is the invariant under test, and a copy of it
+            // here is a copy that can agree with a broken original.
+            let already = self.released.swap(true, Ordering::AcqRel);
+            super::abort_waking_before_marking(
+                already,
+                || {
+                    let _depth = self.depth.lock().unwrap();
+                    self.space.notify_all();
+                },
+                || {
+                    let mut aborted = self.aborted.write().unwrap();
+                    *aborted = true;
+                },
+            );
         }
 
         fn is_aborted(&self) -> bool {
