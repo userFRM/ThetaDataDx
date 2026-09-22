@@ -1,28 +1,34 @@
 {
   "_meta": {
-    "comment": "Baseline calibrated against the GitHub-hosted runner perf profile. The global threshold is 25% so a real regression past this baseline trips CI. The loader in `scripts/ci/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on` field and gates on `criterion_path` + `p50_ns`. An entry may add `threshold_pct` to set its own tolerance: wider for a known high-variance workload, tighter for a critical hot path. It replaces the global gate for that entry, and the `comment` field records why."
+    "comment": "Baselines are the MEDIAN of ten consecutive green main runs, not a single capture. A single capture is what put the previous baselines above the slow tail of their own distribution, which spent roughly 30% of the tolerance before the threshold was consulted and hid any regression smaller than that. The loader in `scripts/ci/check_bench_regression.py` ignores `_meta` and the per-entry `_captured_on`, `_samples`, `_median_ns` and `_max_observed_ns` fields, and gates on `criterion_path` + `p50_ns`. An entry may add `threshold_pct` to set its own tolerance; the `comment` field records the measurement it was derived from. Refresh by re-running the bench across several green main runs and taking the median, never one run. Ten consecutive main runs, same code, 2026-09-22. The three streaming benches move TOGETHER run to run: three of the ten landed on a runner where all three were slow at once, so this is whole-machine contention, not per-bench jitter, and no per-entry tolerance fitted to one bench's spread can separate it from a regression.",
+    "_captured_on": "2026-09-22"
   },
   "_captured_on": "2026-05-21",
-  "streaming_channels/direct_callback/100k_events": {
-    "p50_ns": 807151.3,
-    "criterion_path": "streaming_channels_direct_callback/100k_events"
-  },
   "streaming_channels/disruptor_consumer_panic_isolated/100k_events": {
-    "p50_ns": 2116315.6,
+    "p50_ns": 1625240.9,
     "criterion_path": "streaming_channels_disruptor_consumer_panic_isolated/100k_events",
-    "threshold_pct": 40,
-    "comment": "Multi-thread, ~2.1ms workload whose p50 swings with hosted-runner CPU contention; observed clean-PR runs land near +26% under load. The 40% tolerance absorbs that scheduler variance while still catching a genuine ~1.4x regression."
+    "threshold_pct": 140,
+    "comment": "Median of ten green main runs. The slowest of those ten was 1.80x this median, so the tolerance has to clear 1.80x before it can be said to measure the code at all; 140% puts the limit at 3.90 ms, 1.33x above the worst run observed. That buys a gate which fires only on a 2.4x regression, which is the honest sensitivity available on a hosted runner and still catches the class this path must never regress into: an allocation or a second lock on ingest costs multiples, not percent. Ten consecutive main runs, same code, 2026-09-22. The three streaming benches move TOGETHER run to run: three of the ten landed on a runner where all three were slow at once, so this is whole-machine contention, not per-bench jitter, and no per-entry tolerance fitted to one bench's spread can separate it from a regression.",
+    "_captured_on": "2026-09-22",
+    "_samples": 10,
+    "_median_ns": 1625240.9,
+    "_max_observed_ns": 2931113.1
   },
   "streaming_channels/disruptor_cross_thread/100k_events": {
-    "p50_ns": 2151760.2,
+    "p50_ns": 1688603.0,
     "criterion_path": "streaming_channels_disruptor_cross_thread/100k_events",
-    "threshold_pct": 40,
-    "comment": "Multi-thread, ~2.2ms cross-thread workload with the same hosted-runner contention variance as its sibling; same 40% tolerance for the same reason."
+    "threshold_pct": 140,
+    "comment": "Median of ten green main runs. Same runner population as its sibling, worst run 1.92x the median; 140% puts the limit at 4.05 ms, 1.25x above it. Ten consecutive main runs, same code, 2026-09-22. The three streaming benches move TOGETHER run to run: three of the ten landed on a runner where all three were slow at once, so this is whole-machine contention, not per-bench jitter, and no per-entry tolerance fitted to one bench's spread can separate it from a regression.",
+    "_captured_on": "2026-09-22",
+    "_samples": 10,
+    "_median_ns": 1688603.0,
+    "_max_observed_ns": 3238720.1
   },
   "_deferred": {
     "protobuf_decode/quote_chunk/1024": "Sub-100ns/row at 1024 rows means the criterion sample window collapses to ~10 ns/iter on the hosted runner \u2014 within the timer resolution noise floor. Defer until the noise-aware throughput gate (future noise-aware throughput gate) lands.",
     "streaming_channels/disruptor_production_ctor/100k_events": "New variant routing the pipeline through the production ring constructor so the sequence-recording producer adapter is measured rather than the bare ring. The baseline p50 is blessed only after a first sample lands on green main \u2014 the loader gates on hosted-runner numbers, so we do not author a value against a developer machine. Promote this key to a gated row (criterion_path streaming_channels_disruptor_production_ctor/100k_events) in a follow-up once that sample is observed.",
     "StreamEvent::clone": "~20-27ns clone of a stream-event enum: below the sub-100ns timer-resolution noise floor, so a 25% gate trips on hosted-runner scheduler variance not code (a 5ns swing on a 22ns op is +25%). A real clone regression surfaces in the streaming_channels throughput benches, which stay gated. Ungated for the same reason protobuf_decode is deferred.",
-    "StreamEvent::match": "~1ns enum-tag match: unmeasurable on a hosted runner (0.25ns tolerance at 25%), pure noise floor. Ungated."
+    "StreamEvent::match": "~1ns enum-tag match: unmeasurable on a hosted runner (0.25ns tolerance at 25%), pure noise floor. Ungated.",
+    "streaming_channels/direct_callback/100k_events": "Single-thread 100k-event callback loop, ~204 us at the median of ten green main runs. Ungated because its spread is the widest of the three: the slow-runner population reaches 835 us, 4.10x its own median, so a tolerance wide enough to avoid firing on contention would sit above 310% and would pass a 4x regression. Its previous baseline, 807 us, was captured on one of those slow runs and was almost exactly the slowest value ever observed, so the entry passed on where the capture landed rather than on the code. Regate it when the bench runs somewhere with a stable CPU allocation. Ten consecutive main runs, same code, 2026-09-22. The three streaming benches move TOGETHER run to run: three of the ten landed on a runner where all three were slow at once, so this is whole-machine contention, not per-bench jitter, and no per-entry tolerance fitted to one bench's spread can separate it from a regression."
   }
 }
