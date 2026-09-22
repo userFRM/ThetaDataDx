@@ -26,13 +26,20 @@ pub enum SecType {
     Index = 2,
     /// Interest-rate instrument.
     Rate = 3,
-    /// Unresolved contract shape (client-side sentinel, never sent over the wire).
+    /// Unresolved contract shape.
+    ///
+    /// The protocol defines this value: the vendor's own security-type enum
+    /// names `-1`, so the discriminant is the vendor's rather than something
+    /// chosen here. The name is not: this SDK calls it `Unknown` because that
+    /// is what it means to a caller holding one, and a caller who needs the
+    /// vendor's spelling can reach it through `utils::vocabulary`.
     Unknown = -1,
 }
 
 impl SecType {
-    /// Resolve a wire security-type code to its variant; `None` for unknown
-    /// codes (including the `Unknown` sentinel, which has no wire form).
+    /// Resolve a wire security-type code to its variant; `None` for codes the
+    /// protocol does not define, and for `-1`, which it defines as the
+    /// unresolved shape rather than as a contract kind a response can carry.
     #[must_use]
     pub fn from_code(code: i32) -> Option<Self> {
         match code {

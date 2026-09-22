@@ -914,6 +914,30 @@ ffi = true
 # have no analogue for: it folds the strike presence flag, which the
 # managed runtimes handle through native field access.
 
+# The vendor-vocabulary lookups are Rust-only on purpose. They answer a
+# question about the vendor's own naming — which column name this SDK spells
+# differently, and whether a name is in the vendor's column vocabulary — and
+# the answer is a static table, not a call into the client. A binding caller
+# who needs it reads the published reference pages, which carry the same
+# mapping. Recorded here so the asymmetry is declared rather than invisible:
+# both shipped on the Rust surface and were named in the 0.5.0 notes while
+# reaching no binding and no row, which is the gap #1368 closed.
+[[utility]]
+name = "vendor_column_name"
+binding_specific = "Rust-only vendor-vocabulary lookup over a static table; the bindings carry the same mapping in their reference pages."
+python = false
+typescript = false
+cpp = false
+ffi = false
+
+[[utility]]
+name = "is_vendor_column"
+binding_specific = "Rust-only vendor-vocabulary membership test over a static table; the bindings carry the same mapping in their reference pages."
+python = false
+typescript = false
+cpp = false
+ffi = false
+
 [[utility]]
 name = "split_date_range"
 binding_specific = "Python date-range chunking ergonomic; the other bindings drive the market-data client directly."
