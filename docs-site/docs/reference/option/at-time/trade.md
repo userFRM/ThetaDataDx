@@ -60,9 +60,9 @@ Rows of `TradeTick`:
 | `ext_condition2` | i32 | Additional trade condition code. |
 | `ext_condition3` | i32 | Additional trade condition code. |
 | `ext_condition4` | i32 | Additional trade condition code. |
-| `condition` | i32 | Trade condition code. |
+| `condition` | i32 | Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `size` | i32 | Number of contracts or shares traded. |
-| `exchange` | i32 | Exchange code where the trade executed. |
+| `exchange` | i32 | Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `price` | f64 | Trade price. |
 | `condition_flags` | i32 | Trade condition flags bitmap. |
 | `price_flags` | i32 | Trade price flags bitmap. |

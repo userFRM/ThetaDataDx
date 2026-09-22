@@ -64,9 +64,9 @@ Rows of `GreeksSecondOrderTick`:
 | `charm` | f64 | Rate of change of delta over time. |
 | `vomma` | f64 | Sensitivity of vega to a change in implied volatility. |
 | `veta` | f64 | Rate of change of vega over time. |
-| `implied_volatility` | f64 | Implied volatility solved from the option price. |
+| `implied_volatility` | f64 | Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`. |
 | `iv_error` | f64 | Residual pricing error of the implied-volatility solve. |
-| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. |
+| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 

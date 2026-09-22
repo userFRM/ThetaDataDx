@@ -63,13 +63,13 @@ Rows of `IvTick`:
 |---|---|---|
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `bid` | f64 | Last NBBO bid price. |
-| `bid_implied_volatility` | f64 | Implied volatility solved at the bid price. |
+| `bid_implied_volatility` | f64 | Implied volatility solved at the bid price. The vendor names this column `BID_IMPLIED_VOL`. |
 | `midpoint` | f64 | Midpoint of the bid and ask prices. |
-| `implied_volatility` | f64 | Implied volatility solved from the option price. |
+| `implied_volatility` | f64 | Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`. |
 | `ask` | f64 | Last NBBO ask price. |
-| `ask_implied_volatility` | f64 | Implied volatility solved at the ask price. |
+| `ask_implied_volatility` | f64 | Implied volatility solved at the ask price. The vendor names this column `ASK_IMPLIED_VOL`. |
 | `iv_error` | f64 | Residual pricing error of the implied-volatility solve. |
-| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. |
+| `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 
