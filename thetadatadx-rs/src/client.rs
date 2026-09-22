@@ -3021,7 +3021,12 @@ mod tests {
     /// made: each method's returned future is fed into a type assertion
     /// that pins its `Output`, so the signatures are checked at compile
     /// time without ever polling the future.
-    #[allow(unused)]
+    // Anchored rather than silenced: coercing the function to a `fn` pointer
+    // uses it, so the signatures inside it are checked without an
+    // `#[allow(unused)]` standing in for a caller. An allow here would also
+    // have hidden the function being deleted or drifting out of the module.
+    const _: fn(&Client) = flat_files_view_surface_compiles;
+
     fn flat_files_view_surface_compiles(client: &Client) {
         use std::future::Future;
 
