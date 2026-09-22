@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Synthetic tests for scripts/ci/check_agreement.py.
 
-Constructs four mock SDK artifacts with intentional disagreements and
+Constructs mock SDK artifacts with intentional disagreements and
 asserts the diff engine's output names the right fields. Uses only
 stdlib so it runs in CI without extra deps. Invoke via:
 
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -107,7 +108,7 @@ class AgreementTests(unittest.TestCase):
             "ask_size": 200,
             "date": "20250303",
         }
-        for lang in ("python", "cli", "cpp"):
+        for lang in ("python", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -117,7 +118,7 @@ class AgreementTests(unittest.TestCase):
         divergent_row["bid"] = 685.87
         _write_artifact(
             self.artifacts,
-            "cli",
+            "cpp",
             [_base_record("stock_snapshot_quote", "concrete", first_row=divergent_row)],
         )
 
@@ -135,7 +136,7 @@ class AgreementTests(unittest.TestCase):
     def test_row_count_disagreement_without_first_row(self) -> None:
         # Legacy artifacts: no first_row field. Diff engine must fall
         # back to row_count comparison and still report the mismatch.
-        for lang, rc in (("python", 10), ("cli", 10), ("cli", 9), ("cpp", 10)):
+        for lang, rc in (("python", 10), ("cpp", 10), ("cpp", 9)):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -146,32 +147,31 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("stock_history_ohlc::concrete", err)
         self.assertIn("row_count disagreement", err)
         # Per-SDK status table still names each SDK and its row count.
-        self.assertIn("cli", err)
+        self.assertIn("cpp", err)
         self.assertIn("9", err)
         self.assertIn("10", err)
 
     def test_status_disagreement(self) -> None:
-        # Python passed, CLI/cpp failed. Diff must flag as status
+        # Python passed, cpp failed. Diff must flag as status
         # disagreement and show each SDK's status + detail.
         _write_artifact(
             self.artifacts,
             "python",
             [_base_record("option_snapshot_trade", "concrete")],
         )
-        for lang in ("cli", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [
-                    _base_record(
-                        "option_snapshot_trade",
-                        "concrete",
-                        status="FAIL",
-                        row_count=0,
-                        detail="wire-format error: unexpected tick kind",
-                    )
-                ],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [
+                _base_record(
+                    "option_snapshot_trade",
+                    "concrete",
+                    status="FAIL",
+                    row_count=0,
+                    detail="wire-format error: unexpected tick kind",
+                )
+            ],
+        )
         code, _, err = self._run()
         self.assertEqual(code, 1)
         self.assertIn("option_snapshot_trade::concrete", err)
@@ -186,12 +186,11 @@ class AgreementTests(unittest.TestCase):
             "symbol": "SPY",
             "greeks": {"delta": [0.5, 0.6], "gamma": 0.01},
         }
-        for lang in ("python", "cli", "cli"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("option_snapshot_greeks_all", "concrete", first_row=json.loads(json.dumps(base_row)))],
-            )
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record("option_snapshot_greeks_all", "concrete", first_row=json.loads(json.dumps(base_row)))],
+        )
         cpp_row = json.loads(json.dumps(base_row))
         cpp_row["greeks"]["delta"][0] = 0.55
         _write_artifact(
@@ -212,14 +211,13 @@ class AgreementTests(unittest.TestCase):
     def test_missing_field_in_one_sdk(self) -> None:
         # cpp omits the `volume` field entirely (tick type doesn't
         # surface it). Diff must mark volume as <missing> for cpp and
-        # show the real value for the others.
+        # show the real value for python.
         full_row = {"price": 100.0, "volume": 5000}
-        for lang in ("python", "cli", "cli"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_history_trade", "concrete", first_row=dict(full_row))],
-            )
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record("stock_history_trade", "concrete", first_row=dict(full_row))],
+        )
         partial_row = {"price": 100.0}
         _write_artifact(
             self.artifacts,
@@ -233,9 +231,9 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("<missing>", err)
 
     def test_soft_skip_missing_sdk_without_require(self) -> None:
-        # Only 3 SDKs reported; without --require-all-sdks this is a
-        # warning, not a failure.
-        for lang in ("python", "cli", "cli"):
+        # Two of the three surfaces reported; without --require-all-sdks
+        # the absent one is a warning, not a failure.
+        for lang in ("python", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -243,11 +241,11 @@ class AgreementTests(unittest.TestCase):
             )
         code, out, err = self._run()
         self.assertEqual(code, 0)
-        self.assertIn("warning: no artifact for cpp", err)
+        self.assertIn("warning: no artifact for typescript", err)
         self.assertIn("1 cells agree across", out)
 
     def test_require_all_sdks_fails_on_missing(self) -> None:
-        for lang in ("python", "cli", "cli"):
+        for lang in ("python", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -261,7 +259,7 @@ class AgreementTests(unittest.TestCase):
         # 685.860000 == 685.8600004 after 6-decimal rounding. These
         # must compare equal; the diff engine must not flag a false
         # positive on 1-ULP float noise.
-        for lang, bid in (("python", 685.86), ("cli", 685.8600004), ("cli", 685.86), ("cpp", 685.8599996)):
+        for lang, bid in (("python", 685.8600004), ("cpp", 685.8599996)):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -272,9 +270,9 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("1 cells agree across", out)
 
     def test_partial_cells_note(self) -> None:
-        # CLI skips per-optional-param mode; the other three SDKs run
-        # it. Not a disagreement, but the summary must mention partial.
-        for lang in ("python", "cli", "cpp"):
+        # One SDK skips a per-optional-param mode the other runs. Not a
+        # disagreement, but the summary must mention partial.
+        for lang in ("python", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -285,7 +283,7 @@ class AgreementTests(unittest.TestCase):
             )
         _write_artifact(
             self.artifacts,
-            "cli",
+            "cpp",
             [_base_record("stock_snapshot_ohlc", "concrete", row_count=1)],
         )
         code, out, err = self._run()
@@ -303,12 +301,11 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("stock_snapshot_quote", "concrete", first_row={"Bid": 685.86, "Ask": 685.88})],
         )
-        for lang in ("cli", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.86, "ask": 685.88})],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.86, "ask": 685.88})],
+        )
         code, out, _ = self._run()
         self.assertEqual(code, 0, f"mixed-case keys must canonicalize to equal; got exit {code}")
         self.assertIn("1 cells agree across", out)
@@ -328,18 +325,17 @@ class AgreementTests(unittest.TestCase):
                 )
             ],
         )
-        for lang in ("cli", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [
-                    _base_record(
-                        "option_snapshot_greeks_all",
-                        "concrete",
-                        first_row={"greeks": {"delta": 0.5, "gamma": 0.01}},
-                    )
-                ],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [
+                _base_record(
+                    "option_snapshot_greeks_all",
+                    "concrete",
+                    first_row={"greeks": {"delta": 0.5, "gamma": 0.01}},
+                )
+            ],
+        )
         code, out, _ = self._run()
         self.assertEqual(code, 0)
         self.assertIn("1 cells agree across", out)
@@ -347,7 +343,7 @@ class AgreementTests(unittest.TestCase):
     def test_nan_normalizes_to_null(self) -> None:
         # NaN is not equal to NaN under IEEE semantics, and cross-language
         # serialization of non-finite floats is ambiguous (JSON rejects
-        # them; CLI's f64 reparse drops them silently). Consumer-side
+        # them; an f64 reparse drops them silently). Consumer-side
         # canonicalization collapses NaN / +Inf / -Inf to Python None so
         # two producers emitting "missing / sentinel" in different shapes
         # converge on the same canonical value.
@@ -356,24 +352,23 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("option_snapshot_greeks_all", "concrete", first_row={"delta": float("nan")})],
         )
-        for lang in ("cli", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("option_snapshot_greeks_all", "concrete", first_row={"delta": None})],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record("option_snapshot_greeks_all", "concrete", first_row={"delta": None})],
+        )
         code, out, _ = self._run()
         self.assertEqual(code, 0, f"NaN must canonicalize to None; got exit {code}")
         self.assertIn("1 cells agree across", out)
 
     def test_infinity_normalizes_to_null(self) -> None:
         # +Inf / -Inf same treatment as NaN. Each non-finite value needs a
-        # producer of its own: one file per language, so writing `cli` twice
-        # replaces the first fixture and the value it carried is never read.
+        # producer of its own: one file per language, so a second write to
+        # the same language replaces the first and the value it carried is
+        # never read.
         for lang, val in (
             ("python", float("inf")),
-            ("cli", float("-inf")),
-            ("cpp", None),
+            ("cpp", float("-inf")),
         ):
             _write_artifact(
                 self.artifacts,
@@ -396,13 +391,8 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "cli",
-            [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.87})],
-        )
-        _write_artifact(
-            self.artifacts,
             "cpp",
-            [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.86})],
+            [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 685.87})],
         )
         code, _, err = self._run()
         self.assertEqual(code, 1)
@@ -420,8 +410,6 @@ class AgreementTests(unittest.TestCase):
         # always a sentinel.
         for lang, val in (
             ("python", 0),
-            ("cli", 0),
-            ("cli", None),
             ("cpp", None),
         ):
             _write_artifact(
@@ -440,8 +428,6 @@ class AgreementTests(unittest.TestCase):
         # canonicalize to None.
         for lang, val in (
             ("python", -1),
-            ("cli", -1),
-            ("cli", None),
             ("cpp", None),
         ):
             _write_artifact(
@@ -463,18 +449,17 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("stock_history_ohlc", "concrete", first_row={"date": 20260417})],
         )
-        for lang in ("cli", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_history_ohlc", "concrete", first_row={"date": 0})],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record("stock_history_ohlc", "concrete", first_row={"date": 0})],
+        )
         code, _, err = self._run()
         self.assertEqual(code, 1, "real date vs sentinel 0 must disagree")
         self.assertIn("date", _diff_section(err))
-        # Python's 20260417 should appear in the diff table; the other
-        # three SDKs' sentinel `0` is canonicalized to None and stripped
-        # from the dict (Option B: omit-equivalence), so they show up as
+        # Python's 20260417 should appear in the diff table; cpp's
+        # sentinel `0` is canonicalized to None and stripped from the
+        # dict (Option B: omit-equivalence), so it shows up as
         # `<missing>` in the field-level table.
         self.assertIn("20260417", err)
         self.assertIn("<missing>", _diff_section(err))
@@ -482,11 +467,9 @@ class AgreementTests(unittest.TestCase):
     def test_expiration_zero_sentinel_and_time_alias(self) -> None:
         # Covers two extra field-name patterns the canonicalization rule
         # must catch: `expiration` (date-shaped, server omits-when-zero)
-        # and `time` (ms-shaped alias used by CLI OHLC / trade columns).
+        # and `time` (ms-shaped alias used by OHLC / trade columns).
         for lang, row in (
             ("python", {"expiration": 0, "time": -1}),
-            ("cli", {"expiration": 0, "time": -1}),
-            ("cli", {"expiration": None, "time": None}),
             ("cpp", {"expiration": None, "time": None}),
         ):
             _write_artifact(
@@ -511,7 +494,7 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "cli",
+            "cpp",
             [_base_record("stock_history_ohlc", "concrete", first_row={"volume": None})],
         )
         code, _, err = self._run()
@@ -523,25 +506,23 @@ class AgreementTests(unittest.TestCase):
     # Producers diverge on contract-id field shape:
     #   - Python emits `expiration: 0` always
     #   - Server's `insert_contract_id_fields` skips when expiration==0
-    #   - CLI raw helpers emit `expiration: 0` verbatim
-    # All shapes must canonicalize to the same thing.
+    # Both shapes must canonicalize to the same thing.
     # ------------------------------------------------------------------
 
     def test_omit_vs_null_for_expiration_agrees(self) -> None:
-        # Two producers omit `expiration` entirely (server skip-when-zero).
-        # One producer emits `expiration: null`. After canonicalization,
-        # all three shapes must agree.
+        # One producer omits `expiration` entirely (server skip-when-zero).
+        # The other emits `expiration: null`. After canonicalization, both
+        # shapes must agree.
         _write_artifact(
             self.artifacts,
             "python",
             [_base_record("stock_history_ohlc", "concrete", first_row={"expiration": None})],
         )
-        for lang in ("cli", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_history_ohlc", "concrete", first_row={})],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record("stock_history_ohlc", "concrete", first_row={})],
+        )
         code, out, _ = self._run()
         self.assertEqual(
             code, 0,
@@ -550,18 +531,17 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("1 cells agree across", out)
 
     def test_omit_vs_zero_for_expiration_agrees(self) -> None:
-        # Three producers emit `expiration: 0` (Python tick_columnar,
-        # CLI raw helpers). One producer omits it (server skip-when-zero).
-        # Both shapes must canonicalize to "absent".
-        for lang in ("python", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_history_ohlc", "concrete", first_row={"expiration": 0})],
-            )
+        # One producer emits `expiration: 0` (Python tick_columnar). The
+        # other omits it (server skip-when-zero). Both shapes must
+        # canonicalize to "absent".
         _write_artifact(
             self.artifacts,
-            "cli",
+            "python",
+            [_base_record("stock_history_ohlc", "concrete", first_row={"expiration": 0})],
+        )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
             [_base_record("stock_history_ohlc", "concrete", first_row={})],
         )
         code, out, _ = self._run()
@@ -584,7 +564,7 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "cli",
+            "cpp",
             [_base_record("stock_history_ohlc", "concrete", first_row={})],
         )
         code, _, err = self._run()
@@ -604,15 +584,9 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "cli",
-            [_base_record("stock_history_ohlc", "concrete", first_row={"strike": 0.0})],
+            "cpp",
+            [_base_record("stock_history_ohlc", "concrete", first_row={})],
         )
-        for lang in ("cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_history_ohlc", "concrete", first_row={})],
-            )
         code, out, _ = self._run()
         self.assertEqual(code, 0, f"strike=0.0 must canonicalize; got exit {code}")
         self.assertIn("1 cells agree across", out)
@@ -623,33 +597,32 @@ class AgreementTests(unittest.TestCase):
         # (server's right_label fall-through, OptionContract). Both must
         # canonicalize to "absent" so `right: ""` (Python), `right: 0`
         # (server / OptionContract emitter), and omitted `right` all agree.
+        # All three shapes, spread over two cells so two producers can
+        # carry them: `""` vs `0` on `concrete`, omitted vs `0` on
+        # `with_venue`.
         _write_artifact(
             self.artifacts,
             "python",
-            [_base_record("stock_history_ohlc", "concrete", first_row={"right": ""})],
-        )
-        _write_artifact(
-            self.artifacts,
-            "cli",
-            [_base_record("stock_history_ohlc", "concrete", first_row={"right": ""})],
-        )
-        _write_artifact(
-            self.artifacts,
-            "cli",
-            [_base_record("stock_history_ohlc", "concrete", first_row={})],
+            [
+                _base_record("stock_history_ohlc", "concrete", first_row={"right": ""}),
+                _base_record("stock_history_ohlc", "with_venue", first_row={}),
+            ],
         )
         _write_artifact(
             self.artifacts,
             "cpp",
-            [_base_record("stock_history_ohlc", "concrete", first_row={"right": 0})],
+            [
+                _base_record("stock_history_ohlc", "concrete", first_row={"right": 0}),
+                _base_record("stock_history_ohlc", "with_venue", first_row={"right": 0}),
+            ],
         )
         code, out, _ = self._run()
         self.assertEqual(code, 0, f"right empty/zero/omit must agree; got exit {code}")
-        self.assertIn("1 cells agree across", out)
+        self.assertIn("2 cells agree across", out)
 
     def test_real_right_value_still_disagrees(self) -> None:
         # Sanity: omit-equivalence must not hide real right disagreement.
-        # Python emits `right: "C"` (a real call), one SDK emits `"P"` (a
+        # Python emits `right: "C"` (a real call), cpp emits `"P"` (a
         # real put). Different actual options -- diff must report it.
         _write_artifact(
             self.artifacts,
@@ -658,13 +631,8 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "cli",
-            [_base_record("option_history_ohlc", "concrete", first_row={"right": "P"})],
-        )
-        _write_artifact(
-            self.artifacts,
             "cpp",
-            [_base_record("option_history_ohlc", "concrete", first_row={"right": "C"})],
+            [_base_record("option_history_ohlc", "concrete", first_row={"right": "P"})],
         )
         code, _, err = self._run()
         self.assertEqual(code, 1, "right C vs P is a real disagreement")
@@ -691,22 +659,16 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "cli",
+            "cpp",
             [_base_record("option_history_ohlc", "concrete", first_row={})],
         )
-        for lang in ("cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("option_history_ohlc", "concrete", first_row={})],
-            )
         code, _, err = self._run()
         self.assertEqual(
             code, 1,
             "present-empty container must NOT false-pass against absent key",
         )
         # Diff should surface the field `meta` (python has it as empty
-        # dict; others don't have it at all).
+        # dict; cpp doesn't have it at all).
         self.assertIn("meta", err)
 
     def test_stripped_empty_container_via_sentinel_agrees(self) -> None:
@@ -722,15 +684,14 @@ class AgreementTests(unittest.TestCase):
                 first_row={"contract": {"expiration": None}},
             )],
         )
-        for lang in ("cli", "cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record(
-                    "option_history_ohlc", "concrete",
-                    first_row={"contract": {}},
-                )],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record(
+                "option_history_ohlc", "concrete",
+                first_row={"contract": {}},
+            )],
+        )
         code, out, _ = self._run()
         self.assertEqual(
             code, 0,
@@ -759,15 +720,9 @@ class AgreementTests(unittest.TestCase):
         )
         _write_artifact(
             self.artifacts,
-            "cli",
+            "cpp",
             [_base_record("option_history_ohlc", "concrete", first_row={})],
         )
-        for lang in ("cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("option_history_ohlc", "concrete", first_row={})],
-            )
         code, _, err = self._run()
         self.assertEqual(
             code, 1,
@@ -791,7 +746,7 @@ class AgreementTests(unittest.TestCase):
         # same field SET. Field-presence agreement must hold; values
         # do not contribute to the diff for shape-only langs.
         runtime_row = {"bid": 685.86, "ask": 685.88, "bid_size": 100, "ask_size": 200}
-        for lang in ("python", "cli", "cpp"):
+        for lang in ("python", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -811,7 +766,7 @@ class AgreementTests(unittest.TestCase):
         # TS manifest advertises a field name no runtime SDK emits.
         # That IS shape drift; the diff must surface it.
         runtime_row = {"bid": 685.86, "ask": 685.88}
-        for lang in ("python", "cli", "cpp"):
+        for lang in ("python", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -831,7 +786,7 @@ class AgreementTests(unittest.TestCase):
         # Runtime SDKs emit a field the TS public surface does not
         # advertise. Same shape-drift signal in the other direction.
         runtime_row = {"bid": 685.86, "ask": 685.88, "novel_field": 42}
-        for lang in ("python", "cli", "cpp"):
+        for lang in ("python", "cpp"):
             _write_artifact(
                 self.artifacts,
                 lang,
@@ -851,20 +806,19 @@ class AgreementTests(unittest.TestCase):
         # Earlier versions of the TS manifest hardcoded
         # `status: PASS`, which would have folded into the
         # status-disagreement comparator alongside any runtime FAIL
-        # and masked the real Python-vs-CLI status diff. Shape-only
+        # and masked the real Python-vs-cpp status diff. Shape-only
         # langs must NOT participate in status comparison.
         _write_artifact(
             self.artifacts,
             "python",
             [_base_record("option_snapshot_trade", "concrete", status="PASS", row_count=1)],
         )
-        for lang in ("cli", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("option_snapshot_trade", "concrete", status="FAIL",
-                              row_count=0, detail="mock failure")],
-            )
+        _write_artifact(
+            self.artifacts,
+            "cpp",
+            [_base_record("option_snapshot_trade", "concrete", status="FAIL",
+                          row_count=0, detail="mock failure")],
+        )
         _write_artifact(
             self.artifacts,
             "typescript",
@@ -879,7 +833,7 @@ class AgreementTests(unittest.TestCase):
         # Only one runtime SDK reported the cell at all, alongside
         # the TS manifest. Field-presence comparison still runs across
         # the (1 runtime, 1 shape-only) pair so a TS-side surface drift
-        # surfaces even when the other runtime SDKs simply didn't run
+        # surfaces even when the other runtime SDK simply didn't run
         # the cell. Runtime FAIL / SKIP at the same cell takes
         # precedence (status disagreement is reported first); this
         # test pins the "no other runtime SDK reported" path.
@@ -888,8 +842,7 @@ class AgreementTests(unittest.TestCase):
             "python",
             [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 1.0, "ask": 2.0})],
         )
-        # cli / cpp simply do not include this cell in their artifact.
-        _write_artifact(self.artifacts, "cli", [])
+        # cpp simply does not include this cell in its artifact.
         _write_artifact(self.artifacts, "cpp", [])
         _write_artifact(
             self.artifacts,
@@ -900,6 +853,59 @@ class AgreementTests(unittest.TestCase):
         code, _, err = self._run()
         self.assertEqual(code, 1, "TS-vs-Python field-set disagreement must surface")
         self.assertIn("ghost_field", err)
+
+
+class LangsAreProducibleTest(unittest.TestCase):
+    """`--require-all-sdks` must demand only artifacts something writes.
+
+    The check that was missing when the flag landed. `cli` stayed in LANGS
+    after the CLI tool was dropped in #1011, so nothing wrote
+    `validator_cli.json` and every `--require-all-sdks` run failed on a file
+    no code in this repository produces -- a gate that could not pass. Scans
+    the tree for the artifact names real producers write, rather than
+    restating LANGS, so dropping a surface without dropping its language
+    fails here on the next run.
+    """
+
+    # Directories with no source in them, or with build output that would
+    # echo names the tree no longer produces.
+    SKIP_DIRS = frozenset(
+        {".git", "target", "worktrees", "artifacts", "node_modules", "build", ".venv-release-validate"}
+    )
+    # The consumer and its own fixtures name every artifact by construction;
+    # they are what LANGS is being checked against, not evidence for it.
+    SKIP_FILES = frozenset({"check_agreement.py", "test_check_agreement.py"})
+
+    def test_every_lang_has_a_producer_in_the_tree(self) -> None:
+        pattern = re.compile(r"validator_([a-z][a-z_]*)\.json")
+        produced: dict[str, set[str]] = {}
+        for path in validate_agreement.ROOT.rglob("*"):
+            if not path.is_file():
+                continue
+            if any(part in self.SKIP_DIRS for part in path.parts):
+                continue
+            if path.name in self.SKIP_FILES:
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for match in pattern.finditer(text):
+                produced.setdefault(match.group(1), set()).add(str(path))
+
+        self.assertTrue(produced, "scan found no validator artifacts at all; the pattern has rotted")
+        orphaned = sorted(set(validate_agreement.LANGS) - produced.keys())
+        self.assertEqual(
+            orphaned, [],
+            f"LANGS names {orphaned} but nothing in the tree writes validator_<lang>.json for "
+            f"them, so --require-all-sdks can never pass. Drop the language or add a producer.",
+        )
+        unlisted = sorted(produced.keys() - set(validate_agreement.LANGS))
+        self.assertEqual(
+            unlisted, [],
+            f"{unlisted} write a validator artifact but are absent from LANGS, so their "
+            f"artifact is never loaded and never compared: {[sorted(produced[l]) for l in unlisted]}",
+        )
 
 
 def _diff_section(text: str) -> str:
