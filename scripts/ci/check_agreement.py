@@ -707,6 +707,12 @@ def compare(
     disagreements: list[tuple[tuple[str, str], dict[str, dict], str]] = []
     missing_per_cell: dict[tuple[str, str], list[str]] = defaultdict(list)
 
+    # Cells that two or more SDKs produced: the only ones an agreement
+    # claim can be made about. A cell with a single producer is never
+    # compared with anything, so counting it as agreeing is an assertion
+    # over a set of size one, which cannot fail.
+    compared_count = 0
+
     for cell in sorted(all_cells):
         present = {lang: idx[cell] for lang, idx in per_lang.items() if cell in idx}
         absent = [lang for lang, idx in per_lang.items() if cell not in idx]
@@ -714,11 +720,13 @@ def compare(
             missing_per_cell[cell] = absent
         if len(present) < 2:
             continue
+        compared_count += 1
         kind = _classify_cell(present)
         if kind is not None:
             disagreements.append((cell, present, kind))
 
     partial_count = sum(1 for v in missing_per_cell.values() if v)
+    uncompared_count = len(all_cells) - compared_count
 
     if disagreements:
         stream.write("\nDISAGREEMENTS:\n")
@@ -729,7 +737,7 @@ def compare(
                 f"\n  ... and {len(disagreements) - max_cell_diff_rows} more cells\n",
             )
 
-    return len(all_cells), len(disagreements), partial_count
+    return compared_count, len(disagreements), partial_count, uncompared_count
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -787,15 +795,32 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    total, disagreements, partial = compare(per_lang, args.max_cell_diff_rows, sys.stderr)
+    compared, disagreements, partial, uncompared = compare(
+        per_lang, args.max_cell_diff_rows, sys.stderr
+    )
+
+    if compared == 0:
+        print(
+            f"\nagreement: no cell was produced by two or more SDKs "
+            f"({uncompared} cells had a single producer). Nothing was compared, "
+            "so nothing agrees.",
+            file=sys.stderr,
+        )
+        return 1
 
     if disagreements == 0:
         sdk_set = ", ".join(sorted(per_lang))
-        print(f"\n\u2713 {total} cells agree across {{{sdk_set}}}")
+        print(f"\n\u2713 {compared} cells agree across {{{sdk_set}}}")
     else:
         print(
-            f"\nagreement: {total} cells across {len(per_lang)} SDKs, "
+            f"\nagreement: {compared} cells compared across {len(per_lang)} SDKs, "
             f"{disagreements} disagreements, {partial} cells partial",
+        )
+
+    if uncompared:
+        print(
+            f"\nnote: {uncompared} cells had a single producer and were not "
+            "compared; they are excluded from the agreement count above",
         )
 
     if partial:
