@@ -25,6 +25,7 @@ import pathlib
 import sys
 import time
 
+import thetadatadx
 from thetadatadx import Credentials, Config, Client
 
 PER_CELL_TIMEOUT_MS = 60_000
@@ -32,6 +33,9 @@ SLOW_MODE_TIMEOUT_MS = 180_000
 ARTIFACT_PATH = pathlib.Path(__file__).resolve().parents[2] / "artifacts" / "validator_python.json"
 
 client = Client(Credentials.from_file(sys.argv[1]), Config.production())
+# The endpoint methods live on the market-data view, not on `Client` itself.
+# Binding it here keeps each generated cell a single call.
+market_data = client.market_data
 
 # (endpoint, mode_name, declared_min_tier, rationale, callable)
 # `declared_min_tier` is informational only (printed on tier-permission
