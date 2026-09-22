@@ -311,6 +311,14 @@ fn render_ts_arrow_reconstruct_rows(type_name: &str, def: &TickTypeDef) -> Strin
     }
     for column in &def.columns {
         let field = rust_field_ident(&column.field);
+        if column.nullable {
+            // Inverse of the factory: a JS `null` returns as the column's
+            // zero beside a cleared presence flag, so the round trip carries
+            // "the wire did not send this" rather than minting a code.
+            writeln!(out, "                {field}: r.{field}.unwrap_or(0),").unwrap();
+            writeln!(out, "                has_{field}: r.{field}.is_some(),").unwrap();
+            continue;
+        }
         let expr = ts_arrow_reconstruct_expr(&column.r#type, &field);
         writeln!(out, "                {field}: {expr},").unwrap();
     }
@@ -415,7 +423,14 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("#[derive(Clone)]\n");
     writeln!(out, "pub struct {type_name} {{").unwrap();
     for column in &def.columns {
-        let rust_type = ts_class_rust_type(&column.r#type, type_name, &column.field);
+        let mut rust_type = ts_class_rust_type(&column.r#type, type_name, &column.field).to_owned();
+        // A nullable column reaches JS as `number | null`. The core pairs the
+        // value with a presence flag because its struct is `repr(C)`; nothing
+        // constrains this one, so the absence is carried the way a JS caller
+        // expects to meet it.
+        if column.nullable {
+            rust_type = format!("Option<{rust_type}>");
+        }
         // Rust-side ident escape (`r#type`-style); the JS key napi-rs
         // derives from it is exempt — object keys admit reserved words.
         writeln!(
@@ -488,6 +503,13 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
         // `ts_class_rust_type`). Logical columns project to the same
         // shapes the Python pyclass surface exposes.
         let expr = match column.r#type.as_str() {
+            // The presence flag decides; the value beside it is the column's
+            // zero when absent, and zero is a code the vendor assigns a
+            // meaning.
+            _ if column.nullable => format!(
+                "if t.has_{field} {{ Some(t.{field}) }} else {{ None }}",
+                field = column.field
+            ),
             "String" => format!("t.{field}.clone()", field = column.field),
             "right" => format!(
                 "if t.{field} == '\\0' {{ String::new() }} else {{ t.{field}.to_string() }}",
@@ -524,7 +546,7 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
             out,
             "                {}: {},",
             rust_field_ident(&flag.name),
-            flag.rust_predicate("t")
+            flag.rust_predicate(&format!("t.{}", flag.field))
         )
         .unwrap();
     }

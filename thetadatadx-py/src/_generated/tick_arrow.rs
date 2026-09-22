@@ -32,13 +32,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("volume", DataType::Int64, false),
             Field::new("count", DataType::Int64, false),
             Field::new("bid_size", DataType::Int32, false),
-            Field::new("bid_exchange", DataType::Int32, false),
+            Field::new("bid_exchange", DataType::Int32, true),
             Field::new("bid", DataType::Float64, false),
-            Field::new("bid_condition", DataType::Int32, false),
+            Field::new("bid_condition", DataType::Int32, true),
             Field::new("ask_size", DataType::Int32, false),
-            Field::new("ask_exchange", DataType::Int32, false),
+            Field::new("ask_exchange", DataType::Int32, true),
             Field::new("ask", DataType::Float64, false),
-            Field::new("ask_condition", DataType::Int32, false),
+            Field::new("ask_condition", DataType::Int32, true),
             Field::new("date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
@@ -86,13 +86,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("volume", DataType::Int64, false),
             Field::new("count", DataType::Int64, false),
             Field::new("bid_size", DataType::Int32, false),
-            Field::new("bid_exchange", DataType::Int32, false),
+            Field::new("bid_exchange", DataType::Int32, true),
             Field::new("bid", DataType::Float64, false),
-            Field::new("bid_condition", DataType::Int32, false),
+            Field::new("bid_condition", DataType::Int32, true),
             Field::new("ask_size", DataType::Int32, false),
-            Field::new("ask_exchange", DataType::Int32, false),
+            Field::new("ask_exchange", DataType::Int32, true),
             Field::new("ask", DataType::Float64, false),
-            Field::new("ask_condition", DataType::Int32, false),
+            Field::new("ask_condition", DataType::Int32, true),
             Field::new("delta", DataType::Float64, false),
             Field::new("theta", DataType::Float64, false),
             Field::new("vega", DataType::Float64, false),
@@ -179,13 +179,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "IndexPriceAtTimeTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
         ]))),
@@ -255,13 +255,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "QuoteTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("bid_size", DataType::Int32, false),
-            Field::new("bid_exchange", DataType::Int32, false),
+            Field::new("bid_exchange", DataType::Int32, true),
             Field::new("bid", DataType::Float64, false),
-            Field::new("bid_condition", DataType::Int32, false),
+            Field::new("bid_condition", DataType::Int32, true),
             Field::new("ask_size", DataType::Int32, false),
-            Field::new("ask_exchange", DataType::Int32, false),
+            Field::new("ask_exchange", DataType::Int32, true),
             Field::new("ask", DataType::Float64, false),
-            Field::new("ask_condition", DataType::Int32, false),
+            Field::new("ask_condition", DataType::Int32, true),
             Field::new("date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
@@ -270,13 +270,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "TradeGreeksAllTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("delta", DataType::Float64, false),
             Field::new("theta", DataType::Float64, false),
@@ -310,13 +310,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "TradeGreeksFirstOrderTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("delta", DataType::Float64, false),
             Field::new("theta", DataType::Float64, false),
@@ -336,13 +336,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "TradeGreeksImpliedVolatilityTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("implied_volatility", DataType::Float64, false),
             Field::new("iv_error", DataType::Float64, false),
@@ -356,13 +356,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "TradeGreeksSecondOrderTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("gamma", DataType::Float64, false),
             Field::new("vanna", DataType::Float64, false),
@@ -381,13 +381,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "TradeGreeksThirdOrderTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("speed", DataType::Float64, false),
             Field::new("zomma", DataType::Float64, false),
@@ -405,13 +405,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "TradeQuoteTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("condition_flags", DataType::Int32, false),
             Field::new("price_flags", DataType::Int32, false),
@@ -419,13 +419,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("records_back", DataType::Int32, false),
             Field::new("quote_ms_of_day", DataType::Int32, false),
             Field::new("bid_size", DataType::Int32, false),
-            Field::new("bid_exchange", DataType::Int32, false),
+            Field::new("bid_exchange", DataType::Int32, true),
             Field::new("bid", DataType::Float64, false),
-            Field::new("bid_condition", DataType::Int32, false),
+            Field::new("bid_condition", DataType::Int32, true),
             Field::new("ask_size", DataType::Int32, false),
-            Field::new("ask_exchange", DataType::Int32, false),
+            Field::new("ask_exchange", DataType::Int32, true),
             Field::new("ask", DataType::Float64, false),
-            Field::new("ask_condition", DataType::Int32, false),
+            Field::new("ask_condition", DataType::Int32, true),
             Field::new("date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
@@ -434,13 +434,13 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
         "TradeTick" => Some(Arc::new(Schema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
             Field::new("sequence", DataType::Int32, false),
-            Field::new("ext_condition1", DataType::Int32, false),
-            Field::new("ext_condition2", DataType::Int32, false),
-            Field::new("ext_condition3", DataType::Int32, false),
-            Field::new("ext_condition4", DataType::Int32, false),
-            Field::new("condition", DataType::Int32, false),
+            Field::new("ext_condition1", DataType::Int32, true),
+            Field::new("ext_condition2", DataType::Int32, true),
+            Field::new("ext_condition3", DataType::Int32, true),
+            Field::new("ext_condition4", DataType::Int32, true),
+            Field::new("condition", DataType::Int32, true),
             Field::new("size", DataType::Int32, false),
-            Field::new("exchange", DataType::Int32, false),
+            Field::new("exchange", DataType::Int32, true),
             Field::new("price", DataType::Float64, false),
             Field::new("condition_flags", DataType::Int32, false),
             Field::new("price_flags", DataType::Int32, false),
@@ -588,13 +588,13 @@ pub(crate) mod slice_arrow {
         let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
         let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
         let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
-        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
         let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
-        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_bid_condition: Vec<Option<i32>> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
         let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
-        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
         let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
-        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_ask_condition: Vec<Option<i32>> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
@@ -609,13 +609,13 @@ pub(crate) mod slice_arrow {
             if has_volume { col_volume.push(t.volume); }
             if has_count { col_count.push(t.count); }
             if has_bid_size { col_bid_size.push(t.bid_size); }
-            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid_exchange { col_bid_exchange.push(t.has_bid_exchange.then_some(t.bid_exchange)); }
             if has_bid { col_bid.push(t.bid); }
-            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_bid_condition { col_bid_condition.push(t.has_bid_condition.then_some(t.bid_condition)); }
             if has_ask_size { col_ask_size.push(t.ask_size); }
-            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask_exchange { col_ask_exchange.push(t.has_ask_exchange.then_some(t.ask_exchange)); }
             if has_ask { col_ask.push(t.ask); }
-            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_ask_condition { col_ask_condition.push(t.has_ask_condition.then_some(t.ask_condition)); }
             if has_date { col_date.push(t.date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
@@ -667,7 +667,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
         }
         if has_bid_exchange {
-            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            fields.push(Field::new("bid_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
         }
         if has_bid {
@@ -675,7 +675,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
         }
         if has_bid_condition {
-            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            fields.push(Field::new("bid_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
         }
         if has_ask_size {
@@ -683,7 +683,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
         }
         if has_ask_exchange {
-            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            fields.push(Field::new("ask_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
         }
         if has_ask {
@@ -691,7 +691,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
         }
         if has_ask_condition {
-            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            fields.push(Field::new("ask_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
         }
         if has_date {
@@ -1013,13 +1013,13 @@ pub(crate) mod slice_arrow {
         let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
         let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
         let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
-        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
         let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
-        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_bid_condition: Vec<Option<i32>> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
         let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
-        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
         let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
-        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_ask_condition: Vec<Option<i32>> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
         let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
         let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
         let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
@@ -1057,13 +1057,13 @@ pub(crate) mod slice_arrow {
             if has_volume { col_volume.push(t.volume); }
             if has_count { col_count.push(t.count); }
             if has_bid_size { col_bid_size.push(t.bid_size); }
-            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid_exchange { col_bid_exchange.push(t.has_bid_exchange.then_some(t.bid_exchange)); }
             if has_bid { col_bid.push(t.bid); }
-            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_bid_condition { col_bid_condition.push(t.has_bid_condition.then_some(t.bid_condition)); }
             if has_ask_size { col_ask_size.push(t.ask_size); }
-            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask_exchange { col_ask_exchange.push(t.has_ask_exchange.then_some(t.ask_exchange)); }
             if has_ask { col_ask.push(t.ask); }
-            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_ask_condition { col_ask_condition.push(t.has_ask_condition.then_some(t.ask_condition)); }
             if has_delta { col_delta.push(t.delta); }
             if has_theta { col_theta.push(t.theta); }
             if has_vega { col_vega.push(t.vega); }
@@ -1135,7 +1135,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
         }
         if has_bid_exchange {
-            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            fields.push(Field::new("bid_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
         }
         if has_bid {
@@ -1143,7 +1143,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
         }
         if has_bid_condition {
-            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            fields.push(Field::new("bid_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
         }
         if has_ask_size {
@@ -1151,7 +1151,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
         }
         if has_ask_exchange {
-            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            fields.push(Field::new("ask_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
         }
         if has_ask {
@@ -1159,7 +1159,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
         }
         if has_ask_condition {
-            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            fields.push(Field::new("ask_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
         }
         if has_delta {
@@ -1704,25 +1704,25 @@ pub(crate) mod slice_arrow {
         let has_date = present.contains("date");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_date { col_date.push(t.date); }
         }
@@ -1744,23 +1744,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -1768,7 +1768,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {
@@ -2303,13 +2303,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
-        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
         let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
-        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_bid_condition: Vec<Option<i32>> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
         let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
-        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
         let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
-        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_ask_condition: Vec<Option<i32>> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
@@ -2317,13 +2317,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_bid_size { col_bid_size.push(t.bid_size); }
-            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid_exchange { col_bid_exchange.push(t.has_bid_exchange.then_some(t.bid_exchange)); }
             if has_bid { col_bid.push(t.bid); }
-            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_bid_condition { col_bid_condition.push(t.has_bid_condition.then_some(t.bid_condition)); }
             if has_ask_size { col_ask_size.push(t.ask_size); }
-            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask_exchange { col_ask_exchange.push(t.has_ask_exchange.then_some(t.ask_exchange)); }
             if has_ask { col_ask.push(t.ask); }
-            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_ask_condition { col_ask_condition.push(t.has_ask_condition.then_some(t.ask_condition)); }
             if has_date { col_date.push(t.date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
@@ -2347,7 +2347,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
         }
         if has_bid_exchange {
-            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            fields.push(Field::new("bid_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
         }
         if has_bid {
@@ -2355,7 +2355,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
         }
         if has_bid_condition {
-            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            fields.push(Field::new("bid_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
         }
         if has_ask_size {
@@ -2363,7 +2363,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
         }
         if has_ask_exchange {
-            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            fields.push(Field::new("ask_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
         }
         if has_ask {
@@ -2371,7 +2371,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
         }
         if has_ask_condition {
-            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            fields.push(Field::new("ask_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
         }
         if has_date {
@@ -2442,13 +2442,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
         let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
@@ -2481,13 +2481,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_delta { col_delta.push(t.delta); }
             if has_theta { col_theta.push(t.theta); }
@@ -2536,23 +2536,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -2560,7 +2560,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {
@@ -2717,13 +2717,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
         let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
@@ -2742,13 +2742,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_delta { col_delta.push(t.delta); }
             if has_theta { col_theta.push(t.theta); }
@@ -2783,23 +2783,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -2807,7 +2807,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {
@@ -2902,13 +2902,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
         let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
@@ -2921,13 +2921,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
             if has_iv_error { col_iv_error.push(t.iv_error); }
@@ -2956,23 +2956,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -2980,7 +2980,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {
@@ -3056,13 +3056,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
         let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
@@ -3080,13 +3080,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_gamma { col_gamma.push(t.gamma); }
             if has_vanna { col_vanna.push(t.vanna); }
@@ -3120,23 +3120,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -3144,7 +3144,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {
@@ -3239,13 +3239,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
         let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
@@ -3262,13 +3262,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_speed { col_speed.push(t.speed); }
             if has_zomma { col_zomma.push(t.zomma); }
@@ -3301,23 +3301,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -3325,7 +3325,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {
@@ -3421,13 +3421,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_condition_flags: Vec<i32> = Vec::with_capacity(if has_condition_flags { n } else { 0 });
         let mut col_price_flags: Vec<i32> = Vec::with_capacity(if has_price_flags { n } else { 0 });
@@ -3435,13 +3435,13 @@ pub(crate) mod slice_arrow {
         let mut col_records_back: Vec<i32> = Vec::with_capacity(if has_records_back { n } else { 0 });
         let mut col_quote_ms_of_day: Vec<i32> = Vec::with_capacity(if has_quote_ms_of_day { n } else { 0 });
         let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
-        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
         let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
-        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_bid_condition: Vec<Option<i32>> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
         let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
-        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
         let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
-        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_ask_condition: Vec<Option<i32>> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
@@ -3449,13 +3449,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_condition_flags { col_condition_flags.push(t.condition_flags); }
             if has_price_flags { col_price_flags.push(t.price_flags); }
@@ -3463,13 +3463,13 @@ pub(crate) mod slice_arrow {
             if has_records_back { col_records_back.push(t.records_back); }
             if has_quote_ms_of_day { col_quote_ms_of_day.push(t.quote_ms_of_day); }
             if has_bid_size { col_bid_size.push(t.bid_size); }
-            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid_exchange { col_bid_exchange.push(t.has_bid_exchange.then_some(t.bid_exchange)); }
             if has_bid { col_bid.push(t.bid); }
-            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_bid_condition { col_bid_condition.push(t.has_bid_condition.then_some(t.bid_condition)); }
             if has_ask_size { col_ask_size.push(t.ask_size); }
-            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask_exchange { col_ask_exchange.push(t.has_ask_exchange.then_some(t.ask_exchange)); }
             if has_ask { col_ask.push(t.ask); }
-            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_ask_condition { col_ask_condition.push(t.has_ask_condition.then_some(t.ask_condition)); }
             if has_date { col_date.push(t.date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
@@ -3493,23 +3493,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -3517,7 +3517,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {
@@ -3549,7 +3549,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
         }
         if has_bid_exchange {
-            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            fields.push(Field::new("bid_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
         }
         if has_bid {
@@ -3557,7 +3557,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
         }
         if has_bid_condition {
-            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            fields.push(Field::new("bid_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
         }
         if has_ask_size {
@@ -3565,7 +3565,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
         }
         if has_ask_exchange {
-            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            fields.push(Field::new("ask_exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
         }
         if has_ask {
@@ -3573,7 +3573,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
         }
         if has_ask_condition {
-            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            fields.push(Field::new("ask_condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
         }
         if has_date {
@@ -3607,13 +3607,13 @@ pub(crate) mod slice_arrow {
         let n = ticks.len();
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_sequence: Vec<i32> = Vec::with_capacity(n);
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(n);
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(n);
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(n);
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(n);
-        let mut col_condition: Vec<i32> = Vec::with_capacity(n);
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(n);
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_size: Vec<i32> = Vec::with_capacity(n);
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(n);
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_condition_flags: Vec<i32> = Vec::with_capacity(n);
         let mut col_price_flags: Vec<i32> = Vec::with_capacity(n);
@@ -3626,13 +3626,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             col_ms_of_day.push(t.ms_of_day);
             col_sequence.push(t.sequence);
-            col_ext_condition1.push(t.ext_condition1);
-            col_ext_condition2.push(t.ext_condition2);
-            col_ext_condition3.push(t.ext_condition3);
-            col_ext_condition4.push(t.ext_condition4);
-            col_condition.push(t.condition);
+            col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1));
+            col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2));
+            col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3));
+            col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4));
+            col_condition.push(t.has_condition.then_some(t.condition));
             col_size.push(t.size);
-            col_exchange.push(t.exchange);
+            col_exchange.push(t.has_exchange.then_some(t.exchange));
             col_price.push(t.price);
             col_condition_flags.push(t.condition_flags);
             col_price_flags.push(t.price_flags);
@@ -3697,13 +3697,13 @@ pub(crate) mod slice_arrow {
         let has_right = present.contains("right");
         let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
         let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
-        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
-        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
-        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
-        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
-        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_ext_condition1: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<Option<i32>> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<Option<i32>> = Vec::with_capacity(if has_condition { n } else { 0 });
         let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
-        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_exchange: Vec<Option<i32>> = Vec::with_capacity(if has_exchange { n } else { 0 });
         let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
         let mut col_condition_flags: Vec<i32> = Vec::with_capacity(if has_condition_flags { n } else { 0 });
         let mut col_price_flags: Vec<i32> = Vec::with_capacity(if has_price_flags { n } else { 0 });
@@ -3716,13 +3716,13 @@ pub(crate) mod slice_arrow {
         for t in ticks {
             if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
             if has_sequence { col_sequence.push(t.sequence); }
-            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
-            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
-            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
-            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
-            if has_condition { col_condition.push(t.condition); }
+            if has_ext_condition1 { col_ext_condition1.push(t.has_ext_condition1.then_some(t.ext_condition1)); }
+            if has_ext_condition2 { col_ext_condition2.push(t.has_ext_condition2.then_some(t.ext_condition2)); }
+            if has_ext_condition3 { col_ext_condition3.push(t.has_ext_condition3.then_some(t.ext_condition3)); }
+            if has_ext_condition4 { col_ext_condition4.push(t.has_ext_condition4.then_some(t.ext_condition4)); }
+            if has_condition { col_condition.push(t.has_condition.then_some(t.condition)); }
             if has_size { col_size.push(t.size); }
-            if has_exchange { col_exchange.push(t.exchange); }
+            if has_exchange { col_exchange.push(t.has_exchange.then_some(t.exchange)); }
             if has_price { col_price.push(t.price); }
             if has_condition_flags { col_condition_flags.push(t.condition_flags); }
             if has_price_flags { col_price_flags.push(t.price_flags); }
@@ -3751,23 +3751,23 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
         }
         if has_ext_condition1 {
-            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            fields.push(Field::new("ext_condition1", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
         }
         if has_ext_condition2 {
-            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            fields.push(Field::new("ext_condition2", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
         }
         if has_ext_condition3 {
-            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            fields.push(Field::new("ext_condition3", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
         }
         if has_ext_condition4 {
-            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            fields.push(Field::new("ext_condition4", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
         }
         if has_condition {
-            fields.push(Field::new("condition", DataType::Int32, false));
+            fields.push(Field::new("condition", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
         }
         if has_size {
@@ -3775,7 +3775,7 @@ pub(crate) mod slice_arrow {
             columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
         }
         if has_exchange {
-            fields.push(Field::new("exchange", DataType::Int32, false));
+            fields.push(Field::new("exchange", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
         }
         if has_price {

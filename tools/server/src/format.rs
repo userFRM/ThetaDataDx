@@ -677,14 +677,27 @@ fn yyyymmdd_to_iso(date: i32) -> sonic_rs::Value {
 /// `"2024-01-02T17:17:53.606"`). v3 folds the separate v2 `date` +
 /// `ms_of_day` columns into one ISO timestamp string.
 ///
-/// The sub-second fraction follows Java's `LocalDateTime.toString` (the JVM
-/// terminal's formatter), which is variable-precision rather than a fixed
-/// `.SSS`: the fraction is omitted entirely when the millisecond field is
-/// zero, and otherwise printed with trailing zeros stripped. So `0` ms ->
-/// no fraction, `100` ms -> `.1`, `20` ms -> `.02`, `430` ms -> `.43`,
-/// `606` ms -> `.606`. The spec's `text/csv` / JSON examples carry exactly
-/// these shapes (e.g. `2025-08-20T16:02:06`, `...T16:10:04.43`), so a fixed
-/// `.SSS` would mismatch the documented output.
+/// The sub-second fraction is a fixed three digits, always present: `0` ms ->
+/// `.000`, `100` ms -> `.100`, `430` ms -> `.430`.
+///
+/// Two sources disagree here and only one of them is executable.
+///
+/// The vendor's OpenAPI document (`scripts/ci/data/upstream_openapi.yaml`)
+/// carries trimmed examples — `...T16:10:04.43` beside `...T16:03:05.142` —
+/// and this rendered them that way for that reason. The terminal does not.
+/// It builds this same string from the same two columns, because the wire
+/// carries `date` and `ms_of_day` and never a timestamp cell, then formats
+/// the result with an explicit `HH:mm:ss.SSS` pattern. Every timestamp it
+/// emits therefore has three digits.
+///
+/// Neither side can be checked against a third: both the terminal and this
+/// server render the string locally, so there is no vendor-emitted timestamp
+/// to compare them with. This server exists to stand in for the terminal, and
+/// a client pointed at it was pointed at the terminal before, so the terminal
+/// is the one it has to agree with. Fixed width is also the easier parse: a
+/// consumer slicing a known offset, or ordering timestamps as strings, gets
+/// the same answer on every row rather than a field whose length depends on
+/// its value.
 fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
     let year = date / 10_000;
     let month = (date / 100) % 100;
@@ -703,18 +716,10 @@ fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
     )
 }
 
-/// Render the variable-precision sub-second fraction for a millisecond field
-/// (`0..=999`) per Java's `LocalDateTime.toString`: empty when zero, else a
-/// leading `.` followed by the millis with trailing zeros stripped (`100` ->
-/// `.1`, `20` -> `.02`, `606` -> `.606`).
+/// Render the sub-second fraction for a millisecond field (`0..=999`) as the
+/// terminal does: a leading `.` and exactly three digits, including `.000`.
 fn iso_millis_fraction(millis: i32) -> String {
-    if millis == 0 {
-        return String::new();
-    }
-    // Zero-pad to three digits, then strip trailing zeros (never the leading
-    // ones: `020` -> `02`, `100` -> `1`).
-    let padded = format!("{millis:03}");
-    format!(".{}", padded.trim_end_matches('0'))
+    format!(".{millis:03}")
 }
 
 /// Format a millisecond-of-day offset as the v3 `HH:mm:ss` clock string
@@ -750,6 +755,18 @@ fn insert_contract_id_fields(row: &mut Row, expiration: i32, strike: f64, right:
 //  Tick -> ordered Row conversions
 // ---------------------------------------------------------------------------
 
+/// A cell the wire did not carry, rendered the way the terminal renders it:
+/// JSON `null`, and an empty field once the CSV writer sees the null. The
+/// value beside the flag is the column's zero, and zero is a condition code
+/// with a meaning of its own, so it cannot stand in for "not sent".
+fn column_or_null(value: i32, present: bool) -> sonic_rs::Value {
+    if present {
+        sonic_rs::Value::from(value)
+    } else {
+        sonic_rs::Value::new_null()
+    }
+}
+
 /// Convert EOD ticks to ordered rows matching the JVM terminal format.
 pub(crate) fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<Row> {
     ticks
@@ -768,13 +785,13 @@ pub(crate) fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<Row> {
                 "volume": t.volume,
                 "count": t.count,
                 "bid_size": t.bid_size,
-                "bid_exchange": t.bid_exchange,
+                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
                 "bid": t.bid,
-                "bid_condition": t.bid_condition,
+                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
                 "ask_size": t.ask_size,
-                "ask_exchange": t.ask_exchange,
+                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
                 "ask": t.ask,
-                "ask_condition": t.ask_condition,
+                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -846,7 +863,7 @@ pub(crate) fn trade_ticks_to_json(ticks: &[TradeTick], shape: RowShape) -> Vec<R
                 // / `exchange` columns are dropped (last-trade summary, not the
                 // per-OPRA execution record).
                 row.push("size", sonic_rs::Value::from(t.size));
-                row.push("condition", sonic_rs::Value::from(t.condition));
+                row.push("condition", column_or_null(t.condition, t.has_condition));
                 row.push(
                     "price",
                     sonic_rs::to_value(&t.price).expect("f64 serializes"),
@@ -854,13 +871,25 @@ pub(crate) fn trade_ticks_to_json(ticks: &[TradeTick], shape: RowShape) -> Vec<R
             } else {
                 // Full execution record: `...ext_condition1..4,condition,size,
                 // exchange,price`.
-                row.push("ext_condition1", sonic_rs::Value::from(t.ext_condition1));
-                row.push("ext_condition2", sonic_rs::Value::from(t.ext_condition2));
-                row.push("ext_condition3", sonic_rs::Value::from(t.ext_condition3));
-                row.push("ext_condition4", sonic_rs::Value::from(t.ext_condition4));
-                row.push("condition", sonic_rs::Value::from(t.condition));
+                row.push(
+                    "ext_condition1",
+                    column_or_null(t.ext_condition1, t.has_ext_condition1),
+                );
+                row.push(
+                    "ext_condition2",
+                    column_or_null(t.ext_condition2, t.has_ext_condition2),
+                );
+                row.push(
+                    "ext_condition3",
+                    column_or_null(t.ext_condition3, t.has_ext_condition3),
+                );
+                row.push(
+                    "ext_condition4",
+                    column_or_null(t.ext_condition4, t.has_ext_condition4),
+                );
+                row.push("condition", column_or_null(t.condition, t.has_condition));
                 row.push("size", sonic_rs::Value::from(t.size));
-                row.push("exchange", sonic_rs::Value::from(t.exchange));
+                row.push("exchange", column_or_null(t.exchange, t.has_exchange));
                 row.push(
                     "price",
                     sonic_rs::to_value(&t.price).expect("f64 serializes"),
@@ -883,13 +912,13 @@ pub(crate) fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<Row> {
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid_size": t.bid_size,
-                "bid_exchange": t.bid_exchange,
+                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
                 "bid": t.bid,
-                "bid_condition": t.bid_condition,
+                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
                 "ask_size": t.ask_size,
-                "ask_exchange": t.ask_exchange,
+                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
                 "ask": t.ask,
-                "ask_condition": t.ask_condition,
+                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -913,22 +942,22 @@ pub(crate) fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<Row> {
                 "trade_timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "quote_timestamp": ms_of_day_to_iso(t.date, t.quote_ms_of_day),
                 "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
+                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
+                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
+                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
+                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
+                "condition": column_or_null(t.condition, t.has_condition),
                 "size": t.size,
-                "exchange": t.exchange,
+                "exchange": column_or_null(t.exchange, t.has_exchange),
                 "price": t.price,
                 "bid_size": t.bid_size,
-                "bid_exchange": t.bid_exchange,
+                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
                 "bid": t.bid,
-                "bid_condition": t.bid_condition,
+                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
                 "ask_size": t.ask_size,
-                "ask_exchange": t.ask_exchange,
+                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
                 "ask": t.ask,
-                "ask_condition": t.ask_condition,
+                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -1060,13 +1089,13 @@ pub(crate) fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<Row> {
                 "volume": t.volume,
                 "count": t.count,
                 "bid_size": t.bid_size,
-                "bid_exchange": t.bid_exchange,
+                "bid_exchange": column_or_null(t.bid_exchange, t.has_bid_exchange),
                 "bid": t.bid,
-                "bid_condition": t.bid_condition,
+                "bid_condition": column_or_null(t.bid_condition, t.has_bid_condition),
                 "ask_size": t.ask_size,
-                "ask_exchange": t.ask_exchange,
+                "ask_exchange": column_or_null(t.ask_exchange, t.has_ask_exchange),
                 "ask": t.ask,
-                "ask_condition": t.ask_condition,
+                "ask_condition": column_or_null(t.ask_condition, t.has_ask_condition),
                 "delta": t.delta,
                 "theta": t.theta,
                 "vega": t.vega,
@@ -1201,13 +1230,13 @@ pub(crate) fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Ve
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
+                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
+                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
+                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
+                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
+                "condition": column_or_null(t.condition, t.has_condition),
                 "size": t.size,
-                "exchange": t.exchange,
+                "exchange": column_or_null(t.exchange, t.has_exchange),
                 "price": t.price,
                 "delta": t.delta,
                 "theta": t.theta,
@@ -1254,13 +1283,13 @@ pub(crate) fn trade_greeks_first_order_ticks_to_json(
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
+                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
+                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
+                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
+                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
+                "condition": column_or_null(t.condition, t.has_condition),
                 "size": t.size,
-                "exchange": t.exchange,
+                "exchange": column_or_null(t.exchange, t.has_exchange),
                 "price": t.price,
                 "delta": t.delta,
                 "theta": t.theta,
@@ -1293,13 +1322,13 @@ pub(crate) fn trade_greeks_second_order_ticks_to_json(
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
+                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
+                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
+                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
+                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
+                "condition": column_or_null(t.condition, t.has_condition),
                 "size": t.size,
-                "exchange": t.exchange,
+                "exchange": column_or_null(t.exchange, t.has_exchange),
                 "price": t.price,
                 "gamma": t.gamma,
                 "vanna": t.vanna,
@@ -1332,13 +1361,13 @@ pub(crate) fn trade_greeks_third_order_ticks_to_json(
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
+                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
+                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
+                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
+                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
+                "condition": column_or_null(t.condition, t.has_condition),
                 "size": t.size,
-                "exchange": t.exchange,
+                "exchange": column_or_null(t.exchange, t.has_exchange),
                 "price": t.price,
                 "speed": t.speed,
                 "zomma": t.zomma,
@@ -1371,13 +1400,13 @@ pub(crate) fn trade_greeks_implied_volatility_ticks_to_json(
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
+                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
+                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
+                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
+                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
+                "condition": column_or_null(t.condition, t.has_condition),
                 "size": t.size,
-                "exchange": t.exchange,
+                "exchange": column_or_null(t.exchange, t.has_exchange),
                 "price": t.price,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
@@ -1494,13 +1523,13 @@ pub(crate) fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) 
             row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
+                "ext_condition1": column_or_null(t.ext_condition1, t.has_ext_condition1),
+                "ext_condition2": column_or_null(t.ext_condition2, t.has_ext_condition2),
+                "ext_condition3": column_or_null(t.ext_condition3, t.has_ext_condition3),
+                "ext_condition4": column_or_null(t.ext_condition4, t.has_ext_condition4),
+                "condition": column_or_null(t.condition, t.has_condition),
                 "size": t.size,
-                "exchange": t.exchange,
+                "exchange": column_or_null(t.exchange, t.has_exchange),
                 "price": t.price,
             }
         })
@@ -1638,12 +1667,16 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 count: 0,
                 bid_size: 0,
                 bid_exchange: 0,
+                has_bid_exchange: true,
                 bid: 0.0,
                 bid_condition: 0,
+                has_bid_condition: true,
                 ask_size: 0,
                 ask_exchange: 0,
+                has_ask_exchange: true,
                 ask: 0.0,
                 ask_condition: 0,
+                has_ask_condition: true,
                 date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
@@ -1671,12 +1704,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 ms_of_day: 0,
                 sequence: 0,
                 ext_condition1: 0,
+                has_ext_condition1: true,
                 ext_condition2: 0,
+                has_ext_condition2: true,
                 ext_condition3: 0,
+                has_ext_condition3: true,
                 ext_condition4: 0,
+                has_ext_condition4: true,
                 condition: 0,
+                has_condition: true,
                 size: 0,
                 exchange: 0,
+                has_exchange: true,
                 price: 0.0,
                 condition_flags: 0,
                 price_flags: 0,
@@ -1693,12 +1732,16 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 ms_of_day: 0,
                 bid_size: 0,
                 bid_exchange: 0,
+                has_bid_exchange: true,
                 bid: 0.0,
                 bid_condition: 0,
+                has_bid_condition: true,
                 ask_size: 0,
                 ask_exchange: 0,
+                has_ask_exchange: true,
                 ask: 0.0,
                 ask_condition: 0,
+                has_ask_condition: true,
                 date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
@@ -1711,12 +1754,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
+                    has_ext_condition1: true,
                     ext_condition2: 0,
+                    has_ext_condition2: true,
                     ext_condition3: 0,
+                    has_ext_condition3: true,
                     ext_condition4: 0,
+                    has_ext_condition4: true,
                     condition: 0,
+                    has_condition: true,
                     size: 0,
                     exchange: 0,
+                    has_exchange: true,
                     price: 0.0,
                     condition_flags: 0,
                     price_flags: 0,
@@ -1725,12 +1774,16 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     quote_ms_of_day: 0,
                     bid_size: 0,
                     bid_exchange: 0,
+                    has_bid_exchange: true,
                     bid: 0.0,
                     bid_condition: 0,
+                    has_bid_condition: true,
                     ask_size: 0,
                     ask_exchange: 0,
+                    has_ask_exchange: true,
                     ask: 0.0,
                     ask_condition: 0,
+                    has_ask_condition: true,
                     date: 0,
                     expiration: id_expiration,
                     strike: id_strike,
@@ -1810,12 +1863,16 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 count: 0,
                 bid_size: 0,
                 bid_exchange: 0,
+                has_bid_exchange: true,
                 bid: 0.0,
                 bid_condition: 0,
+                has_bid_condition: true,
                 ask_size: 0,
                 ask_exchange: 0,
+                has_ask_exchange: true,
                 ask: 0.0,
                 ask_condition: 0,
+                has_ask_condition: true,
                 delta: 0.0,
                 theta: 0.0,
                 vega: 0.0,
@@ -1918,12 +1975,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
+                    has_ext_condition1: true,
                     ext_condition2: 0,
+                    has_ext_condition2: true,
                     ext_condition3: 0,
+                    has_ext_condition3: true,
                     ext_condition4: 0,
+                    has_ext_condition4: true,
                     condition: 0,
+                    has_condition: true,
                     size: 0,
                     exchange: 0,
+                    has_exchange: true,
                     price: 0.0,
                     delta: 0.0,
                     theta: 0.0,
@@ -1962,12 +2025,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
+                    has_ext_condition1: true,
                     ext_condition2: 0,
+                    has_ext_condition2: true,
                     ext_condition3: 0,
+                    has_ext_condition3: true,
                     ext_condition4: 0,
+                    has_ext_condition4: true,
                     condition: 0,
+                    has_condition: true,
                     size: 0,
                     exchange: 0,
+                    has_exchange: true,
                     price: 0.0,
                     delta: 0.0,
                     theta: 0.0,
@@ -1992,12 +2061,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
+                    has_ext_condition1: true,
                     ext_condition2: 0,
+                    has_ext_condition2: true,
                     ext_condition3: 0,
+                    has_ext_condition3: true,
                     ext_condition4: 0,
+                    has_ext_condition4: true,
                     condition: 0,
+                    has_condition: true,
                     size: 0,
                     exchange: 0,
+                    has_exchange: true,
                     price: 0.0,
                     gamma: 0.0,
                     vanna: 0.0,
@@ -2021,12 +2096,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
+                    has_ext_condition1: true,
                     ext_condition2: 0,
+                    has_ext_condition2: true,
                     ext_condition3: 0,
+                    has_ext_condition3: true,
                     ext_condition4: 0,
+                    has_ext_condition4: true,
                     condition: 0,
+                    has_condition: true,
                     size: 0,
                     exchange: 0,
+                    has_exchange: true,
                     price: 0.0,
                     speed: 0.0,
                     zomma: 0.0,
@@ -2049,12 +2130,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
+                    has_ext_condition1: true,
                     ext_condition2: 0,
+                    has_ext_condition2: true,
                     ext_condition3: 0,
+                    has_ext_condition3: true,
                     ext_condition4: 0,
+                    has_ext_condition4: true,
                     condition: 0,
+                    has_condition: true,
                     size: 0,
                     exchange: 0,
+                    has_exchange: true,
                     price: 0.0,
                     implied_volatility: 0.0,
                     iv_error: 0.0,
@@ -2098,12 +2185,18 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
+                    has_ext_condition1: true,
                     ext_condition2: 0,
+                    has_ext_condition2: true,
                     ext_condition3: 0,
+                    has_ext_condition3: true,
                     ext_condition4: 0,
+                    has_ext_condition4: true,
                     condition: 0,
+                    has_condition: true,
                     size: 0,
                     exchange: 0,
+                    has_exchange: true,
                     price: 0.0,
                     date: 0,
                 },
@@ -2679,12 +2772,16 @@ mod tests {
             ms_of_day: 62_273_606,
             bid_size: 1,
             bid_exchange: 2,
+            has_bid_exchange: true,
             bid: 3.0,
             bid_condition: 4,
+            has_bid_condition: true,
             ask_size: 5,
             ask_exchange: 6,
+            has_ask_exchange: true,
             ask: 7.0,
             ask_condition: 8,
+            has_ask_condition: true,
             date: 20240102,
             expiration: 20260417,
             strike: 150.0,
@@ -2714,6 +2811,58 @@ mod tests {
             Some("CALL".to_string())
         );
     }
+    /// A cell the wire did not carry comes back as JSON `null`, not as the
+    /// column's zero. Zero is a condition code, so serving it for "not sent"
+    /// tells a caller the quote carried a condition it never carried. The
+    /// CSV projection of the same row leaves the field empty.
+    #[test]
+    fn an_absent_quote_condition_is_null_not_zero() {
+        let t = QuoteTick {
+            ms_of_day: 62_273_606,
+            bid_size: 1,
+            bid_exchange: 2,
+            has_bid_exchange: true,
+            bid: 3.0,
+            bid_condition: 0,
+            has_bid_condition: false,
+            ask_size: 5,
+            ask_exchange: 6,
+            has_ask_exchange: true,
+            ask: 7.0,
+            ask_condition: 8,
+            has_ask_condition: true,
+            date: 20240102,
+            expiration: 20260417,
+            strike: 150.0,
+            right: 'C',
+        };
+        let rows = quote_ticks_to_json(&[t]);
+        let row = rows.first().unwrap();
+        assert!(
+            row.get("bid_condition")
+                .is_some_and(sonic_rs::JsonValueTrait::is_null),
+            "an absent bid_condition is null"
+        );
+        assert_eq!(
+            row.get("ask_condition")
+                .and_then(sonic_rs::JsonValueTrait::as_i64),
+            Some(8),
+            "a present ask_condition still carries its code"
+        );
+
+        let values: Vec<sonic_rs::Value> = rows.into_iter().map(Row::into_value).collect();
+        let csv = json_to_csv(
+            thetadatadx::find("option_history_quote").expect("endpoint exists"),
+            &values,
+        )
+        .expect("csv");
+        let header: Vec<&str> = csv.lines().next().unwrap().split(',').collect();
+        let cells: Vec<&str> = csv.lines().nth(1).unwrap().split(',').collect();
+        let at = |name: &str| cells[header.iter().position(|h| *h == name).expect(name)];
+        assert_eq!(at("bid_condition"), "", "an absent cell is an empty field");
+        assert_eq!(at("ask_condition"), "8");
+    }
+
     /// v3 trade_quote shape: the trade and quote sides each get their own
     /// ISO datetime (`trade_timestamp` / `quote_timestamp`) and the v2-only
     /// `condition_flags` / `price_flags` / `volume_type` / `records_back` /
@@ -2724,12 +2873,18 @@ mod tests {
             ms_of_day: 34_200_002,
             sequence: 1,
             ext_condition1: 10,
+            has_ext_condition1: true,
             ext_condition2: 20,
+            has_ext_condition2: true,
             ext_condition3: 30,
+            has_ext_condition3: true,
             ext_condition4: 40,
+            has_ext_condition4: true,
             condition: 1,
+            has_condition: true,
             size: 100,
             exchange: 11,
+            has_exchange: true,
             price: 150.0,
             condition_flags: 3,
             price_flags: 7,
@@ -2738,12 +2893,16 @@ mod tests {
             quote_ms_of_day: 34_200_001,
             bid_size: 100,
             bid_exchange: 11,
+            has_bid_exchange: true,
             bid: 149.0,
             bid_condition: 1,
+            has_bid_condition: true,
             ask_size: 200,
             ask_exchange: 12,
+            has_ask_exchange: true,
             ask: 151.0,
             ask_condition: 2,
+            has_ask_condition: true,
             date: 20230103,
             expiration: 0,
             strike: 0.0,
@@ -2918,12 +3077,16 @@ mod tests {
             ms_of_day: 34_200_000,
             bid_size: 1,
             bid_exchange: 2,
+            has_bid_exchange: true,
             bid: 3.0,
             bid_condition: 4,
+            has_bid_condition: true,
             ask_size: 5,
             ask_exchange: 6,
+            has_ask_exchange: true,
             ask: 7.0,
             ask_condition: 8,
+            has_ask_condition: true,
             date: 20240102,
             expiration,
             strike,
@@ -3209,12 +3372,18 @@ mod tests {
             ms_of_day: 34_200_471,
             sequence: 18902138,
             ext_condition1: 255,
+            has_ext_condition1: true,
             ext_condition2: 255,
+            has_ext_condition2: true,
             ext_condition3: 255,
+            has_ext_condition3: true,
             ext_condition4: 255,
+            has_ext_condition4: true,
             condition: 130,
+            has_condition: true,
             size: 2,
             exchange: 22,
+            has_exchange: true,
             price: 3.90,
             condition_flags: 0,
             price_flags: 0,
@@ -3257,36 +3426,39 @@ mod tests {
     /// spec's `text/csv` / JSON examples carry exactly these shapes (e.g.
     /// `2025-08-20T16:02:06`, `...:04.43`, `2024-01-16T09:30:00.1`).
     #[test]
-    fn ms_of_day_to_iso_uses_variable_precision_fraction() {
+    fn ms_of_day_to_iso_uses_the_terminals_fixed_millisecond_fraction() {
         let at = |ms: i32| {
             ms_of_day_to_iso(20240102, ms)
                 .as_str()
                 .expect("iso string")
                 .to_string()
         };
-        // 09:30:00 exactly -> no fraction at all.
-        assert_eq!(at(34_200_000), "2024-01-02T09:30:00");
-        // +20 ms -> ".02" (leading zero kept, trailing zero stripped).
-        assert_eq!(at(34_200_020), "2024-01-02T09:30:00.02");
-        // +100 ms -> ".1" (two trailing zeros stripped).
-        assert_eq!(at(34_200_100), "2024-01-02T09:30:00.1");
-        // +606 ms -> ".606" (no trailing zero to strip).
+        // The terminal formats every timestamp with an explicit `.SSS`, so a
+        // whole second still carries its fraction and a value with trailing
+        // zeros keeps them. The vendor's published examples show the trimmed
+        // forms, which is what this used to emit; they do not match the
+        // terminal, and the terminal is what this server replaces.
+        assert_eq!(at(34_200_000), "2024-01-02T09:30:00.000");
+        assert_eq!(at(34_200_020), "2024-01-02T09:30:00.020");
+        assert_eq!(at(34_200_100), "2024-01-02T09:30:00.100");
         assert_eq!(at(34_200_606), "2024-01-02T09:30:00.606");
-        // +430 ms -> ".43" (matches the spec snapshot example).
-        assert_eq!(at(34_200_430), "2024-01-02T09:30:00.43");
+        assert_eq!(at(34_200_430), "2024-01-02T09:30:00.430");
     }
 
-    /// The fraction helper in isolation: 0 -> empty, else `.` + millis with
-    /// trailing zeros stripped, leading zeros preserved.
+    /// The fraction helper in isolation: always a dot and three digits, so
+    /// every rendered timestamp is the same width.
     #[test]
-    fn iso_millis_fraction_strips_trailing_zeros_only() {
-        assert_eq!(iso_millis_fraction(0), "");
+    fn iso_millis_fraction_is_always_three_digits() {
+        assert_eq!(iso_millis_fraction(0), ".000");
         assert_eq!(iso_millis_fraction(1), ".001");
-        assert_eq!(iso_millis_fraction(20), ".02");
-        assert_eq!(iso_millis_fraction(100), ".1");
-        assert_eq!(iso_millis_fraction(430), ".43");
+        assert_eq!(iso_millis_fraction(20), ".020");
+        assert_eq!(iso_millis_fraction(100), ".100");
+        assert_eq!(iso_millis_fraction(430), ".430");
         assert_eq!(iso_millis_fraction(606), ".606");
         assert_eq!(iso_millis_fraction(999), ".999");
+        let widths: std::collections::BTreeSet<usize> =
+            (0..1000).map(|ms| iso_millis_fraction(ms).len()).collect();
+        assert_eq!(widths, [4].into_iter().collect());
     }
 
     // -----------------------------------------------------------------------
@@ -3315,12 +3487,18 @@ mod tests {
             ms_of_day: ms,
             sequence: 42,
             ext_condition1: 1,
+            has_ext_condition1: true,
             ext_condition2: 2,
+            has_ext_condition2: true,
             ext_condition3: 3,
+            has_ext_condition3: true,
             ext_condition4: 4,
+            has_ext_condition4: true,
             condition: 5,
+            has_condition: true,
             size: 10,
             exchange: 11,
+            has_exchange: true,
             price: 1.5,
             condition_flags: 0,
             price_flags: 0,
@@ -3662,7 +3840,7 @@ mod tests {
         assert_eq!(
             row.get("timestamp")
                 .and_then(|v: &sonic_rs::Value| v.as_str()),
-            Some("2024-01-02T09:30:00"),
+            Some("2024-01-02T09:30:00.000"),
             "market value must lead with the v3 timestamp (C4: not dropped)"
         );
         assert!(row.get("market_bid").is_some(), "stock MV keeps market_bid");
@@ -4014,12 +4192,16 @@ mod tests {
             count: 0,
             bid_size: 0,
             bid_exchange: 0,
+            has_bid_exchange: true,
             bid: 0.0,
             bid_condition: 0,
+            has_bid_condition: true,
             ask_size: 0,
             ask_exchange: 0,
+            has_ask_exchange: true,
             ask: 0.0,
             ask_condition: 0,
+            has_ask_condition: true,
             delta: 0.0,
             theta: 0.0,
             vega: 0.0,
@@ -4138,12 +4320,18 @@ mod tests {
             ms_of_day: 34_200_000,
             sequence: 0,
             ext_condition1: 0,
+            has_ext_condition1: true,
             ext_condition2: 0,
+            has_ext_condition2: true,
             ext_condition3: 0,
+            has_ext_condition3: true,
             ext_condition4: 0,
+            has_ext_condition4: true,
             condition: 0,
+            has_condition: true,
             size: 0,
             exchange: 0,
+            has_exchange: true,
             price: 0.0,
             delta: 0.0,
             theta: 0.0,
@@ -4181,12 +4369,18 @@ mod tests {
             ms_of_day: 34_200_000,
             sequence: 0,
             ext_condition1: 0,
+            has_ext_condition1: true,
             ext_condition2: 0,
+            has_ext_condition2: true,
             ext_condition3: 0,
+            has_ext_condition3: true,
             ext_condition4: 0,
+            has_ext_condition4: true,
             condition: 0,
+            has_condition: true,
             size: 0,
             exchange: 0,
+            has_exchange: true,
             price: 0.0,
             delta: 0.0,
             theta: 0.0,
@@ -4210,12 +4404,18 @@ mod tests {
             ms_of_day: 34_200_000,
             sequence: 0,
             ext_condition1: 0,
+            has_ext_condition1: true,
             ext_condition2: 0,
+            has_ext_condition2: true,
             ext_condition3: 0,
+            has_ext_condition3: true,
             ext_condition4: 0,
+            has_ext_condition4: true,
             condition: 0,
+            has_condition: true,
             size: 0,
             exchange: 0,
+            has_exchange: true,
             price: 0.0,
             gamma: 0.0,
             vanna: 0.0,
@@ -4238,12 +4438,18 @@ mod tests {
             ms_of_day: 34_200_000,
             sequence: 0,
             ext_condition1: 0,
+            has_ext_condition1: true,
             ext_condition2: 0,
+            has_ext_condition2: true,
             ext_condition3: 0,
+            has_ext_condition3: true,
             ext_condition4: 0,
+            has_ext_condition4: true,
             condition: 0,
+            has_condition: true,
             size: 0,
             exchange: 0,
+            has_exchange: true,
             price: 0.0,
             speed: 0.0,
             zomma: 0.0,
@@ -4265,12 +4471,18 @@ mod tests {
             ms_of_day: 34_200_000,
             sequence: 0,
             ext_condition1: 0,
+            has_ext_condition1: true,
             ext_condition2: 0,
+            has_ext_condition2: true,
             ext_condition3: 0,
+            has_ext_condition3: true,
             ext_condition4: 0,
+            has_ext_condition4: true,
             condition: 0,
+            has_condition: true,
             size: 0,
             exchange: 0,
+            has_exchange: true,
             price: 0.0,
             implied_volatility: 0.0,
             iv_error: 0.0,
@@ -4546,12 +4758,16 @@ mod tests {
                 ms_of_day: 34_200_000 + i as i32,
                 bid_size: 10,
                 bid_exchange: 1,
+                has_bid_exchange: true,
                 bid: 100.0 + i as f64,
                 bid_condition: 0,
+                has_bid_condition: true,
                 ask_size: 10,
                 ask_exchange: 1,
+                has_ask_exchange: true,
                 ask: 101.0 + i as f64,
                 ask_condition: 0,
+                has_ask_condition: true,
                 date: 20_260_922,
                 expiration: 0,
                 strike: 0.0,
@@ -4593,12 +4809,16 @@ mod tests {
             ms_of_day: 34_200_000,
             bid_size: 10,
             bid_exchange: 1,
+            has_bid_exchange: true,
             bid: 100.0,
             bid_condition: 0,
+            has_bid_condition: true,
             ask_size: 10,
             ask_exchange: 1,
+            has_ask_exchange: true,
             ask: 101.0,
             ask_condition: 0,
+            has_ask_condition: true,
             date: 20_260_922,
             expiration: 0,
             strike: 0.0,
@@ -4624,5 +4844,4 @@ mod tests {
             "a constant wire symbol must beat the request list"
         );
     }
-
 }
