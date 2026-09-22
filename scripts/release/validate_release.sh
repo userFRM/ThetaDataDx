@@ -143,7 +143,7 @@ if ensure_python_sdk; then
     py_result=$("$PYTHON_BIN" "$REPO/scripts/ci/check_python.py" "$CREDS" 2>&1)
     py_exit=$?
     echo "$py_result"
-    parse_counts "Python" "$py_result" "$py_exit" py_pass py_skip py_fail || true
+    parse_counts "Python" "$py_result" "$py_exit" py_pass py_skip py_fail
 else
     echo "  Python extension build failed."
     py_fail=61
@@ -186,7 +186,7 @@ if [ "$cpp_built" -eq 1 ] && [ -x "$CPP_BUILD/thetadatadx_validate" ]; then
     cpp_result=$(cd "$REPO" && LD_LIBRARY_PATH="$FFI_LIB" "$CPP_BUILD/thetadatadx_validate" "$CREDS" 2>&1)
     cpp_exit=$?
     echo "$cpp_result"
-    parse_counts "C++" "$cpp_result" "$cpp_exit" cpp_pass cpp_skip cpp_fail || true
+    parse_counts "C++" "$cpp_result" "$cpp_exit" cpp_pass cpp_skip cpp_fail
 else
     echo "  C++ validator build failed or target missing."
     cpp_fail=1

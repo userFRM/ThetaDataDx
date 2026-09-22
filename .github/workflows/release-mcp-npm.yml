@@ -209,7 +209,10 @@ jobs:
             [ "$platform" = "win32-x64" ] && bin="$dir/thetadatadx-mcp-server.exe"
             node scripts/populate.mjs "${TRIPLE[$platform]}" "$bin"
           done
-          ls -lR -- */thetadatadx-mcp-server* || true
+          # Every platform directory was just populated above, so a glob that
+          # matches nothing means `populate.mjs` wrote somewhere else. `|| true`
+          # turned that into a silent pass immediately before publishing.
+          ls -lR -- */thetadatadx-mcp-server*
 
       # Publish the platform packages first, then the launcher — so a
       # freshly installed launcher always finds its optionalDependency on
