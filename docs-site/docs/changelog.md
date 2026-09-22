@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **An index market value is refused rather than served.** The terminal publishes one, and it is not a market value. For a stock or an option it derives the figure from the NBBO: the bid and ask nudged by the size imbalance, and their midpoint, which this SDK reproduces exactly. For an index there is no NBBO, and the terminal instead takes the last trade price and adds a random offset of up to five cents, redrawn for every tick. Serving that would publish noise as vendor data, and the price it is noise around is already on the trade stream. The subscription is refused by name, and the index market-value reference page is withdrawn.
+
 - **A subscription the feed does not publish is refused.** An index has no quote stream and a stock has no open-interest stream: the server accepts either subscribe, answers that it is subscribed, and then never sends a tick, so the caller waits on a book that stays silent for the life of the connection. Both are now refused at the subscribe boundary, naming what that contract kind does publish. The streaming guide offered both and now says what each kind carries.
 
 - **The error reference describes the TypeScript error hierarchy the binding ships.** It told TypeScript callers to recognise a failure from the message text because there was no class tree. The binding throws a typed subclass, the same hierarchy the other bindings expose, with the retry hint on the rate-limit error, so an instance check works and a pattern over the message was never needed.

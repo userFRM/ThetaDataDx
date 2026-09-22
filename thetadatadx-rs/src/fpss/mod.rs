@@ -409,16 +409,25 @@ pub(crate) fn per_contract_kind_supported(sec_type: SecType, kind: SubscriptionK
     match kind {
         SubscriptionKind::Quote => !matches!(sec_type, SecType::Index),
         SubscriptionKind::OpenInterest => matches!(sec_type, SecType::Option),
-        // Trade carries index prints, and market value is published for
-        // every security type the terminal addresses per contract.
-        SubscriptionKind::Trade | SubscriptionKind::MarketValue => true,
+        // Market value for anything but an index is a deterministic function
+        // of the NBBO: the bid and ask nudged by the size imbalance, and
+        // their midpoint. For an index there is no NBBO, and the terminal
+        // does not compute one. It takes the last trade price and adds a
+        // random offset of up to five cents, redrawn per tick. That is not a
+        // market value, it is noise around a price the trade stream already
+        // carries, so there is nothing here to reproduce and an index market
+        // value is refused rather than invented. Subscribe to the trade
+        // stream for an index price.
+        SubscriptionKind::MarketValue => !matches!(sec_type, SecType::Index),
+        // Trade carries index prints.
+        SubscriptionKind::Trade => true,
     }
 }
 
 /// What `sec_type` does publish per contract, for a refusal message.
 fn per_contract_kinds_offered(sec_type: SecType) -> &'static str {
     match sec_type {
-        SecType::Index => "trade and market_value",
+        SecType::Index => "trade",
         SecType::Option => "quote, trade, open_interest and market_value",
         _ => "quote, trade and market_value",
     }
@@ -4684,6 +4693,11 @@ mod subscription_availability_tests {
     /// server accepts the subscribe, answers `Subscribed`, and never sends a
     /// tick. A predicate that accepted either would leave a caller waiting on
     /// a book that stays silent for the life of the connection.
+    ///
+    /// An index market value is refused for a different reason. The stream
+    /// exists, but what it carries is the last trade price plus a random
+    /// offset redrawn per tick, so serving it would publish noise as vendor
+    /// data. The trade stream carries the index price itself.
     #[test]
     fn per_contract_availability_matches_the_published_streams() {
         use crate::fpss::protocol::SubscriptionKind;
@@ -4693,7 +4707,7 @@ mod subscription_availability_tests {
         // Published: docs-site/docs/streaming/{indices,stocks,options}/
         let published: &[(SecType, SubscriptionKind, bool)] = &[
             (SecType::Index, Trade, true),
-            (SecType::Index, MarketValue, true),
+            (SecType::Index, MarketValue, false),
             (SecType::Index, Quote, false),
             (SecType::Index, OpenInterest, false),
             (SecType::Stock, Quote, true),

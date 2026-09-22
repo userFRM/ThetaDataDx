@@ -341,23 +341,6 @@ const STREAMS: &[StreamSpec] = &[
         label: "Price",
         warning: None,
     },
-    StreamSpec {
-        path: "streaming/indices/market-value",
-        title: "Index Market Value",
-        description: "Real-time calculated market value for an index.",
-        prose: "Streams the calculated market value for an index, delivered as a `MarketValue` event. For an index only `market_price` is populated; the bid/ask market values that accompany stock and option market-value events do not apply to indices. Market value is a per-index subscription with no full-stream broadcast.",
-        event: "MarketValue",
-        rust_sub: "Contract::index(\"SPX\").market_value()",
-        python_sub: "Contract.index(\"SPX\").market_value()",
-        ts_sub: "Contract.index('SPX').marketValue()",
-        cpp_sub: "thetadatadx::Contract::index(\"SPX\").market_value()",
-        ws_req_type: "MARKET_VALUE",
-        ws_sec_type: "INDEX",
-        ws_contract: Some(r#"{"symbol": "SPX"}"#),
-        group: "Indices",
-        label: "Market Value",
-        warning: None,
-    },
 ];
 
 // ───────────────────────── Per-language example blocks ──────────────────────

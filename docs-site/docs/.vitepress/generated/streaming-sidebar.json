@@ -14,7 +14,6 @@
     { "text": "Market Value", "link": "/streaming/options/market-value" }
   ]},
   { "text": "Indices", "collapsed": true, "items": [
-    { "text": "Price", "link": "/streaming/indices/price" },
-    { "text": "Market Value", "link": "/streaming/indices/market-value" }
+    { "text": "Price", "link": "/streaming/indices/price" }
   ]}
 ]
