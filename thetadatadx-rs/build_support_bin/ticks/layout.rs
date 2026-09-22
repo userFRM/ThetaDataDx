@@ -14,9 +14,9 @@ pub(super) fn tick_ffi_offsets(def: &TickTypeDef) -> Vec<(String, usize)> {
     let mut offsets = Vec::new();
     let mut size = 0usize;
     for (field_name, field_type) in tick_ffi_fields(def) {
-        let (field_size, field_align) = tick_ffi_field_layout(field_type);
+        let (field_size, field_align) = tick_ffi_field_layout(&field_type);
         size = size.next_multiple_of(field_align);
-        offsets.push((field_name.to_string(), size));
+        offsets.push((field_name, size));
         size += field_size;
     }
     offsets
@@ -31,23 +31,28 @@ pub(super) fn tick_ffi_size_and_align(def: &TickTypeDef) -> (usize, usize) {
     let mut size = 0usize;
     let mut struct_align = def.align.unwrap_or(1) as usize;
     for (_, field_type) in tick_ffi_fields(def) {
-        let (field_size, field_align) = tick_ffi_field_layout(field_type);
+        let (field_size, field_align) = tick_ffi_field_layout(&field_type);
         struct_align = struct_align.max(field_align);
         size = size.next_multiple_of(field_align) + field_size;
     }
     (size.next_multiple_of(struct_align), struct_align)
 }
 
-fn tick_ffi_fields(def: &TickTypeDef) -> Vec<(&str, &str)> {
-    let mut fields = def
-        .columns
-        .iter()
-        .map(|column| (column.field.as_str(), column.r#type.as_str()))
-        .collect::<Vec<_>>();
+fn tick_ffi_fields(def: &TickTypeDef) -> Vec<(String, String)> {
+    let mut fields = Vec::new();
+    for column in &def.columns {
+        fields.push((column.field.clone(), column.r#type.clone()));
+        // A nullable column is stored as the value plus a presence flag, in
+        // that order, so the flag occupies a real slot in the C layout and the
+        // offsets computed here have to account for it.
+        if column.nullable {
+            fields.push((format!("has_{}", column.field), "bool".to_owned()));
+        }
+    }
     if def.contract_id {
-        fields.push(("expiration", "i32"));
-        fields.push(("strike", "price"));
-        fields.push(("right", "right"));
+        fields.push(("expiration".to_owned(), "i32".to_owned()));
+        fields.push(("strike".to_owned(), "price".to_owned()));
+        fields.push(("right".to_owned(), "right".to_owned()));
     }
     fields
 }

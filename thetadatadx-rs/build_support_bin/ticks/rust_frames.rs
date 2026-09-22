@@ -39,7 +39,7 @@
 use std::fmt::Write as _;
 
 use super::python_arrow::{
-    arrow_array_ctor, arrow_data_type_expr, column_push_expr, tick_struct_field_type,
+    arrow_array_ctor, arrow_buffer_type, arrow_data_type_expr, arrow_push_expr,
 };
 use super::schema::{Schema, TickTypeDef};
 use super::sorted_type_names;
@@ -119,11 +119,11 @@ fn emit_columns(def: &TickTypeDef) -> Vec<EmitColumn> {
     for column in &def.columns {
         cols.push(EmitColumn {
             name: column.field.clone(),
-            buf_ty: tick_struct_field_type(column.r#type.as_str()).to_string(),
+            buf_ty: arrow_buffer_type(column),
             data_type: arrow_data_type_expr(column.r#type.as_str()),
             ctor: arrow_array_ctor(column.r#type.as_str()),
-            push: column_push_expr(column.r#type.as_str(), &column.field),
-            nullable: false,
+            push: arrow_push_expr(column.r#type.as_str(), &column.field, column.nullable),
+            nullable: column.nullable,
         });
     }
     if def.contract_id {
