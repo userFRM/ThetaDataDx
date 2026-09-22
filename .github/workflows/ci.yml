@@ -1030,19 +1030,54 @@ jobs:
           pattern: thetadatadx-server-*
           path: server-assets/
           merge-multiple: true
-      - shell: bash
+      - name: Stage the release assets
+        shell: bash
         run: |
           set -euo pipefail
           mkdir -p release-assets
-          cp artifacts/linux/libthetadatadx_ffi.so release-assets/
-          cp artifacts/linux/libthetadatadx_ffi.a release-assets/
-          cp artifacts/macos/libthetadatadx_ffi.dylib release-assets/
-          cp artifacts/macos/libthetadatadx_ffi.a release-assets/
-          cp artifacts/windows-msvc/thetadatadx_ffi.dll release-assets/thetadatadx_ffi-windows-msvc.dll
-          cp artifacts/windows-msvc/thetadatadx_ffi.dll.lib release-assets/thetadatadx_ffi-windows-msvc.dll.lib
-          cp artifacts/windows-gnu/thetadatadx_ffi.dll release-assets/thetadatadx_ffi-windows-gnu.dll
-          find artifacts/windows-gnu -maxdepth 1 -type f -name 'libthetadatadx_ffi*.a' -exec cp {} release-assets/ \;
-          find server-assets -type f -exec cp {} release-assets/ \;
+
+          # `crate-type` carries "staticlib", so the static library is named
+          # `libthetadatadx_ffi.a` on Linux, on macOS and on the windows-gnu
+          # target alike. Three of these were copied into one flat directory,
+          # every `cp` succeeded, `set -e` never tripped, and exactly one file
+          # of that name reached the Release page: the last writer. The `.so`
+          # and `.dylib` beside it were correctly per-platform, so nothing on
+          # the page signalled that the `.a` did not match them.
+          #
+          # `stage` refuses the second writer instead of letting it win, so a
+          # name that two artifacts both claim fails the release rather than
+          # shipping one of them under the other's name.
+          stage() {
+            local src="$1" name="$2"
+            if [ -e "release-assets/$name" ]; then
+              echo "::error::two artifacts claim the release asset name $name; the second is $src"
+              exit 1
+            fi
+            cp "$src" "release-assets/$name"
+          }
+
+          stage artifacts/linux/libthetadatadx_ffi.so  libthetadatadx_ffi.so
+          stage artifacts/linux/libthetadatadx_ffi.a   libthetadatadx_ffi-linux-x86_64.a
+          stage artifacts/macos/libthetadatadx_ffi.dylib libthetadatadx_ffi.dylib
+          stage artifacts/macos/libthetadatadx_ffi.a     libthetadatadx_ffi-macos.a
+          stage artifacts/windows-msvc/thetadatadx_ffi.dll     thetadatadx_ffi-windows-msvc.dll
+          stage artifacts/windows-msvc/thetadatadx_ffi.dll.lib thetadatadx_ffi-windows-msvc.dll.lib
+          stage artifacts/windows-gnu/thetadatadx_ffi.dll      thetadatadx_ffi-windows-gnu.dll
+          stage artifacts/windows-gnu/libthetadatadx_ffi.dll.a libthetadatadx_ffi-windows-gnu.dll.a
+          stage artifacts/windows-gnu/libthetadatadx_ffi.a     libthetadatadx_ffi-windows-gnu.a
+
+          server_count=0
+          while IFS= read -r archive; do
+            stage "$archive" "$(basename "$archive")"
+            server_count=$((server_count + 1))
+          done < <(find server-assets -type f)
+          if [ "$server_count" -eq 0 ]; then
+            echo "::error::no server archives were staged; the build-server matrix produced nothing"
+            exit 1
+          fi
+
+          echo "staged $(find release-assets -type f | wc -l) assets ($server_count server archives)"
+          find release-assets -type f -printf '  %f\n' | sort
       - name: Resolve release notes body
         id: release_notes
         shell: bash

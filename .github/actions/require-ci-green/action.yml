@@ -1,0 +1,99 @@
+name: Require CI green
+description: >-
+  Fail unless the CI workflow's `verified` aggregate concluded success for this
+  exact tag. A tag push starts every workflow at once and they cannot see each
+  other's jobs, so a publisher that only depends on its own file will upload
+  while the core gates are still running, or after they have gone red.
+
+inputs:
+  token:
+    description: "Token with `actions: read` on this repository."
+    required: true
+  workflow:
+    description: Workflow file whose run must have concluded success.
+    required: false
+    default: ci.yml
+  timeout-minutes:
+    description: How long to wait for that run to conclude before failing.
+    required: false
+    default: '120'
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for the CI run on this tag and require success
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        REQUIRED_WORKFLOW: ${{ inputs.workflow }}
+        TIMEOUT_MINUTES: ${{ inputs['timeout-minutes'] }}
+      run: |
+        set -euo pipefail
+        python3 - <<'PY'
+        import json
+        import os
+        import subprocess
+        import sys
+        import time
+
+        repo = os.environ["GITHUB_REPOSITORY"]
+        sha = os.environ["GITHUB_SHA"]
+        ref_name = os.environ["GITHUB_REF_NAME"]
+        workflow = os.environ["REQUIRED_WORKFLOW"]
+        deadline = time.monotonic() + float(os.environ["TIMEOUT_MINUTES"]) * 60
+
+
+        def runs():
+            """Runs of the required workflow started by THIS tag push.
+
+            Matching on head_sha alone would accept the run from the branch push
+            that preceded the tag. That run is the same code but not the same
+            lane: the heavy jobs are forced on a tag and selective off it, so its
+            success is a weaker statement than the one being relied on here.
+            """
+            out = subprocess.run(
+                ["gh", "api", "--paginate",
+                 f"repos/{repo}/actions/workflows/{workflow}/runs",
+                 "-f", f"head_sha={sha}", "-f", "event=push"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            found = []
+            for page in out.replace("}{", "}\n{").splitlines():
+                if not page.strip():
+                    continue
+                for run in json.loads(page).get("workflow_runs", []):
+                    if run.get("head_branch") == ref_name:
+                        found.append(run)
+            return found
+
+        while True:
+            try:
+                candidates = runs()
+            except subprocess.CalledProcessError as exc:
+                sys.exit(f"could not read {workflow} runs: {exc.stderr.strip()}")
+
+            if not candidates:
+                status = f"no {workflow} run for tag {ref_name} at {sha[:12]} yet"
+            else:
+                # Newest first; the API already orders that way.
+                run = candidates[0]
+                status = f"{workflow} run {run['id']}: {run['status']}"
+                if run["status"] == "completed":
+                    conclusion = run.get("conclusion")
+                    print(f"{status} -> {conclusion}", flush=True)
+                    if conclusion == "success":
+                        print(f"{workflow} passed for {ref_name}; publishing may proceed")
+                        sys.exit(0)
+                    sys.exit(
+                        f"refusing to publish: {workflow} concluded {conclusion} for "
+                        f"{ref_name}. {run['html_url']}"
+                    )
+
+            if time.monotonic() >= deadline:
+                sys.exit(
+                    f"refusing to publish: timed out waiting for {workflow} to conclude "
+                    f"for {ref_name} ({status})"
+                )
+            print(f"{status}; waiting", flush=True)
+            time.sleep(30)
+        PY
