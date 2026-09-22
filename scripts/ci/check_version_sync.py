@@ -474,6 +474,25 @@ def main() -> int:
                     f"{ts_lock.relative_to(ROOT)} {name} is {version}, expected {canonical}"
                 )
 
+        # An entry may carry a `resolved` tarball URL, and that URL names a
+        # version. Moving the version field alone leaves the entry labelled
+        # with the new release while still resolving the previous release's
+        # artifact, so `npm ci` would fetch the old binary under the new name.
+        # The release's own tarballs do not exist until it publishes, so the
+        # correct state after a bump is no resolution rather than a stale one.
+        for name, entry in sorted(lock.get("packages", {}).items()):
+            if not name.startswith("node_modules/"):
+                continue
+            if not name.rsplit("/", 1)[-1].startswith("thetadatadx-ts"):
+                continue
+            resolved = entry.get("resolved") if isinstance(entry, dict) else None
+            if resolved and f"-{canonical}.tgz" not in resolved:
+                failures.append(
+                    f"{ts_lock.relative_to(ROOT)} {name} is {entry.get('version')} but "
+                    f"resolves {resolved.rsplit('/', 1)[-1]}; drop `resolved` and "
+                    "`integrity` when moving the version, or regenerate the lockfile"
+                )
+
         # The launcher's own dependency pins, recorded a second time inside the
         # lockfile. `npm ci` resolves from these, so leaving them behind asks
         # for the previous release's binaries by name no matter what the
