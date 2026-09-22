@@ -98,10 +98,10 @@ In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry
 | Streaming latency | `streaming_ring_size`, `streaming_timeout_ms`, keepalive fields | Event-buffer capacity and I/O timeouts. |
 | Streaming consumer | `wait_mode`, `park_interval_us`, `consumer_cpu` | How the event-ring consumer waits when idle. `spin` (default) and `busyspin` both hold ~100% of one core and differ only in jitter; `park` and `backoff` lower idle CPU (`backoff` stays low-latency while events flow, so it is the hands-free choice for a 24/7 consumer), sleeping `park_interval_us` microseconds when idle (default `1000` = 1 ms, validated `[50, 1000000]`; the OS timer floor is ~50 us and a 100 us park costs a few percent of a core). |
 | Flat files | `flatfiles_max_attempts`, `flatfiles_initial_backoff_secs`, `flatfiles_max_backoff_secs`, `flatfiles_jitter` | Retry budget for bulk downloads. |
-| Observability | `metrics_port` | Optional local Prometheus exporter port (off by default). |
+| Observability | `metrics_port` (Rust only) | Local Prometheus exporter port, behind the `metrics` cargo feature. Not exposed on the C ABI, C++, Python or TypeScript surfaces. |
 | Runtime | `worker_threads` | Async worker-thread count for embedded bindings (0 = auto). |
 
-Every field above is available on all four language surfaces under the naming convention shown earlier; unknown values fail at configuration time, not at first request.
+Every field above is available on all four language surfaces under the naming convention shown earlier, except where the table marks one Rust only; unknown values fail at configuration time, not at first request.
 
 Your account's concurrent-request allowance is enforced server-side; the SDK does not cap it. The request pool defaults to your subscription tier's allowance at connect time, `max_concurrent_requests` overrides that (set it to a boosted allowance to go wider), and `shard_concurrency` only limits how much of the pool a single sharded pull consumes. See [Concurrent Requests](/articles/concurrent-requests).
 
