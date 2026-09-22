@@ -62,5 +62,38 @@ pub(super) fn render_python_validate(
         }
     }
     out.push_str(include_str!("templates/validate_python/postamble.py.tmpl"));
+    assert_package_module_imported(&out);
     out
+}
+
+/// Fail the build when the emitted validator reaches through the package
+/// module without importing it.
+///
+/// The script is generated, so nothing type-checks it, and a stray name hides
+/// in an exception handler: it parses, it imports, and it raises `NameError`
+/// only when a cell actually fails. That is the path the validator exists
+/// for, so the failure arrives exactly when the results matter and reads like
+/// the SDK breaking rather than the harness.
+///
+/// A handler classifying a typed error as `thetadatadx.SubscriptionError`
+/// shipped that way and went unnoticed, because the live validator runs only
+/// with credentials.
+///
+/// This checks the one name the templates reach through rather than resolving
+/// every name in the file. A general check is a Python scope analysis, which
+/// is a parser, and the generator is not the place to grow one.
+fn assert_package_module_imported(script: &str) {
+    let reaches_through = script
+        .lines()
+        .map(|l| l.split('#').next().unwrap_or(l))
+        .any(|l| l.contains("thetadatadx."));
+    if !reaches_through {
+        return;
+    }
+    assert!(
+        script.lines().any(|l| l.trim() == "import thetadatadx"),
+        "the generated validator reads `thetadatadx.<name>` but never imports \
+         the module; add `import thetadatadx` to \
+         templates/validate_python/preamble.py.tmpl"
+    );
 }
