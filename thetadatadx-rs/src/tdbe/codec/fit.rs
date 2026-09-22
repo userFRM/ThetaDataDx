@@ -124,6 +124,10 @@ impl<'a> FitReader<'a> {
         let mut count: usize = 0;
         let mut negative = false;
         let mut overflow = false;
+        // Sticky for the row. `overflow` is cleared as each field flushes, so
+        // a row whose first field overran looks clean by the time the row
+        // ends; this remembers that it did not.
+        let mut row_overflowed = false;
 
         while self.pos < self.buf.len() {
             let byte = self.buf[self.pos];
@@ -142,8 +146,9 @@ impl<'a> FitReader<'a> {
                 &mut count,
                 &mut negative,
                 &mut overflow,
+                &mut row_overflowed,
             ) {
-                self.row_complete = true;
+                self.row_complete = !row_overflowed;
                 return idx;
             }
             if Self::process_nibble(
@@ -154,8 +159,9 @@ impl<'a> FitReader<'a> {
                 &mut count,
                 &mut negative,
                 &mut overflow,
+                &mut row_overflowed,
             ) {
-                self.row_complete = true;
+                self.row_complete = !row_overflowed;
                 return idx;
             }
         }
@@ -185,6 +191,7 @@ impl<'a> FitReader<'a> {
         count: &mut usize,
         negative: &mut bool,
         overflow: &mut bool,
+        row_overflowed: &mut bool,
     ) -> bool {
         match nibble {
             0..=9 => {
@@ -197,6 +204,12 @@ impl<'a> FitReader<'a> {
                     *count += 1;
                 } else {
                     *overflow = true;
+                    // The reference client has no budget here: it indexes a
+                    // ten-entry power table and throws on an eleventh digit,
+                    // so the row never reaches its consumer. Mark the row
+                    // unusable rather than delivering a value it would never
+                    // have produced.
+                    *row_overflowed = true;
                 }
                 false
             }
@@ -291,10 +304,13 @@ impl<'a> FitReader<'a> {
 /// bound by sign rather than return the truncated low-order value.
 ///
 /// `MAX_DIGITS` is the reference client's own bound: its power-of-ten table
-/// has ten entries, so a longer run indexes past it and the reference throws.
-/// A run that long is outside what the reference can represent at all rather
-/// than a value this decoder disagrees with it about, so saturating here is
-/// a decision about undefined input, not a divergence.
+/// has ten entries, so a longer run indexes past it and the reference throws
+/// before the value reaches its consumer.
+///
+/// The saturated value is therefore never delivered: a run that long marks
+/// the row unusable, and the caller rejects it the same way it rejects a
+/// truncated one. This return exists to keep the function total over every
+/// input, not to hand a caller a number the reference would never produce.
 ///
 /// An empty digit buffer (count == 0) flushes as 0, so back-to-back
 /// separators in the wire format emit a 0 field.
@@ -361,6 +377,32 @@ mod tests {
     // Helper: pack two nibbles into a byte.
     fn pack(high: u8, low: u8) -> u8 {
         (high << 4) | (low & 0x0F)
+    }
+
+    /// A digit run longer than the reference client can represent must not
+    /// reach a caller. Its power-of-ten table has ten entries and it throws
+    /// on an eleventh digit, so the row never arrives; this decoder marks the
+    /// row unusable instead of delivering a saturated value the reference
+    /// would never have produced.
+    #[test]
+    fn an_overlong_digit_run_makes_the_row_unusable() {
+        // Eleven digits, then END.
+        let mut nibbles: Vec<u8> = vec![1];
+        nibbles.extend(std::iter::repeat_n(0u8, 10));
+        nibbles.push(END);
+        let mut bytes = Vec::new();
+        for pair in nibbles.chunks(2) {
+            let hi = pair[0];
+            let lo = if pair.len() > 1 { pair[1] } else { END };
+            bytes.push((hi << 4) | lo);
+        }
+        let mut alloc = [0i32; 8];
+        let mut reader = FitReader::new(&bytes);
+        let _ = reader.read_changes(&mut alloc);
+        assert!(
+            !reader.row_complete,
+            "a run the reference cannot represent must leave the row unusable"
+        );
     }
 
     /// A digit run that exceeds the signed 32-bit range wraps, because the
