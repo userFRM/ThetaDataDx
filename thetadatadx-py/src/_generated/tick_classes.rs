@@ -32,7 +32,7 @@ pub(crate) struct CalendarDay {
 #[pymethods]
 impl CalendarDay {
     #[new]
-    #[pyo3(signature = (*, date = 0i32, open_time = 0i32, close_time = 0i32, status = "full_close".to_string()))]
+    #[pyo3(signature = (*, date = 0i32, open_time = 0i32, close_time = 0i32, status))]
     fn new(date: i32, open_time: i32, close_time: i32, status: String) -> Self {
         Self {
             date,
