@@ -7434,12 +7434,6 @@ export interface TradeTick {
   right?: string
   /** True when the trade carries a cancelled-trade condition (codes 40-44). */
   isCancelled: boolean
-  /** True when the trade condition flags set the 'no last' bit (this trade must not update the last price). */
-  tradeConditionNoLast: boolean
-  /** True when the price flags set the 'set last' bit (this trade sets the last price). */
-  priceConditionSetLast: boolean
-  /** True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively. */
-  isIncrementalVolume: boolean
   /**
    * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
    * `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when

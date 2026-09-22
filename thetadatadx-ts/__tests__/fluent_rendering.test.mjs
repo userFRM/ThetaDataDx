@@ -70,12 +70,7 @@ describe('TradeTick flag-word accessor fields', () => {
     assert.notEqual(start, -1, 'TradeTick interface not found in index.d.ts');
     const end = dts.indexOf('}', start);
     const body = dts.slice(start, end);
-    for (const field of [
-      'isCancelled',
-      'tradeConditionNoLast',
-      'priceConditionSetLast',
-      'isIncrementalVolume',
-    ]) {
+    for (const field of ['isCancelled']) {
       assert.match(
         body,
         new RegExp(`${field}: boolean`),

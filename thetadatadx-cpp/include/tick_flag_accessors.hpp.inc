@@ -5,18 +5,3 @@ inline bool is_cancelled(const TradeTick& c) noexcept {
     return c.condition >= 40 && c.condition <= 44;
 }
 
-/// True when the trade condition flags set the 'no last' bit (this trade must not update the last price).
-inline bool trade_condition_no_last(const TradeTick& c) noexcept {
-    return (c.condition_flags & 1) == 1;
-}
-
-/// True when the price flags set the 'set last' bit (this trade sets the last price).
-inline bool price_condition_set_last(const TradeTick& c) noexcept {
-    return (c.price_flags & 1) == 1;
-}
-
-/// True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively.
-inline bool is_incremental_volume(const TradeTick& c) noexcept {
-    return c.volume_type == 0;
-}
-

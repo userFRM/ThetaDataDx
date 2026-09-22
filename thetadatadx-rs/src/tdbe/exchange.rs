@@ -1,6 +1,8 @@
 //! Exchange code lookup tables for `ThetaData` market data.
 //!
-//! Maps numeric exchange codes to human-readable names and MIC symbols.
+//! Maps numeric exchange codes to the vendor's exchange names and short
+//! symbols. The short symbol is the vendor's own identifier (NQEX, CBOE,
+//! PACF), not an ISO 10383 MIC; the vendor carries the MIC separately.
 
 /// An exchange with its numeric code, name, and symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,7 +11,9 @@ pub struct Exchange {
     pub code: i32,
     /// Human-readable exchange name (e.g. `"NASDAQ"`).
     pub name: &'static str,
-    /// Short exchange symbol or MIC identifier.
+    /// The vendor's short exchange symbol, as published. Not an ISO 10383
+    /// MIC: the vendor assigns the MIC separately, so code 5 is `CBOE` here
+    /// and `XCBO` as a MIC.
     pub symbol: &'static str,
 }
 
@@ -387,8 +391,8 @@ pub const EXCHANGES: [Exchange; 78] = [
     },
     Exchange {
         code: 74,
-        name: "CBOECGI",
-        symbol: "CGI",
+        name: "EMPTY",
+        symbol: "EMPT",
     },
     Exchange {
         code: 75,
@@ -397,8 +401,8 @@ pub const EXCHANGES: [Exchange; 78] = [
     },
     Exchange {
         code: 76,
-        name: "MIAXSapphire",
-        symbol: "SPHR",
+        name: "EMPTY",
+        symbol: "EMPT",
     },
     Exchange {
         code: 77,
@@ -419,7 +423,7 @@ pub fn exchange_name(code: i32) -> &'static str {
         .map_or("UNKNOWN", |idx| EXCHANGES[idx].name)
 }
 
-/// Look up the symbol (MIC-like identifier) for an exchange code.
+/// Look up the vendor's short symbol for an exchange code.
 ///
 /// Returns `"UNKNOWN"` for codes outside the known range.
 #[inline]
@@ -441,6 +445,21 @@ mod tests {
         assert_eq!(exchange_name(3), "NewYorkStockExchange");
         assert_eq!(exchange_name(68), "InvestorsExchange");
         assert_eq!(exchange_name(77), "24XNationalExchange");
+    }
+
+    /// Codes 74 and 76 are unassigned placeholder slots in the vendor's
+    /// exchange table. The lookup is a dense index, so it cannot fall through
+    /// to `UNKNOWN` for a code inside the range: naming either slot here would
+    /// attribute a print to a venue the feed never identified, with no guard
+    /// left to catch it.
+    #[test]
+    fn unassigned_slots_are_not_named() {
+        for code in [74, 76] {
+            assert_eq!(exchange_name(code), "EMPTY");
+            assert_eq!(exchange_symbol(code), "EMPT");
+        }
+        assert_eq!(exchange_name(73), "MembersExchange");
+        assert_eq!(exchange_name(75), "LongTermStockExchange");
     }
 
     #[test]

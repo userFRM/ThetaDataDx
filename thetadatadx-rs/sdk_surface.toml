@@ -319,9 +319,9 @@ params = [{ name = "code", type = "i32", doc = "Exchange code." }]
 [[utilities]]
 name = "calendar_status_name"
 kind = "calendar_status_name"
-doc = "Vendor vocabulary text for a calendar-day `status` code."
+doc = "Name a calendar-day `status` carried as an integer across the\nbinding boundary. The codes are the SDK's own, not a vendor coding: the\ncalendar wire carries the day class as text."
 targets = ["python", "typescript"]
-params = [{ name = "code", type = "i32", doc = "Calendar-day status code." }]
+params = [{ name = "code", type = "i32", doc = "Calendar-day status, as this SDK numbers it." }]
 
 [[utilities]]
 name = "timestamp_ms"

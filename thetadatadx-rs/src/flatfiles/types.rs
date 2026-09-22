@@ -279,10 +279,11 @@ enum DisconnectReasonClass {
 ///
 /// The ordinal is decoded through [`RemoveReason::from_code`] — the single
 /// source of the wire mapping — rather than matched as a bare integer, so
-/// this stays correct if a wire ordinal ever moves. The `0` sentinel the
-/// frame parser substitutes for a too-short payload decodes to
-/// `InvalidCredentials` and is classed permanent, matching the prior
-/// behaviour.
+/// this stays correct if a wire ordinal ever moves. A payload too short to
+/// carry a reason is substituted by the frame parser with `Unspecified`, not
+/// with `0`: zero is the live `InvalidCredentials` ordinal, and naming an
+/// unreadable disconnect an auth failure would stop the retry on what is
+/// usually a mid-frame reset.
 fn disconnect_reason_class(reason_code: u16) -> DisconnectReasonClass {
     // The flat-file frame parser reads the reason as a big-endian `u16`;
     // `RemoveReason::from_code` takes the canonical `i16`. Every defined

@@ -12,10 +12,23 @@
 //!   of November at 2:00 AM local
 //! - EST (UTC-5): rest of the year
 //!
-//! **Before 2007** (Uniform Time Act of 1966):
+//! **1987-2006** (Uniform Time Act as amended in 1986):
 //! - EDT (UTC-4): first Sunday of April at 2:00 AM local -> last Sunday of
 //!   October at 2:00 AM local
-//! - EST (UTC-5): rest of the year
+//!
+//! **1967-1986** (Uniform Time Act of 1966, effective 1967):
+//! - EDT (UTC-4): last Sunday of April at 2:00 AM local -> last Sunday of
+//!   October at 2:00 AM local
+//! - 1974 and 1975 are statutory exceptions under the Emergency Daylight
+//!   Saving Time Energy Conservation Act: DST began on 6 January 1974 and on
+//!   23 February 1975, both ending on the usual last Sunday of October.
+//!
+//! **Before 1967** there was no federal rule; observance was set locally and
+//! varied between and within states. The 1967 boundary is applied to earlier
+//! years so the conversion stays total, and it is not claimed to match any
+//! particular locality. No vendor data reaches back that far.
+//!
+//! EST (UTC-5) applies outside the DST window in every era.
 //!
 //! Transition points are computed in UTC and compared, so callers do not
 //! need to round-trip through a timezone library.
@@ -160,9 +173,19 @@ pub fn eastern_offset_ms(epoch_ms: u64) -> i64 {
             march_second_sunday_utc(year),
             november_first_sunday_utc(year),
         )
-    } else {
-        // Pre-2007: first Sunday of April -> last Sunday of October.
+    } else if year >= 1987 {
+        // 1987-2006: first Sunday of April -> last Sunday of October.
         (april_first_sunday_utc(year), october_last_sunday_utc(year))
+    } else {
+        // 1967-1986 and earlier: last Sunday of April, except the two years
+        // Congress moved the start to save fuel. Applying the 1987 rule here
+        // would place April dates in these years an hour early.
+        let start = match year {
+            1974 => civil_to_epoch_days(1974, 1, 6) * 86_400_000 + 7 * 3_600 * 1_000,
+            1975 => civil_to_epoch_days(1975, 2, 23) * 86_400_000 + 7 * 3_600 * 1_000,
+            _ => april_last_sunday_utc(year),
+        };
+        (start, october_last_sunday_utc(year))
     };
 
     let epoch_ms_i64 = epoch_ms as i64;
@@ -193,6 +216,19 @@ pub fn november_first_sunday_utc(year: i32) -> i64 {
     let days_to_first_sunday = (6 - dow + 7) % 7;
     let first_sunday = nov1 + days_to_first_sunday;
     first_sunday * 86_400_000 + 6 * 3_600 * 1_000 // 6:00 AM UTC = 2:00 AM EDT
+}
+
+/// Epoch ms of the last Sunday of April at 7:00 AM UTC (= 2:00 AM EST).
+///
+/// The DST start from 1967 (when the Uniform Time Act took effect) through
+/// 1986, outside the 1974 and 1975 statutory exceptions.
+#[must_use]
+pub fn april_last_sunday_utc(year: i32) -> i64 {
+    let apr30 = civil_to_epoch_days(year, 4, 30);
+    let dow = ((apr30 + 3) % 7 + 7) % 7; // 0 = Mon .. 6 = Sun
+    let days_back_to_sunday = (dow + 1) % 7; // 0 when April 30 is itself a Sunday
+    let last_sunday = apr30 - days_back_to_sunday;
+    last_sunday * 86_400_000 + 7 * 3_600 * 1_000
 }
 
 /// Epoch ms of the first Sunday of April at 7:00 AM UTC (= 2:00 AM EST).
@@ -349,6 +385,65 @@ pub fn date_ms_to_epoch_ms(date: i32, ms_of_day: i32) -> Option<i64> {
     let epoch = local_ms - offset;
     let offset = eastern_offset_ms(epoch.max(0) as u64);
     Some(local_ms - offset)
+}
+
+#[cfg(test)]
+mod dst_era_tests {
+    use super::*;
+
+    /// Dates the United States actually changed its clocks. Each is a
+    /// published historical fact, not a value this module computes, so a
+    /// boundary formula that drifts fails here rather than agreeing with
+    /// itself.
+    #[test]
+    fn dst_start_matches_the_rule_that_governed_each_year() {
+        let cases: [(i32, u32, u32); 10] = [
+            (1970, 4, 26), // Uniform Time Act: last Sunday of April
+            (1973, 4, 29),
+            (1974, 1, 6), // Emergency Daylight Saving Time Energy Conservation Act
+            (1975, 2, 23),
+            (1976, 4, 25), // back to the last Sunday of April
+            (1985, 4, 28),
+            (1986, 4, 27), // last year before the 1986 amendment took effect
+            (1987, 4, 5),  // first Sunday of April, from the 1986 amendment
+            (2006, 4, 2),  // last year before the Energy Policy Act
+            (2007, 3, 11), // second Sunday of March
+        ];
+        for (year, month, day) in cases {
+            let expected = civil_to_epoch_days(year, month, day) * 86_400_000 + 7 * 3_600 * 1_000;
+            // One minute after the transition is daylight time; one minute
+            // before it is standard time. Both sides are asserted so a
+            // boundary off by a week fails in one direction or the other.
+            let after = expected + 60_000;
+            let before = expected - 60_000;
+            assert_eq!(
+                eastern_offset_ms(after as u64),
+                -4 * 3_600 * 1_000,
+                "{year}-{month:02}-{day:02} should be daylight time one minute after 2am"
+            );
+            assert_eq!(
+                eastern_offset_ms(before as u64),
+                -5 * 3_600 * 1_000,
+                "{year}-{month:02}-{day:02} should be standard time one minute before 2am"
+            );
+        }
+    }
+
+    /// The 1987 rule applied backwards put these dates an hour early. April 15
+    /// 1985 is standard time; under the first-Sunday rule it reads as daylight.
+    #[test]
+    fn mid_april_before_1987_is_standard_time() {
+        for year in [1970, 1980, 1985, 1986] {
+            let apr15 = civil_to_epoch_days(year, 4, 15) * 86_400_000 + 12 * 3_600 * 1_000;
+            assert_eq!(
+                eastern_offset_ms(apr15 as u64),
+                -5 * 3_600 * 1_000,
+                "{year}-04-15"
+            );
+        }
+        let apr15_1987 = civil_to_epoch_days(1987, 4, 15) * 86_400_000 + 12 * 3_600 * 1_000;
+        assert_eq!(eastern_offset_ms(apr15_1987 as u64), -4 * 3_600 * 1_000);
+    }
 }
 
 #[cfg(test)]

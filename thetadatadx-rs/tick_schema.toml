@@ -18,8 +18,10 @@
 #              Python/TS string ("C"/"P"), C ABI 4-byte Unicode scalar.
 #   bool    -> logical boolean: wire Number 0/1 -> bool   default: false
 #   calendar_status -> vendor calendar day type: wire Text ("open"/
-#              "early_close"/"full_close"/"weekend") or Number 0-3 ->
-#              tdbe CalendarStatus enum (repr(i32)); Python/TS string.
+#              "early_close"/"full_close"/"weekend") -> tdbe
+#              CalendarStatus enum; Python/TS string. The vendor defines
+#              no integer coding for the day class, so a Number is
+#              refused rather than read under this enum's own ordering.
 #   eod_num -> EOD numeric/time field: Price/Number direct, Timestamp -> ms_of_day
 #   eod_num64 -> EOD numeric widened to i64 (for volume/count); Price/Number direct, Timestamp -> ms_of_day
 #   eod_date -> EOD date field: Price/Number direct, Timestamp -> YYYYMMDD
@@ -77,7 +79,7 @@ columns = [
     { name = "price",           field = "price",           type = "price", doc = "Trade price." },
     { name = "condition_flags", field = "condition_flags", type = "i32", doc = "Trade condition flags bitmap." },
     { name = "price_flags",     field = "price_flags",     type = "i32", doc = "Trade price flags bitmap." },
-    { name = "volume_type",     field = "volume_type",     type = "i32", doc = "Volume reporting mode: 0 = incremental, 1 = cumulative." },
+    { name = "volume_type",     field = "volume_type",     type = "i32", doc = "Volume reporting mode, as sent. The vendor does not define this column." },
     { name = "records_back",    field = "records_back",    type = "i32", doc = "Offset of this record behind the most recent record." },
     { name = "date",            field = "date",            type = "i32", doc = "Trading date as a YYYYMMDD integer." },
 ]
@@ -89,9 +91,6 @@ columns = [
 # `price_flags`. The literal operands match `thetadatadx-rs/src/tdbe/flags.rs`.
 flag_accessors = [
     { name = "is_cancelled",             field = "condition",       kind = "range_inclusive", lo = 40, hi = 44, doc = "True when the trade carries a cancelled-trade condition (codes 40-44)." },
-    { name = "trade_condition_no_last",  field = "condition_flags", kind = "bit_set",         value = 1,        doc = "True when the trade condition flags set the 'no last' bit (this trade must not update the last price)." },
-    { name = "price_condition_set_last", field = "price_flags",     kind = "bit_set",         value = 1,        doc = "True when the price flags set the 'set last' bit (this trade sets the last price)." },
-    { name = "is_incremental_volume",    field = "volume_type",     kind = "eq",              value = 0,        doc = "True when volume is reported incrementally (each trade adds to the daily total) rather than cumulatively." },
 ]
 
 [types.TradeTick.render]
@@ -305,7 +304,7 @@ columns = [
     { name = "price",            field = "price",            type = "price", doc = "Trade price." },
     { name = "condition_flags",  field = "condition_flags",  type = "i32", doc = "Trade condition flags bitmap." },
     { name = "price_flags",      field = "price_flags",      type = "i32", doc = "Trade price flags bitmap." },
-    { name = "volume_type",      field = "volume_type",      type = "i32", doc = "Volume reporting mode: 0 = incremental, 1 = cumulative." },
+    { name = "volume_type",      field = "volume_type",      type = "i32", doc = "Volume reporting mode, as sent. The vendor does not define this column." },
     { name = "records_back",     field = "records_back",     type = "i32", doc = "Offset of this record behind the most recent record." },
     { name = "quote_ms_of_day",  field = "quote_ms_of_day",  type = "i32", doc = "Timestamp of the paired quote, milliseconds since midnight ET." },
     { name = "bid_size",         field = "bid_size",         type = "i32", doc = "Last NBBO bid size." },

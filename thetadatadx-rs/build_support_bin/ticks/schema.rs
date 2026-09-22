@@ -44,7 +44,7 @@ pub(crate) struct TickTypeDef {
     pub(crate) columns: Vec<ColumnDef>,
     /// Declarative boolean flag-word accessors decoded from the tick's
     /// integer flag / condition columns (e.g. `is_cancelled`,
-    /// `is_incremental_volume`). The Rust core hand-writes these in
+    /// `is_cancelled`). The Rust core hand-writes these in
     /// `thetadatadx-rs/src/tdbe/types/tick.rs`; this list is the single source
     /// the SDK emitters project into Python (computed `#[getter]`),
     /// TypeScript (precomputed `#[napi(object)]` field), and C++ (a free

@@ -65,9 +65,6 @@ function sampleRows() {
     // Flag accessors are output-only on the tick object but required on the
     // napi object shape; the reconstruct ignores them.
     isCancelled: false,
-    tradeConditionNoLast: false,
-    priceConditionSetLast: false,
-    isIncrementalVolume: false,
   };
   return [base, { ...base, sequence: 2, size: 200, price: 12.75, recordsBack: 1 }];
 }

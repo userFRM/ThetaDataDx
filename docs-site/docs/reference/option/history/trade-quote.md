@@ -71,7 +71,7 @@ Rows of `TradeQuoteTick`:
 | `price` | f64 | Trade price. |
 | `condition_flags` | i32 | Trade condition flags bitmap. |
 | `price_flags` | i32 | Trade price flags bitmap. |
-| `volume_type` | i32 | Volume reporting mode: 0 = incremental, 1 = cumulative. |
+| `volume_type` | i32 | Volume reporting mode, as sent. The vendor does not define this column. |
 | `records_back` | i32 | Offset of this record behind the most recent record. |
 | `quote_ms_of_day` | i32 | Timestamp of the paired quote, milliseconds since midnight ET. |
 | `bid_size` | i32 | Last NBBO bid size. |
