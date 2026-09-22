@@ -37,17 +37,6 @@ pub(super) fn render_tdbe_enums(enums: &[EnumProjection]) -> String {
         out.push_str("    }\n");
         if enum_spec.rust_name == "Right" {
             out.push('\n');
-            out.push_str(
-                "    /// Parses an option-right character (`C`/`P`, case-insensitive); `None` if unrecognized.\n",
-            );
-            out.push_str("    #[must_use]\n");
-            out.push_str("    pub fn from_char(c: char) -> Option<Self> {\n");
-            out.push_str("        match c {\n");
-            out.push_str("            'C' | 'c' => Some(Self::Call),\n");
-            out.push_str("            'P' | 'p' => Some(Self::Put),\n");
-            out.push_str("            _ => None,\n");
-            out.push_str("        }\n");
-            out.push_str("    }\n\n");
             out.push_str("    /// Returns the single-character option-right code (`C`/`P`/`*`).\n");
             out.push_str("    #[must_use]\n");
             out.push_str("    pub fn as_char(&self) -> char {\n");

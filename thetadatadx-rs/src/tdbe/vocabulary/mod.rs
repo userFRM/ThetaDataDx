@@ -12,13 +12,19 @@
 //! fields, so there is no place to put a request-family name on the wire.
 //! They are carried as reference vocabulary.
 //!
-//! Three of this SDK's column names differ from the vendor's; see
+//! Five of this SDK's column names resolve onto four of the vendor's; see
 //! [`vendor_column_name`].
+//!
+//! The tables cover every enum the vendor's protocol defines, including the
+//! ones this SDK models as typed enums of its own. `SEC_TYPE` carries
+//! `IGNORE`, which this SDK spells `Unknown` on its own surface because that
+//! is what it means to a caller holding one; the vendor's spelling is here.
 
 mod tables_generated;
 
 pub use tables_generated::{
-    ACCOUNT_TYPE, CALENDAR_TYPE, DATA_TYPE, REQ_ARG, REQ_TYPE, RESULTS_FORMAT,
+    ACCOUNT_TYPE, CALENDAR_TYPE, DATA_TYPE, RATE_TYPE, REMOVE_REASON, REQ_ARG, REQ_TYPE,
+    RESULTS_FORMAT, SEC_TYPE, STREAM_MSG_TYPE, STREAM_RESPONSE_TYPE,
 };
 
 /// The vendor's name for a column this SDK spells differently.

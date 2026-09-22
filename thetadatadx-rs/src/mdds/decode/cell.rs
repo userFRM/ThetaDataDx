@@ -545,52 +545,6 @@ pub(crate) fn row_contract_right(
     }
 }
 
-/// Decode a calendar day-type cell to the typed
-/// [`crate::tdbe::types::enums::CalendarStatus`].
-///
-/// Accepts the vendor's `Text` vocabulary (`"open"` / `"early_close"`
-/// / `"full_close"` / `"weekend"`), which is what the wire carries: the
-/// vendor publishes the day class as a string and defines no integer
-/// coding for it. A `Number` is refused rather than resolved through
-/// `CalendarStatus`'s declaration order, which is an ordering chosen
-/// here and would attach this SDK's meaning to a server value.
-/// Unknown values fail loudly so schema drift surfaces as a typed
-/// error instead of a silent mis-classification. `NullValue` yields
-/// `Ok(None)`.
-///
-/// # Errors
-///
-/// Returns [`DecodeError::UnknownEnumVariant`] for text outside the
-/// documented vocabulary, [`DecodeError::TypeMismatch`] for any other
-/// wire variant including `Number`, and [`DecodeError::MissingCell`]
-/// when the row is shorter than `idx`.
-#[inline]
-pub(crate) fn row_calendar_status(
-    row: &proto::DataValueList,
-    idx: usize,
-) -> Result<Option<crate::tdbe::CalendarStatus>, DecodeError> {
-    let Some(dv) = row.values.get(idx) else {
-        return Err(DecodeError::MissingCell { column: idx });
-    };
-    match dv.data_type.as_ref() {
-        Some(proto::data_value::DataType::Text(s)) => {
-            match crate::tdbe::CalendarStatus::from_wire_text(s) {
-                Some(status) => Ok(Some(status)),
-                None => Err(DecodeError::UnknownEnumVariant {
-                    field: "calendar.type",
-                    raw: s.clone(),
-                }),
-            }
-        }
-        Some(proto::data_value::DataType::NullValue(_)) => Ok(None),
-        other => Err(DecodeError::TypeMismatch {
-            column: idx,
-            expected: "Text",
-            observed: observed_name(other),
-        }),
-    }
-}
-
 // Generated code -- parser functions from tick_schema.toml by build.rs.
 //
 // The emitted parser bodies reference:
@@ -600,24 +554,15 @@ pub(crate) fn row_calendar_status(
 //   * `crate::decode::column::{extract_column, BLOCK_ROWS}` for the
 //     bulk column extraction
 //
-// The generated `decode_generated.rs` emits `pub fn` for every tick type.
-// Most are called by the always-compiled MDDS endpoint macros, but a few
-// (`parse_calendar_days`, `parse_option_contracts`) are dead in default builds
-// and only consumed by workspace bindings (`thetadatadx-py`).
-//
-// Strategy: compile the generated module unconditionally (to keep the
-// always-needed functions available), but suppress dead-code lints on the
-// module with `#[cfg_attr]`. The `__internal` glob re-export makes the
-// otherwise-unreachable functions visible to workspace bindings.
-// The `#[cfg(not(feature = "__internal"))]` explicit list avoids the dead-code
-// lint on the re-export side; the module-level lint is suppressed by the
-// `allow(dead_code)` on the inner module only (a narrow scope that does NOT
-// apply to the enclosing crate — this is not a crate-wide allowance).
+// The generated `decode_generated.rs` emits a `pub fn` per tick type, and
+// every one of them now has a caller. Two did not: `parse_calendar_days` and
+// `parse_option_contracts` were superseded by the hand-written
+// `dual_type_columns::*_v3` parsers, which handle columns arriving as either
+// `Number` or `Text` on the v3 wire. The generator no longer emits them, so
+// the module needs no dead-code allowance — and removing it surfaced
+// `row_calendar_status`, which only the generated calendar parser had ever
+// called.
 #[allow(clippy::pedantic)] // Reason: auto-generated parser code, not under our control.
-#[allow(dead_code)] // Reason: generated functions `parse_calendar_days` and
-                    // `parse_option_contracts` have no default-build callers;
-                    // they are consumed by `thetadatadx-py` under `__internal`.
-                    // Scope: this inner module only — not the enclosing crate.
 mod decode_generated {
     use super::*;
     include!(concat!(env!("OUT_DIR"), "/decode_generated.rs"));

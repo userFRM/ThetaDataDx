@@ -87,3 +87,50 @@ names = [
     "CSV", "JSON", "JSON_NEW", "JSON_LEGACY",
     "NDJSON", "HTML",
 ]
+
+[[vocabulary]]
+# The contract kinds the protocol addresses. `IGNORE` is the unresolved shape; this SDK spells that variant `Unknown` on its own surface.
+name = "SecType"
+names = [
+    "IGNORE", "STOCK", "OPTION", "INDEX", "RATE",
+]
+
+[[vocabulary]]
+# The interest-rate curves the rate endpoints serve.
+name = "RateType"
+names = [
+    "SOFR", "TREASURY_M1", "TREASURY_M3", "TREASURY_M6", "TREASURY_Y1",
+    "TREASURY_Y2", "TREASURY_Y3", "TREASURY_Y5", "TREASURY_Y7",
+    "TREASURY_Y10", "TREASURY_Y20", "TREASURY_Y30",
+]
+
+[[vocabulary]]
+# Every frame type the streaming protocol defines, control and data alike.
+name = "StreamMsgType"
+names = [
+    "CREDENTIALS", "SESSION_TOKEN", "INFO", "METADATA", "CONNECTED", "PING",
+    "ERROR", "DISCONNECTED", "RECONNECTED", "CONTRACT", "QUOTE", "TRADE",
+    "OPEN_INTEREST", "OHLCVC", "MARKET_VALUE", "START", "RESTART", "STOP",
+    "REQ_RESPONSE", "REMOVE_QUOTE", "REMOVE_TRADE", "REMOVE_OPEN_INTEREST",
+    "REMOVE_MARKET_VALUE",
+]
+
+[[vocabulary]]
+# Why the server ended a stream or refused a login.
+name = "RemoveReason"
+names = [
+    "UNSPECIFIED", "INVALID_CREDENTIALS", "INVALID_LOGIN_VALUES",
+    "INVALID_LOGIN_SIZE", "GENERAL_VALIDATION_ERROR", "TIMED_OUT",
+    "CLIENT_FORCED_DISCONNECT", "ACCOUNT_ALREADY_CONNECTED",
+    "SESSION_TOKEN_EXPIRED", "INVALID_SESSION_TOKEN", "FREE_ACCOUNT",
+    "TOO_MANY_REQUESTS", "NO_START_DATE", "LOGIN_TIMED_OUT",
+    "SERVER_RESTARTING", "SESSION_TOKEN_NOT_FOUND",
+    "SERVER_USER_DOES_NOT_EXIST", "INVALID_CREDENTIALS_NULL_USER",
+]
+
+[[vocabulary]]
+# The outcomes a subscription request can return.
+name = "StreamResponseType"
+names = [
+    "SUBSCRIBED", "ERROR", "MAX_STREAMS_REACHED", "INVALID_PERMS",
+]

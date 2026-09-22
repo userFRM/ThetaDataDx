@@ -203,3 +203,90 @@ pub const RESULTS_FORMAT: [&str; 6] = [
     "NDJSON",
     "HTML",
 ];
+
+/// The vendor's `SecType` vocabulary (5 names).
+#[rustfmt::skip]
+pub const SEC_TYPE: [&str; 5] = [
+    "IGNORE",
+    "STOCK",
+    "OPTION",
+    "INDEX",
+    "RATE",
+];
+
+/// The vendor's `RateType` vocabulary (12 names).
+#[rustfmt::skip]
+pub const RATE_TYPE: [&str; 12] = [
+    "SOFR",
+    "TREASURY_M1",
+    "TREASURY_M3",
+    "TREASURY_M6",
+    "TREASURY_Y1",
+    "TREASURY_Y2",
+    "TREASURY_Y3",
+    "TREASURY_Y5",
+    "TREASURY_Y7",
+    "TREASURY_Y10",
+    "TREASURY_Y20",
+    "TREASURY_Y30",
+];
+
+/// The vendor's `StreamMsgType` vocabulary (23 names).
+#[rustfmt::skip]
+pub const STREAM_MSG_TYPE: [&str; 23] = [
+    "CREDENTIALS",
+    "SESSION_TOKEN",
+    "INFO",
+    "METADATA",
+    "CONNECTED",
+    "PING",
+    "ERROR",
+    "DISCONNECTED",
+    "RECONNECTED",
+    "CONTRACT",
+    "QUOTE",
+    "TRADE",
+    "OPEN_INTEREST",
+    "OHLCVC",
+    "MARKET_VALUE",
+    "START",
+    "RESTART",
+    "STOP",
+    "REQ_RESPONSE",
+    "REMOVE_QUOTE",
+    "REMOVE_TRADE",
+    "REMOVE_OPEN_INTEREST",
+    "REMOVE_MARKET_VALUE",
+];
+
+/// The vendor's `RemoveReason` vocabulary (18 names).
+#[rustfmt::skip]
+pub const REMOVE_REASON: [&str; 18] = [
+    "UNSPECIFIED",
+    "INVALID_CREDENTIALS",
+    "INVALID_LOGIN_VALUES",
+    "INVALID_LOGIN_SIZE",
+    "GENERAL_VALIDATION_ERROR",
+    "TIMED_OUT",
+    "CLIENT_FORCED_DISCONNECT",
+    "ACCOUNT_ALREADY_CONNECTED",
+    "SESSION_TOKEN_EXPIRED",
+    "INVALID_SESSION_TOKEN",
+    "FREE_ACCOUNT",
+    "TOO_MANY_REQUESTS",
+    "NO_START_DATE",
+    "LOGIN_TIMED_OUT",
+    "SERVER_RESTARTING",
+    "SESSION_TOKEN_NOT_FOUND",
+    "SERVER_USER_DOES_NOT_EXIST",
+    "INVALID_CREDENTIALS_NULL_USER",
+];
+
+/// The vendor's `StreamResponseType` vocabulary (4 names).
+#[rustfmt::skip]
+pub const STREAM_RESPONSE_TYPE: [&str; 4] = [
+    "SUBSCRIBED",
+    "ERROR",
+    "MAX_STREAMS_REACHED",
+    "INVALID_PERMS",
+];

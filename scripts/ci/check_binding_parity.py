@@ -3449,6 +3449,39 @@ def _ts_utility_surface(
     return surface
 
 
+def collect_rust_utils() -> set[str]:
+    """Public free functions reachable through the crate's `utils` module.
+
+    `utils` re-exports a fixed set of `tdbe` submodules; every `pub fn` in one
+    of them is part of the published Rust surface. The roster check below
+    scans the Python and TypeScript surfaces for a utility with no row, but
+    never the Rust one, so a helper added to the core and mirrored nowhere was
+    invisible to the gate: `vendor_column_name` and `is_vendor_column` shipped
+    on the Rust surface, were named in the release notes, and reached no
+    binding and no row.
+    """
+    lib = REPO_ROOT / "thetadatadx-rs" / "src" / "lib.rs"
+    if not lib.is_file():
+        return set()
+    m = re.search(r"pub mod utils\s*\{(.*?)\n\}", lib.read_text(encoding="utf-8"), re.S)
+    if not m:
+        return set()
+    modules = re.findall(r"[\w:]*tdbe::\{([^}]*)\}", m.group(1))
+    names: set[str] = set()
+    for group in modules:
+        for module in (x.strip() for x in group.split(",") if x.strip()):
+            base = REPO_ROOT / "thetadatadx-rs" / "src" / "tdbe" / module
+            files = list(base.rglob("*.rs")) if base.is_dir() else [base.with_suffix(".rs")]
+            for f in files:
+                if not f.is_file():
+                    continue
+                body = f.read_text(encoding="utf-8")
+                # Skip test modules: their helpers are not published surface.
+                body = body.split("#[cfg(test)]")[0]
+                names.update(re.findall(r"^\s*pub fn ([a-z_][a-z0-9_]*)", body, re.M))
+    return names
+
+
 def _check_utility_roster_complete(
     utility_rows: list[dict[str, Any]],
     py_utils: set[str],
@@ -3479,6 +3512,7 @@ def _check_utility_roster_complete(
     for lang, seen in (
         ("python", py_utils),
         ("typescript", ts_utils),
+        ("rust", collect_rust_utils()),
     ):
         for fn in sorted(seen - declared_managed):
             errors.append(
