@@ -114,7 +114,7 @@ pub struct ThetaDataDxStreamIndexMarketValue {
     pub contract: ThetaDataDxContract,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
-    /// Integer midpoint of `market_bid` / `market_ask` (dollars).
+    /// The index market price (dollars), as the feed sent it. An index has no NBBO, so this is not a midpoint of anything.
     pub market_price: f64,
     /// Trading date as `YYYYMMDD`.
     pub date: i32,

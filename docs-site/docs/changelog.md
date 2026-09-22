@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The C ABI describes an index market price correctly.** Its documentation is keyed on the column name, so `market_price` carried one description everywhere it appears. On the index market value, which has no bid and no ask, the C header called it the midpoint of two fields the event does not have. A column whose meaning is particular to its event now carries its own description in the schema, and a doc naming a sibling the event does not carry fails the build.
+
 - **A tick column says when a zero may not be a value.** Quote and trade condition codes and exchange codes all start at zero and the vendor assigns that code a meaning: quote condition 0 is `REGULAR` and exchange 0 is the composite. A response shape that carries no such column leaves the field at zero, which reads the same as a reported one. The field documentation now says so and points at `columns()`, which records what the response actually carried.
 
 - **A renamed column carries the vendor's name for it.** Three columns are spelled differently here: `implied_volatility`, its bid and ask variants, and `underlying_ms_of_day` / `quote_ms_of_day`, which are one vendor column under two names. Each field now records the vendor's own name, so a reader of the reference pages can resolve it without guessing. `thetadatadx::utils::vocabulary::vendor_column_name` answers the same question in code.

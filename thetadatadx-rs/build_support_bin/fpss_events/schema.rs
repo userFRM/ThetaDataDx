@@ -34,11 +34,20 @@ fn default_kind() -> String {
     "data".to_string()
 }
 
-/// One column of an event variant: its field name and schema type string.
+/// One column of an event variant: its field name, schema type string, and
+/// an optional doc that overrides the name-keyed default.
+///
+/// The default is keyed on the column name alone, which is right while a name
+/// means the same thing on every event that carries it. It stops being right
+/// the moment two events give one name different meanings, and then the
+/// C-ABI surface documents one of them wrongly with nothing to catch it. A
+/// column whose meaning is particular to its event says so here.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ColumnDef {
     pub(crate) name: String,
     pub(crate) r#type: String,
+    #[serde(default)]
+    pub(crate) doc: Option<String>,
 }
 
 /// Loads and deserializes `fpss_event_schema.toml` from the current directory into a [`Schema`].
