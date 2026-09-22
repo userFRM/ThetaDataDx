@@ -390,6 +390,22 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 /// the offline-mode tools the README and process banner promise.
 const OFFLINE_TOOL_NAMES: [&str; 1] = ["ping"];
 
+/// How long `tools/list` waits for the background connect to settle.
+///
+/// The connect is deliberately detached: an MCP client sends `initialize`
+/// immediately after spawning the server and times out if the handshake
+/// (~800 ms) blocks the reply. But `tools/list` is the one request whose
+/// answer depends on it, and a client that lists once at startup and caches
+/// the result would otherwise see the offline set for the life of the
+/// session, with no way to learn why. Waiting here costs a client that lists
+/// early a few hundred milliseconds once, and costs nothing after the
+/// connect has landed.
+///
+/// The wait is bounded because an unreachable vendor must still produce a
+/// tool list rather than hanging the client: on timeout the offline set is
+/// served, which is the honest answer while there is no connection.
+const CONNECT_SETTLE_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// Asset class an endpoint's data belongs to, used to gate a tool behind the
 /// authenticated account's per-asset-class subscription.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1319,13 +1335,43 @@ async fn execute_tool(
 //  Request handling
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// The connected client, waiting up to [`CONNECT_SETTLE_WAIT`] for the
+/// background connect to settle.
+///
+/// Returns `None` when there are no credentials, when the connect failed, or
+/// when it has not settled inside `bound`. All three are the same answer to
+/// the caller: there is no connection to advertise a tool set from.
+///
+/// `bound` is a parameter rather than a read of [`CONNECT_SETTLE_WAIT`] so a
+/// test can drive the three outcomes without waiting the production bound or
+/// pulling in a time-mocking feature the crate does not otherwise need.
+async fn wait_for_connect<'a>(
+    client: &'a Arc<OnceCell<Client>>,
+    connect_settled: &tokio::sync::watch::Receiver<bool>,
+    bound: std::time::Duration,
+) -> Option<&'a Client> {
+    if let Some(c) = client.get() {
+        return Some(c);
+    }
+    let mut rx = connect_settled.clone();
+    // `wait_for` returns immediately when the predicate already holds, so a
+    // settled connect costs nothing here.
+    let _ = tokio::time::timeout(bound, rx.wait_for(|settled| *settled)).await;
+    client.get()
+}
+
 async fn handle_request(
     req: &JsonRpcRequest,
     client: &Arc<OnceCell<Client>>,
+    connect_settled: &tokio::sync::watch::Receiver<bool>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
     // OnceCell::get is lock-free; no guard is held across the awaits below.
-    let client = client.get();
+    // This snapshot is taken before the background connect may have landed,
+    // so `tools/list` re-reads the cell through `wait_for_connect` rather
+    // than answering from it.
+    let client_cell = client;
+    let client = client_cell.get();
     let id = req.id.clone().unwrap_or(Value::new_null());
 
     // `2026-07-28` moved version negotiation onto every request, so the check
@@ -1395,7 +1441,13 @@ async fn handle_request(
             // otherwise just the offline tools. `client` is the lock-free
             // `OnceCell::get` above, so presence reflects whether the
             // background connect has landed.
-            let access = client.map(SubscriptionAccess::from_client);
+            // Re-read the cell after waiting: the `client` bound at the top of
+            // this function is a snapshot taken before the connect had a
+            // chance to land, and serving that snapshot is what leaves a
+            // client holding a ping-only list for the session.
+            let access = wait_for_connect(client_cell, connect_settled, CONNECT_SETTLE_WAIT)
+                .await
+                .map(SubscriptionAccess::from_client);
             let tools = tool_definitions_for(access);
             JsonRpcResponse::success(
                 id,
@@ -1719,6 +1771,12 @@ async fn main() {
     // is already running.
     let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
 
+    // Latches once the connect has either landed or failed, so `tools/list`
+    // can wait for an answer instead of reporting whatever the cell held at
+    // the moment the request arrived. Starts `true` when there is nothing to
+    // wait for.
+    let (connect_settled_tx, connect_settled) = tokio::sync::watch::channel(creds.is_none());
+
     if let Some(creds) = creds {
         let client_bg = Arc::clone(&client);
         tokio::spawn(async move {
@@ -1733,6 +1791,9 @@ async fn main() {
                     tracing::error!(error = %e, "failed to connect to ThetaData, running in offline mode");
                 }
             }
+            // Settled either way: a failed connect must release the waiters
+            // rather than hold them to the timeout.
+            let _ = connect_settled_tx.send(true);
         });
     }
 
@@ -1765,7 +1826,7 @@ async fn main() {
 
         let is_notification = req.id.is_none();
 
-        let resp = handle_request(&req, &client, start_time).await;
+        let resp = handle_request(&req, &client, &connect_settled, start_time).await;
 
         if !is_notification {
             emit_response(&stdout, &resp);
@@ -1917,7 +1978,8 @@ mod tests {
             params: json!({ "_meta": { META_PROTOCOL_VERSION: "2026-07-28" } }),
         };
         let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
-        let response = handle_request(&request, &client, std::time::Instant::now()).await;
+        let (_tx, settled) = tokio::sync::watch::channel(true);
+        let response = handle_request(&request, &client, &settled, std::time::Instant::now()).await;
 
         let result = response.result.expect("discover result");
         assert_eq!(
@@ -1966,7 +2028,8 @@ mod tests {
             params: json!({ "_meta": { META_PROTOCOL_VERSION: "2099-01-01" } }),
         };
         let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
-        let response = handle_request(&request, &client, std::time::Instant::now()).await;
+        let (_tx, settled) = tokio::sync::watch::channel(true);
+        let response = handle_request(&request, &client, &settled, std::time::Instant::now()).await;
 
         assert!(response.result.is_none(), "must not answer the request");
 
@@ -2010,7 +2073,8 @@ mod tests {
             params: json!({}),
         };
         let client: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
-        let response = handle_request(&request, &client, std::time::Instant::now()).await;
+        let (_tx, settled) = tokio::sync::watch::channel(true);
+        let response = handle_request(&request, &client, &settled, std::time::Instant::now()).await;
 
         let result = response.result.expect("tools/list result");
         assert_eq!(
@@ -2763,4 +2827,63 @@ mod tests {
         // The surrounding non-ASCII prose is preserved.
         assert!(out.contains("échec session"), "prose lost: {out:?}");
     }
+    /// `tools/list` is the one request whose answer depends on the background
+    /// connect, and the connect is detached so `initialize` can reply fast.
+    /// Answering from the snapshot taken when the request arrived is what
+    /// leaves a client that lists once at startup holding a ping-only list
+    /// for the session, with the documentation blaming its credentials.
+    ///
+    /// Three outcomes, all reachable in production: the connect has already
+    /// landed, it lands while the request waits, and it never lands.
+    #[tokio::test]
+    async fn tools_list_waits_for_the_connect_to_settle() {
+        use std::time::{Duration, Instant};
+
+        let bound = Duration::from_millis(400);
+
+        // Already settled and still empty (no credentials, or a failed
+        // connect): answer at once rather than holding the client.
+        let cell: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
+        let (_tx, settled) = tokio::sync::watch::channel(true);
+        let t0 = Instant::now();
+        assert!(wait_for_connect(&cell, &settled, bound).await.is_none());
+        assert!(
+            t0.elapsed() < Duration::from_millis(100),
+            "a settled connect must not cost a wait; took {:?}",
+            t0.elapsed()
+        );
+
+        // Settles while the request is in flight: release on the signal, not
+        // on the bound.
+        let cell: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
+        let (tx, settled) = tokio::sync::watch::channel(false);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(80)).await;
+            let _ = tx.send(true);
+        });
+        let t0 = Instant::now();
+        let _ = wait_for_connect(&cell, &settled, bound).await;
+        let waited = t0.elapsed();
+        assert!(
+            waited >= Duration::from_millis(80),
+            "must wait for the connect to settle; returned after {waited:?}"
+        );
+        assert!(
+            waited < bound,
+            "must release on the signal, not on the bound; took {waited:?}"
+        );
+
+        // Never settles: give up at the bound and serve the offline set. An
+        // unreachable vendor must not hang the client.
+        let cell: Arc<OnceCell<Client>> = Arc::new(OnceCell::new());
+        let (_tx, settled) = tokio::sync::watch::channel(false);
+        let t0 = Instant::now();
+        assert!(wait_for_connect(&cell, &settled, bound).await.is_none());
+        assert!(
+            t0.elapsed() >= bound,
+            "must wait the full bound before giving up; gave up after {:?}",
+            t0.elapsed()
+        );
+    }
+
 }
