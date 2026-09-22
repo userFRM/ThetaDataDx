@@ -73,39 +73,41 @@ pub fn error_envelope(error_type: &str, message: &str) -> sonic_rs::Value {
 /// The `StringList` arm is handled upstream in [`response_rows`] / [`list_rows`]
 /// (the keyless variant cannot tell a symbol list from a date / strike list);
 /// this returns an empty `Vec` for it so the function stays total.
-/// The response's per-row `symbol` values, when the wire carried a `symbol`
-/// column that varies across rows.
+/// The column presence the decoder attached to this response, when the output
+/// carries ticks.
 ///
-/// A multi-symbol snapshot returns one row per symbol and the decoder keeps
-/// each row's own value. Labelling every row with the request's comma-joined
-/// `symbol` parameter instead would attribute five of six rows to the wrong
-/// underlying, so the wire's value is used wherever the response carries one.
-fn per_row_symbols(output: &EndpointOutput) -> Option<&[Box<str>]> {
+/// It holds the wire's own `symbol` in whichever of two shapes the response
+/// took: one value per row when the response spans several underlyings, and a
+/// single constant when every row shares one. Both are the wire's answer and
+/// both beat the request parameter, which for the snapshot family is the
+/// caller's comma-separated list and describes the request rather than any
+/// particular row.
+fn wire_columns(output: &EndpointOutput) -> Option<&thetadatadx::columns::ColumnPresence> {
     match output {
         EndpointOutput::StringList(_)
         | EndpointOutput::CalendarDays(_)
         | EndpointOutput::OptionContracts(_) => None,
-        EndpointOutput::EodTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::GreeksAllTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::GreeksEodTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::GreeksFirstOrderTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::GreeksSecondOrderTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::GreeksThirdOrderTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::IndexPriceAtTimeTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::InterestRateTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::IvTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::MarketValueTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::OhlcTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::OpenInterestTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::PriceTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::QuoteTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::TradeGreeksAllTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::TradeQuoteTicks(ticks) => ticks.columns().symbols(),
-        EndpointOutput::TradeTicks(ticks) => ticks.columns().symbols(),
+        EndpointOutput::EodTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::GreeksAllTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::GreeksEodTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::GreeksFirstOrderTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::GreeksSecondOrderTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::GreeksThirdOrderTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::IndexPriceAtTimeTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::InterestRateTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::IvTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::MarketValueTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::OhlcTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::OpenInterestTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::PriceTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::QuoteTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::TradeGreeksAllTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::TradeQuoteTicks(ticks) => Some(ticks.columns()),
+        EndpointOutput::TradeTicks(ticks) => Some(ticks.columns()),
     }
 }
 
@@ -497,17 +499,23 @@ fn build_rows(
     match contract.symbol {
         Some(sym) if !sym.is_empty() && slot != IdentitySlot::None => {
             let is_option = endpoint_is_option_tick(ep);
-            // Prefer the wire's own per-row symbol. `contract.symbol` is the
-            // raw request parameter, which for the snapshot family is a
-            // comma-separated list: stamping it on every row labels each one
-            // with the whole request.
-            let per_row = per_row_symbols(output);
+            // Prefer the wire's own symbol in either shape it takes.
+            // `contract.symbol` is the raw request parameter, which for the
+            // snapshot family is a comma-separated list: stamping it on every
+            // row labels each one with the whole request.
+            let wire_cols = wire_columns(output);
             rows.into_iter()
                 .enumerate()
                 .map(|(i, row)| {
-                    let symbol = per_row
-                        .and_then(|symbols| symbols.get(i))
-                        .map_or(sym, |s| &**s);
+                    // Per-row first, then the constant the wire carried, and
+                    // only then the request parameter. A response that spans
+                    // one underlying records a constant rather than a
+                    // per-row list, so reading the per-row shape alone sent
+                    // exactly those rows back to the request string.
+                    let symbol = wire_cols
+                        .and_then(|c| c.symbols().and_then(|s| s.get(i)).map(|s| &**s))
+                        .or_else(|| wire_cols.and_then(ColumnPresence::symbol))
+                        .unwrap_or(sym);
                     splice_identity(row, slot, symbol, is_option, contract)
                 })
                 .collect()
@@ -4569,6 +4577,52 @@ mod tests {
                 "row must carry the symbol the wire gave it, not the request list"
             );
         }
+    }
+
+    /// A response can carry one symbol for every row rather than a list, and
+    /// the decoder records that as a constant rather than a per-row set. A
+    /// formatter that reads only the per-row shape sends exactly those rows
+    /// back to the request parameter, which for the snapshot family is the
+    /// caller's comma-separated list.
+    #[test]
+    fn a_single_symbol_snapshot_row_carries_the_wire_symbol_not_the_request_list() {
+        use thetadatadx::columns::{ColumnPresence, Ticks};
+
+        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
+        let rows = vec![QuoteTick {
+            ms_of_day: 34_200_000,
+            bid_size: 10,
+            bid_exchange: 1,
+            bid: 100.0,
+            bid_condition: 0,
+            ask_size: 10,
+            ask_exchange: 1,
+            ask: 101.0,
+            ask_condition: 0,
+            date: 20_260_922,
+            expiration: 0,
+            strike: 0.0,
+            right: '\0',
+        }];
+        // The wire answered for one underlying, so the decoder records a
+        // constant rather than a per-row list.
+        let columns = ColumnPresence::default().with_symbol("AAPL");
+        let output = EndpointOutput::QuoteTicks(Ticks::new(rows, columns));
+
+        // The request asked for two.
+        let contract = ContractParams {
+            symbol: Some("AAPL,MSFT"),
+            ..ContractParams::default()
+        };
+
+        let built = response_rows(ep, &contract, &output);
+        assert_eq!(built.len(), 1);
+        let symbol = built[0].get("symbol").expect("identity carries a symbol");
+        assert_eq!(
+            symbol.as_str().expect("symbol renders as text"),
+            "AAPL",
+            "a constant wire symbol must beat the request list"
+        );
     }
 
 }

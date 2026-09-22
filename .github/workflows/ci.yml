@@ -566,14 +566,22 @@ jobs:
       # major bump so the patch line is guarded against accidental
       # breaks.
       - uses: obi1kenobi/cargo-semver-checks-action@v2
-        # thetadatadx-rs is a freshly-named crate; its first published
-        # version is the baseline for everything after it, so there is no
-        # prior release to diff against on this initial line. Compare
-        # against the crate's own latest crates.io release (none yet on
-        # the debut → the action skips) and keep it non-fatal so a missing
-        # baseline never reds the release lane; re-tighten to a fixed
-        # baseline tag once 0.1.x is out.
-        continue-on-error: true
+        # Fatal on the release lane, advisory everywhere else.
+        #
+        # Between releases the crate version sits at the published
+        # baseline while main accumulates breaking changes, so the action
+        # compares 0.4.0 against 0.4.0, assumes a minor bump, and reports
+        # every break as requiring a major. That is the normal state of an
+        # unreleased line, not a defect, and hard-failing on it would red
+        # main until someone bumped the version for no release.
+        #
+        # At a tag the version HAS moved: the action diffs the published
+        # baseline against the version about to be uploaded, and cargo's
+        # 0.x rules make the minor position the breaking one. A break
+        # tagged v0.4.1 fails here and `verified` stops the publish; the
+        # same break tagged v0.5.0 passes. This is the only moment the
+        # check can prevent anything, and it is the moment it now bites.
+        continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         with:
           package: thetadatadx-rs
 
@@ -872,6 +880,71 @@ jobs:
       - name: Run offline subset
         run: ctest --test-dir build/cpp-tests --output-on-failure --no-tests=error
 
+  # Everything that must pass before anything ships. Named once, here, so
+  # the release lane and the aggregate gate cannot drift apart: the gate
+  # used to list every verification job while publication listed four of
+  # them, and the gate ran AFTER publication, so it could report the
+  # failure but never prevent the upload.
+  verified:
+    name: Verified
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - changes
+      - setup
+      - fmt
+      - clippy
+      - core-test
+      - c-abi-completeness
+      - binding-parity
+      - wire-schema-drift
+      - public-surface-leak
+      - doc-defaults
+      - no-re-framing
+      - docs-consistency
+      - version-sync
+      - lockfile-drift
+      - agreement
+      - cargo-deny
+      - lint-matrix
+      - test
+      - feature-tests
+      - rustdoc
+      - bench
+      - semver
+      - surfaces
+      - docs-render-check
+      - build-ffi
+      - sdk-bindings
+      - cpp-tests
+      - build-server
+    steps:
+      - name: Fail unless every verification job succeeded or was skipped
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = sorted(
+              name
+              for name, data in needs.items()
+              if data.get("result") not in ("success", "skipped")
+          )
+          for name in sorted(needs):
+              print(f"{name}: {needs[name].get('result')}")
+          if bad:
+              joined = ", ".join(bad)
+              sys.exit(f"not verified: {joined} did not succeed or skip")
+          print("verified: every verification job succeeded or was skipped")
+          PY
+
   # ═══════════════════════════════════════════════════════════════
   # RELEASE LANE. Tag-triggered only. Unchanged: the full matrix has
   # already run above on the same `v*` ref before these gate on it.
@@ -880,7 +953,7 @@ jobs:
   publish-crate:
     name: Publish to crates.io
     runs-on: ubuntu-latest
-    needs: [test, surfaces, sdk-bindings, build-ffi]
+    needs: [verified]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     timeout-minutes: 30
     steps:
@@ -992,14 +1065,19 @@ jobs:
   # ═══════════════════════════════════════════════════════════════
   # AGGREGATOR GATE. A single roll-up status that summarizes every job
   # above. This is the one check branch protection should require: it
-  # runs with `if: always()`, depends on every other job, and fails
-  # unless every dependency finished `success` or `skipped`. A heavy
-  # job that legitimately skips on a path-irrelevant PR counts as a
-  # pass; a real `failure` or `cancelled` in any dependency fails the
-  # gate. Requiring this one job (instead of a hand-maintained list of
-  # per-job names) means a conditionally-skipped required check can no
-  # longer leave the merge gate permanently unsatisfiable, and a newly
-  # added job is covered the moment it appears in `needs` below.
+  # runs with `if: always()` and fails unless every dependency finished
+  # `success` or `skipped`. A heavy job that legitimately skips on a
+  # path-irrelevant PR counts as a pass; a real `failure` or
+  # `cancelled` fails the gate. Requiring this one job (instead of a
+  # hand-maintained list of per-job names) means a
+  # conditionally-skipped required check can no longer leave the merge
+  # gate permanently unsatisfiable.
+  #
+  # It depends on `verified` rather than restating its 28 jobs, so a
+  # new verification job is added in ONE place -- `verified` -- and is
+  # covered by both the merge gate and the publish gate at once. That
+  # is the whole point of the split: the two lists cannot drift apart
+  # again, because there is only one list.
   # ═══════════════════════════════════════════════════════════════
   ci-gate:
     name: CI gate
@@ -1007,34 +1085,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
-      - changes
-      - setup
-      - fmt
-      - clippy
-      - core-test
-      - c-abi-completeness
-      - binding-parity
-      - wire-schema-drift
-      - public-surface-leak
-      - doc-defaults
-      - no-re-framing
-      - docs-consistency
-      - version-sync
-      - lockfile-drift
-      - agreement
-      - cargo-deny
-      - lint-matrix
-      - test
-      - feature-tests
-      - rustdoc
-      - bench
-      - semver
-      - surfaces
-      - docs-render-check
-      - build-ffi
-      - sdk-bindings
-      - cpp-tests
-      - build-server
+      - verified
       - publish-crate
       - release
     steps:
