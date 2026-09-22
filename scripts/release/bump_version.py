@@ -174,6 +174,14 @@ def bump_package_lock(path: Path, current: str, target: str, first_party_prefix:
             continue
         if isinstance(entry, dict) and entry.get("version") == current:
             entry["version"] = target
+            # `resolved` and `integrity` describe the tarball of the version
+            # being left behind, and the new one does not exist on the registry
+            # until this release publishes it. Carrying them over labels the
+            # old artifact with the new version, which is how this entry came
+            # to say 0.5.0 beside a 0.4.0 tarball. Dropping them is a legal
+            # lockfile state: npm resolves the entry on the next install.
+            entry.pop("resolved", None)
+            entry.pop("integrity", None)
             moved += 1
     if moved == 0:
         sys.exit(
