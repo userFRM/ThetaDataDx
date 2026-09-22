@@ -113,6 +113,13 @@ pub const MIN_SUPPORTED_EPOCH_MS: u64 = 0;
 /// for an in-range value and rejects anything beyond it as corrupt.
 pub const MAX_SUPPORTED_EPOCH_MS: u64 = 4_133_980_799_999;
 
+/// Floor of the offset-resolution window: 1900-01-01T00:00:00Z. Distinct from
+/// [`MIN_SUPPORTED_EPOCH_MS`], which is the decode boundary's unsigned floor
+/// for a wire `Timestamp`. The date validator accepts `1900..=2100`, so the
+/// offset resolution has to answer for the whole of that range rather than for
+/// the half that happens to be non-negative.
+const MIN_OFFSET_EPOCH_MS: i64 = -2_208_988_800_000;
+
 /// Whether `epoch_ms` lies inside the supported Eastern-Time conversion
 /// window (`MIN_SUPPORTED_EPOCH_MS..=MAX_SUPPORTED_EPOCH_MS`).
 ///
@@ -144,16 +151,29 @@ pub fn epoch_ms_in_range(epoch_ms: u64) -> bool {
 )]
 #[must_use]
 pub fn eastern_offset_ms(epoch_ms: u64) -> i64 {
+    eastern_offset_ms_at(epoch_ms as i64)
+}
+
+/// Eastern Time UTC offset for an instant that may predate 1970.
+///
+/// The `u64` entry point above cannot express a negative epoch, so the
+/// two-pass resolution in [`eastern_timestamp_ms`] clamped its probes through
+/// `max(0)`. That resolved every pre-1970 instant to the January-1970 offset,
+/// which is EST, so a summer date in 1967, 1968 or 1969 came back an hour
+/// early even though the rule table below already covers those years and the
+/// civil-date arithmetic already handles a negative day count. Only the
+/// parameter type did.
+fn eastern_offset_ms_at(epoch_ms: i64) -> i64 {
     // Out-of-range timestamps would overflow the day-count multiply in
     // the DST-boundary helpers; keep the function total by returning the
     // EST default rather than wrapping. The decode boundary rejects such
     // values up front via `epoch_ms_in_range`, so this guard only fires
     // for inputs that never reach the typed surface.
-    if !epoch_ms_in_range(epoch_ms) {
+    if epoch_ms > MAX_SUPPORTED_EPOCH_MS as i64 || epoch_ms < MIN_OFFSET_EPOCH_MS {
         return -5 * 3_600 * 1_000;
     }
     // First, determine the UTC year/month/day to find DST boundaries.
-    let epoch_secs = epoch_ms as i64 / 1_000;
+    let epoch_secs = epoch_ms / 1_000;
     let days_since_epoch = epoch_secs / 86_400;
 
     // Civil date from days since 1970-01-01 (Euclidean algorithm).
@@ -188,8 +208,7 @@ pub fn eastern_offset_ms(epoch_ms: u64) -> i64 {
         (start, october_last_sunday_utc(year))
     };
 
-    let epoch_ms_i64 = epoch_ms as i64;
-    if epoch_ms_i64 >= dst_start_utc && epoch_ms_i64 < dst_end_utc {
+    if epoch_ms >= dst_start_utc && epoch_ms < dst_end_utc {
         -4 * 3_600 * 1_000 // EDT
     } else {
         -5 * 3_600 * 1_000 // EST
@@ -381,15 +400,52 @@ pub fn date_ms_to_epoch_ms(date: i32, ms_of_day: i32) -> Option<i64> {
     // `eastern_offset_ms` takes epoch ms as u64; market-data dates are
     // bounded to 1900..=2100 by the validator, but pre-1970 dates would
     // go negative — clamp through max(0) for the offset probe only.
-    let offset = eastern_offset_ms(est_guess.max(0) as u64);
+    let offset = eastern_offset_ms_at(est_guess);
     let epoch = local_ms - offset;
-    let offset = eastern_offset_ms(epoch.max(0) as u64);
+    let offset = eastern_offset_ms_at(epoch);
     Some(local_ms - offset)
 }
 
 #[cfg(test)]
 mod dst_era_tests {
     use super::*;
+
+    /// Pre-1970 instants resolve to the offset that actually governed them.
+    ///
+    /// The offset probes used to clamp through `max(0)` because the entry
+    /// point took `u64`, so every instant before 1970 resolved to the
+    /// January-1970 offset, which is EST. A summer date in 1967, 1968 or 1969
+    /// therefore came back an hour early while reporting no error, even though
+    /// the rule table already covers those years. The expected values come
+    /// from the IANA database (`ZoneInfo("America/New_York")`), not from this
+    /// module, so a formula that drifts fails here rather than agreeing with
+    /// itself.
+    #[test]
+    fn pre_1970_summer_dates_resolve_to_eastern_daylight_time() {
+        for (date, expected) in [
+            (19_670_701_i32, -79_007_400_000_i64),
+            (19_680_701, -47_385_000_000),
+            (19_690_701, -15_849_000_000),
+        ] {
+            assert_eq!(
+                date_ms_to_epoch_ms(date, 34_200_000),
+                Some(expected),
+                "{date} 09:30 Eastern is daylight time; clamping the offset probe \
+                 to 1970 resolves it as standard time, an hour early"
+            );
+        }
+    }
+
+    /// The winter half of the same years must stay on standard time, so the
+    /// test above cannot pass by simply shifting everything an hour.
+    #[test]
+    fn pre_1970_winter_dates_resolve_to_eastern_standard_time() {
+        assert_eq!(
+            date_ms_to_epoch_ms(19_670_103, 34_200_000),
+            Some(-94_469_400_000),
+            "1967-01-03 09:30 Eastern is standard time"
+        );
+    }
 
     /// Dates the United States actually changed its clocks. Each is a
     /// published historical fact, not a value this module computes, so a

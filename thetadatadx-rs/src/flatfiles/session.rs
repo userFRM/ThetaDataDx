@@ -25,7 +25,7 @@ use crate::auth::Credentials;
 use crate::error::{AuthErrorKind, Error};
 use crate::flatfiles::framing::{msg, read_frame, write_frame, Frame};
 use crate::flatfiles::mdds_spki::MddsSpkiVerifier;
-use crate::flatfiles::types::FlatFilesUnavailableReason;
+use crate::flatfiles::types::{disconnect_reason_code, FlatFilesUnavailableReason};
 use crate::fpss::protocol::build_login_payload;
 
 /// Established, authenticated MDDS connection.
@@ -127,11 +127,7 @@ pub(crate) async fn login(
                 // Server heartbeat during auth — ignore.
             }
             msg::DISCONNECTED => {
-                let reason_code = if frame.payload.len() >= 2 {
-                    u16::from_be_bytes([frame.payload[0], frame.payload[1]])
-                } else {
-                    0
-                };
+                let reason_code = disconnect_reason_code(&frame.payload);
                 let _ = stream.shutdown().await;
                 return Err(Error::FlatFilesUnavailable(
                     FlatFilesUnavailableReason::AuthRejected { reason_code },
