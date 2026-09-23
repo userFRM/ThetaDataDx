@@ -1093,11 +1093,10 @@ impl StreamView {
     /// Cumulative count of streaming events that were dropped because the
     /// callback fell behind and the in-flight buffer was full.
     ///
-    /// The value matches every other binding (C ABI, Python, C++). The
-    /// counter resets when the session is recreated -- that happens on
-    /// `stopStreaming()` and `reconnect()`. Snapshot the value before
-    /// reconnect if you need to accumulate drops across session
-    /// boundaries.
+    /// The value matches every other binding (C ABI, Python, C++), and it
+    /// counts every session this client has run: `stopStreaming()` and
+    /// `reconnect()` retire the session, and the drops it recorded stay in
+    /// the total.
     ///
     /// Returned as `bigint` so it can represent the full 64-bit unsigned range
     /// (Number would top out at 2^53).
