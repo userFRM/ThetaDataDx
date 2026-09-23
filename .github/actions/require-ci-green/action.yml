@@ -84,6 +84,7 @@ runs:
         echo "waiting on ${#gates[@]} verification aggregates for ${GITHUB_REF_NAME}"
 
         declare -A passed=()
+        confirming=0
         while :; do
           pending=0
           for gate in "${gates[@]}"; do
@@ -143,9 +144,18 @@ runs:
           done
 
           if [ "$pending" -eq 0 ]; then
-            echo "every verification aggregate passed for ${GITHUB_REF_NAME}; publishing may proceed"
-            exit 0
+            if [ "$confirming" -eq 1 ]; then
+              echo "every verification aggregate passed for ${GITHUB_REF_NAME}; publishing may proceed"
+              exit 0
+            fi
+            # Every gate has read green at some point, some of them on an
+            # earlier pass. Read them all once more, from nothing cached, so a
+            # workflow re-run and failed since it was first seen stops this.
+            confirming=1
+            passed=()
+            continue
           fi
+          confirming=0
           if [ "$(date +%s)" -ge "$deadline" ]; then
             echo "::error::refusing to publish: timed out after ${TIMEOUT_MINUTES}m with ${#passed[@]}/${#gates[@]} aggregates passed"
             exit 1
