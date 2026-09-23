@@ -3,10 +3,16 @@
 //!
 //! Items here are physically separate from `build_support/` so the build
 //! script never compiles them. The build script's compile unit reads
-//! `thetadatadx-rs/build_support/mod.rs`; the binary's compile unit
-//! reads this file. Each declares only the modules its compile unit
-//! actually needs, which is why neither carries any `#[allow(dead_code)]`
-//! umbrella attribute.
+//! `thetadatadx-rs/build_support/mod.rs`; both binaries read this file.
+//!
+//! Sharing one root between two binaries means each of their compile units
+//! contains the other's modules. `generate_docs_site` calls one leaf of this
+//! tree and reports 456 unused items without the umbrella attribute it
+//! carries; `generate_sdk_surfaces` calls everything except `docs_render`,
+//! which is why that one module is declared under a narrow allowance below.
+//! Splitting the tree per binary removes the whole-module cases and leaves
+//! the leaf sharing, where the docs-site generator calls three functions out
+//! of files the SDK emitters also use, so it does not reach zero.
 //!
 //! Shared core modules (`endpoints::model`, `endpoints::parser`,
 //! `endpoints::helpers`, `endpoints::proto_parser`, `ticks::schema`) live
@@ -20,9 +26,8 @@ mod upstream_openapi;
 #[path = "../src/mdds/wire_semantics.rs"]
 mod wire_semantics;
 
-// Consumed by `generate_docs_site` only; when `generate_sdk_surfaces`
-// is compiled with the `__internal` feature in the same invocation, the
-// re-export is unused in that compile unit by design.
+// Consumed by `generate_docs_site` only; the re-export is unused in the
+// `generate_sdk_surfaces` compile unit, which shares this root.
 #[cfg(feature = "__internal")]
 #[allow(unused_imports)]
 pub use endpoints::{check_docs_site_files, write_docs_site_files};
