@@ -207,28 +207,22 @@ pub struct ThetaDataDxStreamHandle {
     /// [`publish_failed_if_current`].
     dispatcher: Arc<Mutex<FfpssDispatcherSession>>,
     /// User-callback panics and ring-overflow drops accrued by every session
-    /// this handle has already retired. See [`ThetaDataDxStreamHandle::take_inner`].
+    /// this handle has already retired. See [`ThetaDataDxStreamHandle::fold_retired`].
     retired_panics: AtomicU64,
     retired_dropped: AtomicU64,
 }
 impl ThetaDataDxStreamHandle {
-    /// Retire the live session, folding its panic and drop counts into this
-    /// handle's running totals on the way out.
+    /// Fold a retired session's panic and drop counts into this handle's
+    /// running totals. Both counters are documented as cumulative, so the
+    /// counts must outlive the session.
     ///
-    /// Every teardown takes the session through here. Both counters are
-    /// documented as cumulative, and a caller reads them after shutting down
-    /// precisely because that is when the run is over; reading them off the
-    /// live session alone answered zero the moment the session was gone, so a
-    /// run that faulted and a run that did not were indistinguishable.
-    fn take_inner(&self) -> Option<Arc<thetadatadx::fpss::StreamingClient>> {
-        let taken = self.inner.lock_recover().take();
-        if let Some(client) = &taken {
-            self.retired_panics
-                .fetch_add(client.panic_count(), AtomicOrdering::Relaxed);
-            self.retired_dropped
-                .fetch_add(client.dropped_count(), AtomicOrdering::Relaxed);
-        }
-        taken
+    /// Called once the session's dispatcher has stopped: `shutdown()` only
+    /// signals, and the callback keeps firing until the ring drains.
+    fn fold_retired(&self, client: &thetadatadx::fpss::StreamingClient) {
+        self.retired_panics
+            .fetch_add(client.panic_count(), AtomicOrdering::Relaxed);
+        self.retired_dropped
+            .fetch_add(client.dropped_count(), AtomicOrdering::Relaxed);
     }
 }
 
@@ -2217,7 +2211,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // a callback re-entering any `thetadatadx_streaming_*` API that needs
         // `handle.inner.lock()` never sees the lock held while the old
         // session tears down.
-        let taken_old = handle.take_inner();
+        let taken_old = handle.inner.lock_recover().take();
         // Extract the old dispatcher session and RELEASE the dispatcher lock
         // before the join: the old dispatcher keeps draining ring-buffered
         // events through the user callback until it observes the shutdown, and
@@ -2232,11 +2226,12 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
             let flag = old.drained_flag();
             handle.prev_drained.lock_recover().push(flag.clone());
             old.shutdown();
-            drop(old);
             // Join the OLD dispatcher (lock-free) BEFORE spawning the
             // replacement so the new dispatcher does not race the old one over
             // the same C callback context.
             join_extracted_session(handle, old_session);
+            handle.fold_retired(&old);
+            drop(old);
             Some(flag)
         } else {
             // No old client, but a stale Running session could still exist
@@ -2485,16 +2480,18 @@ fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSess
     // re-enters `handle.inner` via the user callback from observing the lock
     // held. Holding it across the if-let block (scrutinee form) would extend
     // the guard over the teardown and break the lock-free re-entry invariant.
-    let taken = handle.take_inner();
-    if let Some(client) = taken {
+    let taken = handle.inner.lock_recover().take();
+    if let Some(client) = &taken {
         handle
             .prev_drained
             .lock_recover()
             .push(client.drained_flag());
         client.shutdown();
-        drop(client);
     }
     join_extracted_session(handle, session);
+    if let Some(client) = taken {
+        handle.fold_retired(&client);
+    }
 }
 
 /// Downcast a thread-panic payload to a human-readable string.
@@ -3721,8 +3718,9 @@ mod health_on_outer_panic_tests {
         let live = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
         assert_eq!(live, 2, "the live session reports the faults it caught");
 
-        let retired = handle.take_inner();
-        assert!(retired.is_some(), "the live session was the one retired");
+        let retired = handle.inner.lock_recover().take();
+        let retired = retired.expect("the live session was the one retired");
+        handle.fold_retired(&retired);
         // SAFETY: as above.
         let after = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
         assert_eq!(

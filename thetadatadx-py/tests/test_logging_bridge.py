@@ -4,8 +4,15 @@ The bridge decides whether an event is worth forwarding by asking the Python
 logger for its level, and asking needs the GIL. It now caches that answer per
 target for a short window so a blocking call does not reacquire the GIL once
 per event, which is what `test_no_gil.py::test_market_data_releases_gil`
-measures. These tests cover the other side of that change: the events a caller
-has asked for still arrive, and the ones they have not still do not.
+measures. This covers the other side of that change: the events a caller has
+asked for still arrive.
+
+The opposite direction is not testable from here and does not need to be. The
+bridge emits through ``Logger.log``, which re-checks ``isEnabledFor`` itself,
+so no answer the cache can give will forward a record the caller switched off.
+A test asserting that would pass with the whole Rust-side filter deleted. The
+cache's own failure direction is pinned in Rust by
+``the_level_cache_answers_only_for_a_fresh_known_target``.
 
 Live-gated. Nothing in the SDK emits a `tracing` event until it opens a
 session, so a real client is the only way to drive the bridge end to end.
@@ -86,27 +93,6 @@ def test_debug_events_reach_python_logging(captured_logger):
         assert all(r.name.startswith("thetadatadx.") for r in handler.records), (
             "targets are normalised onto the Python logger hierarchy: "
             f"{sorted({r.name for r in handler.records})}"
-        )
-    finally:
-        client.close()
-
-
-def test_a_raised_level_stops_the_debug_events(captured_logger):
-    """With the logger at WARNING, the debug events do not arrive.
-
-    The cache is consulted before the GIL, so a threshold it got wrong in
-    this direction would forward records the caller had switched off.
-    """
-    creds_path = _creds_path()
-    logger, handler = captured_logger
-    logger.setLevel(logging.WARNING)
-
-    client = _open_a_session(creds_path)
-    try:
-        below = [r for r in handler.records if r.levelno < logging.WARNING]
-        assert not below, (
-            "a logger at WARNING receives nothing below it: "
-            f"{[(r.name, r.levelname) for r in below[:5]]}"
         )
     finally:
         client.close()

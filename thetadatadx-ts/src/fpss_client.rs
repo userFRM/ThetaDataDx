@@ -652,9 +652,6 @@ impl StreamingClient {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
-            if let Some(client) = &taken {
-                retired.absorb(client);
-            }
             *cb_guard = None;
             let session = std::mem::replace(
                 &mut *dispatcher
@@ -673,7 +670,6 @@ impl StreamingClient {
             flags.push(drained_flag);
             drop(flags);
             client.shutdown();
-            drop(client);
             if let DispatcherSession::Running {
                 handle,
                 on_teardown,
@@ -702,6 +698,9 @@ impl StreamingClient {
                     }
                 }
             }
+            // Once the dispatcher has stopped: `shutdown()` only signals, and
+            // the callback keeps firing until the ring drains.
+            retired.absorb(&client);
         }
     }
 

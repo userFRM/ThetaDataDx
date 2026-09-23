@@ -163,10 +163,15 @@ struct CachedLevel {
 /// Whether `level` on `target` is worth acquiring the GIL for.
 ///
 /// `None` means the answer is not cached or has expired, so the caller must
-/// attach and ask. A cached answer is only ever used to skip an event Python
-/// would itself have dropped: `Logger.log` re-checks `isEnabledFor`, so an
-/// optimistic answer here costs one wasted GIL acquisition, never a record
-/// the caller disabled.
+/// attach and ask.
+///
+/// The answer is only as fresh as `LEVEL_CACHE_TTL`, and it is wrong in both
+/// directions for that long: an event is skipped for up to that window after
+/// a caller lowers a level, and an event that passes costs one wasted GIL
+/// acquisition for up to that window after a caller raises one. The second
+/// direction cannot leak a record, because `Logger.log` re-checks
+/// `isEnabledFor` itself; the first is the settling time the module doc
+/// states.
 fn cached_verdict(target: &'static str, level: u32) -> Option<bool> {
     let guard = LEVEL_CACHE.lock().ok()?;
     let entry = guard.as_ref()?.get(target).copied()?;
