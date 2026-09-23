@@ -93,3 +93,24 @@ def test_debug_events_reach_python_logging(captured_logger):
         )
     finally:
         client.close()
+
+
+def test_a_negative_level_forwards_everything(captured_logger):
+    """A logger set below zero passes every standard level.
+
+    Python accepts any integer as a level. The bridge reads the logger's
+    threshold to decide whether an event is worth the GIL, and reading it as
+    an unsigned number failed on a negative one and dropped every record.
+    """
+    creds_path = _creds_path()
+    logger, handler = captured_logger
+    logger.setLevel(-1)
+
+    client = _open_a_session(creds_path)
+    try:
+        assert any(r.levelno == logging.DEBUG for r in handler.records), (
+            "a logger at -1 receives the debug events: "
+            f"{sorted({r.levelno for r in handler.records})}"
+        )
+    finally:
+        client.close()
