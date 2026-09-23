@@ -579,7 +579,7 @@ pub fn decode_frame(
                     (Baseline::Quote, QUOTE_FIELDS)
                 }
             }) {
-                Some((contract_id, Baseline::Trade, _)) => {
+                Some((contract_id, Baseline::Trade)) => {
                     // Index: the vendor sends `ms_of_day`, the price and the
                     // date. There is no bid, no ask, and so no midpoint
                     // between them. The price is served as sent; the
@@ -608,7 +608,7 @@ pub fn decode_frame(
                         received_at_ns,
                     }))
                 }
-                Some((contract_id, _, _)) => {
+                Some((contract_id, _)) => {
                     warn_unknown_contract(
                         contract_id,
                         "market_value",

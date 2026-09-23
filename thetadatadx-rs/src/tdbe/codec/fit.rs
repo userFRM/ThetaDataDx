@@ -123,10 +123,6 @@ impl<'a> FitReader<'a> {
         let mut digits = [0u8; MAX_DIGITS];
         let mut count: usize = 0;
         let mut negative = false;
-        let mut overflow = false;
-        // Sticky for the row. `overflow` is cleared as each field flushes, so
-        // a row whose first field overran looks clean by the time the row
-        // ends; this remembers that it did not.
         let mut row_overflowed = false;
 
         while self.pos < self.buf.len() {
@@ -145,7 +141,6 @@ impl<'a> FitReader<'a> {
                 &mut digits,
                 &mut count,
                 &mut negative,
-                &mut overflow,
                 &mut row_overflowed,
             ) {
                 self.row_complete = !row_overflowed;
@@ -158,7 +153,6 @@ impl<'a> FitReader<'a> {
                 &mut digits,
                 &mut count,
                 &mut negative,
-                &mut overflow,
                 &mut row_overflowed,
             ) {
                 self.row_complete = !row_overflowed;
@@ -169,8 +163,8 @@ impl<'a> FitReader<'a> {
         // Buffer exhausted without END nibble, so flush whatever we have. The
         // row is truncated: `row_complete` stays `false` so callers can reject
         // it rather than emit a partial/zero-filled tick.
-        if count > 0 || negative || overflow {
-            let val = flush_digits(&digits, count, negative, overflow);
+        if count > 0 || negative {
+            let val = flush_digits(&digits, count, negative);
             if idx < alloc.len() {
                 alloc[idx] = val;
             }
@@ -190,20 +184,15 @@ impl<'a> FitReader<'a> {
         digits: &mut [u8; MAX_DIGITS],
         count: &mut usize,
         negative: &mut bool,
-        overflow: &mut bool,
         row_overflowed: &mut bool,
     ) -> bool {
         match nibble {
             0..=9 => {
-                // Accumulate decimal digit. Past the i32 digit budget, flag
-                // overflow so the flush saturates to the signed bound rather
-                // than silently dropping the surplus digits and emitting a
-                // plausible-but-wrong value.
+                // Accumulate decimal digit.
                 if *count < MAX_DIGITS {
                     digits[*count] = nibble;
                     *count += 1;
                 } else {
-                    *overflow = true;
                     // The reference client has no budget here: it indexes a
                     // ten-entry power table and throws on an eleventh digit,
                     // so the row never reaches its consumer. Mark the row
@@ -215,26 +204,24 @@ impl<'a> FitReader<'a> {
             }
             FIELD_SEP => {
                 // Flush current integer, advance to next slot.
-                let val = flush_digits(digits, *count, *negative, *overflow);
+                let val = flush_digits(digits, *count, *negative);
                 if *idx < alloc.len() {
                     alloc[*idx] = val;
                 }
                 *idx += 1;
                 *count = 0;
                 *negative = false;
-                *overflow = false;
                 false
             }
             ROW_SEP => {
                 // Flush current integer.
-                let val = flush_digits(digits, *count, *negative, *overflow);
+                let val = flush_digits(digits, *count, *negative);
                 if *idx < alloc.len() {
                     alloc[*idx] = val;
                 }
                 *idx += 1;
                 *count = 0;
                 *negative = false;
-                *overflow = false;
                 // Zero-fill up to index SPACING-1, advancing idx to SPACING.
                 while *idx < SPACING {
                     if *idx < alloc.len() {
@@ -254,12 +241,11 @@ impl<'a> FitReader<'a> {
             }
             END => {
                 // Flush and terminate.
-                let val = flush_digits(digits, *count, *negative, *overflow);
+                let val = flush_digits(digits, *count, *negative);
                 if *idx < alloc.len() {
                     alloc[*idx] = val;
                 }
                 *idx += 1;
-                // *count / *overflow reset not needed — we're done.
                 true
             }
             NEGATIVE => {
@@ -296,41 +282,12 @@ impl<'a> FitReader<'a> {
 /// Result = digit[0] * 10^(count-1) + digit[1] * 10^(count-2) + ... + digit[count-1].
 /// If `negative`, the result is negated.
 ///
-/// Uses an i64 accumulator internally to avoid overflow for 10-digit values
-/// near `i32::MAX`. Values that exceed i32 range are saturated.
-///
-/// `overflow` is set by the caller when a digit run exceeded the `MAX_DIGITS`
-/// budget, so the surplus digits were never buffered; saturate to the signed
-/// bound by sign rather than return the truncated low-order value.
-///
-/// `MAX_DIGITS` is the reference client's own bound: its power-of-ten table
-/// has ten entries, so a longer run indexes past it and the reference throws
-/// before the value reaches its consumer.
-///
-/// The saturated value is therefore never delivered: a run that long marks
-/// the row unusable, and the caller rejects it the same way it rejects a
-/// truncated one. This return exists to keep the function total over every
-/// input, not to hand a caller a number the reference would never produce.
+/// Accumulates in wrapping i32, like the reference client's 32-bit accumulator.
 ///
 /// An empty digit buffer (count == 0) flushes as 0, so back-to-back
 /// separators in the wire format emit a 0 field.
 #[inline]
-fn flush_digits(digits: &[u8; MAX_DIGITS], count: usize, negative: bool, overflow: bool) -> i32 {
-    if overflow {
-        return if negative { i32::MIN } else { i32::MAX };
-    }
-    // Accumulate in wrapping 32-bit arithmetic, which is what the reference
-    // client does: it sums `digit * 10^position` into a 32-bit signed
-    // accumulator, so a run that exceeds the signed range wraps rather than
-    // clamping. Widening to 64 bits and clamping here produced a different
-    // number from the same bytes -- the ten-digit run `4294967295` read as
-    // `2147483647` where the reference reads `-1` -- and that number goes on
-    // to seed the delta baseline for the contract, so every later row for
-    // the field accumulates onto a value the reference never held.
-    //
-    // Wrapping is associative over the modulus, so folding the digits
-    // (Horner) and summing the scaled terms (the reference's loop) agree on
-    // every input, in range and out.
+fn flush_digits(digits: &[u8; MAX_DIGITS], count: usize, negative: bool) -> i32 {
     let mut val: i32 = 0;
     for &digit in digits.iter().take(count) {
         val = val.wrapping_mul(10).wrapping_add(i32::from(digit));
@@ -418,60 +375,31 @@ mod tests {
         for (slot, digit) in d.iter_mut().zip([4, 2, 9, 4, 9, 6, 7, 2, 9, 5]) {
             *slot = digit;
         }
-        assert_eq!(flush_digits(&d, MAX_DIGITS, false, false), -1);
+        assert_eq!(flush_digits(&d, MAX_DIGITS, false), -1);
 
         // 2147483648 is i32::MAX + 1, which wraps to i32::MIN.
         let mut d = [0u8; MAX_DIGITS];
         for (slot, digit) in d.iter_mut().zip([2, 1, 4, 7, 4, 8, 3, 6, 4, 8]) {
             *slot = digit;
         }
-        assert_eq!(flush_digits(&d, MAX_DIGITS, false, false), i32::MIN);
+        assert_eq!(flush_digits(&d, MAX_DIGITS, false), i32::MIN);
     }
 
     #[test]
     fn flush_digits_basic() {
         let mut d = [0u8; MAX_DIGITS];
         // Empty → 0
-        assert_eq!(flush_digits(&d, 0, false, false), 0);
+        assert_eq!(flush_digits(&d, 0, false), 0);
         // Single digit 7
         d[0] = 7;
-        assert_eq!(flush_digits(&d, 1, false, false), 7);
-        assert_eq!(flush_digits(&d, 1, true, false), -7);
+        assert_eq!(flush_digits(&d, 1, false), 7);
+        assert_eq!(flush_digits(&d, 1, true), -7);
         // 123
         d[0] = 1;
         d[1] = 2;
         d[2] = 3;
-        assert_eq!(flush_digits(&d, 3, false, false), 123);
-        assert_eq!(flush_digits(&d, 3, true, false), -123);
-    }
-
-    #[test]
-    fn flush_digits_overflow_saturates() {
-        // An overflow flag saturates to the signed bound by sign, regardless
-        // of the (truncated) low-order digits still in the buffer.
-        let d = [9u8; MAX_DIGITS];
-        assert_eq!(flush_digits(&d, MAX_DIGITS, false, true), i32::MAX);
-        assert_eq!(flush_digits(&d, MAX_DIGITS, true, true), i32::MIN);
-    }
-
-    #[test]
-    fn digit_run_past_budget_saturates() {
-        // "12345678901" is 11 digits — one past the i32 budget. Dropping the
-        // surplus digit would yield 1234567890; the overflow flag must instead
-        // saturate the field to i32::MAX.
-        let data = [
-            pack(1, 2),
-            pack(3, 4),
-            pack(5, 6),
-            pack(7, 8),
-            pack(9, 0),
-            pack(1, END),
-        ];
-        let mut alloc = [0i32; 4];
-        let mut reader = FitReader::new(&data);
-        let n = reader.read_changes(&mut alloc);
-        assert_eq!(n, 1);
-        assert_eq!(alloc[0], i32::MAX);
+        assert_eq!(flush_digits(&d, 3, false), 123);
+        assert_eq!(flush_digits(&d, 3, true), -123);
     }
 
     #[test]
@@ -1056,8 +984,8 @@ mod tests {
                 if next_exact > i64::from(i32::MAX) {
                     break;
                 }
-                let prev = flush_digits(&buf, k, false, false);
-                let next = flush_digits(&buf, k + 1, false, false);
+                let prev = flush_digits(&buf, k, false);
+                let next = flush_digits(&buf, k + 1, false);
                 prop_assert!(next >= prev);
             }
         }

@@ -190,16 +190,7 @@ pub(crate) struct ColumnDef {
     pub(crate) name: String,
     pub(crate) field: String,
     pub(crate) r#type: String,
-    /// Whether an absent cell must be carried as "no value" rather than
-    /// filled with the column's zero.
-    ///
-    /// Most columns can fill: a null size or count is absent data, and zero
-    /// reads the same way. These cannot. The vendor assigns zero a meaning on
-    /// every condition and exchange column — quote condition 0 is `REGULAR`,
-    /// a firm two-sided quote, and exchange 0 is the composite — so filling a
-    /// wire null with zero publishes a positive assertion the vendor never
-    /// made, and nothing downstream can tell the two apart. The vendor's own
-    /// client renders such a cell as null rather than as a code.
+    /// An absent cell is carried as "no value", never filled with the column's zero; see build_support/ticks/schema.rs.
     #[serde(default)]
     pub(crate) nullable: bool,
     /// One-sentence field description rendered on the docs-site

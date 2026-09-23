@@ -678,18 +678,7 @@ pub(in crate::fpss) fn apply_req_response_for_test(
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
-/// Record that auto-recovery has given up, then publish the terminal event.
-///
-/// The store happens first and unconditionally. A consumer that sees the
-/// event and then reads the status must never find the flag unset, and the
-/// publish can fail: `try_publish` is the only publish path the io_loop uses,
-/// so a slow consumer that lets the ring fill loses the event. Losing the
-/// event is survivable, because the status still answers; losing the store is
-/// not, because nothing else sets it and the session it belongs to is over.
-///
-/// This is a function rather than the body of `publish_exhausted!` so the
-/// ordering can be asserted against a producer that always fails, which is
-/// the case the ordering exists for.
+/// Record exhaustion before publishing; the store must not depend on the publish landing.
 fn mark_and_publish_exhausted(
     reconnects_exhausted: &AtomicBool,
     dropped: &AtomicU64,
@@ -773,10 +762,6 @@ where
     // user-initiated shutdown, so operators can distinguish
     // budget exhaustion from a clean `shutdown()` call.
     macro_rules! publish_exhausted {
-        // `reason` is an argument rather than a free name: a name the body
-        // reads resolves where the macro is defined, not where it is
-        // called, so a caller standing inside a shadowing binding would
-        // silently publish the outer value instead of its own.
         ($reason:expr, $attempts:expr) => {
             mark_and_publish_exhausted(
                 &reconnects_exhausted,

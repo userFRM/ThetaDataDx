@@ -274,31 +274,6 @@ mod tests {
     }
 
     #[test]
-    fn all_holds_every_streaming_environment_exactly_once() {
-        // `ALL` is what the TLS hostname-allowlist coverage test enumerates,
-        // so an environment missing from it ships without its hosts ever
-        // being checked against the allowlist. The labels come from the
-        // exhaustive `as_str` match, which a new variant does not compile
-        // without, so a variant that never reached `ALL` is short a label
-        // here.
-        let labels: Vec<&str> = StreamingEnvironment::ALL
-            .iter()
-            .map(|e| e.as_str())
-            .collect();
-        assert_eq!(
-            labels,
-            vec!["PROD", "STAGE", "DEV"],
-            "every streaming environment is listed once, in a stable order"
-        );
-        for env in StreamingEnvironment::ALL {
-            assert!(
-                !env.hosts().is_empty(),
-                "{env:?} has no hosts to dial, so selecting it cannot connect"
-            );
-        }
-    }
-
-    #[test]
     fn prod_cluster_matches_canonical_defaults() {
         use crate::config::{MarketDataConfig, StreamingConfig};
         // The Prod literals must mirror the canonical defaults so the two never

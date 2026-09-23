@@ -81,11 +81,7 @@ pub mod test_wire {
 }
 
 /// Maximum payload size for a single FPSS frame (1-byte length field).
-pub const MAX_PAYLOAD: usize = 255;
-// The cap is not a policy number: it is whatever a one-byte LEN field can
-// count. Tying it to `u8::MAX` here fails the build if the two ever part,
-// which a test restating the literal cannot do.
-const _: () = assert!(MAX_PAYLOAD == u8::MAX as usize);
+pub const MAX_PAYLOAD: usize = u8::MAX as usize;
 
 /// Ping interval in milliseconds. Heartbeat sends PING every 100ms after login.
 pub const PING_INTERVAL_MS: u64 = 100;

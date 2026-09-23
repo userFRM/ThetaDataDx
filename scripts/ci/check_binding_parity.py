@@ -3462,10 +3462,14 @@ def collect_rust_utils() -> set[str]:
     """
     lib = REPO_ROOT / "thetadatadx-rs" / "src" / "lib.rs"
     if not lib.is_file():
-        return set()
+        raise SystemExit(f"binding parity: {lib} not found while collecting Rust utilities.")
     m = re.search(r"pub mod utils\s*\{(.*?)\n\}", lib.read_text(encoding="utf-8"), re.S)
     if not m:
-        return set()
+        raise SystemExit(
+            "binding parity: no `pub mod utils {` block found in "
+            f"{lib}. The source has been restructured; update the collector "
+            "before trusting this roster."
+        )
     modules = re.findall(r"[\w:]*tdbe::\{([^}]*)\}", m.group(1))
     names: set[str] = set()
     for group in modules:

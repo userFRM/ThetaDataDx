@@ -239,9 +239,6 @@ fn trade_event_to_tick(event: &CoreStreamEvent) -> Option<thetadatadx::TradeTick
             has_ext_condition2: false,
             has_ext_condition3: false,
             has_ext_condition4: false,
-            // The FPSS trade event carries no extended-condition or flag
-            // columns, and a stock trade has no option fields: `TradeTick`
-            // takes sentinel values for all of these (Arrow maps to null).
             ext_condition1: 0,
             ext_condition2: 0,
             ext_condition3: 0,

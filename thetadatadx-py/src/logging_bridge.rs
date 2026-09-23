@@ -140,12 +140,6 @@ const LEVEL_CACHE_TTL: Duration = Duration::from_millis(250);
 
 /// The Python level each `tracing` target was last seen to be enabled for.
 ///
-/// The bridge asked Python `isEnabledFor` on every event, and asking needs the
-/// GIL. A market-data call emits enough events that the GIL it released for
-/// the network round trip was reacquired about a hundred and thirty times
-/// before returning — invisible on an idle interpreter, and several seconds
-/// per call next to one CPU-bound Python thread.
-///
 /// The key is the `tracing` target, which is `&'static str` from the call
 /// site, so the map holds no owned strings and never grows past the number of
 /// modules that log.
@@ -210,9 +204,7 @@ where
         let level = tracing_to_logging_level(meta.level());
 
         // Ask the cache before the GIL. A target below its Python threshold
-        // is the overwhelmingly common case, and finding that out used to
-        // cost a full GIL acquisition on a thread that had deliberately
-        // released it.
+        // is the overwhelmingly common case.
         if cached_verdict(target, level) == Some(false) {
             return;
         }
@@ -257,17 +249,7 @@ where
                         return;
                     }
                 }
-                // A Python logger replaced with something non-standard. Fall
-                // back to the per-level question, and cache nothing.
-                Err(_) => {
-                    match logger
-                        .call_method1("isEnabledFor", (level,))
-                        .and_then(|r| r.extract::<bool>())
-                    {
-                        Ok(true) => {}
-                        _ => return,
-                    }
-                }
+                Err(_) => return,
             }
 
             let mut formatter = EventFormatter::default();

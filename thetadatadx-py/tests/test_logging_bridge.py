@@ -1,11 +1,8 @@
 """Rust `tracing` events reach Python's stdlib `logging`.
 
-The bridge decides whether an event is worth forwarding by asking the Python
-logger for its level, and asking needs the GIL. It now caches that answer per
-target for a short window so a blocking call does not reacquire the GIL once
-per event, which is what `test_no_gil.py::test_market_data_releases_gil`
-measures. This covers the other side of that change: the events a caller has
-asked for still arrive.
+The bridge caches each target's Python level for a short window so it can
+drop events below it without the GIL. This checks that the events a caller
+has asked for still arrive.
 
 The opposite direction is not testable from here and does not need to be. The
 bridge emits through ``Logger.log``, which re-checks ``isEnabledFor`` itself,

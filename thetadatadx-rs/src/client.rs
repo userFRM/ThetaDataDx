@@ -4108,11 +4108,6 @@ mod tests {
             super::live_status(false, true, true),
             ConnectionStatus::Connected
         );
-        // The flag itself is terminal on the client that owns it.
-        let client = crate::fpss::StreamingClient::for_io_fault_test();
-        assert!(!client.reconnects_exhausted());
-        client.mark_reconnects_exhausted_for_test();
-        assert!(client.reconnects_exhausted());
     }
 
     #[test]

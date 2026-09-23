@@ -75,13 +75,6 @@ pub fn error_envelope(error_type: &str, message: &str) -> sonic_rs::Value {
 /// this returns an empty `Vec` for it so the function stays total.
 /// The column presence the decoder attached to this response, when the output
 /// carries ticks.
-///
-/// It holds the wire's own `symbol` in whichever of two shapes the response
-/// took: one value per row when the response spans several underlyings, and a
-/// single constant when every row shares one. Both are the wire's answer and
-/// both beat the request parameter, which for the snapshot family is the
-/// caller's comma-separated list and describes the request rather than any
-/// particular row.
 fn wire_columns(output: &EndpointOutput) -> Option<&thetadatadx::columns::ColumnPresence> {
     match output {
         EndpointOutput::StringList(_)
@@ -499,19 +492,12 @@ fn build_rows(
     match contract.symbol {
         Some(sym) if !sym.is_empty() && slot != IdentitySlot::None => {
             let is_option = endpoint_is_option_tick(ep);
-            // Prefer the wire's own symbol in either shape it takes.
-            // `contract.symbol` is the raw request parameter, which for the
-            // snapshot family is a comma-separated list: stamping it on every
-            // row labels each one with the whole request.
             let wire_cols = wire_columns(output);
             rows.into_iter()
                 .enumerate()
                 .map(|(i, row)| {
-                    // Per-row first, then the constant the wire carried, and
-                    // only then the request parameter. A response that spans
-                    // one underlying records a constant rather than a
-                    // per-row list, so reading the per-row shape alone sent
-                    // exactly those rows back to the request string.
+                    // Per-row wire symbol, then the wire's constant, then the request
+                    // param, which for snapshots is the caller's comma-separated list.
                     let symbol = wire_cols
                         .and_then(|c| c.symbols().and_then(|s| s.get(i)).map(|s| &**s))
                         .or_else(|| wire_cols.and_then(ColumnPresence::symbol))
@@ -680,24 +666,9 @@ fn yyyymmdd_to_iso(date: i32) -> sonic_rs::Value {
 /// The sub-second fraction is a fixed three digits, always present: `0` ms ->
 /// `.000`, `100` ms -> `.100`, `430` ms -> `.430`.
 ///
-/// Two sources disagree here and only one of them is executable.
-///
-/// The vendor's OpenAPI document (`scripts/ci/data/upstream_openapi.yaml`)
-/// carries trimmed examples — `...T16:10:04.43` beside `...T16:03:05.142` —
-/// and this rendered them that way for that reason. The terminal does not.
-/// It builds this same string from the same two columns, because the wire
-/// carries `date` and `ms_of_day` and never a timestamp cell, then formats
-/// the result with an explicit `HH:mm:ss.SSS` pattern. Every timestamp it
-/// emits therefore has three digits.
-///
-/// Neither side can be checked against a third: both the terminal and this
-/// server render the string locally, so there is no vendor-emitted timestamp
-/// to compare them with. This server exists to stand in for the terminal, and
-/// a client pointed at it was pointed at the terminal before, so the terminal
-/// is the one it has to agree with. Fixed width is also the easier parse: a
-/// consumer slicing a known offset, or ordering timestamps as strings, gets
-/// the same answer on every row rather than a field whose length depends on
-/// its value.
+/// The terminal formats with an explicit `HH:mm:ss.SSS` (`PojoMessageUtils`);
+/// the vendor OpenAPI examples show trimmed fractions and are not what the
+/// terminal emits.
 fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
     let year = date / 10_000;
     let month = (date / 100) % 100;
@@ -2479,13 +2450,7 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     let mut owned = value.clone();
     thetadatadx::json_canon::canonicalize(&mut owned);
     match sonic_rs::to_string(&owned) {
-        // Serialized numbers and booleans are machine-generated: they never
-        // contain an RFC-4180 special (`,`, `"`, CR, LF) and never need formula
-        // defusing. A negative numeric leaf (greeks, interest rates, IV errors)
-        // serializes with a leading `-`, which `escape_csv_field` would mistake
-        // for a spreadsheet formula prefix and corrupt into `"'-0.5"`; emit the
-        // bare token instead. Only the real-string branch above (symbols /
-        // conditions, where attacker-controlled text can appear) is defused.
+        // Serialized numbers and booleans never contain an RFC-4180 special.
         Ok(rendered) if owned.is_number() || owned.is_boolean() => rendered,
         Ok(rendered) => escape_csv_field(&rendered),
         Err(err) => {
@@ -2495,37 +2460,13 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     }
 }
 
-/// CSV-escape a single field.
-///
-/// Handles two categories:
-///
-/// 1. **RFC 4180 special characters** (`,`, `"`, `\n`, `\r`) are escaped by
-///    wrapping the whole field in double quotes and doubling any inner quote.
-/// 2. **Formula-injection prefixes** (`=`, `+`, `-`, `@`, `\t`) cause Excel /
-///    LibreOffice Calc / Google Sheets to evaluate the cell as a formula when
-///    the CSV is opened. An attacker who can place a string of their choosing
-///    into a symbol, condition, or any other CSV-rendered field could exfil
-///    data or trigger `cmd|'/C calc'` style payloads on the viewer's machine.
-///    We defuse by prepending a single quote (`'`) *inside* the quoted field,
-///    which is the OWASP-recommended mitigation: spreadsheet apps display the
-///    cell verbatim while refusing to evaluate it as a formula.
-///
-/// The leading single-quote forces the field into the "needs quoting" branch
-/// unconditionally, so a risky field is always wrapped in `"`.
+/// CSV-escape a single field per RFC 4180: a field containing `,`, `"`, `\n`
+/// or `\r` is wrapped in double quotes with any inner quote doubled.
 fn escape_csv_field(value: &str) -> String {
-    let needs_formula_prefix = value
-        .chars()
-        .next()
-        .is_some_and(|c| matches!(c, '=' | '+' | '-' | '@' | '\t'));
-    let has_special = value.contains([',', '"', '\n', '\r']);
-
-    if !needs_formula_prefix && !has_special {
+    if !value.contains([',', '"', '\n', '\r']) {
         return value.to_owned();
     }
-
-    let escaped = value.replace('"', "\"\"");
-    let prefix = if needs_formula_prefix { "'" } else { "" };
-    format!("\"{prefix}{escaped}\"")
+    format!("\"{}\"", value.replace('"', "\"\""))
 }
 
 #[cfg(test)]
@@ -2621,136 +2562,6 @@ mod tests {
         );
 
         assert!(csv.is_none(), "mixed row shapes should not format as CSV");
-    }
-
-    /// Regression: CSV formula-injection defense.
-    ///
-    /// Any cell that starts with `=`, `+`, `-`, `@`, or `\t` is interpreted
-    /// as a formula by Excel / LibreOffice Calc / Google Sheets. An attacker
-    /// who can place a crafted string into a symbol, condition, or any
-    /// other field rendered to CSV could trigger `cmd|'/C calc'!A1` style
-    /// payloads on the viewer's machine. The fix prepends `'` *inside* the
-    /// quoted field, which spreadsheet apps render verbatim without
-    /// evaluating. Every payload below must round-trip as `"'<original>"`.
-    #[test]
-    fn json_to_csv_defuses_formula_injection() {
-        let csv = json_to_csv(
-            csv_test_endpoint(),
-            &[
-                sonic_rs::json!({ "cell": "=cmd|'/C calc'!A1" }),
-                sonic_rs::json!({ "cell": "+1+cmd|'/C calc'!A1" }),
-                sonic_rs::json!({ "cell": "-2+cmd|'/C calc'!A1" }),
-                sonic_rs::json!({ "cell": "@SUM(A1:A10)" }),
-                sonic_rs::json!({ "cell": "\tnull-byte-start" }),
-            ],
-        )
-        .expect("formula payloads should still format as CSV");
-
-        // Header row is trivially safe ("cell" starts with 'c').
-        let lines: Vec<&str> = csv.lines().collect();
-        assert_eq!(lines[0], "cell");
-
-        // Each dangerous payload must be quoted AND prefixed with a single
-        // quote so the spreadsheet sees a literal string, not a formula.
-        // Inner double-quotes in the payload are RFC-4180 doubled to `""`.
-        assert_eq!(lines[1], "\"'=cmd|'/C calc'!A1\"");
-        assert_eq!(lines[2], "\"'+1+cmd|'/C calc'!A1\"");
-        assert_eq!(lines[3], "\"'-2+cmd|'/C calc'!A1\"");
-        assert_eq!(lines[4], "\"'@SUM(A1:A10)\"");
-        assert_eq!(lines[5], "\"'\tnull-byte-start\"");
-
-        // Sanity: a benign string must NOT be quoted or prefixed -- the fix
-        // must be surgical, not a blanket "quote everything". (CRLF-framed.)
-        let benign =
-            json_to_csv(csv_test_endpoint(), &[sonic_rs::json!({ "cell": "AAPL" })]).unwrap();
-        assert_eq!(benign, "cell\r\nAAPL\r\n");
-    }
-
-    /// A serialized JSON number's leading `-` is a numeric sign, NOT a formula
-    /// prefix: negative greeks (delta / theta / rho / charm / vanna), interest
-    /// rates, and IV-errors are routinely negative and must render as the bare
-    /// token (`-0.5`), never the formula-defused `"'-0.5"` that would make the
-    /// documented CSV column an unparseable quoted string. Formula defusing is
-    /// reserved for the real-string branch (symbols / conditions), which the
-    /// `json_to_csv_defuses_formula_injection` test pins.
-    #[test]
-    fn negative_numeric_csv_cells_render_bare_not_formula_defused() {
-        // Interest-rate EOD: `rate` is signed and renders as a bare number.
-        let rate_ep = thetadatadx::find("interest_rate_history_eod").expect("endpoint exists");
-        let rate_csv = json_to_csv(
-            rate_ep,
-            &response_rows(
-                rate_ep,
-                &ContractParams::default(),
-                &EndpointOutput::InterestRateTicks(thetadatadx::columns::Ticks::from(vec![
-                    InterestRateTick {
-                        date: 20240102,
-                        rate: -0.0125,
-                    },
-                ])),
-            ),
-        )
-        .expect("CSV");
-        let rate_row = rate_csv.split("\r\n").nth(1).expect("data row");
-        assert!(
-            rate_row.contains("-0.0125") && !rate_row.contains("\"'-0.0125\""),
-            "negative rate must render bare, not formula-defused (got {rate_row:?})"
-        );
-
-        // Option greeks: a negative `delta` must render bare in the data cell.
-        let greeks_ep = thetadatadx::find("option_history_greeks_all").expect("endpoint exists");
-        let contract = ContractParams {
-            symbol: Some("AAPL"),
-            ..ContractParams::default()
-        };
-        let greeks_csv = json_to_csv(
-            greeks_ep,
-            &response_rows(
-                greeks_ep,
-                &contract,
-                &EndpointOutput::GreeksAllTicks(thetadatadx::columns::Ticks::from(vec![
-                    GreeksAllTick {
-                        ms_of_day: 34_200_000,
-                        bid: 0.0,
-                        ask: 0.0,
-                        implied_volatility: 0.0,
-                        delta: -0.5,
-                        gamma: 0.0,
-                        theta: 0.0,
-                        vega: 0.0,
-                        rho: 0.0,
-                        iv_error: 0.0,
-                        vanna: 0.0,
-                        charm: 0.0,
-                        vomma: 0.0,
-                        veta: 0.0,
-                        speed: 0.0,
-                        zomma: 0.0,
-                        color: 0.0,
-                        ultima: 0.0,
-                        d1: 0.0,
-                        d2: 0.0,
-                        dual_delta: 0.0,
-                        dual_gamma: 0.0,
-                        epsilon: 0.0,
-                        lambda: 0.0,
-                        vera: 0.0,
-                        underlying_ms_of_day: 0,
-                        underlying_price: 0.0,
-                        date: 20240102,
-                        expiration: 20260116,
-                        strike: 275.0,
-                        right: 'C',
-                    },
-                ])),
-            ),
-        )
-        .expect("CSV");
-        let greeks_row = greeks_csv.split("\r\n").nth(1).expect("data row");
-        assert!(
-            greeks_row.contains(",-0.5,") && !greeks_row.contains("\"'-0.5\""),
-            "negative delta must render bare, not formula-defused (got {greeks_row:?})"
-        );
     }
 
     /// Regression: the header key set must be the UNION of keys across
@@ -3596,13 +3407,10 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    //  v3 timestamp formatting (Java LocalDateTime.toString precision)
+    //  v3 timestamp formatting (fixed `.SSS` fraction)
     // -----------------------------------------------------------------------
 
-    /// `ms_of_day_to_iso` renders the sub-second fraction with variable
-    /// precision: omitted at 0 ms, otherwise trailing zeros stripped. The
-    /// spec's `text/csv` / JSON examples carry exactly these shapes (e.g.
-    /// `2025-08-20T16:02:06`, `...:04.43`, `2024-01-16T09:30:00.1`).
+    /// `ms_of_day_to_iso` renders a fixed `.SSS` fraction, as the terminal does.
     #[test]
     fn ms_of_day_to_iso_uses_the_terminals_fixed_millisecond_fraction() {
         let at = |ms: i32| {

@@ -213,8 +213,7 @@ pub struct ThetaDataDxStreamHandle {
 }
 impl ThetaDataDxStreamHandle {
     /// Fold a retired session's panic and drop counts into this handle's
-    /// running totals. Both counters are documented as cumulative, so the
-    /// counts must outlive the session.
+    /// running totals.
     ///
     /// Called once the session's dispatcher has stopped: `shutdown()` only
     /// signals, and the callback keeps firing until the ring drains.
@@ -3687,12 +3686,6 @@ mod health_on_outer_panic_tests {
     }
 
     /// A shut-down session keeps the faults it recorded.
-    ///
-    /// `panic_count` and `dropped_events` are documented as cumulative, and a
-    /// caller reads them after shutting down precisely because that is when
-    /// the run is over. Reading them off the live session alone answered zero
-    /// the moment the session was gone, so a run that faulted and a run that
-    /// did not were indistinguishable.
     #[test]
     fn a_retired_session_keeps_its_fault_count() {
         let client = StreamingClient::for_io_fault_test();

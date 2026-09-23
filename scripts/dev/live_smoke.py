@@ -65,26 +65,11 @@ def _get_free_port() -> int:
 
 
 def _wait_http_json(url: str, *, timeout: float = 30.0) -> Any:
-    deadline = time.time() + timeout
-    last_error: Exception | None = None
-    while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(url, timeout=5) as response:
-                body = response.read().decode("utf-8")
-                return json.loads(body)
-        except (urllib.error.URLError, json.JSONDecodeError) as exc:
-            last_error = exc
-            time.sleep(0.5)
-    raise RuntimeError(f"http check timed out for {url}: {last_error}")
+    return json.loads(_wait_http_text(url, timeout=timeout))
 
 
 def _wait_http_text(url: str, *, timeout: float = 30.0) -> str:
-    """Poll a route whose body is bare text rather than JSON.
-
-    The transport-status routes mirror the vendor terminal's management
-    surface byte for byte, which means `text/plain` and a single word, so
-    they cannot be read through `_wait_http_json`.
-    """
+    """Poll a route until it answers and return its body as stripped text."""
     deadline = time.time() + timeout
     last_error: Exception | None = None
     while time.time() < deadline:
@@ -316,10 +301,9 @@ def _smoke_mcp(creds: pathlib.Path) -> None:
         if init.get("result", {}).get("serverInfo", {}).get("name") != "thetadatadx-mcp-server":
             raise RuntimeError(f"unexpected MCP initialize response: {init!r}")
 
-        # The advertised set is deliberately narrow until the background
-        # connect lands: before it does, the server offers only the tools it
-        # can serve without a client, so `tools/list` answers `ping` alone.
-        # Poll until the connected set appears rather than racing it.
+        # `tools/list` waits a bounded time for the background connect, then
+        # answers with the offline set (`ping` alone). Poll until the connected
+        # set appears rather than racing a slow connect.
         tools: dict[str, Any] = {}
         names: set[str] = set()
         for request_id in range(100, 130):

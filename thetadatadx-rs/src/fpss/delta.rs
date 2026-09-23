@@ -80,7 +80,6 @@ pub struct DeltaState {
     /// allocations on the hot path.
     prev: HashMap<(Baseline, i32), TickFields>,
     /// Reusable scratch buffer for FIT decoding, avoiding per-tick allocation.
-    /// Resized (never shrunk) to fit the largest tick type seen.
     alloc_buf: Vec<i32>,
     /// Set after `decode_tick` to indicate the last row was a DATE marker.
     /// Callers use this to distinguish normal DATE skips from corrupt payloads.
@@ -103,8 +102,7 @@ impl DeltaState {
     #[doc(hidden)]
     pub fn new() -> Self {
         // Pre-allocate the FIT scratch buffer for the widest tick shape
-        // (`MAX_DATA_FIELDS` data fields + 1 contract_id). It resizes at
-        // runtime if needed, but the initial capacity is the real maximum.
+        // (`MAX_DATA_FIELDS` data fields + 1 contract_id).
         Self {
             prev: HashMap::new(),
             alloc_buf: vec![0i32; MAX_DATA_FIELDS + 1],
@@ -166,7 +164,7 @@ impl DeltaState {
         out: &mut TickFields,
     ) -> Option<i32> {
         self.decode_tick_with(msg_code, payload, out, |_| (baseline, expected_fields))
-            .map(|(contract_id, _, _)| contract_id)
+            .map(|(contract_id, _)| contract_id)
     }
 
     /// Decode a FIT payload whose shape depends on the contract it names.
@@ -179,20 +177,14 @@ impl DeltaState {
     /// the terminal routes it, so it cannot know its width until the row has
     /// been read.
     ///
-    /// The scratch is therefore sized for the widest tick shape rather than
-    /// for the caller's expectation: the contract id is the first FIT field,
-    /// and the shape is not known until it has been read. The buffer is
-    /// reused across ticks and never shrinks, so this costs one wider memset
-    /// per tick and no allocation.
-    ///
-    /// Returns `Some((contract_id, baseline, field_count))`.
+    /// Returns `Some((contract_id, baseline))`.
     pub(super) fn decode_tick_with<F>(
         &mut self,
         msg_code: u8,
         payload: &[u8],
         out: &mut TickFields,
         shape_for: F,
-    ) -> Option<(i32, Baseline, usize)>
+    ) -> Option<(i32, Baseline)>
     where
         F: FnOnce(i32) -> (Baseline, usize),
     {
@@ -202,12 +194,8 @@ impl DeltaState {
             return None;
         }
 
-        // Reuse the FIT scratch buffer: resize if needed (retains
-        // capacity), then zero-fill the portion we need.
+        // Reuse the FIT scratch buffer, zero-filled.
         let total_fields = MAX_DATA_FIELDS + 1;
-        if self.alloc_buf.len() < total_fields {
-            self.alloc_buf.resize(total_fields, 0);
-        }
         self.alloc_buf[..total_fields].fill(0);
 
         let mut reader = FitReader::new(payload);
@@ -314,7 +302,7 @@ impl DeltaState {
         // no `Vec::clone` per tick.
         self.prev.insert(key, *out);
 
-        Some((contract_id, baseline, expected_fields))
+        Some((contract_id, baseline))
     }
 
     /// Distinct-row count of the per-session baseline map, exposed for

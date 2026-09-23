@@ -751,17 +751,6 @@ impl DirectConfig {
             .expect("stage preset is within validated bounds")
     }
 
-    /// Streaming hosts for the stage preset (test-only accessor).
-    ///
-    /// The counterpart to [`Self::dev_streaming_hosts`]: a thin delegate to
-    /// [`StreamingEnvironment::Stage`]'s hosts, so the config regression tests
-    /// can name the staging host set without a second copy of it.
-    #[cfg(test)]
-    #[must_use]
-    pub(crate) fn stage_streaming_hosts() -> Vec<(String, u16)> {
-        StreamingEnvironment::Stage.hosts()
-    }
-
     /// Validate configuration values and reject out-of-range tuning knobs.
     ///
     /// Returns the configuration with market-data HTTP/2 window sizes clamped
@@ -2705,10 +2694,7 @@ mod tests {
         let config = DirectConfig::production();
         clear_env_matrix();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Stage);
-        assert_eq!(
-            config.streaming.hosts,
-            DirectConfig::stage_streaming_hosts()
-        );
+        assert_eq!(config.streaming.hosts, StreamingEnvironment::Stage.hosts());
         assert_eq!(config.market_data_environment, MarketDataEnvironment::Prod);
         assert_eq!(config.market_data.host, "mdds-01.thetadata.us");
     }
@@ -3681,10 +3667,7 @@ mod tests {
         let path = write_temp_dotenv("fpss-stage.env", "THETADATA_STREAMING_TYPE=STAGE\n");
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         assert_eq!(config.streaming_environment, StreamingEnvironment::Stage);
-        assert_eq!(
-            config.streaming.hosts,
-            DirectConfig::stage_streaming_hosts()
-        );
+        assert_eq!(config.streaming.hosts, StreamingEnvironment::Stage.hosts());
         std::fs::remove_file(&path).ok();
     }
 
