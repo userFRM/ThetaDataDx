@@ -212,16 +212,24 @@ pub struct ThetaDataDxStreamHandle {
     retired_dropped: AtomicU64,
 }
 impl ThetaDataDxStreamHandle {
-    /// Fold a retired session's panic and drop counts into this handle's
-    /// running totals.
+    /// Add a retired session's panic and drop counts, beyond `folded`, to
+    /// this handle's running totals, and return what was read.
     ///
-    /// Called once the session's dispatcher has stopped: `shutdown()` only
+    /// Called with `(0, 0)` as the session leaves the slot, so a reading taken
+    /// during the teardown never drops below one taken before it, and again
+    /// with that result once its dispatcher has stopped: `shutdown()` only
     /// signals, and the callback keeps firing until the ring drains.
-    fn fold_retired(&self, client: &thetadatadx::fpss::StreamingClient) {
+    fn fold_retired(
+        &self,
+        client: &thetadatadx::fpss::StreamingClient,
+        folded: (u64, u64),
+    ) -> (u64, u64) {
+        let now = (client.panic_count(), client.dropped_count());
         self.retired_panics
-            .fetch_add(client.panic_count(), AtomicOrdering::Relaxed);
+            .fetch_add(now.0.saturating_sub(folded.0), AtomicOrdering::Relaxed);
         self.retired_dropped
-            .fetch_add(client.dropped_count(), AtomicOrdering::Relaxed);
+            .fetch_add(now.1.saturating_sub(folded.1), AtomicOrdering::Relaxed);
+        now
     }
 }
 
@@ -2210,7 +2218,10 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // a callback re-entering any `thetadatadx_streaming_*` API that needs
         // `handle.inner.lock()` never sees the lock held while the old
         // session tears down.
-        let taken_old = handle.inner.lock_recover().take();
+        let taken_old = handle.inner.lock_recover().take().map(|old| {
+            let folded = handle.fold_retired(&old, (0, 0));
+            (old, folded)
+        });
         // Extract the old dispatcher session and RELEASE the dispatcher lock
         // before the join: the old dispatcher keeps draining ring-buffered
         // events through the user callback until it observes the shutdown, and
@@ -2221,7 +2232,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // `reject_if_shutdown` re-check there.
         let old_session = extract_dispatcher_session(&mut dispatcher_guard);
         drop(dispatcher_guard);
-        let prev_drain_flag = if let Some(old) = taken_old {
+        let prev_drain_flag = if let Some((old, folded)) = taken_old {
             let flag = old.drained_flag();
             handle.prev_drained.lock_recover().push(flag.clone());
             old.shutdown();
@@ -2229,7 +2240,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
             // replacement so the new dispatcher does not race the old one over
             // the same C callback context.
             join_extracted_session(handle, old_session);
-            handle.fold_retired(&old);
+            handle.fold_retired(&old, folded);
             drop(old);
             Some(flag)
         } else {
@@ -2479,8 +2490,11 @@ fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSess
     // re-enters `handle.inner` via the user callback from observing the lock
     // held. Holding it across the if-let block (scrutinee form) would extend
     // the guard over the teardown and break the lock-free re-entry invariant.
-    let taken = handle.inner.lock_recover().take();
-    if let Some(client) = &taken {
+    let taken = handle.inner.lock_recover().take().map(|client| {
+        let folded = handle.fold_retired(&client, (0, 0));
+        (client, folded)
+    });
+    if let Some((client, _)) = &taken {
         handle
             .prev_drained
             .lock_recover()
@@ -2488,8 +2502,8 @@ fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSess
         client.shutdown();
     }
     join_extracted_session(handle, session);
-    if let Some(client) = taken {
-        handle.fold_retired(&client);
+    if let Some((client, folded)) = taken {
+        handle.fold_retired(&client, folded);
     }
 }
 
@@ -3713,12 +3727,23 @@ mod health_on_outer_panic_tests {
 
         let retired = handle.inner.lock_recover().take();
         let retired = retired.expect("the live session was the one retired");
-        handle.fold_retired(&retired);
+        let folded = handle.fold_retired(&retired, (0, 0));
+        // SAFETY: as above.
+        let mid = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
+        assert_eq!(
+            mid, 2,
+            "a reading mid-teardown does not drop below the live one"
+        );
+
+        // The drain: the dispatcher catches one more fault after the session
+        // left the slot and before it stopped.
+        retired.record_panic();
+        handle.fold_retired(&retired, folded);
         // SAFETY: as above.
         let after = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
         assert_eq!(
-            after, 2,
-            "a retired session's faults stay in the handle's total"
+            after, 3,
+            "the faults before the swap and the one during the drain both stay"
         );
     }
 

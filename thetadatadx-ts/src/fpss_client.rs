@@ -624,6 +624,14 @@ impl StreamingClient {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
+            // Fold what the session has recorded now, so a reading taken
+            // during the teardown does not drop below one taken before it.
+            let taken = taken.map(|client| {
+                let folded = (client.panic_count(), client.dropped_count());
+                retired.panics.fetch_add(folded.0, Ordering::Relaxed);
+                retired.dropped.fetch_add(folded.1, Ordering::Relaxed);
+                (client, folded)
+            });
             *cb_guard = None;
             let session = std::mem::replace(
                 &mut *dispatcher
@@ -633,7 +641,7 @@ impl StreamingClient {
             );
             (taken, session)
         };
-        if let Some(client) = taken_client {
+        if let Some((client, folded)) = taken_client {
             let drained_flag = client.drained_flag();
             let mut flags = prev_drained
                 .lock()
@@ -670,14 +678,16 @@ impl StreamingClient {
                     }
                 }
             }
-            // Once the dispatcher has stopped: `shutdown()` only signals, and
-            // the callback keeps firing until the ring drains.
-            retired
-                .panics
-                .fetch_add(client.panic_count(), Ordering::Relaxed);
-            retired
-                .dropped
-                .fetch_add(client.dropped_count(), Ordering::Relaxed);
+            // Add what the drain recorded: `shutdown()` only signals, and the
+            // callback keeps firing until the ring drains.
+            retired.panics.fetch_add(
+                client.panic_count().saturating_sub(folded.0),
+                Ordering::Relaxed,
+            );
+            retired.dropped.fetch_add(
+                client.dropped_count().saturating_sub(folded.1),
+                Ordering::Relaxed,
+            );
         }
     }
 
