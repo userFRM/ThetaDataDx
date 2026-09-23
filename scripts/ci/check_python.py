@@ -3,7 +3,7 @@
 """Live parameter-mode matrix validator for the Python SDK.
 
 Each row is one (endpoint, mode) cell. Modes cover concrete fixtures plus
-wildcard / ISO-date / legacy-zero variants for option ContractSpec
+wildcard / ISO-date variants for option ContractSpec
 endpoints. Every cell is attempted against production; the server is the
 ground truth for what the account can access. Cells whose documented
 `min_tier` exceeds the live account tier come back as a permission error
@@ -527,9 +527,6 @@ CELLS = [
     # option_history_trade::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_trade("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_trade::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_trade", "legacy_zero_wildcard", "standard", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_trade("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_trade("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -560,9 +557,6 @@ CELLS = [
     # option_history_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_quote("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_quote::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_quote", "legacy_zero_wildcard", "value", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_quote("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_quote("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -596,9 +590,6 @@ CELLS = [
     # option_history_trade_quote::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_trade_quote("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_trade_quote::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_trade_quote", "legacy_zero_wildcard", "standard", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_trade_quote("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_quote::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_trade_quote("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -722,9 +713,6 @@ CELLS = [
     # option_history_trade_greeks_all::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_trade_greeks_all("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_trade_greeks_all::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_trade_greeks_all", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_trade_greeks_all("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -797,9 +785,6 @@ CELLS = [
     # option_history_trade_greeks_first_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_trade_greeks_first_order("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_trade_greeks_first_order::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_trade_greeks_first_order", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_trade_greeks_first_order("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -872,9 +857,6 @@ CELLS = [
     # option_history_trade_greeks_second_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_trade_greeks_second_order("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_trade_greeks_second_order::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_trade_greeks_second_order", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_trade_greeks_second_order("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -947,9 +929,6 @@ CELLS = [
     # option_history_trade_greeks_third_order::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_trade_greeks_third_order("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_trade_greeks_third_order::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_trade_greeks_third_order", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_trade_greeks_third_order("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1022,9 +1001,6 @@ CELLS = [
     # option_history_trade_greeks_implied_volatility::bulk_chain
     #   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
     ("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "*", strike="*", right="both", date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
-    # option_history_trade_greeks_implied_volatility::legacy_zero_wildcard
-    #   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-    ("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "0", strike="0", right="both", date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_intraday_window
     #   rationale: start_time + end_time pair — intraday window optional wiring
     ("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", start_time="09:30:00", end_time="10:00:00", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),

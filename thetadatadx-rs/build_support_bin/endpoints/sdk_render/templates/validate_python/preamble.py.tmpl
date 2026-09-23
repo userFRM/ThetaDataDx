@@ -3,7 +3,7 @@
 """Live parameter-mode matrix validator for the Python SDK.
 
 Each row is one (endpoint, mode) cell. Modes cover concrete fixtures plus
-wildcard / ISO-date / legacy-zero variants for option ContractSpec
+wildcard / ISO-date variants for option ContractSpec
 endpoints. Every cell is attempted against production; the server is the
 ground truth for what the account can access. Cells whose documented
 `min_tier` exceeds the live account tier come back as a permission error

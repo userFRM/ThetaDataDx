@@ -294,11 +294,11 @@ def check_static_docs() -> None:
     )
     expect_contains(
         DOCS_SITE / "mcp.md",
-        'Use `"strike":"0"` when you want a bulk chain-style response',
+        'Use `"strike":"*"` when you want a bulk chain-style response',
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        'Use `"strike":"0"` when you want a bulk chain-style response',
+        'Use `"strike":"*"` when you want a bulk chain-style response',
     )
 
     # Website changelog must match repo root CHANGELOG.md

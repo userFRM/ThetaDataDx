@@ -267,7 +267,7 @@ impl EndpointArgs {
 
     /// Read a required expiration argument.
     ///
-    /// Accepts `*` / `0` (wildcard sentinels), `YYYYMMDD`, or `YYYY-MM-DD`.
+    /// Accepts `*` (wildcard), `YYYYMMDD`, or `YYYY-MM-DD`.
     /// Wire-level canonicalization happens in `crate::mdds::wire_semantics::normalize_expiration`.
     pub fn required_expiration(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
@@ -277,7 +277,7 @@ impl EndpointArgs {
 
     /// Read an optional expiration argument.
     ///
-    /// Accepts `*` / `0` (wildcard sentinels), `YYYYMMDD`, or `YYYY-MM-DD`.
+    /// Accepts `*` (wildcard), `YYYYMMDD`, or `YYYY-MM-DD`.
     pub fn optional_expiration(&self, key: &str) -> Result<Option<&str>, EndpointError> {
         let Some(value) = self.optional_str(key)? else {
             return Ok(None);
@@ -288,9 +288,9 @@ impl EndpointArgs {
 
     /// Read a required strike argument.
     ///
-    /// Accepts `*` / `0` / empty (wildcard sentinels) or a positive decimal
-    /// (e.g. `"550"`, `"17.5"`). Wildcards become proto-unset on the wire
-    /// via `crate::mdds::wire_semantics::wire_strike_opt` so the server applies its default.
+    /// Accepts `*` (wildcard), empty (unset), or a positive decimal
+    /// (e.g. `"550"`, `"17.5"`). Both wildcard forms are sent as a literal `*`
+    /// via `crate::mdds::wire_semantics::wire_strike_opt`.
     pub fn required_strike(&self, key: &str) -> Result<&str, EndpointError> {
         let value = self.required_str(key)?;
         validate_strike(value, key)?;
@@ -816,10 +816,10 @@ mod tests {
     }
 
     #[test]
-    fn required_expiration_accepts_wildcard_zero() {
+    fn required_expiration_refuses_zero() {
         let mut args = EndpointArgs::new();
         args.insert("expiration".into(), EndpointArgValue::Str("0".into()));
-        assert_eq!(args.required_expiration("expiration").unwrap(), "0");
+        assert!(args.required_expiration("expiration").is_err());
     }
 
     #[test]
@@ -867,10 +867,10 @@ mod tests {
     }
 
     #[test]
-    fn optional_expiration_accepts_wildcard_zero() {
+    fn optional_expiration_refuses_zero() {
         let mut args = EndpointArgs::new();
         args.insert("expiration".into(), EndpointArgValue::Str("0".into()));
-        assert_eq!(args.optional_expiration("expiration").unwrap(), Some("0"));
+        assert!(args.optional_expiration("expiration").is_err());
     }
 
     #[test]

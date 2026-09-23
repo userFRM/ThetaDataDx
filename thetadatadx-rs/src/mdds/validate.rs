@@ -124,9 +124,8 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
     check_gregorian(year, month, day, value, param_name)
 }
 
-/// Validate `expiration`: accepts `YYYY-MM-DD`, `YYYYMMDD`, `*`, or the
-/// legacy `"0"` wildcard (translated to `*` in
-/// [`crate::mdds::wire_semantics::normalize_expiration`]).
+/// Validate `expiration`: accepts `YYYY-MM-DD`, `YYYYMMDD`, or `*`, the
+/// vendor's documented forms.
 ///
 /// Both dated forms are calendar-checked — `2026-02-30`,
 /// `2026-13-01`, and `2026-04-31` are rejected on every public input
@@ -135,13 +134,13 @@ pub(crate) fn validate_date(value: &str, param_name: &str) -> Result<(), Endpoin
 /// # Errors
 ///
 /// Returns [`EndpointError::InvalidParams`] when `value` is neither a
-/// wildcard (`*` / `0`) nor a calendar-valid date in either accepted
+/// wildcard `*` nor a calendar-valid date in either accepted
 /// shape.
 ///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), EndpointError> {
-    if matches!(value, "*" | "0") {
+    if value == "*" {
         return Ok(());
     }
     // Shape gate first so garbage input surfaces the full expiration
@@ -152,7 +151,7 @@ pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), E
     let is_compact_shape = value.len() == 8 && value.bytes().all(|b| b.is_ascii_digit());
     if !is_compact_shape && parse_iso_date_components(value).is_none() {
         return Err(EndpointError::InvalidParams(format!(
-            "'{param_name}' must be '*' (wildcard), '0' (legacy wildcard), 'YYYYMMDD', or 'YYYY-MM-DD', got: '{value}'"
+            "'{param_name}' must be '*' (wildcard), 'YYYYMMDD', or 'YYYY-MM-DD', got: '{value}'"
         )));
     }
     validate_date(value, param_name)
@@ -162,26 +161,24 @@ pub(crate) fn validate_expiration(value: &str, param_name: &str) -> Result<(), E
 ///
 /// Upstream documents `strike` as a decimal price string (e.g. `"550"`,
 /// `"17.5"`) or `*` for all strikes, with `*` as the documented default.
-/// We additionally accept `"0"` and the empty string as ergonomic
-/// wildcard forms. Wildcards become proto-unset in
-/// [`crate::mdds::wire_semantics::wire_strike_opt`] so the server applies
-/// its documented default.
+/// An empty string is an unset strike and takes that default. Both are sent
+/// as a literal `*` by [`crate::mdds::wire_semantics::wire_strike_opt`].
 ///
 /// # Errors
 ///
 /// Returns [`EndpointError::InvalidParams`] when `value` is neither a
-/// wildcard form (`""` / `*` / `0`) nor a finite positive decimal.
+/// wildcard form (`""` / `*`) nor a finite positive decimal.
 ///
 /// Only compiled under `__internal` — called from `EndpointArgs` methods.
 #[cfg(feature = "__internal")]
 pub(crate) fn validate_strike(value: &str, param_name: &str) -> Result<(), EndpointError> {
-    if value.is_empty() || matches!(value, "*" | "0") {
+    if value.is_empty() || value == "*" {
         return Ok(());
     }
     match value.parse::<f64>() {
         Ok(n) if n.is_finite() && n > 0.0 => Ok(()),
         _ => Err(EndpointError::InvalidParams(format!(
-            "'{param_name}' must be '*' (wildcard), '0' (legacy wildcard), or a positive decimal (e.g. '550' or '17.5'), got: '{value}'"
+            "'{param_name}' must be '*' (wildcard) or a positive decimal (e.g. '550' or '17.5'), got: '{value}'"
         ))),
     }
 }
@@ -508,11 +505,13 @@ mod internal_tests {
 
     #[test]
     fn expiration_accepts_documented_vocab_and_rejects_garbage() {
-        for good in ["*", "0", "20260417", "2026-04-17"] {
+        for good in ["*", "20260417", "2026-04-17"] {
             assert!(validate_expiration(good, "expiration").is_ok(), "{good}");
         }
         for bad in [
             "",
+            // Not a vendor form: the terminal refuses `expiration=0`.
+            "0",
             "abc",
             "202604175",
             "2026/04/17",
@@ -560,10 +559,10 @@ mod internal_tests {
 
     #[test]
     fn strike_accepts_wildcards_and_positive_decimals_and_rejects_garbage() {
-        for good in ["*", "0", "", "550", "17.5", "0.5"] {
+        for good in ["*", "", "550", "17.5", "0.5"] {
             assert!(validate_strike(good, "strike").is_ok(), "{good}");
         }
-        for bad in ["abc", "-10", "1.5.3", "$500"] {
+        for bad in ["0", "abc", "-10", "1.5.3", "$500"] {
             assert!(validate_strike(bad, "strike").is_err(), "{bad}");
         }
     }

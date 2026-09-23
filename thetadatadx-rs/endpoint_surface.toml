@@ -1946,9 +1946,3 @@ expiration = "*"
 strike = "*"
 right = "both"
 
-[test_fixtures.mode_overrides.legacy_zero_wildcard]
-# `0` sentinel is a v3 legacy wildcard form. Skipped for
-# `expiration_no_star` endpoints because they reject both `*` and `0`.
-expiration = "0"
-strike = "0"
-right = "both"

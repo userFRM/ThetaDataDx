@@ -614,9 +614,6 @@ int main(int argc, char** argv) {
         // option_history_trade::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_trade", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_trade::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_trade", "legacy_zero_wildcard", "standard", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_trade("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -647,9 +644,6 @@ int main(int argc, char** argv) {
         // option_history_quote::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_quote", "bulk_chain", "value", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_quote::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_quote", "legacy_zero_wildcard", "value", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_quote("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_quote", "with_intraday_window", "value", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -683,9 +677,6 @@ int main(int argc, char** argv) {
         // option_history_trade_quote::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_trade_quote", "bulk_chain", "standard", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_quote("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_trade_quote::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_trade_quote", "legacy_zero_wildcard", "standard", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_trade_quote("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_quote", "with_intraday_window", "standard", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -809,9 +800,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_all::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_trade_greeks_all", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_all("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_trade_greeks_all::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_trade_greeks_all", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_trade_greeks_all("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_all", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -884,9 +872,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_first_order::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_trade_greeks_first_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_first_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_trade_greeks_first_order::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_trade_greeks_first_order", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_trade_greeks_first_order("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_first_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -959,9 +944,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_second_order::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_trade_greeks_second_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_second_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_trade_greeks_second_order::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_trade_greeks_second_order", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_trade_greeks_second_order("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_second_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1034,9 +1016,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_third_order::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_trade_greeks_third_order", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_third_order("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_trade_greeks_third_order::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_trade_greeks_third_order", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_trade_greeks_third_order("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_third_order", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1109,9 +1088,6 @@ int main(int argc, char** argv) {
         // option_history_trade_greeks_implied_volatility::bulk_chain
         //   rationale: expiration=* + strike=* + right=both — tests full-chain server mode
         cell("option_history_trade_greeks_implied_volatility", "bulk_chain", "professional", "expiration=* + strike=* + right=both — tests full-chain server mode", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "*", thetadatadx::EndpointRequestOptions{}.with_strike("*").with_right("both").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
-        // option_history_trade_greeks_implied_volatility::legacy_zero_wildcard
-        //   rationale: expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat
-        cell("option_history_trade_greeks_implied_volatility", "legacy_zero_wildcard", "professional", "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "0", thetadatadx::EndpointRequestOptions{}.with_strike("0").with_right("both").with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::with_intraday_window
         //   rationale: start_time + end_time pair — intraday window optional wiring
         cell("option_history_trade_greeks_implied_volatility", "with_intraday_window", "professional", "start_time + end_time pair — intraday window optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_start_time("09:30:00").with_end_time("10:00:00").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });

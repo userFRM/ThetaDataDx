@@ -152,13 +152,12 @@ This tool does not require a ThetaData account or a network round-trip; it is av
 
 ### Wildcard Option Queries
 
-For option tools, MCP uses `"0"` as the wildcard value for `strike` and `expiration`.
+For option tools, `"*"` is the wildcard value for `strike` and `expiration`, as on the v3 REST surface.
 
 - Use a pinned strike like `"strike":"385"` when you want one contract.
-- Use `"strike":"0"` when you want a bulk chain-style response with contract identification fields on each row.
+- Use `"strike":"*"` when you want a bulk chain-style response with contract identification fields on each row.
 - `strike_range` filters a wildcard bulk selection around spot / ATM. It does **not** fan out a pinned strike into neighboring strikes.
 
-This matches the current JVM terminal behavior. The v3 REST surface uses `*` for the same wildcard concept; the MCP server uses `"0"` because it follows the underlying SDK contract.
 
 ### Index Data (9 tools)
 - `index_list_symbols`, `index_list_dates`
@@ -209,7 +208,7 @@ Response:
 ### Fetch bulk option Greeks around ATM
 
 ```json
-{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"option_history_greeks_eod","arguments":{"symbol":"SPY","expiration":"20230120","strike":"0","right":"C","start_date":"20221219","end_date":"20221220","strike_range":5}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"option_history_greeks_eod","arguments":{"symbol":"SPY","expiration":"20230120","strike":"*","right":"C","start_date":"20221219","end_date":"20221220","strike_range":5}}}
 ```
 
 This returns a filtered bulk response across multiple strikes. If you change `strike` to `"385"`, the response is limited to that single contract.

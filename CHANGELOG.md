@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The metrics port is no longer a setter on the bindings.** One schema row generated a getter and setter into the C ABI, C++, Python and TypeScript. The only reader of that value is the Prometheus exporter, whose body sits behind a cargo feature that no binding crate, no CI job and no release artifact enables, so setting the port succeeded on every binding, reported no error and could never take effect. The configuration field stays for an embedder who compiles the feature in and sets it directly.
 
+- **`0` is no longer a wildcard for `expiration` or `strike`.** The vendor defines `*` for every expiration and every strike, and the terminal refuses `expiration=0` with HTTP 400. The SDK translated `0` to `*` before sending, so it accepted a form the vendor does not define. Every surface, the local server and the MCP tools now refuse `0` in either parameter; use `*`.
+
 - **The server no longer rewrites a CSV text cell that starts with `=`, `+`, `-`, `@` or a tab.** It prefixed such a cell with `'`, so a reader decoded a different value than the one the vendor sent, and the terminal does not do it. Cells are written as sent, with RFC 4180 quoting.
 
 ### Changed
