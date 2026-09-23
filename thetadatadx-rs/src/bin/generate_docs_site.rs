@@ -13,10 +13,11 @@
 
 use std::path::PathBuf;
 
-// This binary reaches only the docs-site pair of the shared generator
-// tree; the SDK-surface emitters and their re-exports in the same tree
-// stay unreferenced here (they belong to `generate_sdk_surfaces`), so
-// the dead-code lints are scoped off for this compile unit.
+// This binary reaches one leaf of the shared generator tree. The SDK-surface
+// emitters and their re-exports in the same tree belong to
+// `generate_sdk_surfaces` and stay unreferenced here — 456 items of it — so
+// the dead-code lints are scoped off for this compile unit. See
+// `build_support_bin/mod.rs` for why the tree is shared.
 #[allow(dead_code, unused_imports)]
 #[path = "../../build_support_bin/mod.rs"]
 mod build_support_bin;
