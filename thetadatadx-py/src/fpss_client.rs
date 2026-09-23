@@ -493,6 +493,15 @@ impl StreamingClient {
     /// are dropped and counted via `dropped_event_count()`. User
     /// callback panics are caught and counted via `panic_count()`.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
+        // Reject a non-callable up front, as the unified client's streaming
+        // surface does: otherwise the dispatcher fails on the first event, off
+        // the calling thread, as an unraisable TypeError, and the caller sees
+        // a stream that connected and then quietly never delivered.
+        if !callback.bind(py).is_callable() {
+            return Err(crate::errors::invalid_parameter_err(
+                "start_streaming callback must be callable",
+            ));
+        }
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
         // Reserve the callback slot in an inner scope and DROP the guard before
         // the GIL-released connect below. Holding the callback mutex across
