@@ -1177,12 +1177,14 @@ public:
         callback_ = std::move(staged);
     }
 
-    /** Cumulative count of streaming events the TLS reader could not
-     *  publish into the bounded ring because the consumer fell behind
-     *  and the ring was full. Returns 0 when no callback has been
-     *  installed yet. Safe to call on a moved-from client. Mirrors the
-     *  unified Stream::dropped_event_count() spelling so the same counter
-     *  reads identically on both C++ streaming surfaces. */
+    /** Count of streaming events the TLS reader could not publish into the
+     *  bounded ring because the consumer fell behind and the ring was full,
+     *  across every session this client has run: a reconnect or a shutdown
+     *  retires the session, and the drops it recorded stay in the total.
+     *  Returns 0 when no session has ever started. Safe to call on a
+     *  moved-from client. Mirrors the unified Stream::dropped_event_count()
+     *  spelling so the same counter reads identically on both C++ streaming
+     *  surfaces. */
     uint64_t dropped_event_count() const {
         return handle_ ? thetadatadx_streaming_dropped_events(handle_.get()) : 0;
     }
@@ -1206,14 +1208,14 @@ public:
         return handle_ ? thetadatadx_streaming_ring_capacity(handle_.get()) : 0;
     }
 
-    /** Cumulative count of user-callback failures contained by the core's
-     *  per-invocation isolation boundary since the current stream started,
-     *  so one aborting event never stops delivery — the next continues.
-     *  Note the C++ boundary: an exception thrown from your callback is
-     *  caught at the C ABI shim (unwinding across C is undefined behavior)
-     *  and swallowed there, so it does NOT increment this count — handle
-     *  errors inside the callback. Returns 0 when no callback has been
-     *  installed yet. Safe to call from any thread without blocking. */
+    /** Count of user-callback failures contained by the core's
+     *  per-invocation isolation boundary, across every session this client
+     *  has run, so one aborting event never stops delivery — the next
+     *  continues. Note the C++ boundary: an exception thrown from your
+     *  callback is caught at the C ABI shim (unwinding across C is undefined
+     *  behavior) and swallowed there, so it does NOT increment this count —
+     *  handle errors inside the callback. Returns 0 when no session has ever
+     *  started. Safe to call from any thread without blocking. */
     uint64_t panic_count() const {
         return handle_ ? thetadatadx_streaming_panic_count(handle_.get()) : 0;
     }

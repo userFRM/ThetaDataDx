@@ -5141,12 +5141,13 @@ class StreamView:
 
     # Metrics + connection observability.
     def dropped_event_count(self) -> int:
-        """Cumulative count of streaming events dropped because the
-        consumer fell behind and the event ring was full.
+        """Count of streaming events dropped because the consumer fell
+        behind and the event ring was full, across every session this
+        client has run.
 
-        Returns 0 before :meth:`start_streaming` and after
-        :meth:`stop_streaming`. :meth:`reconnect` resets the counter;
-        snapshot it beforehand to accumulate across sessions.
+        Returns 0 before :meth:`start_streaming`, and the running total
+        from then on: :meth:`stop_streaming` and :meth:`reconnect` retire
+        the session, and the drops it recorded stay in the total.
         """
         ...
 
@@ -5191,11 +5192,12 @@ class StreamView:
         ...
 
     def panic_count(self) -> int:
-        """Cumulative count of user-callback panics caught by the
-        streaming consumer's panic boundary.
+        """Count of user-callback panics caught by the streaming consumer's
+        panic boundary, across every session this client has run.
 
         Each exception raised inside the registered callback is caught,
-        reported through the unraisable hook, and counted here.
+        reported through the unraisable hook, and counted here. A session
+        that has been stopped keeps the faults it recorded.
         """
         ...
 
@@ -5769,15 +5771,17 @@ class StreamingClient:
         ...
 
     def dropped_event_count(self) -> int:
-        """Cumulative count of streaming events dropped on a full event ring.
+        """Count of streaming events dropped on a full event ring, across
+        every session this client has run.
 
-        Returns 0 before :meth:`start_streaming` and after
-        :meth:`stop_streaming`.
+        Returns 0 before :meth:`start_streaming`, and the running total
+        from then on, including after :meth:`stop_streaming`.
         """
         ...
 
     def panic_count(self) -> int:
-        """Cumulative count of exceptions raised by the user callback."""
+        """Count of exceptions raised by the user callback, across every
+        session this client has run, including sessions already stopped."""
         ...
 
     def ring_occupancy(self) -> int:

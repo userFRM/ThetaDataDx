@@ -1263,22 +1263,14 @@ impl StreamView {
     ///
     /// Forwarded directly to
     /// [`thetadatadx::Client::dropped_event_count`] so the count
-    /// matches every other binding (C ABI, TypeScript, C++). The
-    /// counter lives on the live streaming client, not on this Python
-    /// wrapper, which has two consequences:
+    /// matches every other binding (C ABI, TypeScript, C++). It counts
+    /// every session this client has run: `reconnect()` calls
+    /// `stop_streaming()` + `start_streaming()` internally, and the drops
+    /// the retired session recorded stay in the total.
     ///
-    /// * `reconnect()` calls `stop_streaming()` + `start_streaming()`
-    ///   internally; that rebuilds the streaming client and the counter
-    ///   resets to zero. Snapshot the value BEFORE reconnect if you
-    ///   need to accumulate drops across session boundaries.
-    /// * After `stop_streaming()` the slot is empty and the getter
-    ///   returns 0. The same is true before `start_streaming()` is
-    ///   ever called.
-    ///
-    /// Returns 0 before `start_streaming`, the running total while
-    /// streaming, and 0 again after `stop_streaming`. Consumers
-    /// should poll this on a periodic timer and emit a log on any
-    /// non-zero delta within a single streaming session.
+    /// Returns 0 before `start_streaming`, and the running total from then
+    /// on, including after `stop_streaming`. Consumers should poll this on a
+    /// periodic timer and emit a log on any non-zero delta.
     fn dropped_event_count(&self) -> u64 {
         self.client.stream().dropped_event_count()
     }
