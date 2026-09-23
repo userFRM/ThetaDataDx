@@ -67,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The standalone Python `StreamingClient.start_streaming` refuses a callback that is not callable.** It raises `InvalidParameterError` at the call site, as the unified client already did. It used to connect and then fail on the first event, off the calling thread, so the caller saw a stream that came up and never delivered.
 
+- **The server refuses `strike` or `right` on `/v3/option/list/dates`.** The vendor narrows that route by both, and this SDK does not carry either filter yet, so the server used to answer with the dates for every strike and both sides as if they were the ones asked for. A request naming either is now refused with a 400 that says so.
+
 - **Every server timestamp carries three fraction digits.** A whole second renders `.000` and trailing zeros stay, which is how the terminal formats it; the fraction used to be dropped or trimmed.
 
 - **Option contract blocks come back in the order the rows arrived.** The server sorted them by the rendered contract identity, which compares the strike as text, so strike 1000 came back ahead of strike 90.
