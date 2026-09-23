@@ -3453,12 +3453,8 @@ def collect_rust_utils() -> set[str]:
     """Public free functions reachable through the crate's `utils` module.
 
     `utils` re-exports a fixed set of `tdbe` submodules; every `pub fn` in one
-    of them is part of the published Rust surface. The roster check below
-    scans the Python and TypeScript surfaces for a utility with no row, but
-    never the Rust one, so a helper added to the core and mirrored nowhere was
-    invisible to the gate: `vendor_column_name` and `is_vendor_column` shipped
-    on the Rust surface, were named in the release notes, and reached no
-    binding and no row.
+    of them is part of the published Rust surface, so a helper added to the
+    core and mirrored nowhere needs a row like any other.
     """
     lib = REPO_ROOT / "thetadatadx-rs" / "src" / "lib.rs"
     if not lib.is_file():

@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **`utils::vocabulary` is gone, with `vendor_column_name` and `is_vendor_column`.** It carried the vendor's names for its columns, request families, arguments, formats and enums as static tables, and nothing in the SDK read them: every request is addressed through the typed surface, and a new dataset reaches every binding through the proto and the schemas, which these tables took no part in. It shipped in 0.5.0 with no consumer and is removed rather than maintained by hand beside the schemas.
+
+- **The server no longer rewrites a CSV text cell that starts with `=`, `+`, `-`, `@` or a tab.** It prefixed such a cell with `'`, so a reader decoded a different value than the one the vendor sent, and the terminal does not do it. Cells are written as sent, with RFC 4180 quoting.
+
+### Changed
+
+- **A condition or exchange cell the vendor left empty is published as empty, not as code zero.** Zero is not a spare value on these columns: quote condition 0 is `REGULAR` and exchange 0 is the composite, so an empty cell used to read as a firm quote or a composite print the vendor never reported. The sixty-four condition and exchange columns are now `int | None` in Python, `number | null` in TypeScript, an Arrow null in every columnar reader, `null` in the server's JSON and an empty field in its CSV. In C and C++ each carries a `bool has_<column>` beside its value, which changes the size of several tick structs; rebuild against the new header.
+
+- **`panic_count()` and `dropped_event_count()` keep their count after the session ends.** Both are documented as cumulative and were read off the live session alone, so they answered zero from the moment `stop_streaming()` returned and a reconnect discarded whatever the previous session had recorded. They now count across every session the client has run, including faults and drops recorded while a stopping session drains.
+
+- **The standalone Python `StreamingClient.start_streaming` refuses a callback that is not callable.** It raises `InvalidParameterError` at the call site, as the unified client already did. It used to connect and then fail on the first event, off the calling thread, so the caller saw a stream that came up and never delivered.
+
+- **Every server timestamp carries three fraction digits.** A whole second renders `.000` and trailing zeros stay, which is how the terminal formats it; the fraction used to be dropped or trimmed.
+
+- **Option contract blocks come back in the order the rows arrived.** The server sorted them by the rendered contract identity, which compares the strike as text, so strike 1000 came back ahead of strike 90.
+
+### Added
+
+- **The server accepts `format=json_new` and `format=json_legacy`.** Both are names the vendor serves. `json_new` is the JSON shape the server already produced; `json_legacy` is one array per column keyed by column name, with no envelope. They used to be refused with a 400.
+
+### Fixed
+
+- **A Python market-data call no longer reacquires the GIL once per log event.** The logging bridge acquired the GIL to ask Python whether each `tracing` event was enabled, including every event it then dropped. That is invisible on an idle interpreter and multiplies a call's wall time next to a busy Python thread, on the path that is meant to have released the GIL. The level is now cached per logger for 250 ms and checked first; a level you set takes effect within that window.
+
+- **An index market value reaches the server's WebSocket.** The server dropped the event, so an index `MARKET_VALUE` subscription was acknowledged and then silent. It is now sent as the terminal sends it: a `MARKET_VALUE` frame carrying `date`, `ms_of_day` and `market_price`. The streaming reference page showed the payload under the wrong key and now shows `market_value`.
+
+- **A flat-file login interrupted mid-frame retries instead of reporting bad credentials.** A disconnect too short to state its reason was read as reason 0, which is `InvalidCredentials` and permanent, so the retry stopped. It now reads as `Unspecified` on the login path, as it already did on the download path.
+
+- **Daylight saving time applies before 1970.** A summer instant in 1967 to 1969 resolved to standard time and came back an hour early.
+
+- **The crate documents on docs.rs.** The build script rewrote a file under `src/` on every build, and docs.rs mounts sources read-only, so the whole crate failed to document. The packaged crate also listed maintenance binaries it could not compile.
+
+- **The C++ streaming example compiles under C++17.** The README and the `Contract::option` doc used C++20 designated initializers and a missing include, against a project that requires C++17.
+
 ## [0.5.0] - 2026-09-22
 
 ### Added
