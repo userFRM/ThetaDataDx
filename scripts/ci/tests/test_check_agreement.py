@@ -882,7 +882,9 @@ class LangsAreProducibleTest(unittest.TestCase):
         for path in validate_agreement.ROOT.rglob("*"):
             if not path.is_file():
                 continue
-            if any(part in self.SKIP_DIRS for part in path.parts):
+            # Relative to the root, so a checkout that itself lives under a
+            # skipped name (a worktree under `worktrees/`) is still scanned.
+            if any(part in self.SKIP_DIRS for part in path.relative_to(validate_agreement.ROOT).parts):
                 continue
             if path.name in self.SKIP_FILES:
                 continue
