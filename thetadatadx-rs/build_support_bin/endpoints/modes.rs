@@ -73,7 +73,7 @@ pub(super) struct TestMode {
 fn rationale_for_mode(name: &str) -> &'static str {
     match name {
         "basic" => "list/calendar/rate baseline call — no parameter variation",
-        "concrete" => "required params set, no optionals — baseline wire path",
+        "concrete" => "required params set, plus the date the vendor needs where it is optional — baseline wire path",
         "concrete_iso" => {
             "expiration in YYYY-MM-DD form — tests ISO-date canonicalization to YYYYMMDD"
         }
@@ -390,8 +390,80 @@ pub(super) fn test_modes_for(
         .collect();
     collapse_redundant_wires(
         endpoint,
-        append_optional_modes(endpoint, fixtures, endpoint_tier, modes),
+        anchor_dates(
+            endpoint,
+            fixtures,
+            append_optional_modes(endpoint, fixtures, endpoint_tier, modes),
+        ),
     )
+}
+
+/// Give every cell a date when the endpoint takes one only as an optional
+/// builder parameter.
+///
+/// The vendor's spec marks `date`, `start_date` and `end_date` optional on
+/// the history endpoints, and its server refuses a request carrying none of
+/// them. A cell that sets no date therefore exercises a call that can only
+/// fail, whatever else it sets; the fixture date is added to each such cell.
+fn anchor_dates(
+    endpoint: &GeneratedEndpoint,
+    fixtures: &TestFixtures,
+    modes: Vec<TestMode>,
+) -> Vec<TestMode> {
+    let optional: Vec<String> = builder_params(endpoint)
+        .iter()
+        .map(|param| param.name.clone())
+        .collect();
+    let has = |name: &str| optional.iter().any(|n| n == name);
+    let fixture = |name: &str| {
+        (
+            name.to_string(),
+            optional_fixture_value(fixtures, name).to_string(),
+        )
+    };
+    let anchor = if has("date") {
+        vec![fixture("date")]
+    } else if has("start_date") && has("end_date") {
+        vec![fixture("start_date"), fixture("end_date")]
+    } else {
+        return modes;
+    };
+    // A dated option cell that names no strike asks for the whole chain for a
+    // whole day. That is the wildcard modes' job, and they set `strike`
+    // themselves; every other cell names the fixture contract.
+    let strike = has("strike").then(|| fixture("strike"));
+    // A chain-wide cell over a whole day is the heaviest query the vendor
+    // serves and outlasts any sane cell budget. It exists to prove the
+    // wildcard wiring, which the fixture window proves as well as a day.
+    let window = (has("start_time") && has("end_time"))
+        .then(|| vec![fixture("start_time"), fixture("end_time")]);
+    modes
+        .into_iter()
+        .map(|mut mode| {
+            let sets = |names: &[&str]| {
+                mode.builder_overrides
+                    .iter()
+                    .any(|(name, _)| names.contains(&name.as_str()))
+            };
+            let sets_a_date = sets(&["date", "start_date", "end_date"]);
+            let sets_a_strike = sets(&["strike", "strike_range"]);
+            let sets_a_window = sets(&["start_time", "end_time"]);
+            if !sets_a_date {
+                mode.builder_overrides.extend(anchor.iter().cloned());
+            }
+            if let (Some(strike), false) = (&strike, sets_a_strike) {
+                mode.builder_overrides.push(strike.clone());
+            }
+            let chain_wide = matches!(
+                mode.name.as_str(),
+                "bulk_chain" | "all_strikes_one_exp" | "with_strike_range"
+            );
+            if let (Some(window), true, false) = (&window, chain_wide, sets_a_window) {
+                mode.builder_overrides.extend(window.iter().cloned());
+            }
+            mode
+        })
+        .collect()
 }
 
 /// Look up the representative value for a builder-bound optional parameter.
@@ -416,6 +488,12 @@ fn append_optional_modes(
     endpoint_tier: &'static str,
     mut modes: Vec<TestMode>,
 ) -> Vec<TestMode> {
+    // A list endpoint has no builder on any binding, so an optional it
+    // declares for the wire cannot be set from the SDK; a cell for it would
+    // either fail on the call or pass while the option is ignored.
+    if endpoint.list_column.is_some() {
+        return modes;
+    }
     let optional_names: Vec<String> = builder_params(endpoint)
         .iter()
         .map(|param| param.name.clone())

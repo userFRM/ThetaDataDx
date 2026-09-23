@@ -134,18 +134,15 @@ fn assert_doc_names_only_present_fields(event: &str, column: &str, doc: &str, co
         if !looks_like_a_field || referenced == column {
             continue;
         }
+        // A name the doc table does not know falls back to a humanized
+        // "The ..." line: a Rust type or a prose word, not a column.
+        let is_column_name = !fpss_column_doc(referenced).starts_with("The ");
         assert!(
-            !is_known_column_name(referenced) || columns.contains(&referenced),
+            !is_column_name || columns.contains(&referenced),
             "{event}.{column}: its doc names `{referenced}`, which {event} does not carry. \
              Give the column its own `doc` in fpss_event_schema.toml."
         );
     }
-}
-
-/// Whether `name` is a column name this schema uses anywhere, as opposed to a
-/// Rust type or a prose word that happens to be backticked.
-fn is_known_column_name(name: &str) -> bool {
-    !fpss_column_doc(name).starts_with("The ")
 }
 
 /// Factual one-line doc for a generated event-struct field, keyed on the
