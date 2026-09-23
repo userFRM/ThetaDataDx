@@ -13,13 +13,12 @@
 
 /// Canonicalize the `expiration` parameter for the MDDS server.
 ///
-/// Accepts the SDK's legacy `"0"` sentinel and the documented ISO-dashed
-/// form, normalizing both to the wire vocabulary.
+/// Normalizes the documented ISO-dashed form to the wire's `YYYYMMDD`.
 pub(crate) fn normalize_expiration(expiration: &str) -> String {
-    match expiration {
-        "0" => "*".to_string(),
-        v if is_iso_date(v) => v.replace('-', ""),
-        other => other.to_string(),
+    if is_iso_date(expiration) {
+        expiration.replace('-', "")
+    } else {
+        expiration.to_string()
     }
 }
 
@@ -48,10 +47,10 @@ pub(crate) fn normalize_date(date: &str) -> String {
 /// `ContractSpec.strike` (per-strike enumeration -- slow path) and an
 /// **explicit wildcard** `"*"` (chain-wide lookup -- fast path). The
 /// request contract expects wildcard values to be populated literally:
-/// the SDK-surface sentinels (`""`, `"*"`, `"0"`) all canonicalize to
+/// an unset strike (`""`) and the wildcard `"*"` both canonicalize to
 /// the literal `"*"` string on the wire. Any other value forwards verbatim.
 pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
-    if strike.is_empty() || strike == "*" || strike == "0" {
+    if strike.is_empty() || strike == "*" {
         Some("*".to_string())
     } else {
         Some(strike.to_string())

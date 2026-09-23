@@ -586,21 +586,21 @@ fn tool_definitions() -> Vec<Value> {
 /// Return the LLM-facing MCP parameter description for a registry endpoint.
 ///
 /// Most parameters can use the shared registry wording directly. A small set of
-/// option bulk-query parameters benefit from MCP-specific clarification because
-/// the MCP transport uses `"0"` as the wildcard sentinel instead of REST's
-/// `*`, and `strike_range` only filters an already-bulk selection.
+/// option bulk-query parameters benefit from MCP-specific clarification: `*`
+/// selects every strike or expiration, and `strike_range` only filters an
+/// already-bulk selection.
 fn mcp_param_description(ep: &EndpointMeta, param: &ParamMeta) -> String {
     if ep.category == "option" {
         match param.name {
             "strike" => {
                 return format!(
-                    "{}. Use \"0\" for wildcard/bulk strike selection on endpoints that support bulk option queries.",
+                    "{}. Use \"*\" for wildcard/bulk strike selection on endpoints that support bulk option queries.",
                     param.description
                 );
             }
             "expiration" => {
                 return format!(
-                    "{}. Use \"0\" for wildcard/bulk expiration selection on endpoints that support bulk option queries.",
+                    "{}. Use \"*\" for wildcard/bulk expiration selection on endpoints that support bulk option queries.",
                     param.description
                 );
             }
@@ -662,7 +662,7 @@ fn option_right_value(right: char) -> Value {
 /// Attach wildcard option contract identifiers to a serialized tick row.
 ///
 /// ThetaData only populates these fields on wildcard/bulk queries, where
-/// callers request `expiration = "0"` and/or `strike = "0"`. Single-contract
+/// callers request `expiration = "*"` and/or `strike = "*"`. Single-contract
 /// queries leave them as zero, so MCP omits them to keep those payloads lean.
 fn insert_contract_id_fields(row: &mut Value, expiration: i32, strike: f64, right: char) {
     if expiration == 0 {
@@ -2127,11 +2127,11 @@ mod tests {
             .expect("strike_range description should exist");
 
         assert!(
-            strike.contains("\"0\" for wildcard/bulk strike selection"),
+            strike.contains("\"*\" for wildcard/bulk strike selection"),
             "strike description should explain MCP wildcard strike semantics: {strike}"
         );
         assert!(
-            expiration.contains("\"0\" for wildcard/bulk expiration selection"),
+            expiration.contains("\"*\" for wildcard/bulk expiration selection"),
             "expiration description should explain MCP wildcard expiration semantics: {expiration}"
         );
         assert!(

@@ -82,9 +82,6 @@ fn rationale_for_mode(name: &str) -> &'static str {
         }
         "all_exps_one_strike" => "expiration=* — sent as literal `*` on the wire (server fan-out)",
         "bulk_chain" => "expiration=* + strike=* + right=both — tests full-chain server mode",
-        "legacy_zero_wildcard" => {
-            "expiration=0 → wire `*`; strike=0 + right=both → proto-unset — legacy-input compat"
-        }
         "with_intraday_window" => "start_time + end_time pair — intraday window optional wiring",
         "with_date_range" => "start_date + end_date pair — date range optional wiring",
         "all_optionals" => "every applicable optional set at once — proves multi-optional wiring",
@@ -338,7 +335,7 @@ pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static s
     if has_full_contract_spec(endpoint) {
         let mut modes = vec!["concrete", "concrete_iso", "all_strikes_one_exp"];
         if endpoint_supports_expiration_wildcard(&endpoint.name) {
-            modes.extend(["all_exps_one_strike", "bulk_chain", "legacy_zero_wildcard"]);
+            modes.extend(["all_exps_one_strike", "bulk_chain"]);
         }
         return modes;
     }
@@ -354,7 +351,7 @@ pub(super) fn emitted_mode_names(endpoint: &GeneratedEndpoint) -> Vec<&'static s
 ///     `concrete` mode plus an `iso_date` mode where dates are involved.
 ///   * **Option ContractSpec** endpoints: the full cross-product —
 ///     `concrete`, `concrete_iso`, `all_strikes_one_exp`,
-///     `all_exps_one_strike`, `bulk_chain`, `legacy_zero_wildcard`.
+///     `all_exps_one_strike`, `bulk_chain`.
 ///   * **Calendar / rate**: one mode each.
 ///
 /// Stream endpoints are covered by `scripts/dev/fpss_smoke.py` /

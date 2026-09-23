@@ -78,7 +78,7 @@ Without credentials, the server still starts and serves the offline tool (`ping`
 ## Option queries from a model
 
 - Pin one contract with a concrete strike: `"strike":"385"`.
-- Use `"strike":"0"` when you want a bulk chain-style response; rows then carry contract-identity fields.
+- Use `"strike":"*"` when you want a bulk chain-style response; rows then carry contract-identity fields.
 - `strike_range` narrows a bulk selection around the money; it does not fan a pinned strike out to neighbors.
 
 ## Troubleshooting

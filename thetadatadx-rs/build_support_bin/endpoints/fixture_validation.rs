@@ -32,7 +32,6 @@ const KNOWN_MODE_OVERRIDES: &[&str] = &[
     "all_strikes_one_exp",
     "all_exps_one_strike",
     "bulk_chain",
-    "legacy_zero_wildcard",
 ];
 
 /// Cross-check the `[test_fixtures]` block against the resolved endpoint set.
