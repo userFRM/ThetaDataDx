@@ -151,7 +151,10 @@ pub fn epoch_ms_in_range(epoch_ms: u64) -> bool {
 )]
 #[must_use]
 pub fn eastern_offset_ms(epoch_ms: u64) -> i64 {
-    eastern_offset_ms_at(epoch_ms as i64)
+    // Saturate rather than cast: past `i64::MAX` a cast wraps to a negative
+    // epoch and resolves as an instant before 1970, where the range guard in
+    // `eastern_offset_ms_at` returns the EST default this doc promises.
+    eastern_offset_ms_at(i64::try_from(epoch_ms).unwrap_or(i64::MAX))
 }
 
 /// Eastern Time UTC offset for an instant that may predate 1970.
@@ -593,6 +596,8 @@ mod tests {
                 i64::MAX as u64
             },
             u64::MAX,
+            // Wraps, through a plain cast, onto a summer instant in 1969.
+            u64::MAX - 15_848_999_999,
         ] {
             assert_eq!(
                 try_timestamp_to_date(hostile),
@@ -605,10 +610,10 @@ mod tests {
                 "out-of-range epoch_ms {hostile} must be rejected, not wrapped",
             );
             assert!(!epoch_ms_in_range(hostile));
-            // `eastern_offset_ms` stays total: no panic for any u64, and it
-            // returns a valid offset rather than a wrapped value.
-            let off = eastern_offset_ms(hostile);
-            assert!(off == -5 * 3_600 * 1_000 || off == -4 * 3_600 * 1_000);
+            // `eastern_offset_ms` stays total: no panic for any u64, and an
+            // out-of-range input gets the EST default rather than the offset
+            // of whatever instant a wrapped value lands on.
+            assert_eq!(eastern_offset_ms(hostile), -5 * 3_600 * 1_000, "{hostile}");
         }
     }
 
