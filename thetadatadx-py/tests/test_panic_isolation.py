@@ -224,31 +224,22 @@ class TestPanicIsolationBehavioral:
             f"exception(s); got {delivered[0]}"
         )
 
-    def test_non_callable_callback_panic_is_counted(
+    def test_non_callable_callback_is_rejected_at_registration(
         self, fpss_client: client.StreamingClient
     ) -> None:
-        """A non-callable callback argument causes a TypeError on the
-        consumer thread when the first event arrives.  The binding catches that
-        via `call1` returning `Err` (not a Rust panic) and increments
-        panic_count() via record_panic().
+        """A non-callable callback is refused at the call site, not on the
+        consumer thread.
 
-        Timeout strategy: same main-thread polling approach as the sibling
-        test above.
+        Accepting it would connect the stream and then fail on the first
+        event as an unraisable TypeError, so the caller would see a session
+        that came up and quietly never delivered. The unified client's
+        streaming surface refuses it the same way, so the two answer the
+        same mistake identically.
         """
-        EXPECTED_PANICS: int = 1
+        with pytest.raises(client.InvalidParameterError, match="must be callable"):
+            fpss_client.start_streaming(42)  # type: ignore[arg-type]
 
-        fpss_client.start_streaming(42)  # type: ignore[arg-type]
-
-        deadline = time.monotonic() + 5.0
-        while time.monotonic() < deadline:
-            if fpss_client.panic_count() >= EXPECTED_PANICS:
-                break
-            time.sleep(0.01)
-
+        # The refused registration left no reservation behind, so a correct
+        # callback still starts.
+        fpss_client.start_streaming(lambda _event: None)
         fpss_client.stop_streaming()
-
-        count = fpss_client.panic_count()
-        assert count == EXPECTED_PANICS, (
-            f"panic_count() must equal {EXPECTED_PANICS} after a non-callable "
-            f"callback fires on the Connected event; got {count}"
-        )

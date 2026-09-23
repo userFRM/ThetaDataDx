@@ -95,9 +95,9 @@ def test_dropped_event_count_callable_before_streaming(client):
 def test_dropped_event_count_lifecycle_callable(client):
     """The counter must remain callable across the full lifecycle:
     pre-start / post-start / post-reconnect / post-stop. The value
-    is non-negative everywhere; it is NOT monotone across reconnect
-    because reconnect rebuilds the FPSS client and zeros the counter.
-    Snapshot before reconnect if you need cross-session accumulation.
+    is non-negative everywhere, and non-decreasing: a reconnect rebuilds
+    the FPSS client, and the drops the retired session recorded stay in
+    the total.
     """
     client.stream.start_streaming(_noop_callback)
     post_start = client.stream.dropped_event_count()
@@ -107,38 +107,34 @@ def test_dropped_event_count_lifecycle_callable(client):
     client.stream.reconnect()
     post_reconnect = client.stream.dropped_event_count()
     assert isinstance(post_reconnect, int)
-    # Counter lives on the live FPSS client; reconnect calls
-    # stop_streaming + start_streaming, which recreates the client
-    # and zeroes the counter. Snapshot before reconnect if cross-
-    # session accumulation matters. Assert non-negative rather than
-    # monotone -- monotone would lock in implementation detail we
-    # explicitly do NOT promise.
-    assert post_reconnect >= 0
+    # Reconnect calls stop_streaming + start_streaming, which retires the
+    # FPSS client. Its drops are folded into the running total first, so the
+    # counter never goes backwards across a session boundary.
+    assert post_reconnect >= post_start
 
     client.stream.stop_streaming()
     post_stop = client.stream.dropped_event_count()
     assert isinstance(post_stop, int)
-    # After stop_streaming the streaming slot is empty; the getter
-    # returns 0.
-    assert post_stop >= 0
+    # The session is gone, but the drops it recorded are not.
+    assert post_stop >= post_reconnect
 
 
-def test_start_streaming_accepts_any_pyobject_at_registration_time(client):
-    """`start_streaming` does NOT validate that its argument is callable
-    at registration time -- PyO3 accepts `Py<PyAny>` and the validity
-    check (`PyAny::call1`) only fires on the consumer thread when an
-    event actually arrives. Without a live subscription no event
-    fires, so `start_streaming(42)` is accepted and `stop_streaming`
-    clears the reference.
+def test_start_streaming_rejects_a_non_callable_at_registration(client):
+    """`start_streaming` rejects a non-callable argument at the call site.
 
-    (Renamed from `test_start_streaming_requires_callable` per audit
-    S43 -- the prior name lied: it implied registration-time
-    rejection which the binding does not implement. The actual
-    consumer-thread `TypeError` surface is exercised by
-    `test_non_callable_callback_panic_is_counted` below, which DOES
-    use `pytest.raises`.)
+    Accepting it would connect the stream and then fail on the first event,
+    on the consumer thread, as an unraisable TypeError: the caller sees a
+    session that came up and quietly never delivered. The standalone
+    `StreamingClient` rejects it the same way, so the two streaming surfaces
+    answer the same mistake identically.
     """
-    client.stream.start_streaming(42)
+    import thetadatadx
+
+    with pytest.raises(thetadatadx.InvalidParameterError, match="must be callable"):
+        client.stream.start_streaming(42)
+    # The rejected registration left no reservation behind, so a correct
+    # callback still starts.
+    client.stream.start_streaming(_noop_callback)
     client.stream.stop_streaming()
 
 
