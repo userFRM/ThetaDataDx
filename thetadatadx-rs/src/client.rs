@@ -277,6 +277,10 @@ struct TeardownWork {
     client: Option<Arc<StreamingClient>>,
     /// The retired dispatcher session, to wake (columnar) and join.
     session: DispatcherSession,
+    /// The session's fault and drop counts when it left the slot, already in
+    /// the running totals. The teardown adds only what the drain records on
+    /// top, so a reading never drops mid-teardown and nothing is lost.
+    folded: (u64, u64),
 }
 
 /// Whether a retiring dispatcher session should register its drain flag for
@@ -474,13 +478,21 @@ impl StreamingState {
                         .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .push(client.drained_flag());
                 }
-                Some(Arc::clone(client))
+                let folded = (client.panic_count(), client.dropped_count());
+                self.retired_panics.fetch_add(folded.0, Ordering::Relaxed);
+                self.retired_dropped.fetch_add(folded.1, Ordering::Relaxed);
+                Some((Arc::clone(client), folded))
             }
             StreamingSlot::Idle | StreamingSlot::Stopped => None,
         };
         // Extract the dispatcher session so the join runs outside the lock.
         let session = std::mem::replace(&mut *guard, DispatcherSession::Idle);
-        Some(TeardownWork { client, session })
+        let (client, folded) = client.map_or((None, (0, 0)), |(c, f)| (Some(c), f));
+        Some(TeardownWork {
+            client,
+            session,
+            folded,
+        })
     }
 
     /// The slow part of teardown, run with NO lock held: shut the live client,
@@ -494,7 +506,11 @@ impl StreamingState {
     /// released, those calls proceed, the dispatcher reaches its shutdown exit,
     /// and the join below returns.
     fn run_teardown(&self, work: TeardownWork) {
-        let TeardownWork { client, session } = work;
+        let TeardownWork {
+            client,
+            session,
+            folded,
+        } = work;
         // Shut the FPSS client signal so its reader thread + event ring
         // consumer drain and exit.
         if let Some(client) = &client {
@@ -570,14 +586,17 @@ impl StreamingState {
                 }
             }
         }
-        // The dispatcher is joined, so this session's fault and drop counts
-        // are final. Fold them into the client's running totals before the
-        // last handle to the session goes.
+        // What the session recorded while it drained, on top of what was
+        // folded when it left the slot.
         if let Some(client) = client {
-            self.retired_panics
-                .fetch_add(client.panic_count(), Ordering::Relaxed);
-            self.retired_dropped
-                .fetch_add(client.dropped_count(), Ordering::Relaxed);
+            self.retired_panics.fetch_add(
+                client.panic_count().saturating_sub(folded.0),
+                Ordering::Relaxed,
+            );
+            self.retired_dropped.fetch_add(
+                client.dropped_count().saturating_sub(folded.1),
+                Ordering::Relaxed,
+            );
         }
     }
 
@@ -3484,6 +3503,7 @@ mod tests {
         };
         let work = TeardownWork {
             client: None,
+            folded: (0, 0),
             session: DispatcherSession::Running {
                 handle: old_handle,
                 on_teardown: Some({

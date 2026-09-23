@@ -250,17 +250,18 @@ impl StreamingClient {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Fold a retired session's fault and drop counts into this handle's
-    /// running totals. `panic_count()` and `dropped_event_count()` are
-    /// documented as cumulative, so the counts must outlive the session.
-    ///
-    /// Called once the session's dispatcher has stopped: `shutdown()` only
-    /// signals, and the callback keeps firing until the ring drains.
-    fn fold_retired(&self, client: &RustStreamingClient) {
+    /// Add a retired session's fault and drop counts, beyond `folded`, to
+    /// this handle's running totals. `panic_count()` and
+    /// `dropped_event_count()` are documented as cumulative, so the counts
+    /// must outlive the session. The counters are monotonic, so the
+    /// difference is what is left to add.
+    fn fold_retired(&self, client: &RustStreamingClient, folded: (u64, u64)) -> (u64, u64) {
+        let now = (client.panic_count(), client.dropped_count());
         self.retired_panics
-            .fetch_add(client.panic_count(), Ordering::Relaxed);
+            .fetch_add(now.0.saturating_sub(folded.0), Ordering::Relaxed);
         self.retired_dropped
-            .fetch_add(client.dropped_count(), Ordering::Relaxed);
+            .fetch_add(now.1.saturating_sub(folded.1), Ordering::Relaxed);
+        now
     }
 
     fn lock_callback(&self) -> MutexGuard<'_, Option<Arc<Py<PyAny>>>> {
@@ -968,6 +969,12 @@ impl StreamingClient {
         let (taken_client, prev_session) = {
             let mut cb_guard = self.lock_callback();
             let taken = self.lock_inner().take();
+            // Fold what the session has recorded now, so a reading taken
+            // during the teardown does not drop below one taken before it.
+            let taken = taken.map(|client| {
+                let folded = self.fold_retired(&client, (0, 0));
+                (client, folded)
+            });
             *cb_guard = None;
             let session = std::mem::replace(
                 &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
@@ -975,7 +982,7 @@ impl StreamingClient {
             );
             (taken, session)
         };
-        if let Some(client) = taken_client {
+        if let Some((client, folded)) = taken_client {
             {
                 let mut prev = self
                     .prev_drained
@@ -1023,10 +1030,10 @@ impl StreamingClient {
                         }
                     }
                 }
-                // After the join, so the counts the session recorded while
-                // draining are included, and still inside the detach: the
-                // last drop of the client joins threads that take the GIL.
-                self.fold_retired(&client);
+                // After the join, add what the session recorded while it
+                // drained. Still inside the detach: the last drop of the
+                // client joins threads that take the GIL.
+                self.fold_retired(&client, folded);
                 drop(client);
             });
         }
