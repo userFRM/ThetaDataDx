@@ -11,20 +11,28 @@
 //! # Rust-side tracing events now flow into the configured handlers.
 //! ```
 //!
-//! # Zero-cost when disabled
+//! # Cost when disabled
 //!
-//! `logging.Logger.isEnabledFor(level)` is a cheap stdlib bool check. The
-//! bridge short-circuits on every event before formatting the message, so
-//! a production wheel with the default WARN level pays the cost of one
-//! bool roundtrip per event — no `format!` allocation, no visitor walk.
+//! Asking Python whether a level is enabled needs the GIL, and a blocking
+//! SDK call emits enough events that asking per event reacquired the GIL
+//! about a hundred and thirty times on a thread that had deliberately
+//! released it. That is invisible on an idle interpreter and turns a
+//! hundred-millisecond market-data call into most of a second next to one
+//! CPU-bound Python thread.
+//!
+//! So the threshold each target's logger reports is cached for
+//! `LEVEL_CACHE_TTL` and compared before the GIL. An event below it costs an
+//! uncontended mutex and an integer compare: no GIL, no `format!`
+//! allocation, no visitor walk. A level a caller changes takes effect within
+//! that window rather than on the very next event.
 //!
 //! # Threading model
 //!
 //! `tracing` events fire from any thread. Python's stdlib `logging` is
-//! GIL-safe; we acquire the GIL via `Python::try_attach(|py| ...)` on
-//! every emit so concurrent Rust workers can all drive the Python
-//! loggers simultaneously. The GIL is released between events so
-//! throughput is not bottlenecked by the bridge.
+//! GIL-safe; we acquire the GIL via `Python::try_attach(|py| ...)` to emit,
+//! so concurrent Rust workers can all drive the Python loggers
+//! simultaneously. The GIL is released between events, and an event the
+//! cache can answer for never takes it at all.
 //!
 //! `try_attach` (rather than `attach`) deliberately: a background Rust
 //! thread can emit a `tracing` event during interpreter finalization on
@@ -46,7 +54,10 @@
 //! sibling of `logging.getLogger("thetadatadx")` with no parent-level
 //! propagation.
 
+use std::collections::HashMap;
 use std::fmt::Write as _;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use pyo3::prelude::*;
 use tracing::field::{Field, Visit};
@@ -118,6 +129,63 @@ impl EventFormatter {
 /// cold-start import cycle).
 pub struct PythonLoggingLayer;
 
+/// How long a target's cached Python level is trusted before the bridge
+/// asks again.
+///
+/// A level a caller sets takes effect within this window rather than on the
+/// very next event. Short enough that an interactive `setLevel(DEBUG)` looks
+/// immediate, long enough that a busy target asks Python a handful of times a
+/// second instead of thousands.
+const LEVEL_CACHE_TTL: Duration = Duration::from_millis(250);
+
+/// The Python level each `tracing` target was last seen to be enabled for.
+///
+/// The bridge asked Python `isEnabledFor` on every event, and asking needs the
+/// GIL. A market-data call emits enough events that the GIL it released for
+/// the network round trip was reacquired about a hundred and thirty times
+/// before returning — invisible on an idle interpreter, and several seconds
+/// per call next to one CPU-bound Python thread.
+///
+/// The key is the `tracing` target, which is `&'static str` from the call
+/// site, so the map holds no owned strings and never grows past the number of
+/// modules that log.
+static LEVEL_CACHE: Mutex<Option<HashMap<&'static str, CachedLevel>>> = Mutex::new(None);
+
+/// One target's cached threshold and when it was read.
+#[derive(Clone, Copy)]
+struct CachedLevel {
+    /// `logging.Logger.getEffectiveLevel()`: the lowest level this logger
+    /// passes. An event below it is dropped by Python anyway.
+    effective: u32,
+    read_at: Instant,
+}
+
+/// Whether `level` on `target` is worth acquiring the GIL for.
+///
+/// `None` means the answer is not cached or has expired, so the caller must
+/// attach and ask. A cached answer is only ever used to skip an event Python
+/// would itself have dropped: `Logger.log` re-checks `isEnabledFor`, so an
+/// optimistic answer here costs one wasted GIL acquisition, never a record
+/// the caller disabled.
+fn cached_verdict(target: &'static str, level: u32) -> Option<bool> {
+    let guard = LEVEL_CACHE.lock().ok()?;
+    let entry = guard.as_ref()?.get(target).copied()?;
+    (entry.read_at.elapsed() < LEVEL_CACHE_TTL).then_some(level >= entry.effective)
+}
+
+/// Record the threshold `target`'s Python logger reports now.
+fn remember_level(target: &'static str, effective: u32) {
+    if let Ok(mut guard) = LEVEL_CACHE.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(
+            target,
+            CachedLevel {
+                effective,
+                read_at: Instant::now(),
+            },
+        );
+    }
+}
+
 impl<S> Layer<S> for PythonLoggingLayer
 where
     S: Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
@@ -134,8 +202,16 @@ where
         // Normalize to the Python shape before dispatching so
         // `logging.getLogger("thetadatadx").setLevel(DEBUG)` propagates
         // through the stdlib `logging` hierarchy as documented.
-        let python_target = target.replace("::", ".");
         let level = tracing_to_logging_level(meta.level());
+
+        // Ask the cache before the GIL. A target below its Python threshold
+        // is the overwhelmingly common case, and finding that out used to
+        // cost a full GIL acquisition on a thread that had deliberately
+        // released it.
+        if cached_verdict(target, level) == Some(false) {
+            return;
+        }
+        let python_target = target.replace("::", ".");
 
         // Reason: `Python::attach` panics if the interpreter is
         // mid-finalization (documented pyo3 0.28 behavior, especially
@@ -163,16 +239,30 @@ where
                 Err(_) => return,
             };
 
+            // Read the threshold rather than a per-level bool, so one call
+            // answers this event and caches the answer for every other level
+            // on the same target.
             match logger
-                .call_method1("isEnabledFor", (level,))
-                .and_then(|r| r.extract::<bool>())
+                .call_method0("getEffectiveLevel")
+                .and_then(|r| r.extract::<u32>())
             {
-                Ok(true) => {}
-                // Disabled or failed bool extract — drop the event. The
-                // former is the hot path, the latter means the Python
-                // logger was replaced with something non-standard; either
-                // way, don't fight it.
-                _ => return,
+                Ok(effective) => {
+                    remember_level(target, effective);
+                    if level < effective {
+                        return;
+                    }
+                }
+                // A Python logger replaced with something non-standard. Fall
+                // back to the per-level question, and cache nothing.
+                Err(_) => {
+                    match logger
+                        .call_method1("isEnabledFor", (level,))
+                        .and_then(|r| r.extract::<bool>())
+                    {
+                        Ok(true) => {}
+                        _ => return,
+                    }
+                }
             }
 
             let mut formatter = EventFormatter::default();
@@ -223,13 +313,49 @@ pub fn install_logging_bridge() {
 
 #[cfg(test)]
 mod tests {
-    //! Level-filter tests for the tracing → logging bridge. The actual
-    //! end-to-end forward path (Rust tracing → Python logger.log) requires
-    //! a Python interpreter with `logging` available and is covered by
-    //! the smoke test in `tests/test_logging_bridge.py` when the wheel is
-    //! built; here we focus on the level-mapping pure function.
+    //! Level-filter tests for the tracing → logging bridge. The end-to-end
+    //! forward path (Rust tracing → Python logger.log) needs a live session
+    //! to emit anything, so it is covered by `tests/test_logging_bridge.py`
+    //! against the built wheel; here we cover the level mapping and the
+    //! cache that decides whether an event is worth the GIL.
 
     use super::*;
+
+    /// The cache answers only for a target it has seen, and only while the
+    /// answer is fresh. Both halves matter: an answer for an unseen target
+    /// would drop events nobody has asked Python about, and an answer that
+    /// never expires would pin the level a caller set at import time.
+    #[test]
+    fn the_level_cache_answers_only_for_a_fresh_known_target() {
+        // Distinct targets per assertion: the cache is process-global and
+        // the test binary runs its tests in one process.
+        assert_eq!(cached_verdict("probe::unseen", 40), None);
+
+        remember_level("probe::warn_only", 30);
+        assert_eq!(
+            cached_verdict("probe::warn_only", 10),
+            Some(false),
+            "debug is below the logger's threshold"
+        );
+        assert_eq!(
+            cached_verdict("probe::warn_only", 30),
+            Some(true),
+            "warning is at the threshold"
+        );
+        assert_eq!(
+            cached_verdict("probe::warn_only", 40),
+            Some(true),
+            "error is above it"
+        );
+
+        remember_level("probe::expiring", 30);
+        std::thread::sleep(LEVEL_CACHE_TTL + Duration::from_millis(20));
+        assert_eq!(
+            cached_verdict("probe::expiring", 10),
+            None,
+            "a stale answer sends the caller back to Python"
+        );
+    }
 
     #[test]
     fn error_level_maps_to_logging_40() {

@@ -349,10 +349,6 @@ def test_fpss_connect_releases_the_gil(monkeypatch) -> None:
 
 def _busy_cpu(stop: threading.Event) -> None:
     s = 0
-
-
-def _busy_cpu(stop: threading.Event) -> None:
-    s = 0
     while not stop.is_set():
         for _ in range(1_000_000):
             s = (s + 1) & 0xFFFFFFFF
@@ -363,50 +359,78 @@ def _busy_cpu(stop: threading.Event) -> None:
     reason="needs THETADATADX_TEST_CREDS (production gRPC credentials file)",
 )
 def test_market_data_releases_gil() -> None:
-    """Live GIL-drop probe — must overhead < 1.5x on a healthy SDK."""
+    """A blocking market-data call must not reacquire the GIL per event.
+
+    Measured against a control that provably releases it: a `time.sleep` of
+    the same duration, contended by the same CPU-bound Python thread in the
+    same process. The control carries whatever this machine's GIL handoff
+    costs, and the SDK call has one unavoidable acquisition of its own to
+    build the result, so the check is on the gap between them rather than on
+    an absolute wall-clock ratio a loaded runner would fail on its own.
+
+    The defect this catches is a per-event acquisition on a thread that has
+    released the GIL for a network round trip. The logging bridge asked
+    Python whether each `tracing` event was enabled, at about a hundred and
+    thirty acquisitions per call, which reads here as an excess of 7 where
+    the floor is under 1.
+    """
     import thetadatadx as td
 
     creds = td.Credentials.from_file(os.environ["THETADATADX_TEST_CREDS"])
     config = td.Config.production()
     client = td.Client(creds, config)
 
-    # Use a same-day stock snapshot to keep the wire payload small and
-    # the per-call wall clock dominated by the network round-trip and
-    # gRPC compute — exactly the path we want to confirm releases the
-    # GIL across `block_on`.
+    # A same-day stock snapshot keeps the wire payload small and the
+    # per-call wall clock dominated by the network round-trip and gRPC
+    # compute — exactly the path that must release the GIL across
+    # `block_on`.
     iters = 10
-    contended_thread = threading.Event()
 
-    def hot_path() -> None:
+    def sdk_calls() -> None:
         for _ in range(iters):
-            # `today` is fine here — the snapshot endpoint always
-            # returns the most recent quote regardless of intraday
-            # state, so we exercise the network path without
-            # depending on a specific session being open.
+            # `today` is fine here — the snapshot endpoint always returns
+            # the most recent quote regardless of intraday state, so the
+            # network path runs without depending on an open session.
             client.market_data.stock_snapshot_quote("AAPL")
 
-    # Baseline
-    t0 = time.perf_counter()
-    hot_path()
-    baseline = time.perf_counter() - t0
+    def timed(fn) -> float:
+        t0 = time.perf_counter()
+        fn()
+        return time.perf_counter() - t0
 
-    # Contended
-    cpu_thread = threading.Thread(target=_busy_cpu, args=(contended_thread,))
+    # One warm call decides how long the control should sleep, so both
+    # arms block for the same duration.
+    per_call = timed(sdk_calls) / iters
+
+    def sleep_calls() -> None:
+        for _ in range(iters):
+            time.sleep(per_call)
+
+    sdk_quiet = timed(sdk_calls)
+    sleep_quiet = timed(sleep_calls)
+
+    stop = threading.Event()
+    cpu_thread = threading.Thread(target=_busy_cpu, args=(stop,))
     cpu_thread.start()
     try:
-        t0 = time.perf_counter()
-        hot_path()
-        contended = time.perf_counter() - t0
+        sdk_busy = timed(sdk_calls)
+        sleep_busy = timed(sleep_calls)
     finally:
-        contended_thread.set()
+        stop.set()
         cpu_thread.join(timeout=5.0)
 
-    overhead = contended / baseline if baseline > 0 else float("inf")
-    assert overhead < 1.5, (
-        f"binding appears to hold the GIL during block_on: "
-        f"contended {contended:.3f}s vs baseline {baseline:.3f}s "
-        f"(overhead {overhead:.2f}x). The GIL-release audit grep must "
-        f"have missed a call site."
+    assert sdk_quiet > 0 and sleep_quiet > 0, "both arms must take measurable time"
+    sdk_excess = sdk_busy / sdk_quiet - 1.0
+    sleep_excess = sleep_busy / sleep_quiet - 1.0
+
+    # Headroom above the control for the one acquisition the call needs to
+    # build its result. A per-event acquisition overshoots this by an order
+    # of magnitude; machine load moves both arms together and cancels.
+    assert sdk_excess <= sleep_excess + 1.0, (
+        f"the binding reacquires the GIL during block_on: contended cost "
+        f"{sdk_excess:+.2f} of a run against {sleep_excess:+.2f} for a "
+        f"time.sleep of the same duration ({per_call * 1000:.0f} ms per call). "
+        f"Some call site on this path is asking Python a question per event."
     )
 
 
