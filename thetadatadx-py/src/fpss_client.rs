@@ -33,7 +33,7 @@
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -158,6 +158,10 @@ pub(crate) struct StreamingClient {
     /// its own slot, never the newer one. Shared with the unified client's
     /// [`crate::CallbackReservation`].
     callback: Mutex<Option<Arc<Py<PyAny>>>>,
+    /// User-callback faults and ring-overflow drops accrued by every session
+    /// this handle has already retired. See [`Self::take_inner`].
+    retired_panics: AtomicU64,
+    retired_dropped: AtomicU64,
     /// Quiescence flags of every superseded streaming session that has
     /// not yet drained. Mirrors the `prev_drained` field on the unified
     /// [`thetadatadx::Client`] — stacked stop/start cycles
@@ -188,7 +192,7 @@ impl Drop for StreamingClient {
     /// mutexes, signal shutdown so the iterator loop drains and exits,
     /// then detach to drop them on the dispatcher-friendly path.
     fn drop(&mut self) {
-        let taken_client = self.inner.lock().unwrap_or_else(|e| e.into_inner()).take();
+        let taken_client = self.take_inner();
         let prev_session = std::mem::replace(
             &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
             PyFpssDispatcherSession::Idle,
@@ -244,6 +248,26 @@ impl StreamingClient {
 
     fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustStreamingClient>>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Retire the live session, folding its fault and drop counts into this
+    /// handle's running totals on the way out.
+    ///
+    /// Every teardown takes the session through here. `panic_count()` and
+    /// `dropped_event_count()` are documented as cumulative, and a caller
+    /// reads them after stopping precisely because that is when the run is
+    /// over; reading them off the live session alone answered zero the
+    /// moment the session was gone, so a run that faulted and a run that did
+    /// not were indistinguishable.
+    fn take_inner(&self) -> Option<Arc<RustStreamingClient>> {
+        let taken = self.lock_inner().take();
+        if let Some(client) = &taken {
+            self.retired_panics
+                .fetch_add(client.panic_count(), Ordering::Relaxed);
+            self.retired_dropped
+                .fetch_add(client.dropped_count(), Ordering::Relaxed);
+        }
+        taken
     }
 
     fn lock_callback(&self) -> MutexGuard<'_, Option<Arc<Py<PyAny>>>> {
@@ -357,6 +381,8 @@ impl StreamingClient {
             callback: Mutex::new(None),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Arc::new(Mutex::new(PyFpssDispatcherSession::Idle)),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
         })
     }
 
@@ -794,13 +820,18 @@ impl StreamingClient {
     }
 
     /// Cumulative count of streaming events the TLS reader could not
-    /// publish into the event ring because the consumer fell
-    /// behind. Snapshot the value BEFORE `reconnect()` if you need to
-    /// accumulate drops across session boundaries — `reconnect`
-    /// rebuilds the inner client and the counter resets.
+    /// publish into the event ring because the consumer fell behind,
+    /// counted across every session this handle has run. A `reconnect()`
+    /// rebuilds the inner client; the drops the previous session recorded
+    /// stay in the total.
     fn dropped_event_count(&self) -> u64 {
+        // Retired total first, then the live session: a teardown landing
+        // between the two reads leaves the live session's count out of this
+        // answer and in the next one, where the other order would count it
+        // twice and make a monotonic counter jump.
+        let retired = self.retired_dropped.load(Ordering::Relaxed);
         let guard = self.lock_inner();
-        guard.as_ref().map_or(0, |c| c.dropped_count())
+        retired + guard.as_ref().map_or(0, |c| c.dropped_count())
     }
 
     /// Point-in-time count of events published into the event ring
@@ -833,8 +864,11 @@ impl StreamingClient {
     /// continues normally. Incremented atomically; safe to read from any
     /// thread.
     fn panic_count(&self) -> u64 {
+        // Retired total first, then the live session; see
+        // `dropped_event_count` for why that order.
+        let retired = self.retired_panics.load(Ordering::Relaxed);
         let guard = self.lock_inner();
-        guard.as_ref().map_or(0, |c| c.panic_count())
+        retired + guard.as_ref().map_or(0, |c| c.panic_count())
     }
 
     /// Milliseconds since the most recent inbound streaming frame of
@@ -931,7 +965,7 @@ impl StreamingClient {
         // lock held.
         let (taken_client, prev_session) = {
             let mut cb_guard = self.lock_callback();
-            let taken = self.lock_inner().take();
+            let taken = self.take_inner();
             *cb_guard = None;
             let session = std::mem::replace(
                 &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
@@ -1247,6 +1281,8 @@ mod tests {
                 on_teardown: None,
                 registers_drain_flag: true,
             })),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
         };
 
         // Healthy before the panic.

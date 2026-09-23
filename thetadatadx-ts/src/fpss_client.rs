@@ -249,27 +249,27 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
         abort_waking_before_marking(
             already_aborted,
             || {
-            let raw = handle.get_raw();
-            if !raw.is_null() {
-                // SAFETY: `raw` is the live `napi_threadsafe_function` pointer
-                // owned by `handle`; it is non-null here. Release happens
-                // BEFORE taking `aborted.write()`: napi-rs holds
-                // `aborted.read()` across `call(.., Blocking)`, so taking the
-                // writer first deadlocks behind the caller this release is
-                // meant to wake. N-API allows abort release while a call is
-                // blocked; that call returns `Closing` and drops the read guard.
-                let status = unsafe {
-                    napi::sys::napi_release_threadsafe_function(
-                        raw,
-                        napi::sys::ThreadsafeFunctionReleaseMode::abort,
-                    )
-                };
-                debug_assert_eq!(
-                    status,
-                    napi::sys::Status::napi_ok,
-                    "napi_release_threadsafe_function(abort) failed",
-                );
-            }
+                let raw = handle.get_raw();
+                if !raw.is_null() {
+                    // SAFETY: `raw` is the live `napi_threadsafe_function` pointer
+                    // owned by `handle`; it is non-null here. Release happens
+                    // BEFORE taking `aborted.write()`: napi-rs holds
+                    // `aborted.read()` across `call(.., Blocking)`, so taking the
+                    // writer first deadlocks behind the caller this release is
+                    // meant to wake. N-API allows abort release while a call is
+                    // blocked; that call returns `Closing` and drops the read guard.
+                    let status = unsafe {
+                        napi::sys::napi_release_threadsafe_function(
+                            raw,
+                            napi::sys::ThreadsafeFunctionReleaseMode::abort,
+                        )
+                    };
+                    debug_assert_eq!(
+                        status,
+                        napi::sys::Status::napi_ok,
+                        "napi_release_threadsafe_function(abort) failed",
+                    );
+                }
             },
             || {
                 handle.with_write_aborted(|mut aborted| {
@@ -401,6 +401,32 @@ fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::R
 type InnerSlot = Arc<Mutex<Option<Arc<RustStreamingClient>>>>;
 type CallbackSlot = Arc<Mutex<Option<StreamingCallbackRegistration<TsfnCallback>>>>;
 type DrainedFlags = Arc<Mutex<Vec<Arc<AtomicBool>>>>;
+type RetiredCounts = Arc<RetiredFaults>;
+
+/// User-callback faults and ring-overflow drops accrued by every streaming
+/// session a handle has already retired.
+///
+/// Both counters are documented as cumulative, and a caller reads them after
+/// stopping precisely because that is when the run is over. Reading them off
+/// the live session alone answered zero the moment the session was gone, so a
+/// run that faulted and a run that did not were indistinguishable. Held
+/// behind an `Arc` because the teardown path takes the slots by handle rather
+/// than through `&self`.
+#[derive(Default)]
+struct RetiredFaults {
+    panics: AtomicU64,
+    dropped: AtomicU64,
+}
+
+impl RetiredFaults {
+    /// Fold a retiring session's counts into the running totals.
+    fn absorb(&self, client: &RustStreamingClient) {
+        self.panics
+            .fetch_add(client.panic_count(), Ordering::Relaxed);
+        self.dropped
+            .fetch_add(client.dropped_count(), Ordering::Relaxed);
+    }
+}
 
 /// Standalone streaming-only client.
 ///
@@ -452,6 +478,9 @@ pub struct StreamingClient {
     /// no teardown is ever called. Wrapped in `Arc` so the dispatcher
     /// thread holds its own handle to publish that state.
     dispatcher: Arc<Mutex<DispatcherSession>>,
+    /// Faults and drops accrued by sessions this handle has already retired.
+    /// See [`RetiredFaults`].
+    retired: RetiredCounts,
 }
 
 #[derive(Clone)]
@@ -481,6 +510,9 @@ impl Drop for StreamingClient {
     /// never blocks on a Rust lock the destructor holds.
     fn drop(&mut self) {
         let taken_client = self.inner.lock().unwrap_or_else(|e| e.into_inner()).take();
+        if let Some(client) = &taken_client {
+            self.retired.absorb(client);
+        }
         let prev_session = std::mem::replace(
             &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
             DispatcherSession::Idle,
@@ -607,6 +639,7 @@ impl StreamingClient {
         callback: CallbackSlot,
         dispatcher: Arc<Mutex<DispatcherSession>>,
         prev_drained: DrainedFlags,
+        retired: &RetiredFaults,
     ) {
         // Take the client and stored callback out under the binding mutexes,
         // then release both before signalling shutdown so a dispatcher
@@ -619,6 +652,9 @@ impl StreamingClient {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
+            if let Some(client) = &taken {
+                retired.absorb(client);
+            }
             *cb_guard = None;
             let session = std::mem::replace(
                 &mut *dispatcher
@@ -1128,15 +1164,22 @@ impl StreamingClient {
         ))
     }
 
-    /// Cumulative count of streaming events the TLS reader could not publish into
-    /// the event ring because the consumer fell behind. Snapshot the value
-    /// BEFORE `reconnect()` if you need to accumulate drops across session
-    /// boundaries — `reconnect` rebuilds the inner client and the counter
-    /// resets. Returned as `bigint` for the full 64-bit unsigned range.
+    /// Count of streaming events the TLS reader could not publish into the
+    /// event ring because the consumer fell behind, across every session this
+    /// handle has run. A `reconnect()` rebuilds the inner client; the drops
+    /// the previous session recorded stay in the total. Returned as `bigint`
+    /// for the full 64-bit unsigned range.
     #[napi(js_name = "droppedEventCount")]
     pub fn dropped_event_count(&self) -> napi::bindgen_prelude::BigInt {
+        // Retired total first, then the live session: a teardown landing
+        // between the two reads leaves the live session's count out of this
+        // answer and in the next one, where the other order would count it
+        // twice and make a monotonic counter jump.
+        let retired = self.retired.dropped.load(Ordering::Relaxed);
         let guard = self.lock_inner();
-        napi::bindgen_prelude::BigInt::from(guard.as_ref().map_or(0, |c| c.dropped_count()))
+        napi::bindgen_prelude::BigInt::from(
+            retired + guard.as_ref().map_or(0, |c| c.dropped_count()),
+        )
     }
 
     /// Point-in-time count of events published into the ring but not yet
@@ -1164,8 +1207,11 @@ impl StreamingClient {
     /// stop event delivery. Returned as `bigint` for the full 64-bit unsigned range.
     #[napi(js_name = "panicCount")]
     pub fn panic_count(&self) -> napi::bindgen_prelude::BigInt {
+        // Retired total first, then the live session; see
+        // `droppedEventCount` for why that order.
+        let retired = self.retired.panics.load(Ordering::Relaxed);
         let guard = self.lock_inner();
-        napi::bindgen_prelude::BigInt::from(guard.as_ref().map_or(0, |c| c.panic_count()))
+        napi::bindgen_prelude::BigInt::from(retired + guard.as_ref().map_or(0, |c| c.panic_count()))
     }
 
     /// Milliseconds since the most recent inbound streaming frame of any
@@ -1216,6 +1262,7 @@ impl StreamingClient {
             Arc::clone(&self.callback),
             Arc::clone(&self.dispatcher),
             Arc::clone(&self.prev_drained),
+            &self.retired,
         );
     }
 
@@ -1262,9 +1309,10 @@ impl StreamingClient {
         let callback = Arc::clone(&self.callback);
         let dispatcher = Arc::clone(&self.dispatcher);
         let prev_drained = Arc::clone(&self.prev_drained);
+        let retired = Arc::clone(&self.retired);
         runtime()?
             .spawn_blocking(move || {
-                Self::stop_streaming_slots(inner, callback, dispatcher, prev_drained)
+                Self::stop_streaming_slots(inner, callback, dispatcher, prev_drained, &retired)
             })
             .await
             .map_err(|e| napi::Error::from_reason(format!("reconnect teardown panicked: {e}")))?;
@@ -1348,6 +1396,7 @@ impl StreamingClient {
             next_callback_generation: AtomicU64::new(1),
             prev_drained: Arc::new(Mutex::new(Vec::new())),
             dispatcher: Arc::new(Mutex::new(DispatcherSession::Idle)),
+            retired: RetiredCounts::default(),
         }
     }
 }

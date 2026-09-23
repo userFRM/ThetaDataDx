@@ -30,7 +30,7 @@
 use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
-use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering as AtomicOrdering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{set_error, set_error_from, set_error_with_code};
@@ -206,6 +206,30 @@ pub struct ThetaDataDxStreamHandle {
     /// catch-arm the instant an outer panic kills the event loop — see
     /// [`publish_failed_if_current`].
     dispatcher: Arc<Mutex<FfpssDispatcherSession>>,
+    /// User-callback panics and ring-overflow drops accrued by every session
+    /// this handle has already retired. See [`ThetaDataDxStreamHandle::take_inner`].
+    retired_panics: AtomicU64,
+    retired_dropped: AtomicU64,
+}
+impl ThetaDataDxStreamHandle {
+    /// Retire the live session, folding its panic and drop counts into this
+    /// handle's running totals on the way out.
+    ///
+    /// Every teardown takes the session through here. Both counters are
+    /// documented as cumulative, and a caller reads them after shutting down
+    /// precisely because that is when the run is over; reading them off the
+    /// live session alone answered zero the moment the session was gone, so a
+    /// run that faulted and a run that did not were indistinguishable.
+    fn take_inner(&self) -> Option<Arc<thetadatadx::fpss::StreamingClient>> {
+        let taken = self.inner.lock_recover().take();
+        if let Some(client) = &taken {
+            self.retired_panics
+                .fetch_add(client.panic_count(), AtomicOrdering::Relaxed);
+            self.retired_dropped
+                .fetch_add(client.dropped_count(), AtomicOrdering::Relaxed);
+        }
+        taken
+    }
 }
 
 /// Saved FPSS connection parameters for FFI-safe (re)connection.
@@ -1589,6 +1613,8 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
             state: AtomicU8::new(STREAM_STATE_FRESH),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
         }))
     })
 }
@@ -2191,7 +2217,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // a callback re-entering any `thetadatadx_streaming_*` API that needs
         // `handle.inner.lock()` never sees the lock held while the old
         // session tears down.
-        let taken_old = handle.inner.lock_recover().take();
+        let taken_old = handle.take_inner();
         // Extract the old dispatcher session and RELEASE the dispatcher lock
         // before the join: the old dispatcher keeps draining ring-buffered
         // events through the user callback until it observes the shutdown, and
@@ -2459,7 +2485,7 @@ fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSess
     // re-enters `handle.inner` via the user callback from observing the lock
     // held. Holding it across the if-let block (scrutinee form) would extend
     // the guard over the teardown and break the lock-free re-entry invariant.
-    let taken = handle.inner.lock_recover().take();
+    let taken = handle.take_inner();
     if let Some(client) = taken {
         handle
             .prev_drained
@@ -2668,10 +2694,12 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_connected_addr(
 
 /// Cumulative count of FPSS events the TLS reader could not publish
 /// into the Disruptor ring because the consumer fell behind and the
-/// ring was full (`Producer::try_publish` returned `RingBufferFull`).
+/// ring was full (`Producer::try_publish` returned `RingBufferFull`),
+/// counted across every session this handle has run: a reconnect or a
+/// shutdown retires the session, and the drops it recorded stay in the
+/// total.
 ///
-/// Returns 0 if the handle is null or no callback has been installed
-/// yet.
+/// Returns 0 if the handle is null or no session has ever started.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
     handle: *const ThetaDataDxStreamHandle,
@@ -2682,8 +2710,13 @@ pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
+        // Retired total first, then the live session: a teardown landing
+        // between the two reads leaves the live session's count out of this
+        // answer and in the next one, where the other order would count it
+        // twice and make a monotonic counter jump.
+        let retired = handle.retired_dropped.load(AtomicOrdering::Relaxed);
         let guard = handle.inner.lock_recover();
-        guard.as_ref().map_or(0, |c| c.dropped_count())
+        retired + guard.as_ref().map_or(0, |c| c.dropped_count())
     })
 }
 
@@ -2736,15 +2769,16 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_capacity(
 }
 
 /// Cumulative count of user-callback panics caught by the per-invocation
-/// `catch_unwind` boundary on this FPSS handle since the current stream
-/// started.
+/// `catch_unwind` boundary on this FPSS handle, counted across every
+/// session it has run: a reconnect or a shutdown retires the session, and
+/// the panics it caught stay in the total.
 ///
 /// Each caught panic is also surfaced via `tracing::error!` with target
 /// `thetadatadx::fpss::poller`. A panic in the callback is caught,
 /// recorded here, and does not stop event delivery — the next event
 /// continues normally. Safe to call from any thread without blocking.
 ///
-/// Returns 0 if the handle is null or no callback has been installed yet.
+/// Returns 0 if the handle is null or no session has ever started.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
     handle: *const ThetaDataDxStreamHandle,
@@ -2755,8 +2789,11 @@ pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
+        // Retired total first, then the live session; see
+        // `thetadatadx_streaming_dropped_events` for why that order.
+        let retired = handle.retired_panics.load(AtomicOrdering::Relaxed);
         let guard = handle.inner.lock_recover();
-        guard.as_ref().map_or(0, |c| c.panic_count())
+        retired + guard.as_ref().map_or(0, |c| c.panic_count())
     })
 }
 
@@ -3357,7 +3394,7 @@ mod teardown_deadlock_tests {
     //! the stand-in could never acquire the lock, the join would hang, and the
     //! watchdog would fire.
 
-    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
     use std::sync::{Arc, Barrier, Mutex};
     use std::time::Duration;
 
@@ -3388,6 +3425,8 @@ mod teardown_deadlock_tests {
             state: AtomicU8::new(STREAM_STATE_ACTIVE),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Arc::new(Mutex::new(session)),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
         }
     }
 
@@ -3500,7 +3539,7 @@ mod health_on_outer_panic_tests {
     //! dead thread. This pins [`super::publish_failed_if_current`], the catch-arm
     //! publish both `set_callback` and `reconnect` spawns route through.
 
-    use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
     use std::sync::{Arc, Mutex};
 
     use super::{
@@ -3545,6 +3584,8 @@ mod health_on_outer_panic_tests {
             state: AtomicU8::new(STREAM_STATE_ACTIVE),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Arc::new(Mutex::new(session)),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
         };
         (handle, drained)
     }
@@ -3648,6 +3689,48 @@ mod health_on_outer_panic_tests {
         }
     }
 
+    /// A shut-down session keeps the faults it recorded.
+    ///
+    /// `panic_count` and `dropped_events` are documented as cumulative, and a
+    /// caller reads them after shutting down precisely because that is when
+    /// the run is over. Reading them off the live session alone answered zero
+    /// the moment the session was gone, so a run that faulted and a run that
+    /// did not were indistinguishable.
+    #[test]
+    fn a_retired_session_keeps_its_fault_count() {
+        let client = StreamingClient::for_io_fault_test();
+        client.record_panic();
+        client.record_panic();
+        let handle = ThetaDataDxStreamHandle {
+            inner: Arc::new(Mutex::new(Some(Arc::clone(&client)))),
+            connect_params: StreamingConnectParams {
+                creds: thetadatadx::Credentials::api_key("test"),
+                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
+                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
+            },
+            callback: Mutex::new(None),
+            state: AtomicU8::new(STREAM_STATE_ACTIVE),
+            prev_drained: Mutex::new(Vec::new()),
+            dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
+        };
+
+        // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the
+        // whole test, so the reader's non-null / not-yet-freed precondition holds.
+        let live = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
+        assert_eq!(live, 2, "the live session reports the faults it caught");
+
+        let retired = handle.take_inner();
+        assert!(retired.is_some(), "the live session was the one retired");
+        // SAFETY: as above.
+        let after = unsafe { super::thetadatadx_streaming_panic_count(&handle) };
+        assert_eq!(
+            after, 2,
+            "a retired session's faults stay in the handle's total"
+        );
+    }
+
     /// The REAL FFI dispatcher loop (`run_ffi_dispatcher`), run over a client
     /// already in the faulted terminal state, must publish `Failed` so
     /// `thetadatadx_streaming_is_streaming` flips to 0 WITHOUT any teardown join.
@@ -3673,6 +3756,8 @@ mod health_on_outer_panic_tests {
             state: AtomicU8::new(STREAM_STATE_ACTIVE),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
         };
 
         // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the

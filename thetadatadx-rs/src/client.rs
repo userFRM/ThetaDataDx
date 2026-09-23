@@ -254,6 +254,18 @@ pub(crate) struct StreamingState {
     /// from `JoinHandle::join()` returning `Err(_)` rather than a
     /// separate atomic flag.
     dispatcher: Mutex<DispatcherSession>,
+    /// User-callback faults accrued by every streaming session this client
+    /// has already retired.
+    ///
+    /// The counter is documented as cumulative, and a caller reads it after
+    /// stopping precisely because that is when the run is over. Reading it
+    /// off the live session alone answered zero the moment the session was
+    /// gone, so a run that faulted and a run that did not were indis-
+    /// tinguishable, and the honest answer was the one that never appeared.
+    retired_panics: AtomicU64,
+    /// Ring-overflow drops accrued by every retired session, kept for the
+    /// same reason as [`Self::retired_panics`].
+    retired_dropped: AtomicU64,
 }
 
 /// The deferred, lock-free part of a teardown, extracted under the dispatcher
@@ -306,6 +318,8 @@ impl StreamingState {
             prev_drained: Mutex::new(Vec::new()),
             stop_generation: AtomicU64::new(0),
             dispatcher: Mutex::new(DispatcherSession::Idle),
+            retired_panics: AtomicU64::new(0),
+            retired_dropped: AtomicU64::new(0),
         }
     }
 
@@ -483,7 +497,7 @@ impl StreamingState {
         let TeardownWork { client, session } = work;
         // Shut the FPSS client signal so its reader thread + event ring
         // consumer drain and exit.
-        if let Some(client) = client {
+        if let Some(client) = &client {
             client.shutdown();
         }
         if let DispatcherSession::Running {
@@ -555,6 +569,15 @@ impl StreamingState {
                     }
                 }
             }
+        }
+        // The dispatcher is joined, so this session's fault and drop counts
+        // are final. Fold them into the client's running totals before the
+        // last handle to the session goes.
+        if let Some(client) = client {
+            self.retired_panics
+                .fetch_add(client.panic_count(), Ordering::Relaxed);
+            self.retired_dropped
+                .fetch_add(client.dropped_count(), Ordering::Relaxed);
         }
     }
 
@@ -1236,19 +1259,25 @@ impl Client {
         Ok(())
     }
 
-    /// Snapshot of events the TLS reader could not publish into the
-    /// event ring because the consumer fell behind and the ring
-    /// was full. Returns `0` when streaming has not started.
+    /// Events the TLS reader could not publish into the event ring because
+    /// the consumer fell behind and the ring was full, counted across every
+    /// session this client has run. Returns `0` when streaming has never
+    /// started; a session that has been stopped keeps its count.
     ///
     /// Operators should poll this on a periodic timer (e.g. every
     /// second) and emit a `warn` log on any non-zero delta. A
     /// per-drop log would amplify under sustained overflow.
     #[must_use]
     pub(crate) fn dropped_event_count(&self) -> u64 {
+        // Retired total first, then the live session: a teardown landing
+        // between the two reads leaves the live session's count out of this
+        // answer and in the next one, where a load in the other order would
+        // count it twice and make a monotonic counter jump.
+        let retired = self.streaming.retired_dropped.load(Ordering::Relaxed);
         let snap = self.streaming.state.load();
         match &**snap {
-            StreamingSlot::Live { client } => client.dropped_count(),
-            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+            StreamingSlot::Live { client } => retired + client.dropped_count(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => retired,
         }
     }
 
@@ -1340,13 +1369,18 @@ impl Client {
     /// `PyErr::write_unraisable` (the Python binding bumps this counter via
     /// the binding-only `record_panic` shim on the unraisable path). The
     /// TypeScript binding surfaces JS errors via Node's `uncaughtException`
-    /// instead of this counter. Returns `0` when streaming has not started.
+    /// instead of this counter. Counted across every session this client has
+    /// run: `0` when streaming has never started, and a session that has been
+    /// stopped keeps its count.
     #[must_use]
     pub(crate) fn panic_count(&self) -> u64 {
+        // Retired total first, then the live session; see
+        // [`Self::dropped_event_count`] for why that order.
+        let retired = self.streaming.retired_panics.load(Ordering::Relaxed);
         let snap = self.streaming.state.load();
         match &**snap {
-            StreamingSlot::Live { client } => client.panic_count(),
-            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
+            StreamingSlot::Live { client } => retired + client.panic_count(),
+            StreamingSlot::Idle | StreamingSlot::Stopped => retired,
         }
     }
 

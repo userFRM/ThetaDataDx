@@ -2892,11 +2892,11 @@ export declare class StreamingClient {
    */
   activeFullSubscriptions(): any
   /**
-   * Cumulative count of streaming events the TLS reader could not publish into
-   * the event ring because the consumer fell behind. Snapshot the value
-   * BEFORE `reconnect()` if you need to accumulate drops across session
-   * boundaries — `reconnect` rebuilds the inner client and the counter
-   * resets. Returned as `bigint` for the full 64-bit unsigned range.
+   * Count of streaming events the TLS reader could not publish into the
+   * event ring because the consumer fell behind, across every session this
+   * handle has run. A `reconnect()` rebuilds the inner client; the drops
+   * the previous session recorded stay in the total. Returned as `bigint`
+   * for the full 64-bit unsigned range.
    */
   droppedEventCount(): bigint
   /**
@@ -2999,11 +2999,10 @@ export declare class StreamView {
    * Cumulative count of streaming events that were dropped because the
    * callback fell behind and the in-flight buffer was full.
    *
-   * The value matches every other binding (C ABI, Python, C++). The
-   * counter resets when the session is recreated -- that happens on
-   * `stopStreaming()` and `reconnect()`. Snapshot the value before
-   * reconnect if you need to accumulate drops across session
-   * boundaries.
+   * The value matches every other binding (C ABI, Python, C++), and it
+   * counts every session this client has run: `stopStreaming()` and
+   * `reconnect()` retire the session, and the drops it recorded stay in
+   * the total.
    *
    * Returned as `bigint` so it can represent the full 64-bit unsigned range
    * (Number would top out at 2^53).

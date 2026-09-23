@@ -53,7 +53,7 @@ Incoming events are buffered between the connection and your callback. If your c
 | Accessor | Tells you |
 |---|---|
 | `ring_occupancy()` / `ring_capacity()` | Buffered-event count against the fixed buffer size. Occupancy trending toward capacity predicts drops; sample it freely, it never blocks the feed. |
-| `dropped_event_count()` | Total events dropped since the session started. Nonzero means your callback is too slow — do less work per event or hand off to a queue. |
+| `dropped_event_count()` | Total events dropped across every session this client has run, kept across a reconnect or a stop. Nonzero means your callback is too slow — do less work per event or hand off to a queue. |
 | `millis_since_last_event()` | Milliseconds since the last inbound frame of any kind. Steady growth during market hours is the earliest sign of a dead connection. |
 | `last_event_received_at_unix_nanos()` | Timestamp of the most recent inbound frame. |
 | `last_connected_addr()` | The live server `host:port`, following the session across reconnects. |

@@ -196,9 +196,12 @@ class TestPanicIsolationBehavioral:
                 break
             time.sleep(0.01)
 
-        # Allow the dispatcher one more batch cycle so at least one
-        # post-exception event reaches the callback before we stop.
-        deadline2 = time.monotonic() + 2.0
+        # Wait for a post-exception event, long enough to cover the server's
+        # own quiet period: the login acknowledgement lands within half a
+        # second of the handshake and the heartbeat stream starts roughly two
+        # seconds later, so a two-second window ends on that boundary and the
+        # test reads the server's silence as stopped delivery.
+        deadline2 = time.monotonic() + 10.0
         while time.monotonic() < deadline2:
             if delivered[0] >= 1:
                 break
