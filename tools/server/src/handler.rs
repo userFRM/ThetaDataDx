@@ -644,18 +644,8 @@ pub async fn generic_with_overrides(
 
     // Build the flat v3 rows once. The CSV / NDJSON renderers consume them
     // directly (contract identity inline per row); the JSON renderer groups
-    // option rows under their `contract`. The request contract params are the
-    // source of the per-row / contract identity — wildcard responses echo the
-    // contract columns per row (those win), but the wire never carries
-    // `symbol` and a single-contract response carries no contract columns, so
-    // they are threaded from here where the query is known.
-    let contract = format::ContractParams {
-        symbol: params.get("symbol").map(String::as_str),
-        expiration: params.get("expiration").map(String::as_str),
-        strike: params.get("strike").map(String::as_str),
-        right: params.get("right").map(String::as_str),
-    };
-    let rows = format::response_rows(ep, &contract, &output);
+    // option rows under their `contract`.
+    let rows = format::response_rows(ep, params.get("symbol").map(String::as_str), &output);
     match response_format {
         ResponseFormat::Json => {
             let mut json_val = format::json_envelope(ep, rows);
