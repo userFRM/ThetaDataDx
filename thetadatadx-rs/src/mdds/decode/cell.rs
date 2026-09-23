@@ -554,14 +554,7 @@ pub(crate) fn row_contract_right(
 //   * `crate::decode::column::{extract_column, BLOCK_ROWS}` for the
 //     bulk column extraction
 //
-// The generated `decode_generated.rs` emits a `pub fn` per tick type, and
-// every one of them now has a caller. Two did not: `parse_calendar_days` and
-// `parse_option_contracts` were superseded by the hand-written
-// `dual_type_columns::*_v3` parsers, which handle columns arriving as either
-// `Number` or `Text` on the v3 wire. The generator no longer emits them, so
-// the module needs no dead-code allowance — and removing it surfaced
-// `row_calendar_status`, which only the generated calendar parser had ever
-// called.
+// `CalendarDay` and `OptionContract` are hand-parsed in `dual_type_columns`; the generator does not emit them.
 #[allow(clippy::pedantic)] // Reason: auto-generated parser code, not under our control.
 mod decode_generated {
     use super::*;

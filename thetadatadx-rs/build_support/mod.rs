@@ -1,9 +1,8 @@
 //! Build-time generator orchestration for `thetadatadx`.
 //!
 //! The build pipeline has these responsibilities:
-//! - generate the trade/quote condition tables and the vendor
-//!   vocabulary tables from `data/*.toml` into the internal `tdbe`
-//!   module;
+//! - generate the trade/quote condition tables from `data/*.toml` into
+//!   the internal `tdbe` module;
 //! - generate endpoint-facing surfaces from the explicit endpoint
 //!   spec plus the upstream wire contract in `proto/mdds.proto`;
 //! - generate tick decoders from `tick_schema.toml`.
@@ -21,7 +20,6 @@ mod endpoints;
 #[cfg(feature = "grpc-codegen")]
 mod grpc;
 mod ticks;
-mod vocabulary;
 
 /// Runs the build-time generation pipeline: condition tables, endpoint
 /// surfaces, and tick decoders. Under the `grpc-codegen` feature it also
@@ -29,7 +27,6 @@ mod vocabulary;
 /// `protoc`); a default build skips that and uses the committed snapshot.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     conditions::generate()?;
-    vocabulary::generate()?;
     // gRPC stubs ship pre-generated at `proto/beta_endpoints.snapshot.rs`.
     // Only regenerate + drift-check them under `grpc-codegen`, so a normal
     // build invokes no `protoc`. The check is read-only; refresh the

@@ -158,6 +158,18 @@ fn join_dispatcher_with_wake(
     handle.join()
 }
 
+/// Wake first, mark second: `aborted.write()` parks behind the read guard a blocking `call` holds.
+pub(crate) fn abort_waking_before_marking(
+    already_marked: bool,
+    wake: impl FnOnce(),
+    mark: impl FnOnce(),
+) {
+    if !already_marked {
+        wake();
+    }
+    mark();
+}
+
 /// Build the dispatcher teardown wake hook for a `ThreadsafeFunction`-backed
 /// per-event callback path.
 ///
@@ -207,29 +219,6 @@ fn join_dispatcher_with_wake(
 /// the same function, so firing it on every stop would break a reconnected
 /// session; gating it behind the grace fires it only when it is the sole way to
 /// break a real deadlock.
-/// Abort in the one order that does not deadlock: wake first, mark second.
-///
-/// napi-rs holds `aborted.read()` across a blocking `call`, so taking
-/// `aborted.write()` before waking parks the aborter behind the very caller
-/// the wake is meant to release. The wake is lock-free and safe to issue
-/// while that read guard is held; the caller then returns `Closing` and drops
-/// it, after which the write succeeds.
-///
-/// This exists as a function, rather than as two copies of the sequence, so
-/// the ordering is asserted once. It was written twice before: here and in
-/// the test model that stands in for the N-API function. Reversing the order
-/// in this file left the model, and therefore the test, unchanged and green.
-pub(crate) fn abort_waking_before_marking(
-    already_marked: bool,
-    wake: impl FnOnce(),
-    mark: impl FnOnce(),
-) {
-    if !already_marked {
-        wake();
-    }
-    mark();
-}
-
 pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Send> {
     // Clone the SHARED handle (an `Arc<ThreadsafeFunctionHandle>`). Every clone
     // of the threadsafe function — including the one the blocked consumer holds
@@ -406,26 +395,12 @@ type RetiredCounts = Arc<RetiredFaults>;
 /// User-callback faults and ring-overflow drops accrued by every streaming
 /// session a handle has already retired.
 ///
-/// Both counters are documented as cumulative, and a caller reads them after
-/// stopping precisely because that is when the run is over. Reading them off
-/// the live session alone answered zero the moment the session was gone, so a
-/// run that faulted and a run that did not were indistinguishable. Held
-/// behind an `Arc` because the teardown path takes the slots by handle rather
-/// than through `&self`.
+/// Held behind an `Arc` because the teardown path takes the slots by handle
+/// rather than through `&self`.
 #[derive(Default)]
 struct RetiredFaults {
     panics: AtomicU64,
     dropped: AtomicU64,
-}
-
-impl RetiredFaults {
-    /// Fold a retiring session's counts into the running totals.
-    fn absorb(&self, client: &RustStreamingClient) {
-        self.panics
-            .fetch_add(client.panic_count(), Ordering::Relaxed);
-        self.dropped
-            .fetch_add(client.dropped_count(), Ordering::Relaxed);
-    }
 }
 
 /// Standalone streaming-only client.
@@ -510,9 +485,6 @@ impl Drop for StreamingClient {
     /// never blocks on a Rust lock the destructor holds.
     fn drop(&mut self) {
         let taken_client = self.inner.lock().unwrap_or_else(|e| e.into_inner()).take();
-        if let Some(client) = &taken_client {
-            self.retired.absorb(client);
-        }
         let prev_session = std::mem::replace(
             &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
             DispatcherSession::Idle,
@@ -652,9 +624,6 @@ impl StreamingClient {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .take();
-            if let Some(client) = &taken {
-                retired.absorb(client);
-            }
             *cb_guard = None;
             let session = std::mem::replace(
                 &mut *dispatcher
@@ -673,7 +642,6 @@ impl StreamingClient {
             flags.push(drained_flag);
             drop(flags);
             client.shutdown();
-            drop(client);
             if let DispatcherSession::Running {
                 handle,
                 on_teardown,
@@ -702,6 +670,14 @@ impl StreamingClient {
                     }
                 }
             }
+            // Once the dispatcher has stopped: `shutdown()` only signals, and
+            // the callback keeps firing until the ring drains.
+            retired
+                .panics
+                .fetch_add(client.panic_count(), Ordering::Relaxed);
+            retired
+                .dropped
+                .fetch_add(client.dropped_count(), Ordering::Relaxed);
         }
     }
 
@@ -1736,9 +1712,6 @@ mod teardown_deadlock_tests {
         /// sequence rather than a second copy of it that could agree with a
         /// broken original.
         fn abort(&self) {
-            // Routed through the production ordering rather than repeating
-            // it: the sequence is the invariant under test, and a copy of it
-            // here is a copy that can agree with a broken original.
             let already = self.released.swap(true, Ordering::AcqRel);
             super::abort_waking_before_marking(
                 already,

@@ -19,7 +19,6 @@ presence + return type) run without any network connection.
 from __future__ import annotations
 
 import os
-import pathlib
 import time
 
 import pytest
@@ -34,18 +33,12 @@ except ImportError:
 
 
 def _creds_path() -> str:
-    """Credentials file for the live-gated tests in this module.
-
-    `THETADATADX_TEST_CREDS` first, which is what this module's docstring
-    promises and what the rest of the suite reads; otherwise `creds.txt` at the
-    repository root, so a developer checkout works without exporting anything.
-    An absolute path into one machine's home directory was neither, and pinned
-    every test that used it to skip everywhere else.
-    """
-    from_env = os.environ.get("THETADATADX_TEST_CREDS")
-    if from_env:
-        return from_env
-    return str(pathlib.Path(__file__).resolve().parents[2] / "creds.txt")
+    path = os.environ.get("THETADATADX_TEST_CREDS")
+    if not path:
+        pytest.skip(
+            "set THETADATADX_TEST_CREDS=path/to/creds.txt to enable this live test"
+        )
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -101,14 +94,7 @@ class TestPanicCountApiSurface:
         Uses a minimal StreamingClient constructed without opening a network
         connection — panic_count() must not block or raise.
         """
-        creds_file = _creds_path()
-        if not os.path.exists(creds_file):
-            pytest.skip(
-                f"no credentials at {creds_file}; "
-                "set THETADATADX_TEST_CREDS to enable this live-credential test"
-            )
-
-        creds = client.Credentials.from_file(creds_file)
+        creds = client.Credentials.from_file(_creds_path())
         config = client.Config.production()
         fpss = client.StreamingClient(creds, config)
 
@@ -129,20 +115,8 @@ class TestPanicCountApiSurface:
 @pytest.fixture
 def fpss_client():
     """Build a standalone StreamingClient, or skip when there are no credentials."""
-    creds_path = _creds_path()
-    if not os.path.exists(creds_path):
-        pytest.skip(
-            f"no credentials at {creds_path}; "
-            "set THETADATADX_TEST_CREDS to enable the live behavioral tests"
-        )
-    creds = client.Credentials.from_file(creds_path)
+    creds = client.Credentials.from_file(_creds_path())
     config = client.Config.production()
-    # `client` is the module, imported under that name at the top of this file.
-    # Binding the StreamingClient to the same name made `client` a local for
-    # the whole fixture, so the `client.Credentials` line above raised
-    # UnboundLocalError before the module was ever reached. Every test using
-    # this fixture errored the moment credentials were present, which never
-    # happened, because the skip fired first on every machine but one.
     streaming = client.StreamingClient(creds, config)
     yield streaming
     try:

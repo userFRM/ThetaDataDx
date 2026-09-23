@@ -7,17 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-09-22
+## [0.5.0] - 2026-09-23
 
 ### Added
 
-- **The vendor's own vocabulary ships with the SDK.** `thetadatadx::utils::vocabulary` carries the names the vendor uses for the things its protocol addresses: the 91 columns a response can carry, the 40 request families the service exposes, the 29 arguments those requests take, and the output formats, account tiers and calendar query kinds. Most already appear on the reference pages; collecting them means a caller can check a name against the vendor's vocabulary instead of against this SDK's spelling of it. `vendor_column_name` resolves the five column names this SDK spells differently, so a join against the vendor's column names no longer silently misses them.
-
-- **An index market value is served as the feed sent it, on its own event.** The vendor publishes a market value for an index, carrying `ms_of_day`, `date` and `market_price` and nothing else: an index has no NBBO, so there is no bid or ask beside the price and no midpoint between them. This SDK decoded every market-value frame as the eleven-field quote layout, while an index carries the eight-field trade layout, so an index market-value subscription reported itself active and never emitted a tick. It now decodes the layout the feed sends, on the baseline the terminal routes it to, and delivers a distinct `IndexMarketValue` event rather than a `MarketValue` carrying two fields that do not apply. The price is passed through unchanged; the vendor's own client replaces it with the price plus a random offset of up to five cents, which is not in the feed and is not reproduced here.
+- **An index market value is served as the feed sent it, on its own event.** The vendor publishes a market value for an index, carrying `ms_of_day`, `date` and `market_price` and nothing else: an index has no NBBO, so there is no bid or ask beside the price and no midpoint between them. This SDK decoded every market-value frame as the eleven-field quote layout, while an index carries the eight-field trade layout, so an index market-value subscription reported itself active and never emitted a tick. It now decodes the layout the feed sends and delivers a distinct `IndexMarketValue` event rather than a `MarketValue` carrying two fields that do not apply, with the price exactly as the feed sent it. The local server forwards it on the WebSocket as a `MARKET_VALUE` frame carrying `date`, `ms_of_day` and `market_price`.
 
 - **The MCP server can report what the account is entitled to.** A new `entitlements` tool returns the subscription tier for each asset class. Tools are advertised per asset class, so a class the account holds no tier for is withheld from `tools/list` entirely and a caller sees a whole family of tools missing with no way to learn why. This turns "those tools do not exist" into "you hold no options tier". Within a class every tool is advertised, so an individual endpoint can still refuse a call that needs a higher tier than the one held.
 
 - **The MCP server speaks the `2026-07-28` revision of the Model Context Protocol.** That revision drops the handshake: a client declares the revision it speaks on every request, in `_meta`, rather than agreeing one once at `initialize`. The server implements `server/discover`, the mandatory RPC that reports the revisions it speaks, its capabilities and its identity in a single call, so a client can pick a revision up front instead of probing. A request that declares a revision the server does not speak is refused with `-32022` and the list of revisions it does speak, so the client can retry without a second round trip. Results carry `resultType`, and `tools/list` carries the `ttlMs` freshness hint and a `cacheScope` of `private`, because the advertised tool set depends on the authenticated account's subscription and a shared cache must never hand one caller's list to another.
+
+- **The server accepts `format=json_new` and `format=json_legacy`.** Both are names the vendor serves. `json_new` is the JSON shape the server already produced; `json_legacy` is one array per column keyed by column name, with no envelope. They used to be refused with a 400.
 
 ### Removed
 
@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Two more flag accessors are gone from the trade tick.** `regular_trading_hours` compared `ms_of_day` against two constants chosen here, hardcoding one venue's session into a field served for every market, so it was already wrong for an early close or a holiday; the calendar endpoint answers that question per date and per market. `is_seller` read condition 12, which is the vendor's SELLER settlement term, a delivery option of up to sixty days that the NYSE stopped accepting in 2017, not the side that took liquidity, so signed volume built on it was reading a delivery term as an aggressor side. Removed from the Rust, Python, TypeScript and C++ surfaces, along with the `regularTradingHours` and `isSeller` properties on the TypeScript tick object. The columns they read, `ms_of_day` and `ext_condition1`, stay on the tick exactly as the vendor sends them.
 
 - **The metrics port is no longer a setter on the bindings.** One schema row generated a getter and setter into the C ABI, C++, Python and TypeScript. The only reader of that value is the Prometheus exporter, whose body sits behind a cargo feature that no binding crate, no CI job and no release artifact enables, so setting the port succeeded on every binding, reported no error and could never take effect. The configuration field stays for an embedder who compiles the feature in and sets it directly.
+
+- **The server no longer rewrites a CSV text cell that starts with `=`, `+`, `-`, `@` or a tab.** It prefixed such a cell with `'`, so a reader decoded a different value than the one the vendor sent, and the terminal does not do it. Cells are written as sent, with RFC 4180 quoting.
 
 ### Changed
 
@@ -37,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A tick column says when a zero may not be a value.** Quote and trade condition codes and exchange codes all start at zero and the vendor assigns that code a meaning: quote condition 0 is `REGULAR` and exchange 0 is the composite. A response shape that carries no such column leaves the field at zero, which reads the same as a reported one. The field documentation now says so and points at `columns()`, which records what the response actually carried.
 
-- **A renamed column carries the vendor's name for it.** Five column names here resolve onto four of the vendor's: `implied_volatility`, `ask_implied_volatility` and `bid_implied_volatility` map to `IMPLIED_VOL`, `ASK_IMPLIED_VOL` and `BID_IMPLIED_VOL`, and `underlying_ms_of_day` and `quote_ms_of_day` are one vendor column, `MS_OF_DAY2`, under two names depending on which tick holds it. Each field now records the vendor's own name, so a reader of the reference pages can resolve it without guessing. `thetadatadx::utils::vocabulary::vendor_column_name` answers the same question in code.
+- **A renamed column carries the vendor's name for it.** Five column names here resolve onto four of the vendor's: `implied_volatility`, `ask_implied_volatility` and `bid_implied_volatility` map to `IMPLIED_VOL`, `ASK_IMPLIED_VOL` and `BID_IMPLIED_VOL`, and `underlying_ms_of_day` and `quote_ms_of_day` are one vendor column, `MS_OF_DAY2`, under two names depending on which tick holds it. Each field now records the vendor's own name, so a reader of the reference pages can resolve it without guessing.
 
 - **The 0.1.0 notes below no longer describe a slow-callback watchdog.** They named `slow_callback_count()` and a microsecond threshold setter. Neither shipped in 0.1.0: the watchdog was removed before that tag, and the entry still described it.
 
@@ -58,6 +60,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The MCP server still answers `2025-11-25` and `2024-11-05` clients unchanged.** The `initialize` handshake, the negotiated `protocolVersion` in its result and the existing tool surface all behave as before; an older client sends no revision in `_meta` and is not asked to. Nothing in the tool set, the argument shapes or the returned rows changes with this revision.
 
 - **Arrow moves to 60 and polars to 0.55.** `TickColumns::to_arrow` returns an `arrow_array::RecordBatch` and `to_polars` a `polars::prelude::DataFrame`, so both crates are part of this SDK's public signature and a caller has to move with them. Recompiling against the previous major produces a type mismatch at those two call sites and nowhere else.
+
+- **A condition or exchange cell the vendor left empty is published as empty, not as code zero.** Zero is not a spare value on these columns: quote condition 0 is `REGULAR` and exchange 0 is the composite, so an empty cell used to read as a firm quote or a composite print the vendor never reported. The sixty-four condition and exchange columns are now `int | None` in Python, `number | null` in TypeScript, an Arrow null in every columnar reader, `null` in the server's JSON and an empty field in its CSV. In C and C++ each carries a `bool has_<column>` beside its value, which changes the size of several tick structs; rebuild against the new header.
+
+- **`panic_count()` and `dropped_event_count()` keep their count after the session ends.** Both are documented as cumulative and were read off the live session alone, so they answered zero from the moment `stop_streaming()` returned and a reconnect discarded whatever the previous session had recorded. They now count across every session the client has run, including faults and drops recorded while a stopping session drains.
+
+- **The standalone Python `StreamingClient.start_streaming` refuses a callback that is not callable.** It raises `InvalidParameterError` at the call site, as the unified client already did. It used to connect and then fail on the first event, off the calling thread, so the caller saw a stream that came up and never delivered.
+
+- **Every server timestamp carries three fraction digits.** A whole second renders `.000` and trailing zeros stay, which is how the terminal formats it; the fraction used to be dropped or trimmed.
+
+- **Option contract blocks come back in the order the rows arrived.** The server sorted them by the rendered contract identity, which compares the strike as text, so strike 1000 came back ahead of strike 90.
 
 ### Fixed
 
@@ -84,6 +96,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **An unreadable disconnect on a flat-file stream is retried rather than reported as an authentication failure.** A `DISCONNECTED` frame whose payload is too short to carry a reason had its reason substituted with zero, which is the vendor's live ordinal for invalid credentials and classifies as permanent, so a mid-frame reset stopped the retry and surfaced as an auth fault. The substitution is now the vendor's own unspecified reason, which classifies as transient.
 
 - **`connection_status()` now answers when a session has stopped trying.** A streaming session that exhausts its reconnect budget publishes `ReconnectsExhausted` and leaves its loop, but the status went on reporting `Reconnecting` for ever. The two states follow the same disconnect and want opposite responses: one is wait, the other is this session is over and a caller that wants a feed has to start another. Telling them apart meant watching the event stream and latching a flag, which every consumer that cared had to reinvent. `ConnectionStatus` has a terminal `ReconnectsExhausted` variant.
+
+- **A Python market-data call no longer reacquires the GIL once per log event.** The logging bridge acquired the GIL to ask Python whether each `tracing` event was enabled, including every event it then dropped. That is invisible on an idle interpreter and multiplies a call's wall time next to a busy Python thread, on the path that is meant to have released the GIL. The level is now cached per logger for 250 ms and checked first; a level you set takes effect within that window.
+
+- **A flat-file login interrupted mid-frame retries instead of reporting bad credentials.** A disconnect too short to state its reason was read as reason 0, which is `InvalidCredentials` and permanent, so the retry stopped. It now reads as `Unspecified` on the login path, as it already did on the download path.
+
+- **Daylight saving time applies before 1970.** A summer instant in 1967 to 1969 resolved to standard time and came back an hour early.
+
+- **The packaged crate builds with every feature on.** It listed the repository's maintenance binaries, which reach generator code the package does not carry, so `cargo build --all-features` against the published crate failed.
+
+- **The C++ streaming example compiles under C++17.** The README and the `Contract::option` doc used C++20 designated initializers and a missing include, against a project that requires C++17.
 
 ## [0.4.0] - 2026-08-08
 

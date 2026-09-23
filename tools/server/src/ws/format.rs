@@ -478,18 +478,8 @@ mod tests {
         })
     }
 
-    /// An index market value reaches the WS surface, under the header type
-    /// the terminal uses and carrying exactly the columns it writes.
-    ///
-    /// `EventSerializer.serializeIndexMarketValue` sets `type` to
-    /// `MARKET_VALUE`, the same as the per-contract serializer, and REMOVES
-    /// `market_bid` and `market_ask` from the payload before writing it,
-    /// because an index has no NBBO. Emitting a new header type instead would
-    /// hand a strict terminal client a `header.type` it does not recognize,
-    /// and carrying a bid or an ask would publish two fields the feed never
-    /// sent. Before this, the formatter dropped the variant entirely, so an
-    /// index market-value subscription reported itself active and never
-    /// produced a frame.
+    /// An index market value serialises under `MARKET_VALUE` with `date` / `ms_of_day` /
+    /// `market_price` only, matching the terminal's `serializeIndexMarketValue`.
     #[test]
     fn index_market_value_frame_matches_the_terminal_serializer() {
         let contract = Arc::new(Contract::stock("SPX"));

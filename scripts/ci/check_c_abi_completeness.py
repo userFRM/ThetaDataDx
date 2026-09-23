@@ -64,12 +64,6 @@ CPP_INCLUDE = REPO_ROOT / "thetadatadx-cpp" / "include"
 _SO_NAMES = ("libthetadatadx_ffi.so", "libthetadatadx_ffi.dylib")
 
 
-# Fallback regex (used only when nm cannot run — e.g. on a Windows
-# host before the C ABI gate is added to the Windows CI matrix). The
-# regex misses macro-emitted symbols, which is exactly the gap C4
-# closes. Kept for diagnostic-only paths; the production gate prefers
-# `nm`.
-SYMBOL_RE = re.compile(r"\bthetadatadx_\w+\b")
 # A header symbol counts as DECLARED only when it appears in C function
 # *declaration position*: the symbol name preceded by a return-type token
 # (an identifier, a `*`/`&` pointer-or-reference marker, a closing `>`

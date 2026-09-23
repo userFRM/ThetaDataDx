@@ -94,10 +94,12 @@ def test_dropped_event_count_callable_before_streaming(client):
 
 def test_dropped_event_count_lifecycle_callable(client):
     """The counter must remain callable across the full lifecycle:
-    pre-start / post-start / post-reconnect / post-stop. The value
-    is non-negative everywhere, and non-decreasing: a reconnect rebuilds
-    the FPSS client, and the drops the retired session recorded stay in
-    the total.
+    pre-start / post-start / post-reconnect / post-stop.
+
+    This pins reachability, not accumulation: a session with a no-op
+    callback and no subscription never overflows its ring, so every reading
+    here is zero. Accumulation is pinned in the C ABI by
+    ``a_retired_session_keeps_its_fault_count``.
     """
     client.stream.start_streaming(_noop_callback)
     post_start = client.stream.dropped_event_count()
@@ -107,16 +109,10 @@ def test_dropped_event_count_lifecycle_callable(client):
     client.stream.reconnect()
     post_reconnect = client.stream.dropped_event_count()
     assert isinstance(post_reconnect, int)
-    # Reconnect calls stop_streaming + start_streaming, which retires the
-    # FPSS client. Its drops are folded into the running total first, so the
-    # counter never goes backwards across a session boundary.
-    assert post_reconnect >= post_start
 
     client.stream.stop_streaming()
     post_stop = client.stream.dropped_event_count()
     assert isinstance(post_stop, int)
-    # The session is gone, but the drops it recorded are not.
-    assert post_stop >= post_reconnect
 
 
 def test_start_streaming_rejects_a_non_callable_at_registration(client):

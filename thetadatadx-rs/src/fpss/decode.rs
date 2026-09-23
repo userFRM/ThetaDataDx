@@ -579,13 +579,10 @@ pub fn decode_frame(
                     (Baseline::Quote, QUOTE_FIELDS)
                 }
             }) {
-                Some((contract_id, Baseline::Trade, _)) => {
+                Some((contract_id, Baseline::Trade)) => {
                     // Index: the vendor sends `ms_of_day`, the price and the
                     // date. There is no bid, no ask, and so no midpoint
-                    // between them. The price is served as sent; the
-                    // terminal's own client replaces it with the price plus a
-                    // random offset of up to five cents, which is noise the
-                    // feed did not carry and this SDK does not reproduce.
+                    // between them. The price is served as the feed sent it.
                     warn_unknown_contract(
                         contract_id,
                         "index_market_value",
@@ -608,7 +605,7 @@ pub fn decode_frame(
                         received_at_ns,
                     }))
                 }
-                Some((contract_id, _, _)) => {
+                Some((contract_id, _)) => {
                     warn_unknown_contract(
                         contract_id,
                         "market_value",
@@ -1838,9 +1835,7 @@ mod tests {
                 assert_eq!(*ms_of_day, 34_200_000);
                 assert_eq!(*date, 20_250_428);
                 // Exactly the price the feed sent, reassembled through
-                // Price(value, price_type). The terminal's own client adds a
-                // random offset of up to five cents here; that offset is not
-                // in the feed and is not reproduced.
+                // Price(value, price_type).
                 assert!(
                     (*market_price - Price::new(560_012, 8).to_f64()).abs() < f64::EPSILON,
                     "index market price must be served as sent, got {market_price}"

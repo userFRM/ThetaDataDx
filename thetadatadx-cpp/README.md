@@ -148,9 +148,7 @@ int main() {
 
     // Fluent contract-first subscriptions.
     auto stock  = thetadatadx::Contract::stock("AAPL");
-    // `OptionLeg` members in order: expiration, strike, right. Naming them
-    // with designated initializers reads better and is what the header's own
-    // example shows, but that is C++20 and this project builds at C++17.
+    // OptionLeg: expiration, strike, right
     auto option = thetadatadx::Contract::option("SPY", {"20260620", "550", "C"});
 
     streaming.subscribe(stock.quote());

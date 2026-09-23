@@ -31,8 +31,7 @@ pub enum SecType {
     /// The protocol defines this value: the vendor's own security-type enum
     /// names `-1`, so the discriminant is the vendor's rather than something
     /// chosen here. The name is not: this SDK calls it `Unknown` because that
-    /// is what it means to a caller holding one, and a caller who needs the
-    /// vendor's spelling can reach it through `utils::vocabulary`.
+    /// is what it means to a caller holding one.
     Unknown = -1,
 }
 

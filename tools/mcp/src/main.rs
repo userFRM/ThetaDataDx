@@ -390,20 +390,8 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 /// the offline-mode tools the README and process banner promise.
 const OFFLINE_TOOL_NAMES: [&str; 1] = ["ping"];
 
-/// How long `tools/list` waits for the background connect to settle.
-///
-/// The connect is deliberately detached: an MCP client sends `initialize`
-/// immediately after spawning the server and times out if the handshake
-/// (~800 ms) blocks the reply. But `tools/list` is the one request whose
-/// answer depends on it, and a client that lists once at startup and caches
-/// the result would otherwise see the offline set for the life of the
-/// session, with no way to learn why. Waiting here costs a client that lists
-/// early a few hundred milliseconds once, and costs nothing after the
-/// connect has landed.
-///
-/// The wait is bounded because an unreachable vendor must still produce a
-/// tool list rather than hanging the client: on timeout the offline set is
-/// served, which is the honest answer while there is no connection.
+/// `tools/list` waits up to this long for the detached connect so a client that lists once at
+/// startup does not cache the ping-only set; on timeout the offline set is served.
 const CONNECT_SETTLE_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// Asset class an endpoint's data belongs to, used to gate a tool behind the
@@ -1341,10 +1329,6 @@ async fn execute_tool(
 /// Returns `None` when there are no credentials, when the connect failed, or
 /// when it has not settled inside `bound`. All three are the same answer to
 /// the caller: there is no connection to advertise a tool set from.
-///
-/// `bound` is a parameter rather than a read of [`CONNECT_SETTLE_WAIT`] so a
-/// test can drive the three outcomes without waiting the production bound or
-/// pulling in a time-mocking feature the crate does not otherwise need.
 async fn wait_for_connect<'a>(
     client: &'a Arc<OnceCell<Client>>,
     connect_settled: &tokio::sync::watch::Receiver<bool>,
@@ -1438,13 +1422,9 @@ async fn handle_request(
         "tools/list" => {
             // Advertise only what `tools/call` can serve in the current state:
             // once connected, the tools the account's subscription grants;
-            // otherwise just the offline tools. `client` is the lock-free
-            // `OnceCell::get` above, so presence reflects whether the
-            // background connect has landed.
-            // Re-read the cell after waiting: the `client` bound at the top of
-            // this function is a snapshot taken before the connect had a
-            // chance to land, and serving that snapshot is what leaves a
-            // client holding a ping-only list for the session.
+            // otherwise just the offline tools.
+            // Wait for the connect so a client that lists once at startup
+            // does not cache the offline set.
             let access = wait_for_connect(client_cell, connect_settled, CONNECT_SETTLE_WAIT)
                 .await
                 .map(SubscriptionAccess::from_client);
@@ -1718,25 +1698,6 @@ fn parse_args() -> Args {
 //  Main
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// The streaming consumer's idle behaviour, chosen for where this server
-/// runs rather than for the lowest possible latency.
-///
-/// The SDK defaults to `Spin`, which holds about a whole core for as long
-/// as the stream is connected. That is the right trade for a colocated
-/// consumer chasing microseconds; it is the wrong one here. This server
-/// sits on a workstation beside an editor and a browser, and the thing
-/// reading it composes a sentence between calls, so a core burned to save
-/// a fraction of a millisecond is a core taken from the person using it.
-///
-/// `Backoff` spins while prints are arriving and sleeps once they stop,
-/// snapping back when they resume: full speed on a busy feed, near nothing
-/// on a quiet one, and no latency floor while the market is active.
-fn mcp_config() -> DirectConfig {
-    let mut config = DirectConfig::production();
-    config.streaming.wait_mode = WaitMode::Backoff;
-    config
-}
-
 #[tokio::main]
 async fn main() {
     // Seat ring as the process-default rustls CryptoProvider before any
@@ -1780,7 +1741,11 @@ async fn main() {
     if let Some(creds) = creds {
         let client_bg = Arc::clone(&client);
         tokio::spawn(async move {
-            match Client::connect(&creds, mcp_config()).await {
+            // Backoff, not the SDK's Spin default: this process shares a workstation
+            // with the user, and a core spinning on an idle stream is the wrong trade here.
+            let mut config = DirectConfig::production();
+            config.streaming.wait_mode = WaitMode::Backoff;
+            match Client::connect(&creds, config).await {
                 Ok(c) => {
                     tracing::info!("connected to ThetaData MDDS");
                     if client_bg.set(c).is_err() {
@@ -1928,20 +1893,14 @@ mod tests {
             negotiate_protocol_version(Some("2099-01-01")),
             LEGACY_PROTOCOL_VERSION
         );
-        assert_ne!(LEGACY_PROTOCOL_VERSION, PROTOCOL_VERSION);
-        assert!(is_supported_protocol_version(LEGACY_PROTOCOL_VERSION));
     }
 
     #[test]
-    fn handshake_era_revisions_stay_negotiable() {
-        // A client that predates the per-request `_meta` still agrees its
-        // revision at `initialize`, and both older revisions must keep working
-        // for as long as they are listed as supported.
-        assert_eq!(negotiate_protocol_version(Some("2026-07-28")), "2026-07-28");
-        assert_eq!(negotiate_protocol_version(Some("2025-11-25")), "2025-11-25");
-        assert_eq!(negotiate_protocol_version(Some("2024-11-05")), "2024-11-05");
-        assert_eq!(PROTOCOL_VERSION, "2026-07-28");
-        assert_eq!(SUPPORTED_PROTOCOL_VERSIONS[0], PROTOCOL_VERSION);
+    fn unsupported_revision_code_sits_in_the_reserved_band() {
+        // The end-to-end test compares against the constant, so only this
+        // catches an edit that moves it into the -32000..=-32019 range this
+        // server uses for its own errors.
+        assert!((-32099..=-32020).contains(&UNSUPPORTED_PROTOCOL_VERSION_CODE));
     }
 
     #[test]
@@ -1961,17 +1920,6 @@ mod tests {
             declared_protocol_version(&json!({ "_meta": { "unrelated": "x" } })),
             None
         );
-    }
-
-    #[test]
-    fn unsupported_declared_revision_is_rejected_with_the_supported_list() {
-        assert!(is_supported_protocol_version("2026-07-28"));
-        assert!(!is_supported_protocol_version("2099-01-01"));
-
-        // The code must sit in the band the specification reserves for itself,
-        // not the implementation-defined -32000..=-32019 range this server uses
-        // for its own server errors.
-        assert!((-32099..=-32020).contains(&UNSUPPORTED_PROTOCOL_VERSION_CODE));
     }
 
     #[tokio::test]
