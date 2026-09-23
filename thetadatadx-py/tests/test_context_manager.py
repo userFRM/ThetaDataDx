@@ -272,11 +272,17 @@ def test_close_is_idempotent_and_safe_after_streaming(client) -> None:
 
     Start streaming, close once (stops + drains), then close again: the
     second call is a no-op and must not raise or hang. Live-gated.
+
+    `close()` releases the core handle, so every vended surface answers
+    through the closed-guard afterwards -- reading the streaming state is
+    itself an error, not a `False`. That is the contract
+    `test_close_releases_and_makes_client_unusable` pins in the source.
     """
     client.stream.start_streaming(_noop_callback)
     assert client.stream.is_streaming() is True
     client.close()
-    assert client.stream.is_streaming() is False
+    with pytest.raises(RuntimeError, match="client is closed"):
+        client.stream.is_streaming()
     # Idempotent: calling close again on an already-closed client is a
     # no-op, never a panic or a hang.
     client.close()
