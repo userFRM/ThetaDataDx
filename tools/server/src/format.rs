@@ -574,14 +574,14 @@ fn contract_key(row: &sonic_rs::Value) -> (String, String, String) {
 }
 
 /// Group contract-leading rows into v3 `{contract, data}` blocks.
-fn group_rows_by_contract(mut rows: Vec<sonic_rs::Value>) -> Vec<sonic_rs::Value> {
-    // Wildcard responses already arrive grouped by contract, but a stable
-    // sort by the contract key guarantees one block per contract even if a
-    // future wire shape interleaves them — without it, an interleaved
-    // contract would emit a duplicate `{contract, data}` block. Stable, so
-    // each contract's rows keep their original (chronological) order.
-    rows.sort_by_key(contract_key);
-
+///
+/// A new block opens wherever the contract changes, so the blocks come back
+/// in the order the rows arrived. Ordering them by the contract key instead
+/// would compare the rendered strike as text, putting strike 1000 ahead of
+/// strike 90; and a response that interleaved two contracts, which none
+/// observed here does, would then be merged into blocks the wire never sent
+/// rather than carried through as it arrived.
+fn group_rows_by_contract(rows: Vec<sonic_rs::Value>) -> Vec<sonic_rs::Value> {
     let mut groups: Vec<sonic_rs::Value> = Vec::new();
     let mut current_key: Option<(String, String, String)> = None;
     let mut current_data: Vec<sonic_rs::Value> = Vec::new();
@@ -2340,6 +2340,41 @@ pub fn json_to_csv(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<St
     Some(out)
 }
 
+/// Render a flat response as the vendor's legacy JSON shape: one array per
+/// column, keyed by column name, with no envelope around it.
+///
+/// The columns are the ones the CSV header carries for `ep`, so neither
+/// rendering of a response names a column the other does not. Key order is
+/// not a contract here any more than it is on the enveloped shape: both are
+/// serialised from an unordered map and read by key.
+///
+/// A row missing a column contributes a `null` at its index, so every array
+/// stays the same length and index `i` is row `i` in all of them. An empty
+/// response is an empty object, with no key to seed.
+#[must_use]
+pub fn json_legacy(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> sonic_rs::Value {
+    let mut out = sonic_rs::json!({});
+    let Some(keys) = csv_header_order(ep, response) else {
+        return out;
+    };
+    let object = out
+        .as_object_mut()
+        .expect("freshly built JSON object is an object");
+    for key in keys {
+        let column: Vec<sonic_rs::Value> = response
+            .iter()
+            .map(|row| {
+                row.as_object()
+                    .and_then(|obj| obj.get(&key))
+                    .cloned()
+                    .unwrap_or_else(sonic_rs::Value::new_null)
+            })
+            .collect();
+        object.insert(&key, sonic_rs::Value::from(column));
+    }
+    out
+}
+
 /// Render a JSON response array as a minimal HTML `<table>` in the v3 column
 /// order for `ep`, for browser-viewable `format=html`.
 ///
@@ -2863,6 +2898,111 @@ mod tests {
         assert_eq!(at("ask_condition"), "8");
     }
 
+    /// The legacy JSON shape is columnar and carries no envelope: one array
+    /// per column, in the CSV header order, every array the same length so
+    /// index `i` is row `i` in all of them.
+    #[test]
+    fn json_legacy_emits_one_array_per_column() {
+        let ep = thetadatadx::find("option_history_quote").expect("endpoint exists");
+        let ticks = [
+            QuoteTick {
+                ms_of_day: 34_200_000,
+                bid_size: 1,
+                bid_exchange: 2,
+                has_bid_exchange: true,
+                bid: 3.0,
+                bid_condition: 0,
+                has_bid_condition: false,
+                ask_size: 5,
+                ask_exchange: 6,
+                has_ask_exchange: true,
+                ask: 7.0,
+                ask_condition: 8,
+                has_ask_condition: true,
+                date: 20240102,
+                expiration: 20260417,
+                strike: 150.0,
+                right: 'C',
+            },
+            // No contract identity, so this row carries no `expiration` /
+            // `strike` / `right` key at all — the shape that makes the
+            // transpose fall back rather than read a cell.
+            QuoteTick {
+                ms_of_day: 34_200_001,
+                bid_size: 9,
+                bid_exchange: 2,
+                has_bid_exchange: true,
+                bid: 3.5,
+                bid_condition: 4,
+                has_bid_condition: true,
+                ask_size: 5,
+                ask_exchange: 6,
+                has_ask_exchange: true,
+                ask: 7.5,
+                ask_condition: 8,
+                has_ask_condition: true,
+                date: 20240102,
+                expiration: 0,
+                strike: 0.0,
+                right: '\0',
+            },
+        ];
+        let values: Vec<sonic_rs::Value> = quote_ticks_to_json(&ticks)
+            .into_iter()
+            .map(Row::into_value)
+            .collect();
+
+        let legacy = json_legacy(ep, &values);
+        let object = legacy.as_object().expect("legacy shape is an object");
+        assert!(
+            object.get(&"response").is_none(),
+            "the legacy shape carries no envelope"
+        );
+
+        let column = |name: &str| -> Vec<sonic_rs::Value> {
+            object
+                .get(&name)
+                .and_then(|v: &sonic_rs::Value| v.as_array())
+                .unwrap_or_else(|| panic!("{name} column"))
+                .iter()
+                .cloned()
+                .collect()
+        };
+        assert_eq!(column("bid_size").len(), 2, "one entry per row");
+        assert_eq!(
+            column("bid_size")
+                .iter()
+                .map(|v: &sonic_rs::Value| v.as_i64())
+                .collect::<Vec<_>>(),
+            vec![Some(1), Some(9)],
+            "index i is row i"
+        );
+        // An absent cell stays absent through the transpose rather than
+        // shifting the column and misaligning every row below it.
+        assert!(
+            column("bid_condition")
+                .first()
+                .is_some_and(|v: &sonic_rs::Value| v.is_null()),
+            "an absent cell is null in the column"
+        );
+        // A column a row does not carry at all holds the row's place, so
+        // index 1 is still the second row in every other column.
+        let expiration = column("expiration");
+        assert_eq!(expiration.len(), 2, "the column keeps one entry per row");
+        assert!(
+            expiration[1].is_null(),
+            "a row without contract identity leaves a null, not a gap"
+        );
+
+        // Neither rendering of a response names a column the other does not.
+        let csv = json_to_csv(ep, &values).expect("csv");
+        let mut header: Vec<&str> = csv.lines().next().unwrap().split(',').collect();
+        let mut legacy_keys: Vec<&str> = object.iter().map(|(k, _)| k).collect();
+        header.sort_unstable();
+        legacy_keys.sort_unstable();
+        assert_eq!(legacy_keys, header);
+    }
+
     /// v3 trade_quote shape: the trade and quote sides each get their own
     /// ISO datetime (`trade_timestamp` / `quote_timestamp`) and the v2-only
     /// `condition_flags` / `price_flags` / `volume_type` / `records_back` /
@@ -3176,6 +3316,44 @@ mod tests {
             data_row.get("bid").is_some(),
             "data row keeps the quote fields"
         );
+    }
+
+    /// Contract blocks come back in the order the rows arrived.
+    ///
+    /// Grouping must not reorder them. Ordering by the rendered contract key
+    /// compares the strike as text, so strike 1000 sorts ahead of strike 90
+    /// and a caller reading the blocks in order sees a strike ladder that
+    /// runs backwards through the hundreds.
+    #[test]
+    fn contract_blocks_keep_the_order_the_rows_arrived_in() {
+        let ep = thetadatadx::find("option_snapshot_quote").expect("endpoint exists");
+        let contract = ContractParams {
+            symbol: Some("AAPL"),
+            expiration: Some("*"),
+            strike: None,
+            right: None,
+        };
+        let output = EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![
+            quote_tick(20260116, 90.0, 'C'),
+            quote_tick(20260116, 1000.0, 'C'),
+        ]));
+        let rows = response_rows(ep, &contract, &output);
+        let envelope = json_envelope(ep, rows);
+        let response = envelope
+            .get("response")
+            .and_then(|v: &sonic_rs::Value| v.as_array())
+            .expect("response array");
+
+        let strikes: Vec<Option<f64>> = response
+            .iter()
+            .map(|block| {
+                block
+                    .get("contract")
+                    .and_then(|c: &sonic_rs::Value| c.get("strike"))
+                    .and_then(|v: &sonic_rs::Value| v.as_f64())
+            })
+            .collect();
+        assert_eq!(strikes, vec![Some(90.0), Some(1000.0)]);
     }
 
     /// A single-contract option query carries no contract columns on the
