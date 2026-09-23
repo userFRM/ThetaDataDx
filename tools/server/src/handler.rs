@@ -454,6 +454,9 @@ pub(crate) const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson; charset=utf-
 enum ResponseFormat {
     /// JSON envelope.
     Json,
+    /// One array per column, keyed by column name. The shape the vendor
+    /// serves accounts opened before its JSON cutover.
+    JsonLegacy,
     /// RFC 4180 CSV with a header row.
     Csv,
     /// One JSON object per row, `\n`-delimited.
@@ -472,7 +475,12 @@ fn parse_response_format(
         return Ok(ResponseFormat::Csv);
     };
     match raw.to_ascii_lowercase().as_str() {
-        "json" => Ok(ResponseFormat::Json),
+        // `json_new` is the vendor's name for the current JSON shape and
+        // routes to the same serialiser `json` does; `json_legacy` is the
+        // column-oriented shape it still serves to accounts opened before
+        // the cutover.
+        "json" | "json_new" => Ok(ResponseFormat::Json),
+        "json_legacy" => Ok(ResponseFormat::JsonLegacy),
         "csv" => Ok(ResponseFormat::Csv),
         // `ndjson` and `jsonl` are the same line-delimited framing under
         // two community names; accept both like the flat-file routes do.
@@ -481,7 +489,7 @@ fn parse_response_format(
         // (no attachment) — the terminal's `&format=html` behaviour.
         "html" => Ok(ResponseFormat::Html),
         other => Err(EndpointError::InvalidParams(format!(
-            "unknown format: '{other}' (supported: json, csv, ndjson, jsonl, html)"
+            "unknown format: '{other}' (supported: json, json_new, json_legacy, csv, ndjson, jsonl, html)"
         ))),
     }
 }
@@ -651,6 +659,12 @@ pub async fn generic_with_overrides(
     match response_format {
         ResponseFormat::Json => {
             let mut json_val = format::json_envelope(ep, rows);
+            json_response(&mut json_val)
+        }
+        ResponseFormat::JsonLegacy => {
+            // The legacy shape is columnar and carries no envelope: one array
+            // per column, in the order the columns appear on the rows.
+            let mut json_val = format::json_legacy(ep, &rows);
             json_response(&mut json_val)
         }
         ResponseFormat::Ndjson => {
@@ -1224,6 +1238,14 @@ mod tests {
         );
         for (raw, expected) in [
             ("json", ResponseFormat::Json),
+            // The vendor's two JSON names: `json_new` is the current shape
+            // under its own spelling, `json_legacy` the column-oriented one
+            // it still serves. Rejecting either turned a request the vendor
+            // answers into a 400.
+            ("json_new", ResponseFormat::Json),
+            ("JSON_NEW", ResponseFormat::Json),
+            ("json_legacy", ResponseFormat::JsonLegacy),
+            ("JSON_LEGACY", ResponseFormat::JsonLegacy),
             ("csv", ResponseFormat::Csv),
             ("CSV", ResponseFormat::Csv),
             ("ndjson", ResponseFormat::Ndjson),
@@ -1290,7 +1312,15 @@ mod tests {
             match err {
                 EndpointError::InvalidParams(msg) => {
                     assert!(msg.contains(bad), "message echoes the value: {msg}");
-                    for supported in ["json", "csv", "ndjson", "jsonl", "html"] {
+                    for supported in [
+                        "json",
+                        "json_new",
+                        "json_legacy",
+                        "csv",
+                        "ndjson",
+                        "jsonl",
+                        "html",
+                    ] {
                         assert!(
                             msg.contains(supported),
                             "message lists '{supported}': {msg}"
