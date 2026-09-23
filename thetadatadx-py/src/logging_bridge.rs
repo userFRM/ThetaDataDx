@@ -150,7 +150,7 @@ static LEVEL_CACHE: Mutex<Option<HashMap<&'static str, CachedLevel>>> = Mutex::n
 struct CachedLevel {
     /// `logging.Logger.getEffectiveLevel()`: the lowest level this logger
     /// passes. An event below it is dropped by Python anyway.
-    effective: u32,
+    effective: i64,
     read_at: Instant,
 }
 
@@ -169,11 +169,11 @@ struct CachedLevel {
 fn cached_verdict(target: &'static str, level: u32) -> Option<bool> {
     let guard = LEVEL_CACHE.lock().ok()?;
     let entry = guard.as_ref()?.get(target).copied()?;
-    (entry.read_at.elapsed() < LEVEL_CACHE_TTL).then_some(level >= entry.effective)
+    (entry.read_at.elapsed() < LEVEL_CACHE_TTL).then_some(i64::from(level) >= entry.effective)
 }
 
 /// Record the threshold `target`'s Python logger reports now.
-fn remember_level(target: &'static str, effective: u32) {
+fn remember_level(target: &'static str, effective: i64) {
     if let Ok(mut guard) = LEVEL_CACHE.lock() {
         guard.get_or_insert_with(HashMap::new).insert(
             target,
@@ -241,11 +241,13 @@ where
             // on the same target.
             match logger
                 .call_method0("getEffectiveLevel")
-                .and_then(|r| r.extract::<u32>())
+                // Signed: Python accepts any integer as a level, negatives
+                // included, and every standard level passes a negative one.
+                .and_then(|r| r.extract::<i64>())
             {
                 Ok(effective) => {
                     remember_level(target, effective);
-                    if level < effective {
+                    if i64::from(level) < effective {
                         return;
                     }
                 }
