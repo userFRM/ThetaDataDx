@@ -2478,19 +2478,6 @@ impl StreamingClient {
         self.reconnects_exhausted.load(Ordering::Acquire)
     }
 
-    /// Mark auto-recovery as having given up, as the io loop does when its
-    /// reconnect budget runs out.
-    ///
-    /// Reaches the terminal state without a network. Unlike
-    /// [`Self::for_io_fault_test`], which a second crate's tests call, this
-    /// one is only ever called from inside this crate, so it is compiled out
-    /// of a consumer's build rather than shipped hidden on the client.
-    #[cfg(test)]
-    pub fn mark_reconnects_exhausted_for_test(&self) {
-        self.authenticated.store(false, Ordering::Release);
-        self.reconnects_exhausted.store(true, Ordering::Release);
-    }
-
     /// Get the server address the initial connect landed on.
     ///
     /// Snapshot from connect time; auto-reconnect may move the session

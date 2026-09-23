@@ -369,10 +369,7 @@ def test_market_data_releases_gil() -> None:
     an absolute wall-clock ratio a loaded runner would fail on its own.
 
     The defect this catches is a per-event acquisition on a thread that has
-    released the GIL for a network round trip. The logging bridge asked
-    Python whether each `tracing` event was enabled, at about a hundred and
-    thirty acquisitions per call, which reads here as an excess of 7 where
-    the floor is under 1.
+    released the GIL for a network round trip.
     """
     import thetadatadx as td
 

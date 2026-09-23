@@ -159,7 +159,7 @@ pub(crate) struct StreamingClient {
     /// [`crate::CallbackReservation`].
     callback: Mutex<Option<Arc<Py<PyAny>>>>,
     /// User-callback faults and ring-overflow drops accrued by every session
-    /// this handle has already retired. See [`Self::take_inner`].
+    /// this handle has already retired. See [`Self::fold_retired`].
     retired_panics: AtomicU64,
     retired_dropped: AtomicU64,
     /// Quiescence flags of every superseded streaming session that has
@@ -192,7 +192,7 @@ impl Drop for StreamingClient {
     /// mutexes, signal shutdown so the iterator loop drains and exits,
     /// then detach to drop them on the dispatcher-friendly path.
     fn drop(&mut self) {
-        let taken_client = self.take_inner();
+        let taken_client = self.lock_inner().take();
         let prev_session = std::mem::replace(
             &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
             PyFpssDispatcherSession::Idle,
@@ -250,24 +250,17 @@ impl StreamingClient {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Retire the live session, folding its fault and drop counts into this
-    /// handle's running totals on the way out.
+    /// Fold a retired session's fault and drop counts into this handle's
+    /// running totals. `panic_count()` and `dropped_event_count()` are
+    /// documented as cumulative, so the counts must outlive the session.
     ///
-    /// Every teardown takes the session through here. `panic_count()` and
-    /// `dropped_event_count()` are documented as cumulative, and a caller
-    /// reads them after stopping precisely because that is when the run is
-    /// over; reading them off the live session alone answered zero the
-    /// moment the session was gone, so a run that faulted and a run that did
-    /// not were indistinguishable.
-    fn take_inner(&self) -> Option<Arc<RustStreamingClient>> {
-        let taken = self.lock_inner().take();
-        if let Some(client) = &taken {
-            self.retired_panics
-                .fetch_add(client.panic_count(), Ordering::Relaxed);
-            self.retired_dropped
-                .fetch_add(client.dropped_count(), Ordering::Relaxed);
-        }
-        taken
+    /// Called once the session's dispatcher has stopped: `shutdown()` only
+    /// signals, and the callback keeps firing until the ring drains.
+    fn fold_retired(&self, client: &RustStreamingClient) {
+        self.retired_panics
+            .fetch_add(client.panic_count(), Ordering::Relaxed);
+        self.retired_dropped
+            .fetch_add(client.dropped_count(), Ordering::Relaxed);
     }
 
     fn lock_callback(&self) -> MutexGuard<'_, Option<Arc<Py<PyAny>>>> {
@@ -974,7 +967,7 @@ impl StreamingClient {
         // lock held.
         let (taken_client, prev_session) = {
             let mut cb_guard = self.lock_callback();
-            let taken = self.take_inner();
+            let taken = self.lock_inner().take();
             *cb_guard = None;
             let session = std::mem::replace(
                 &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
@@ -1005,7 +998,6 @@ impl StreamingClient {
             // correct state if streaming is restarted without re-checking.
             let dispatcher_ref = &self.dispatcher;
             py.detach(move || {
-                drop(client);
                 if let PyFpssDispatcherSession::Running { handle, .. } = prev_session {
                     if handle.thread().id() != std::thread::current().id() {
                         if let Err(payload) = handle.join() {
@@ -1031,6 +1023,11 @@ impl StreamingClient {
                         }
                     }
                 }
+                // After the join, so the counts the session recorded while
+                // draining are included, and still inside the detach: the
+                // last drop of the client joins threads that take the GIL.
+                self.fold_retired(&client);
+                drop(client);
             });
         }
     }

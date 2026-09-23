@@ -107,14 +107,14 @@ strike: 0.0,
 strike_thousandths: 0,
 };
 
-/// Streaming index MarketValue tick (wire code 25, index contracts). The vendor publishes `ms_of_day`, `date` and `market_price` for an index and no bid or ask: an index has no NBBO, so the size-imbalance nudge that produces `market_bid` / `market_ask` for a stock or an option does not apply. `market_price` is served exactly as the feed sent it. Per-contract only (no full-stream variant).
+/// Streaming index MarketValue tick (wire code 25, index contracts): `ms_of_day`, `date` and `market_price` as the feed sent them; an index has no bid/ask. Per-contract only (no full-stream variant).
 #[repr(C)]
 pub struct ThetaDataDxStreamIndexMarketValue {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
-    /// The index market price (dollars), as the feed sent it. An index has no NBBO, so this is not a midpoint of anything.
+    /// Index market price (dollars), as the feed sent it.
     pub market_price: f64,
     /// Trading date as `YYYYMMDD`.
     pub date: i32,

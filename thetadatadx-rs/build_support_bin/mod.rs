@@ -7,7 +7,7 @@
 //!
 //! Sharing one root between two binaries means each of their compile units
 //! contains the other's modules. `generate_docs_site` calls one leaf of this
-//! tree and reports 456 unused items without the umbrella attribute it
+//! tree and reports unused items without the umbrella attribute it
 //! carries; `generate_sdk_surfaces` calls everything except `docs_render`,
 //! which is why that one module is declared under a narrow allowance below.
 //! Splitting the tree per binary removes the whole-module cases and leaves

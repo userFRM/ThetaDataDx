@@ -129,5 +129,5 @@ The `contract` field carries `symbol`, the security type, and — for options �
 
 ## WebSocket frame
 
-The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "index_market_value": {…} }`: `header` and `contract` are always present, while the `index_market_value` payload object carries only the terminal-compatible subset: `ms_of_day`, `market_price`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `index_market_value` payload object.
+The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "market_value": {…} }`: `header` and `contract` are always present, while the `market_value` payload object carries only the terminal-compatible subset: `ms_of_day`, `market_price`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `market_value` payload object.
 

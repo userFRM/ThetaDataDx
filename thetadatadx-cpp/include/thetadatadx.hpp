@@ -3181,17 +3181,10 @@ public:
     static FluentContract index(std::string symbol) {
         return FluentContract{std::move(symbol), "INDEX", false, "", "", ""};
     }
-    /// Construct an option contract. The expiration / strike / right
-    /// travel in a single `OptionLeg` rather than as adjacent positional
-    /// strings on the call itself, so a swapped pair cannot pass silently
-    /// past the contract boundary:
-    /// `Contract::option("SPY", {"20260620", "550", "C"})`, members in
-    /// that order. Under C++20 the same call can name them —
-    /// `{.expiration = "20260620", .strike = "550", .right = "C"}` — but
-    /// designated initializers are not C++17, and this project sets
-    /// `CMAKE_CXX_STANDARD 17` with `REQUIRED ON`, so that form does not
-    /// compile for every consumer. `right` accepts `"C"` / `"CALL"` /
-    /// `"P"` / `"PUT"` (case-insensitive).
+    /// Construct an option contract. Expiration / strike / right travel in
+    /// one `OptionLeg`, members in that order, so a swapped pair cannot pass
+    /// silently: `Contract::option("SPY", {"20260620", "550", "C"})`.
+    /// `right` accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive).
     static FluentContract option(std::string symbol, OptionLeg leg) {
         return FluentContract{std::move(symbol), "OPTION", true, std::move(leg.expiration),
                               std::move(leg.strike), std::move(leg.right)};

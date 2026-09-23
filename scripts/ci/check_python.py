@@ -25,8 +25,7 @@ import pathlib
 import sys
 import time
 
-import thetadatadx
-from thetadatadx import Credentials, Config, Client
+from thetadatadx import Credentials, Config, Client, SubscriptionError
 
 PER_CELL_TIMEOUT_MS = 60_000
 SLOW_MODE_TIMEOUT_MS = 180_000
@@ -1236,7 +1235,7 @@ for endpoint, mode, min_tier, rationale, call in CELLS:
         # happens to contain either word -- a wiring regression that raises
         # about an invalid subscription kind was removed from the failure
         # count, which is the sole input to the exit code.
-        if isinstance(exc, thetadatadx.SubscriptionError):
+        if isinstance(exc, SubscriptionError):
             print(f"  {label:60s} SKIP: tier-permission (declared min_tier={min_tier})", flush=True)
             skip_count += 1
             records.append({

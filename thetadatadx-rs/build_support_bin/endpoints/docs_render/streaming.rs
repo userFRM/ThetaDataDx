@@ -788,8 +788,7 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
                 // Server emits the OHLCVC bar as an OHLC frame; key is the
                 // lowercased `header.type` (`StreamData::Ohlcvc => "OHLC"`).
                 "Ohlcvc" => "ohlc",
-                "MarketValue" => "market_value",
-                "IndexMarketValue" => "index_market_value",
+                "MarketValue" | "IndexMarketValue" => "market_value",
                 other => panic!("no WebSocket payload key for event {other}"),
             };
             let _ = write!(

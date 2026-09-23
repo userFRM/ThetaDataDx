@@ -43,14 +43,7 @@ pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
     // them in through `use super::*;`. No additional imports needed in the
     // generated code.
 
-    // Two tick types are decoded by hand rather than by a generated parser.
-    // Their columns arrive as either `Number` or `Text` on the v3 wire, which
-    // the generated single-shape parser cannot express, so
-    // `dual_type_columns::parse_calendar_days_v3` and
-    // `parse_option_contracts_v3` took over and the generated pair was left
-    // behind with no caller anywhere. Emitting them meant the whole generated
-    // module needed an `#[allow(dead_code)]`, which then covered every other
-    // parser in it too. Not emitting them is what removes the allowance.
+    // Hand-parsed in `dual_type_columns` (Number-or-Text columns); not emitted here.
     const HAND_WRITTEN_PARSERS: [&str; 2] = ["CalendarDay", "OptionContract"];
 
     for type_name in &type_names {
@@ -96,15 +89,6 @@ fn column_decoder(def: &TickTypeDef, col: &ColumnDef) -> (&'static str, &'static
         "String" => ("row_text", "String::new()"),
         // Logical char: `'\0'` is the absent fill (no contract right).
         "right" => ("row_contract_right", "'\\0'"),
-        // No generated parser decodes this column. Calendar rows go through
-        // the hand-written `dual_type_columns::parse_calendar_days_v3`, which
-        // rejects a null day type rather than filling it with a closed day the
-        // vendor never sent. Reaching here means a generated parser was
-        // re-enabled for a calendar type without restoring a decoder for it.
-        "calendar_status" => panic!(
-            "calendar_status is decoded by the hand-written \
-             `parse_calendar_days_v3`; no generated parser should request it"
-        ),
         "eod_num" => ("row_eod_number", "0"),
         "eod_num64" => ("row_eod_number_i64", "0"),
         "eod_date" => ("row_eod_date", "0"),

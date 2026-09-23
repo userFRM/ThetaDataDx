@@ -51,7 +51,9 @@ typedef struct ThetaDataDxClient ThetaDataDxClient;
 
 /* All tick structs are 64-byte aligned and carry explicit tail padding as
  * part of the ABI contract, so C/C++ array stepping stays byte-for-byte
- * compatible with the wire layout. Price fields are 64-bit doubles. */
+ * compatible with the wire layout. Price fields are 64-bit doubles.
+ * A `bool has_<field>` is false when the response carried no value for
+ * <field>; zero is a valid code there, so the value alone cannot tell. */
 
 /* Calendar day-type codes carried by ThetaDataDxCalendarDay.status — the
  * vendor's own vocabulary. Resolve the text form with
@@ -92,28 +94,16 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int64_t count;
     int32_t bid_size;
     int32_t bid_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_exchange;
     double bid;
     int32_t bid_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_exchange;
     /* 4 bytes padding before the double field */
     double ask;
     int32_t ask_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_condition;
     int32_t date;
     int32_t expiration;
@@ -183,27 +173,15 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int64_t count;
     int32_t bid_size;
     int32_t bid_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_exchange;
     double bid;
     int32_t bid_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_exchange;
     double ask;
     int32_t ask_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_condition;
     /* 4 bytes padding before the double field */
     double delta;
@@ -328,35 +306,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
@@ -401,35 +361,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
@@ -460,35 +402,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
@@ -519,35 +443,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
@@ -578,35 +484,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
@@ -739,35 +627,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
@@ -781,29 +651,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_exchange;
     /* 4 bytes padding before the double field */
     double bid;
     int32_t bid_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_exchange;
     /* 4 bytes padding before the double field */
     double ask;
     int32_t ask_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_condition;
     int32_t date;
     int32_t expiration;
@@ -822,35 +680,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;
@@ -861,29 +701,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t quote_ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_exchange;
     /* 4 bytes padding before the double field */
     double bid;
     int32_t bid_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_bid_condition;
     int32_t ask_size;
     int32_t ask_exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_exchange;
     /* 4 bytes padding before the double field */
     double ask;
     int32_t ask_condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ask_condition;
     int32_t date;
     int32_t expiration;
@@ -902,35 +730,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     int32_t ms_of_day;
     int32_t sequence;
     int32_t ext_condition1;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition1;
     int32_t ext_condition2;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition2;
     int32_t ext_condition3;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition3;
     int32_t ext_condition4;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_ext_condition4;
     int32_t condition;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_condition;
     int32_t size;
     int32_t exchange;
-    /* False when the response carried no value for the field above.
-     * Zero is a code the vendor assigns a meaning, so an absent cell
-     * cannot be told apart from a reported one by the value alone. */
     bool has_exchange;
     /* 4 bytes padding before the double field */
     double price;

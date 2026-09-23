@@ -5,14 +5,7 @@
 // live account tier come back as a SubscriptionError and are classified
 // SKIP: tier-permission. Real configuration bugs surface as FAIL.
 //
-// Every cell is classified by the exception's TYPE. The SDK's dispatcher
-// reads the typed discriminant the FFI boundary sets and throws the right
-// leaf, so the type is the SDK's own answer to what went wrong. Reading
-// the formatted message instead got it wrong both ways: a permission
-// error whose text did not happen to contain "permission" or
-// "subscription" was recorded as a configuration FAIL, and any unrelated
-// failure whose text did contain one of those words was recorded as an
-// entitlement SKIP -- which is a real failure removed from the count.
+// Every cell is classified by the exception's type, never by message text.
 //
 // Per-cell deadline: concrete and list-style cells set
 // EndpointRequestOptions::timeout_ms = 60_000; bulk-chain / all-strike
