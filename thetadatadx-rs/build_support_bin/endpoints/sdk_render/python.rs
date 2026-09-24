@@ -255,11 +255,9 @@ pub(super) fn render_python_market_data_methods(endpoints: &[GeneratedEndpoint])
 fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
-    let builder_params = if is_string_list {
-        Vec::new()
-    } else {
-        builder_params(endpoint)
-    };
+    // A list endpoint can declare optionals too; they reach the wire
+    // through the core builder, exactly as on every other endpoint.
+    let builder_params = builder_params(endpoint);
     let is_snapshot = is_snapshot_endpoint(endpoint);
     let snapshot_plain_list = snapshot_returns_plain_pylist(endpoint);
     let mut out = String::new();
@@ -352,13 +350,26 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
             .as_deref()
             .expect("list endpoint must declare list_column");
         out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
-        writeln!(
-            out,
-            "            let call = self.client.market_data().{}({});",
-            endpoint.name, positional_args
-        )
-        .unwrap();
-        write_timeout_call(&mut out, "            ");
+        if builder_params.is_empty() {
+            writeln!(
+                out,
+                "            let call = self.client.market_data().{}({});",
+                endpoint.name, positional_args
+            )
+            .unwrap();
+            write_timeout_call(&mut out, "            ");
+        } else {
+            // With optionals the endpoint hands back a builder, so
+            // `timeout_ms` rides the builder's own deadline the way it does
+            // on every other builder-backed endpoint.
+            writeln!(
+                out,
+                "            let mut request = self.client.market_data().{}({});",
+                endpoint.name, positional_args
+            )
+            .unwrap();
+            emit_string_list_setters(&mut out, &builder_params);
+        }
         out.push_str("        })?;\n");
         writeln!(
             out,
@@ -445,11 +456,9 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
 fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
-    let builder_params = if is_string_list {
-        Vec::new()
-    } else {
-        builder_params(endpoint)
-    };
+    // A list endpoint can declare optionals too; they reach the wire
+    // through the core builder, exactly as on every other endpoint.
+    let builder_params = builder_params(endpoint);
     let snapshot_plain_list = snapshot_returns_plain_pylist(endpoint);
     let mut out = String::new();
 
@@ -540,13 +549,23 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             .list_column
             .as_deref()
             .expect("list endpoint must declare list_column");
-        writeln!(
-            out,
-            "            let call = client.market_data().{}({});",
-            endpoint.name, positional_args
-        )
-        .unwrap();
-        write_timeout_call(&mut out, "            ");
+        if builder_params.is_empty() {
+            writeln!(
+                out,
+                "            let call = client.market_data().{}({});",
+                endpoint.name, positional_args
+            )
+            .unwrap();
+            write_timeout_call(&mut out, "            ");
+        } else {
+            writeln!(
+                out,
+                "            let mut request = client.market_data().{}({});",
+                endpoint.name, positional_args
+            )
+            .unwrap();
+            emit_string_list_setters(&mut out, &builder_params);
+        }
         // Wrap the returned `Vec<String>` in a typed `StringList` with
         // the semantic column name so the caller can chain `.to_polars()`
         // into a single-column frame with a sensible header. `.into_any()`
@@ -638,6 +657,33 @@ fn python_signature_kwarg(param: &GeneratedParam) -> String {
         _ => return format!("{}=None", param.name),
     };
     format!("{}={value}", param.name)
+}
+
+/// Emit the optional setters, the deadline and the await for a list endpoint
+/// that hands back a builder. Shared by the sync and async renderers so the
+/// two paths cannot drift.
+fn emit_string_list_setters(out: &mut String, builder_params: &[&GeneratedParam]) {
+    for param in builder_params {
+        writeln!(out, "            if let Some(value) = {} {{", param.name).unwrap();
+        writeln!(
+            out,
+            "                request = request.{}({});",
+            param.name,
+            sync_setter_arg_expr(param)
+        )
+        .unwrap();
+        out.push_str("            }\n");
+    }
+    // A zero `timeout_ms` means "no deadline" on every other endpoint here,
+    // so leave the builder untouched and let the configured default apply.
+    out.push_str("            if let Some(ms) = timeout_ms {\n");
+    out.push_str("                if ms > 0 {\n");
+    out.push_str(
+        "                    request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
+    );
+    out.push_str("                }\n");
+    out.push_str("            }\n");
+    out.push_str("            request.await\n");
 }
 
 fn sync_setter_arg_expr(param: &GeneratedParam) -> &'static str {

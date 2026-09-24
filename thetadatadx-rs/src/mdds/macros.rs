@@ -695,6 +695,101 @@ macro_rules! list_endpoint {
             )
         }
     };
+
+    // Builder form, for a list endpoint whose surface declares optional
+    // (builder-bound) parameters. The plain form above cannot carry them:
+    // its only inputs are the required method arguments, so an optional the
+    // wire accepts would be pinned to its default on every call. Here the
+    // client method returns a builder instead, matching the parsed
+    // endpoints, and `.await` on it (through `IntoFuture`) runs the same
+    // request body. A caller who sets nothing sends the SSOT defaults, so
+    // the unfiltered call is byte-identical to the plain form.
+    (
+        $(#[$meta:meta])*
+        builder $builder_name:ident;
+        fn $name:ident( $($req_arg:ident : $req_kind:tt),* ) -> $col:literal;
+        grpc: $grpc:ident;
+        request: $req:ident;
+        query: $query:ident { $($field:ident : $val:expr),* $(,)? };
+        optional { $($opt_name:ident : $opt_kind:tt = $opt_default:expr),* $(,)? }
+    ) => {
+        /// Builder for the [`MarketDataClient::$name`] endpoint.
+        pub struct $builder_name<'a> {
+            client: &'a MarketDataClient,
+            $(pub(crate) $req_arg: req_field_type!($req_kind),)*
+            $(pub(crate) $opt_name: opt_field_type!($opt_kind),)*
+            pub(crate) deadline: Option<std::time::Duration>,
+        }
+
+        impl<'a> $builder_name<'a> {
+            $(
+                opt_setter!($opt_name, $opt_kind);
+            )*
+
+            /// Apply a per-call deadline.
+            ///
+            /// `Duration::ZERO` disables the deadline, including the
+            /// configured `request_timeout_secs` default. Same contract as
+            /// the parsed builders.
+            #[must_use]
+            pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
+                self.deadline = Some(duration);
+                self
+            }
+        }
+
+        impl<'a> IntoFuture for $builder_name<'a> {
+            type Output = Result<Vec<String>, Error>;
+            type IntoFuture = Pin<Box<dyn std::future::Future<Output = Self::Output> + Send + 'a>>;
+
+            fn into_future(self) -> Self::IntoFuture {
+                Box::pin(async move {
+                    let $builder_name {
+                        client,
+                        $($req_arg,)*
+                        $($opt_name,)*
+                        deadline,
+                    } = self;
+                    let deadline = $crate::mdds::macros::effective_deadline(
+                        deadline,
+                        client.config().market_data.request_timeout_secs,
+                    );
+                    // The retry loop's closure is `FnMut`, so it must not
+                    // consume the owned arguments: every attempt rebuilds the
+                    // request from these borrows.
+                    $(let $req_arg = &$req_arg;)*
+                    $(let $opt_name = &$opt_name;)*
+                    list_endpoint_impl_body!(
+                        &client, deadline, $name, $grpc, $req,
+                        $query { $($field : $val),* }, $col
+                    )
+                })
+            }
+        }
+
+        impl MarketDataClient {
+            #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
+            $(#[$meta])*
+            ///
+            /// Optional filters are set on the returned builder; `.await`
+            /// sends the request.
+            ///
+            /// # Errors
+            ///
+            /// Returns an error on network, authentication, or parsing
+            /// failure. Returns [`Error::Timeout`] when the deadline elapses
+            /// before the response completes.
+            #[must_use]
+            pub fn $name(&self, $($req_arg: req_param_type!($req_kind)),*) -> $builder_name<'_> {
+                $builder_name {
+                    client: self,
+                    $($req_arg: req_convert!($req_kind, $req_arg),)*
+                    $($opt_name: $opt_default,)*
+                    deadline: None,
+                }
+            }
+        }
+    };
 }
 
 /// Shared request/collect body for the [`list_endpoint!`] pair (`<name>` /

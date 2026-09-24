@@ -325,9 +325,22 @@ fn generate_mdds_endpoints(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std::
     parsed_code.push_str(header);
     stream_code.push_str(header);
 
+    // A list endpoint with no optionals expands to inherent methods and
+    // belongs inside the `impl` block; one with optionals expands to a
+    // builder struct plus its own `impl` blocks, which cannot nest. The
+    // second group is appended after the block closes.
+    let mut list_builder_code = String::new();
     for endpoint in &parsed.endpoints {
         if is_simple_list_endpoint(endpoint) {
-            generate_mdds_list_endpoint(&mut list_code, endpoint);
+            if endpoint
+                .params
+                .iter()
+                .any(|param| !is_method_call_param(param))
+            {
+                generate_mdds_list_endpoint(&mut list_builder_code, endpoint);
+            } else {
+                generate_mdds_list_endpoint(&mut list_code, endpoint);
+            }
         } else if is_streaming_endpoint(endpoint) {
             generate_mdds_streaming_endpoint(&mut stream_code, endpoint);
         } else {
@@ -338,7 +351,7 @@ fn generate_mdds_endpoints(parsed: &ParsedEndpoints) -> Result<(), Box<dyn std::
     let out_dir = std::env::var("OUT_DIR")?;
     std::fs::write(
         Path::new(&out_dir).join("mdds_list_endpoints_generated.rs"),
-        format!("{list_code}}}\n"),
+        format!("{list_code}}}\n\n{list_builder_code}"),
     )?;
     std::fs::write(
         Path::new(&out_dir).join("mdds_parsed_endpoints_generated.rs"),
@@ -356,11 +369,10 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     writeln!(out, "        \"{}\" => {{", endpoint.name).unwrap();
 
     if is_simple_list_endpoint(endpoint) {
-        let method_params = endpoint
+        let (method_params, list_builder_params): (Vec<_>, Vec<_>) = endpoint
             .params
             .iter()
-            .filter(|param| is_method_call_param(param))
-            .collect::<Vec<_>>();
+            .partition(|param| is_method_call_param(param));
         for param in &method_params {
             emit_required_arg(out, endpoint, param);
         }
@@ -369,6 +381,28 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
             .map(|param| call_arg_name(param))
             .collect::<Vec<_>>()
             .join(", ");
+        if !list_builder_params.is_empty() {
+            // Builder form: the optionals this endpoint declares reach the
+            // wire, so a caller's `strike` / `right` is applied rather than
+            // dropped in favour of the default.
+            writeln!(
+                out,
+                "            let mut builder = client.{}({args});",
+                endpoint.name
+            )
+            .unwrap();
+            emit_optional_setters(out, &list_builder_params);
+            emit_builder_deadline(out);
+            out.push_str("            let values = builder.await?;\n");
+            writeln!(
+                out,
+                "            Ok(EndpointOutput::{}(values))",
+                endpoint.return_type
+            )
+            .unwrap();
+            out.push_str("        }\n");
+            return;
+        }
         // Honour the tri-state per-call deadline. `Unset` calls the plain
         // method so the configured `request_timeout_secs` default applies;
         // `Disabled` (`with_timeout_ms(0)`) and an explicit `Millis` route

@@ -277,6 +277,10 @@ pub struct OptionListSymbolsOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListDatesOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -3659,15 +3663,20 @@ impl MarketDataView {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_dates(&request_type, &symbol, expiration.as_str());
-            match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+            let mut request = client.market_data().option_list_dates(&request_type, &symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
             }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
         })
         .await
     }
@@ -12643,15 +12652,20 @@ impl MarketDataClient {
         };
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_dates(&request_type, &symbol, expiration.as_str());
-            match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+            let mut request = client.market_data().option_list_dates(&request_type, &symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
             }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
         })
         .await
     }

@@ -2119,6 +2119,8 @@ class MarketDataView:
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
         timeout_ms: Optional[int] = None,
     ) -> StringList:
         """List available dates for an option contract by request type.
@@ -2138,6 +2140,8 @@ class MarketDataView:
         symbol: str,
         expiration: Union[str, date, datetime],
         *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[StringList]:
         """List available dates for an option contract by request type.
