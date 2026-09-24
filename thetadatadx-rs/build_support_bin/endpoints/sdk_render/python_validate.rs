@@ -9,7 +9,7 @@ use std::fmt::Write as _;
 
 use super::super::helpers::is_streaming_endpoint;
 use super::super::model::GeneratedEndpoint;
-use super::super::modes::test_modes_for;
+use super::super::modes::{is_chain_wide_mode, test_modes_for};
 use super::super::sdk_helpers::{method_params, python_arg_literal, python_builder_kwarg};
 use super::super::test_fixtures::TestFixtures;
 
@@ -37,11 +37,10 @@ pub(super) fn render_python_validate(
             }
             // Cross-cutting per-call deadline: SDK cancels the in-flight
             // gRPC stream on expiry and raises a RuntimeError; no daemon
-            // thread / os._exit gymnastics needed any more. Bulk-chain /
-            // all-strike modes use `SLOW_MODE_TIMEOUT_MS` since a full
-            // option chain payload legitimately takes longer than 60s.
-            let timeout_sym = if matches!(mode.name.as_str(), "all_strikes_one_exp" | "bulk_chain")
-            {
+            // thread / os._exit gymnastics needed any more. Chain-wide
+            // modes use `SLOW_MODE_TIMEOUT_MS` since a chain payload
+            // legitimately takes close to or longer than 60s.
+            let timeout_sym = if is_chain_wide_mode(&mode.name) {
                 "SLOW_MODE_TIMEOUT_MS"
             } else {
                 "PER_CELL_TIMEOUT_MS"

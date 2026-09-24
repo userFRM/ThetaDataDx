@@ -265,7 +265,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_ohlc", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_ohlc::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_ohlc", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_ohlc", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_ohlc::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_ohlc", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -283,7 +283,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_trade", "with_right", "standard", "right=call optional filter wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_right("call").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_trade::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_trade::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_trade", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -307,7 +307,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_quote::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_quote::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_quote", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -331,7 +331,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_open_interest", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_open_interest::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_open_interest", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_open_interest", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_open_interest::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_open_interest", "with_min_time", "value", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -355,7 +355,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_market_value", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_market_value::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_market_value", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_market_value", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_market_value::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_market_value", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_market_value("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -391,7 +391,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_greeks_implied_volatility", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_greeks_implied_volatility::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_greeks_implied_volatility", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -430,7 +430,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_all::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_greeks_all::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_greeks_all", "with_min_time", "professional", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -469,7 +469,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_greeks_first_order", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_first_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_greeks_first_order::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_greeks_first_order", "with_min_time", "standard", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -508,7 +508,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_second_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_greeks_second_order::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_greeks_second_order", "with_min_time", "professional", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -547,7 +547,7 @@ int main(int argc, char** argv) {
         cell("option_snapshot_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_snapshot_greeks_third_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_snapshot_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_snapshot_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_snapshot_greeks_third_order::with_min_time
         //   rationale: min_time=09:45:00 optional filter wiring
         cell("option_snapshot_greeks_third_order", "with_min_time", "professional", "min_time=09:45:00 optional filter wiring", [&] { return client.option_snapshot_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_min_time("09:45:00").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -574,7 +574,7 @@ int main(int argc, char** argv) {
         cell("option_history_eod", "with_max_dte", "free", "max_dte=30 optional filter wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_eod::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_eod", "with_strike_range", "free", "strike_range=10 optional filter wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_eod", "with_strike_range", "free", "strike_range=10 optional filter wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_eod::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_eod", "all_optionals", "free", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -598,7 +598,7 @@ int main(int argc, char** argv) {
         cell("option_history_ohlc", "with_interval", "value", "interval=1m optional filter wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_interval("1m").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_ohlc::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_ohlc", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_ohlc", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_ohlc::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_ohlc", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_ohlc("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -628,7 +628,7 @@ int main(int argc, char** argv) {
         cell("option_history_trade", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -661,7 +661,7 @@ int main(int argc, char** argv) {
         cell("option_history_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_quote::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_quote::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -691,7 +691,7 @@ int main(int argc, char** argv) {
         cell("option_history_trade_quote", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_quote::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_trade_quote", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade_quote", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_quote::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_quote", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_quote("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_exclusive(true).with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -718,7 +718,7 @@ int main(int argc, char** argv) {
         cell("option_history_open_interest", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_open_interest::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_open_interest", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_open_interest", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_open_interest::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_open_interest", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_open_interest("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -751,7 +751,7 @@ int main(int argc, char** argv) {
         cell("option_history_greeks_eod", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_eod::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_greeks_eod", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_greeks_eod", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_eod::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_underlyer_use_nbbo(true).with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -784,7 +784,7 @@ int main(int argc, char** argv) {
         cell("option_history_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_version("dg3").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_all::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_all::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -823,7 +823,7 @@ int main(int argc, char** argv) {
         cell("option_history_trade_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_all::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_trade_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_all::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_all("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -856,7 +856,7 @@ int main(int argc, char** argv) {
         cell("option_history_greeks_first_order", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_version("dg3").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_first_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_first_order::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -895,7 +895,7 @@ int main(int argc, char** argv) {
         cell("option_history_trade_greeks_first_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_first_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_trade_greeks_first_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade_greeks_first_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_first_order::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_first_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -928,7 +928,7 @@ int main(int argc, char** argv) {
         cell("option_history_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_version("dg3").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_second_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_second_order::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -967,7 +967,7 @@ int main(int argc, char** argv) {
         cell("option_history_trade_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_second_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_trade_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_second_order::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_second_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1000,7 +1000,7 @@ int main(int argc, char** argv) {
         cell("option_history_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_version("dg3").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_third_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_third_order::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1039,7 +1039,7 @@ int main(int argc, char** argv) {
         cell("option_history_trade_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_third_order::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_trade_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_third_order::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_third_order("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1072,7 +1072,7 @@ int main(int argc, char** argv) {
         cell("option_history_greeks_implied_volatility", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_version("dg3").with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_greeks_implied_volatility::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_greeks_implied_volatility::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_interval("1m").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1111,7 +1111,7 @@ int main(int argc, char** argv) {
         cell("option_history_trade_greeks_implied_volatility", "with_max_dte", "professional", "max_dte=30 optional filter wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_date("20250303").with_strike("570").with_timeout_ms(kPerCellTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_history_trade_greeks_implied_volatility", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_history_trade_greeks_implied_volatility", "with_strike_range", "professional", "strike_range=10 optional filter wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_history_trade_greeks_implied_volatility::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_history_trade_greeks_implied_volatility("SPY", "20250321", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_date("20250303").with_start_time("09:30:00").with_end_time("10:00:00").with_annual_dividend(0.015).with_rate_type("sofr").with_rate_value(0.05).with_version("dg3").with_max_dte(30).with_strike_range(10).with_start_date("20250303").with_end_date("20250303").with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1132,7 +1132,7 @@ int main(int argc, char** argv) {
         cell("option_at_time_trade", "with_max_dte", "standard", "max_dte=30 optional filter wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_trade::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_at_time_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_at_time_trade", "with_strike_range", "standard", "strike_range=10 optional filter wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_at_time_trade::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_at_time_trade", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
@@ -1153,7 +1153,7 @@ int main(int argc, char** argv) {
         cell("option_at_time_quote", "with_max_dte", "value", "max_dte=30 optional filter wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_max_dte(30).with_timeout_ms(kPerCellTimeoutMs)); });
         // option_at_time_quote::with_strike_range
         //   rationale: strike_range=10 optional filter wiring
-        cell("option_at_time_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
+        cell("option_at_time_quote", "with_strike_range", "value", "strike_range=10 optional filter wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike_range(10).with_timeout_ms(kSlowModeTimeoutMs)); });
         // option_at_time_quote::all_optionals
         //   rationale: every applicable optional set at once — proves multi-optional wiring
         cell("option_at_time_quote", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", [&] { return client.option_at_time_quote("SPY", "20250321", "20250303", "20250303", "12:00:00.000", thetadatadx::EndpointRequestOptions{}.with_strike("570").with_right("call").with_max_dte(30).with_strike_range(10).with_timeout_ms(kPerCellTimeoutMs)); });
