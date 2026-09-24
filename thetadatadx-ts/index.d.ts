@@ -5789,6 +5789,10 @@ export interface OptionListContractsOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListDatesOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request

@@ -703,24 +703,6 @@ pub async fn generic_with_overrides(
     }
 }
 
-/// A filter the vendor applies on this route that this SDK does not carry.
-///
-/// The vendor narrows `option_list_dates` by `strike` and `right`; the SDK
-/// lists dates across every strike and both sides. Answering a request that
-/// names either would return that wider list as if it were the one asked for,
-/// so the request is refused by name instead.
-fn unsupported_list_filter(
-    endpoint_name: &str,
-    params: &HashMap<String, String>,
-) -> Option<&'static str> {
-    if endpoint_name != "option_list_dates" {
-        return None;
-    }
-    ["strike", "right"]
-        .into_iter()
-        .find(|name| params.contains_key(*name))
-}
-
 /// Dispatch a `{request_type}` path-segment route to its registry endpoint.
 ///
 /// The JVM terminal exposes three list routes with `request_type` as a
@@ -757,14 +739,6 @@ pub async fn list_by_request_type(
             "route is wired to an unknown endpoint",
         );
     };
-    if let Some(name) = unsupported_list_filter(endpoint_name, &query.0) {
-        return endpoint_error_response(
-            ep,
-            EndpointError::InvalidParams(format!(
-                "`{name}` is not supported on {endpoint_name} yet; omit it to list the dates for every strike and both sides"
-            )),
-        );
-    }
     generic_with_overrides(state, query, ep, &[("request_type", request_type)]).await
 }
 
@@ -1254,29 +1228,6 @@ mod tests {
     // -----------------------------------------------------------------------
     //  Response-format negotiation + NDJSON rendering
     // -----------------------------------------------------------------------
-
-    /// A list-dates request that names a filter this SDK does not apply is
-    /// refused rather than answered with the unfiltered list.
-    #[test]
-    fn list_dates_refuses_a_strike_or_right_it_cannot_apply() {
-        let with = |key: &str| string_params(&[("symbol", "SPY"), (key, "570")]);
-        assert_eq!(
-            unsupported_list_filter("option_list_dates", &with("strike")),
-            Some("strike")
-        );
-        assert_eq!(
-            unsupported_list_filter("option_list_dates", &with("right")),
-            Some("right")
-        );
-        assert_eq!(
-            unsupported_list_filter("option_list_dates", &with("expiration")),
-            None
-        );
-        assert_eq!(
-            unsupported_list_filter("stock_list_dates", &with("strike")),
-            None
-        );
-    }
 
     #[test]
     fn response_format_defaults_to_csv_and_parses_known_values() {

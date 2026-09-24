@@ -206,11 +206,9 @@ fn write_signature(
     kind: SignatureKind,
 ) {
     let method_params = method_params(endpoint);
-    let builder_params = if endpoint.return_type == "StringList" {
-        Vec::new()
-    } else {
-        builder_params(endpoint)
-    };
+    // A list endpoint's optionals are keyword arguments like any other
+    // endpoint's, so the stub advertises them.
+    let builder_params = builder_params(endpoint);
 
     let positional: Vec<String> = method_params
         .iter()

@@ -32,20 +32,61 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
     )
     .unwrap();
 
-    let method_params = endpoint
+    let (method_params, optional_params): (Vec<_>, Vec<_>) = endpoint
         .params
         .iter()
-        .filter(|param| is_method_call_param(param))
-        .collect::<Vec<_>>();
+        .partition(|param| is_method_call_param(param));
+    let list_column = endpoint
+        .list_column
+        .as_deref()
+        .expect("list endpoint must declare list_column");
+    if !optional_params.is_empty() {
+        // The builder form: the endpoint's optionals reach the wire through
+        // setters rather than being pinned to their defaults.
+        writeln!(
+            out,
+            "    builder {}Builder;",
+            to_pascal_case(&endpoint.name)
+        )
+        .unwrap();
+        let signature = method_params
+            .iter()
+            .map(|param| {
+                format!(
+                    "{}: {}",
+                    direct_method_arg_name(param),
+                    direct_required_kind(param)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(
+            out,
+            "    fn {}({signature}) -> {list_column:?};",
+            endpoint.name
+        )
+        .unwrap();
+        writeln!(out, "    grpc: {};", endpoint.grpc_name).unwrap();
+        writeln!(out, "    request: {};", endpoint.request_type).unwrap();
+        writeln!(out, "    query: {} {{", endpoint.query_type).unwrap();
+        for field in &endpoint.fields {
+            let expr = mdds_query_field_expr(endpoint, field, true);
+            writeln!(out, "        {}: {expr},", field.name).unwrap();
+        }
+        out.push_str("    };\n");
+        out.push_str("    optional {\n");
+        for param in &optional_params {
+            let (kind, default) = direct_optional_kind_and_default(param);
+            writeln!(out, "        {}: {} = {},", param.name, kind, default).unwrap();
+        }
+        out.push_str("    }\n}\n\n");
+        return;
+    }
     let signature = method_params
         .iter()
         .map(|param| format!("{}: &str", direct_method_arg_name(param)))
         .collect::<Vec<_>>()
         .join(", ");
-    let list_column = endpoint
-        .list_column
-        .as_deref()
-        .expect("list endpoint must declare list_column");
     // Emit the base method name plus the `<name>_with_deadline` overload
     // name. `macro_rules!` cannot concatenate identifiers, so the explicit
     // overload identifier is passed as a token here, keeping the macro a
@@ -545,16 +586,18 @@ pub(super) fn mdds_query_field_expr(
 ) -> String {
     if field.proto_type == "ContractSpec" {
         if list_context {
-            let has_strike_method = endpoint
-                .params
-                .iter()
-                .any(|p| p.name == "strike" && is_method_call_param(p));
-            let has_right_method = endpoint
-                .params
-                .iter()
-                .any(|p| p.name == "right" && is_method_call_param(p));
-            let strike = if has_strike_method { "strike" } else { "\"*\"" };
-            let right = if has_right_method {
+            // A list endpoint reaches `strike` / `right` only when its
+            // surface declares them. A required one is a method argument, an
+            // optional one is a builder field destructured under the same
+            // name, and both are in scope here. An endpoint that declares
+            // neither sends the vendor's documented defaults.
+            let declares = |name: &str| endpoint.params.iter().any(|p| p.name == name);
+            let strike = if declares("strike") {
+                "strike"
+            } else {
+                "\"*\""
+            };
+            let right = if declares("right") {
                 "right"
             } else {
                 "\"both\""

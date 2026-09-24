@@ -16546,24 +16546,31 @@ impl MarketDataView {
     /// Defaults (upstream):
     /// - `strike`: `"*"`
     /// - `right`: `"both"`
-    #[pyo3(signature = (request_type, symbol, expiration, *, timeout_ms=None))]
+    #[pyo3(signature = (request_type, symbol, expiration, *, strike=None, right=None, timeout_ms=None))]
     fn option_list_dates(
         &self,
         py: Python<'_>,
         request_type: PyStringArg,
         symbol: PyStringArg,
         expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
-            match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+            let mut request = self.client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
             }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                if ms > 0 {
+                    request = request.with_deadline(std::time::Duration::from_millis(ms));
+                }
+            }
+            request.await
         })?;
         strings_to_string_list(py, values, "date")
     }
@@ -16581,25 +16588,32 @@ impl MarketDataView {
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (request_type, symbol, expiration, *, timeout_ms=None))]
+    #[pyo3(signature = (request_type, symbol, expiration, *, strike=None, right=None, timeout_ms=None))]
     fn option_list_dates_async<'py>(
         &self,
         py: Python<'py>,
         request_type: PyStringArg,
         symbol: PyStringArg,
         expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
-            match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+            let mut request = client.market_data().option_list_dates(request_type.as_str(), symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
             }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                if ms > 0 {
+                    request = request.with_deadline(std::time::Duration::from_millis(ms));
+                }
+            }
+            request.await
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
 

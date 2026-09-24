@@ -46,7 +46,7 @@ use std::fmt::Write as _;
 use heck::ToLowerCamelCase as _;
 
 use super::super::helpers::{compose_endpoint_doc, endpoint_streams, is_streaming_endpoint};
-use super::super::model::GeneratedEndpoint;
+use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{
     builder_params, is_time_arg, method_params, render_rust_doc_block, sdk_method_arg_name,
     to_camel_case, to_pascal_case, ts_class_name, ts_class_vec_converter, write_timeout_call,
@@ -181,11 +181,9 @@ fn options_struct_name(endpoint: &GeneratedEndpoint) -> String {
 fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> String {
     let camel_name = to_camel_case(&endpoint.name);
     let struct_name = options_struct_name(endpoint);
-    let builder_params = if endpoint.return_type == "StringList" {
-        Vec::new()
-    } else {
-        builder_params(endpoint)
-    };
+    // A list endpoint can declare optionals too, and they belong in its
+    // options object like any other endpoint's.
+    let builder_params = builder_params(endpoint);
     let mut out = String::new();
     writeln!(
         out,
@@ -261,7 +259,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         .unwrap();
     }
 
-    write_ts_request_prelude(&mut out, endpoint, is_string_list);
+    write_ts_request_prelude(&mut out, endpoint);
 
     let has_symbols = method_params
         .iter()
@@ -292,13 +290,26 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
                 "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
             );
         }
-        writeln!(
-            out,
-            "            let call = client.market_data().{name}({positional_args});",
-            name = endpoint.name,
-        )
-        .unwrap();
-        write_timeout_call(&mut out, "            ");
+        if builder_params(endpoint).is_empty() {
+            writeln!(
+                out,
+                "            let call = client.market_data().{name}({positional_args});",
+                name = endpoint.name,
+            )
+            .unwrap();
+            write_timeout_call(&mut out, "            ");
+        } else {
+            // With optionals the endpoint hands back a builder, so the
+            // setters and the deadline are applied to it, as on every other
+            // builder-backed method.
+            writeln!(
+                out,
+                "            let mut request = client.market_data().{name}({positional_args});",
+                name = endpoint.name,
+            )
+            .unwrap();
+            write_ts_builder_setters(&mut out, &builder_params(endpoint));
+        }
         out.push_str("        })\n");
         out.push_str("        .await\n");
         out.push_str("    }\n");
@@ -322,13 +333,9 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
 /// Byte-identical across the buffered `Array<Tick>` method, the `StringList`
 /// list method, and the presence-carrying `<method>WithColumns` variant, so
 /// they share one source of the request setup.
-fn write_ts_request_prelude(out: &mut String, endpoint: &GeneratedEndpoint, is_string_list: bool) {
+fn write_ts_request_prelude(out: &mut String, endpoint: &GeneratedEndpoint) {
     let method_params = method_params(endpoint);
-    let builder_params = if is_string_list {
-        Vec::new()
-    } else {
-        builder_params(endpoint)
-    };
+    let builder_params = builder_params(endpoint);
     out.push_str("        let options = options.unwrap_or_default();\n");
 
     // Validate the per-call deadline up front, before the request task
@@ -444,7 +451,16 @@ fn write_ts_builder_request(out: &mut String, endpoint: &GeneratedEndpoint) {
         endpoint.name, positional_args
     )
     .unwrap();
-    for param in &builder_params {
+    write_ts_builder_setters(out, &builder_params);
+    out.push_str("        })\n");
+    out.push_str("        .await?;\n");
+}
+
+/// Emit the optional setters, the per-call deadline and the await on a
+/// constructed builder. Shared by the tick-returning methods and the list
+/// methods that declare optionals, so the two cannot drift.
+fn write_ts_builder_setters(out: &mut String, builder_params: &[&GeneratedParam]) {
+    for param in builder_params {
         writeln!(out, "            if let Some(value) = {} {{", param.name).unwrap();
         let setter_arg = match param.param_type.as_str() {
             "Int" | "Float" | "Bool" => "value".to_string(),
@@ -464,8 +480,6 @@ fn write_ts_builder_request(out: &mut String, endpoint: &GeneratedEndpoint) {
     );
     out.push_str("            }\n");
     out.push_str("            request.await\n");
-    out.push_str("        })\n");
-    out.push_str("        .await?;\n");
 }
 
 /// `TradeTick` (the collection's element class) -> `TradeTickWithColumns`, the
@@ -570,7 +584,7 @@ fn render_typescript_endpoint_with_columns_method(endpoint: &GeneratedEndpoint) 
     writeln!(out, "        options: Option<{struct_name}>,").unwrap();
     writeln!(out, "    ) -> napi::Result<{return_struct}> {{").unwrap();
 
-    write_ts_request_prelude(&mut out, endpoint, false);
+    write_ts_request_prelude(&mut out, endpoint);
     write_ts_builder_request(&mut out, endpoint);
 
     // The core `Ticks<T>` carries the response's `ColumnPresence`: emit its
