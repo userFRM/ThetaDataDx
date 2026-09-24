@@ -451,16 +451,24 @@ fn anchor_dates(
             if let (Some(strike), false) = (&strike, sets_a_strike) {
                 mode.builder_overrides.push(strike.clone());
             }
-            let chain_wide = matches!(
-                mode.name.as_str(),
-                "bulk_chain" | "all_strikes_one_exp" | "with_strike_range"
-            );
+            let chain_wide = is_chain_wide_mode(&mode.name);
             if let (Some(window), true, false) = (&window, chain_wide, sets_a_window) {
                 mode.builder_overrides.extend(window.iter().cloned());
             }
             mode
         })
         .collect()
+}
+
+/// Whether a mode selects a whole option chain, or a band of strikes across
+/// it. Its cell is bounded to the fixture intraday window and gets the
+/// slow-mode timeout, because the vendor takes close to a minute to answer
+/// even the bounded request.
+pub(super) fn is_chain_wide_mode(name: &str) -> bool {
+    matches!(
+        name,
+        "bulk_chain" | "all_strikes_one_exp" | "with_strike_range"
+    )
 }
 
 /// Look up the representative value for a builder-bound optional parameter.

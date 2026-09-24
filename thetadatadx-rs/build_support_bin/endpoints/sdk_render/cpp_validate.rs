@@ -12,7 +12,7 @@ use std::fmt::Write as _;
 
 use super::super::helpers::is_streaming_endpoint;
 use super::super::model::GeneratedEndpoint;
-use super::super::modes::test_modes_for;
+use super::super::modes::{is_chain_wide_mode, test_modes_for};
 use super::super::sdk_helpers::{cpp_arg_literal, cpp_builder_setter, method_params};
 use super::super::test_fixtures::TestFixtures;
 
@@ -41,11 +41,10 @@ pub(super) fn render_cpp_validate(
                 .iter()
                 .filter_map(|(name, value)| cpp_builder_setter(endpoint, name, value))
                 .collect();
-            // Bulk-chain / all-strike cells use `kSlowModeTimeoutMs` since
-            // a full option chain payload legitimately takes longer than
-            // 60s; all other cells use `kPerCellTimeoutMs`.
-            let timeout_sym = if matches!(mode.name.as_str(), "all_strikes_one_exp" | "bulk_chain")
-            {
+            // Chain-wide cells use `kSlowModeTimeoutMs` since a chain
+            // payload legitimately takes close to or longer than 60s; all
+            // other cells use `kPerCellTimeoutMs`.
+            let timeout_sym = if is_chain_wide_mode(&mode.name) {
                 "kSlowModeTimeoutMs"
             } else {
                 "kPerCellTimeoutMs"
