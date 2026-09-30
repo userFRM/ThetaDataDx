@@ -1,0 +1,136 @@
+# Source-of-truth for the vendor vocabulary tables. Compiled into
+# `thetadatadx-rs/src/tdbe/vocabulary/tables_generated.rs` by
+# `build_support/vocabulary.rs`.
+#
+# These are the vendor's own names for the things its protocol addresses:
+# the columns a response can carry, the request families it serves, the
+# arguments those requests take, the output formats, the account tiers and
+# the calendar query kinds. Most already appear in this SDK's published
+# reference pages; the tables collect them so a caller can check a name
+# against the vendor's vocabulary rather than against this SDK's spelling.
+#
+# The SDK does not send most of these. It addresses the typed gRPC surface,
+# where the request family and its arguments are the method and its message
+# fields. They are carried as reference vocabulary, not as a wire surface.
+
+[[vocabulary]]
+name = "AccountType"
+names = [
+    "FREE", "VALUE", "STANDARD", "PRO",
+]
+
+[[vocabulary]]
+name = "CalendarType"
+names = [
+    "DATE", "YEAR_HOLIDAYS",
+]
+
+[[vocabulary]]
+name = "DataType"
+names = [
+    "DATE", "MS_OF_DAY", "CORRECTION", "PRICE_TYPE",
+    "MS_OF_DAY2", "UNDEFINED", "BID_SIZE", "BID_EXCHANGE",
+    "BID", "BID_CONDITION", "ASK_SIZE", "ASK_EXCHANGE",
+    "ASK", "ASK_CONDITION", "MIDPOINT", "VWAP",
+    "QWAP", "WAP", "OPEN_INTEREST", "SEQUENCE",
+    "SIZE", "CONDITION", "PRICE", "EXCHANGE",
+    "CONDITION_FLAGS", "PRICE_FLAGS", "VOLUME_TYPE", "RECORDS_BACK",
+    "VOLUME", "COUNT", "THETA", "VEGA",
+    "DELTA", "RHO", "EPSILON", "LAMBDA",
+    "GAMMA", "VANNA", "CHARM", "VOMMA",
+    "VETA", "VERA", "SOPDK", "SPEED",
+    "ZOMMA", "COLOR", "ULTIMA", "D1",
+    "D2", "DUAL_DELTA", "DUAL_GAMMA", "OPEN",
+    "HIGH", "LOW", "CLOSE", "NET_CHANGE",
+    "IMPLIED_VOL", "BID_IMPLIED_VOL", "ASK_IMPLIED_VOL", "UNDERLYING_PRICE",
+    "IV_ERROR", "RATIO", "RATING", "EX_DATE",
+    "RECORD_DATE", "PAYMENT_DATE", "ANN_DATE", "DIVIDEND_AMOUNT",
+    "LESS_AMOUNT", "RATE", "EXT_CONDITION1", "EXT_CONDITION2",
+    "EXT_CONDITION3", "EXT_CONDITION4", "SPLIT_DATE", "BEFORE_SHARES",
+    "AFTER_SHARES", "OUTSTANDING_SHARES", "SHORT_SHARES", "INSTITUTIONAL_INTEREST",
+    "LAST_FISCAL_QUARTER", "LAST_FISCAL_YEAR", "ASSETS", "LIABILITIES",
+    "LONG_TERM_DEBT", "EPS_MRQ", "EPS_MRY", "EPS_DILUTED",
+    "SYMBOL_CHANGE_DATE", "SYMBOL_CHANGE_TYPE", "SYMBOL",
+]
+
+[[vocabulary]]
+name = "ReqArg"
+names = [
+    "ID", "MSG_CODE", "REQ", "RTH",
+    "USE_EXACT_TIME", "SEC", "ROOT", "EXP",
+    "RATE", "STRIKE", "RIGHT", "DUR",
+    "IVL", "START_DATE", "END_DATE", "VERSION",
+    "USE_CSV", "TICK_LIM", "DL", "EXCLUSIVE",
+    "RATE_VALUE", "ANNUAL_DIV", "UNDER_PRICE", "START_TIME",
+    "END_TIME", "PERF_BOOST", "VENUE", "PRETTY_TIME",
+    "USE_NBBO",
+]
+
+[[vocabulary]]
+name = "ReqType"
+names = [
+    "TRAILING_DIV", "EOD", "RATE", "EOD_CTA",
+    "EOD_UTP", "EOD_OPRA", "EOD_OTC", "EOD_OTCBB",
+    "EOD_TD", "MARKET_VALUE", "DEFAULT", "QUOTE",
+    "VOLUME", "OPEN_INTEREST", "OHLC", "OHLC_QUOTE",
+    "PRICE", "FUNDAMENTAL", "DIVIDEND", "QUOTE_1MIN",
+    "TRADE", "IMPLIED_VOLATILITY", "GREEKS", "LIQUIDITY",
+    "LIQUIDITY_PLUS", "IMPLIED_VOLATILITY_VERBOSE", "TRADE_QUOTE", "EOD_QUOTE_GREEKS",
+    "EOD_TRADE_GREEKS", "SPLIT", "EOD_GREEKS", "SYMBOL_HISTORY",
+    "TRADE_GREEKS", "GREEKS_SECOND_ORDER", "GREEKS_THIRD_ORDER", "ALT_CALCS",
+    "TRADE_GREEKS_SECOND_ORDER", "TRADE_GREEKS_THIRD_ORDER", "ALL_GREEKS", "ALL_TRADE_GREEKS",
+]
+
+[[vocabulary]]
+name = "ResultsFormat"
+names = [
+    "CSV", "JSON", "JSON_NEW", "JSON_LEGACY",
+    "NDJSON", "HTML",
+]
+
+[[vocabulary]]
+# The contract kinds the protocol addresses. `IGNORE` is the unresolved shape; this SDK spells that variant `Unknown` on its own surface.
+name = "SecType"
+names = [
+    "IGNORE", "STOCK", "OPTION", "INDEX", "RATE",
+]
+
+[[vocabulary]]
+# The interest-rate curves the rate endpoints serve.
+name = "RateType"
+names = [
+    "SOFR", "TREASURY_M1", "TREASURY_M3", "TREASURY_M6", "TREASURY_Y1",
+    "TREASURY_Y2", "TREASURY_Y3", "TREASURY_Y5", "TREASURY_Y7",
+    "TREASURY_Y10", "TREASURY_Y20", "TREASURY_Y30",
+]
+
+[[vocabulary]]
+# Every frame type the streaming protocol defines, control and data alike.
+name = "StreamMsgType"
+names = [
+    "CREDENTIALS", "SESSION_TOKEN", "INFO", "METADATA", "CONNECTED", "PING",
+    "ERROR", "DISCONNECTED", "RECONNECTED", "CONTRACT", "QUOTE", "TRADE",
+    "OPEN_INTEREST", "OHLCVC", "MARKET_VALUE", "START", "RESTART", "STOP",
+    "REQ_RESPONSE", "REMOVE_QUOTE", "REMOVE_TRADE", "REMOVE_OPEN_INTEREST",
+    "REMOVE_MARKET_VALUE",
+]
+
+[[vocabulary]]
+# Why the server ended a stream or refused a login.
+name = "RemoveReason"
+names = [
+    "UNSPECIFIED", "INVALID_CREDENTIALS", "INVALID_LOGIN_VALUES",
+    "INVALID_LOGIN_SIZE", "GENERAL_VALIDATION_ERROR", "TIMED_OUT",
+    "CLIENT_FORCED_DISCONNECT", "ACCOUNT_ALREADY_CONNECTED",
+    "SESSION_TOKEN_EXPIRED", "INVALID_SESSION_TOKEN", "FREE_ACCOUNT",
+    "TOO_MANY_REQUESTS", "NO_START_DATE", "LOGIN_TIMED_OUT",
+    "SERVER_RESTARTING", "SESSION_TOKEN_NOT_FOUND",
+    "SERVER_USER_DOES_NOT_EXIST", "INVALID_CREDENTIALS_NULL_USER",
+]
+
+[[vocabulary]]
+# The outcomes a subscription request can return.
+name = "StreamResponseType"
+names = [
+    "SUBSCRIBED", "ERROR", "MAX_STREAMS_REACHED", "INVALID_PERMS",
+]

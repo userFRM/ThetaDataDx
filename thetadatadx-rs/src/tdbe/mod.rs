@@ -23,6 +23,7 @@ pub mod right;
 pub mod sequences;
 pub mod time;
 pub mod types;
+pub mod vocabulary;
 
 // Module-root facade. The data-format layer keeps a complete, flat
 // re-export surface so internal callers reach `crate::tdbe::CalendarStatus`
