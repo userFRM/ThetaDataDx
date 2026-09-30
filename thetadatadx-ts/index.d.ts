@@ -202,7 +202,7 @@ export declare class Config {
   setReconnectCallback(callback?: (((arg: ReconnectDecisionArgs) => number | null)) | undefined | null): void
   /**
    * Set the streaming event ring buffer size (slots). Must be a power of
-   * two `>= 64`; invalid values are rejected immediately. The slot count
+   * two from `64` to `2^24`; invalid values are rejected immediately. The slot count
    * is a pointer-width value in the core, so it marshals as a `BigInt`
    * like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
    * Default `131_072`.

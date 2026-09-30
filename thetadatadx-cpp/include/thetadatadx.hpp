@@ -820,8 +820,8 @@ public:
     }
 
     /** Set the streaming event ring size (slots). Must be a power of two
-     *  >= 64; invalid values are rejected (thetadatadx_last_error). Default
-     *  131_072. */
+     *  from 64 to 2^24; invalid values are rejected (thetadatadx_last_error).
+     *  Default 131_072. */
     void set_streaming_ring_size(size_t n) {
         // The C setter returns void and rejects an invalid ring size through
         // the error slot; clear it first so a stale error isn't misread, then

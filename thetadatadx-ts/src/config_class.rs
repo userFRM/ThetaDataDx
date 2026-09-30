@@ -252,7 +252,7 @@ impl Config {
     // ── streaming transport knobs — parity with Python / C++ / FFI ──────
 
     /// Set the streaming event ring buffer size (slots). Must be a power of
-    /// two `>= 64`; invalid values are rejected immediately. The slot count
+    /// two from `64` to `2^24`; invalid values are rejected immediately. The slot count
     /// is a pointer-width value in the core, so it marshals as a `BigInt`
     /// like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
     /// Default `131_072`.
@@ -264,16 +264,8 @@ impl Config {
                 "streaming_ring_size {value} exceeds the addressable range on this platform"
             ))
         })?;
-        if value == 0 || !value.is_power_of_two() {
-            return Err(crate::invalid_parameter_err(format!(
-                "streaming_ring_size must be a power of two >= 64; got {value}"
-            )));
-        }
-        if value < 64 {
-            return Err(crate::invalid_parameter_err(format!(
-                "streaming_ring_size must be >= 64; got {value}"
-            )));
-        }
+        thetadatadx::check_ring_size(value)
+            .map_err(|e| crate::invalid_parameter_err(format!("streaming_ring_size: {e}")))?;
         let mut guard = self
             .inner
             .lock()

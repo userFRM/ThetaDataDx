@@ -473,8 +473,8 @@ impl Config {
     // core validator at connect time.
 
     /// Set the streaming event ring buffer size (slots). Must be a power
-    /// of two ``>= 64`` (rejected at connect otherwise). Default
-    /// ``131_072``.
+    /// of two from ``64`` to ``2**24`` (rejected at connect otherwise).
+    /// Default ``131_072``.
     #[setter]
     fn set_streaming_ring_size(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

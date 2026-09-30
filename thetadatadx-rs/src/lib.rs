@@ -482,6 +482,15 @@ pub mod utils {
 #[doc(hidden)]
 pub use crate::tdbe::time;
 
+/// The streaming ring-size rule the connect-time validation applies, so the
+/// binding setters reject exactly the values a connect would.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable
+/// public surface; for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use crate::util::ring::check_ring_size;
+
 /// Canonical JSON helper (`finite_or_null`) for the CLI / server / MCP
 /// renderers.
 ///

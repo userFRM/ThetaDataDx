@@ -1642,10 +1642,10 @@ int32_t thetadatadx_config_get_streaming_keepalive_retries(const ThetaDataDxConf
 
 /**
  * Set the streaming event ring buffer size (slots). Must be a power of two
- * >= 64; invalid values are rejected at the setter (thetadatadx_last_error).
- * Default 131_072.
+ * from 64 to 2^24; invalid values are rejected at the setter
+ * (thetadatadx_last_error). Default 131_072.
  * @param config Config handle to mutate; no-op when NULL.
- * @param n Ring buffer size in slots (power of two, >= 64).
+ * @param n Ring buffer size in slots (power of two, 64 to 2^24).
  */
 void thetadatadx_config_set_streaming_ring_size(ThetaDataDxConfig* config, size_t n);
 

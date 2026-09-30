@@ -545,8 +545,8 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
 
 /// Set the streaming event ring buffer size (slots).
 ///
-/// Must be a power of two `>= 64`. Invalid values are rejected at the
-/// setter boundary: the config is left unchanged and the failure
+/// Must be a power of two from `64` to `2^24`. Invalid values are rejected
+/// at the setter boundary: the config is left unchanged and the failure
 /// reason is written to thread-local storage retrievable via
 /// `thetadatadx_last_error()`. Default is `131_072`.
 #[no_mangle]
@@ -558,19 +558,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
         if config.is_null() {
             return;
         }
-        // Same validation as the Rust core's `check_ring_size` —
-        // surface the rejection here so the FFI caller sees it at the
-        // setter rather than at connect.
-        if n == 0 || !n.is_power_of_two() {
+        // The core's own rule, surfaced at the setter so the FFI caller
+        // sees a rejection here rather than at connect.
+        if let Err(e) = thetadatadx::check_ring_size(n) {
             crate::error::set_error_with_code(
-                &format!("streaming_ring_size must be a power of two >= 64; got {n}"),
-                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
-            );
-            return;
-        }
-        if n < 64 {
-            crate::error::set_error_with_code(
-                &format!("streaming_ring_size must be >= 64; got {n}"),
+                &format!("streaming_ring_size: {e}"),
                 crate::error::THETADATADX_ERR_INVALID_PARAMETER,
             );
             return;
@@ -2137,13 +2129,16 @@ mod resilience_knob_tests {
                 0
             );
             assert_eq!(got_usize, 4_096);
-            // Non-power-of-two rejected at the setter; value unchanged.
-            super::thetadatadx_config_set_streaming_ring_size(cfg, 5_000);
-            assert_eq!(
-                super::thetadatadx_config_get_streaming_ring_size(cfg, &mut got_usize),
-                0
-            );
-            assert_eq!(got_usize, 4_096);
+            // A non-power-of-two, and a power of two above the 2^24 ceiling a
+            // connect enforces, are rejected at the setter; value unchanged.
+            for rejected in [5_000, 1 << 25] {
+                super::thetadatadx_config_set_streaming_ring_size(cfg, rejected);
+                assert_eq!(
+                    super::thetadatadx_config_get_streaming_ring_size(cfg, &mut got_usize),
+                    0
+                );
+                assert_eq!(got_usize, 4_096, "{rejected}");
+            }
 
             super::thetadatadx_config_free(cfg);
         }

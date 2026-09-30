@@ -278,7 +278,7 @@ class Config:
     streaming_ping_interval_ms: int
     """Interval, in milliseconds, between client-side streaming heartbeats."""
     streaming_ring_size: int
-    """Capacity, in slots, of the streaming event ring; must be a power of two and at least 64."""
+    """Capacity, in slots, of the streaming event ring; must be a power of two from 64 to ``2**24``, otherwise connecting raises."""
     streaming_io_read_slice_ms: int
     """Time slice, in milliseconds, the streaming I/O loop spends reading per iteration."""
     streaming_keepalive_idle_secs: int
