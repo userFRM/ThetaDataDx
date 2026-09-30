@@ -2518,11 +2518,16 @@ typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, v
 int thetadatadx_streaming_set_callback(const ThetaDataDxStreamHandle* h, ThetaDataDxStreamCallback callback, void* ctx);
 
 /** Reconnect the streaming session using the previously-registered
- *  callback.
+ *  callback. A retry after a failed reconnect replays the subscriptions
+ *  the failed attempt saved.
  *  @param h The streaming handle.
  *  @return 0 on success, -1 on error; -1 with "streaming handle has already
  *          been shut down -- this is terminal" if the handle is past
- *          thetadatadx_streaming_shutdown. */
+ *          thetadatadx_streaming_shutdown; -1 with THETADATADX_ERR_STREAM if
+ *          the session reconnected but some subscriptions failed to restore
+ *          (the stream stays live and
+ *          thetadatadx_streaming_active_subscriptions lists what was
+ *          restored). */
 int thetadatadx_streaming_reconnect(const ThetaDataDxStreamHandle* h);
 
 /** Cumulative count of streaming events that could not be published into
@@ -2735,7 +2740,11 @@ int thetadatadx_streaming_unsubscribe(const ThetaDataDxStreamHandle* h, const Th
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions.
  *  @param handle The unified handle.
- *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()); -1
+ *          with THETADATADX_ERR_STREAM if the session reconnected but some
+ *          subscriptions failed to restore (the stream stays live and
+ *          thetadatadx_client_active_subscriptions lists what was
+ *          restored). */
 int thetadatadx_client_reconnect(const ThetaDataDxClient* handle);
 
 /** Report whether streaming is active on the unified client.

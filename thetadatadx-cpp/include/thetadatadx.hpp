@@ -1975,7 +1975,9 @@ public:
 
     /// Reconnect streaming and re-apply every previously active
     /// subscription. Throws on failure — the wrapped C ABI sets the
-    /// last-error slot on `-1` return.
+    /// last-error slot on `-1` return. If the session reconnected but some
+    /// subscriptions failed to restore, it throws `StreamError` with the
+    /// stream still live; `active_subscriptions()` lists what was restored.
     void reconnect() {
         int rc = thetadatadx_client_reconnect(handle_.get());
         if (rc < 0) {
