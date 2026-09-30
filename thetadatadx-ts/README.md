@@ -43,8 +43,8 @@ import { Client } from 'thetadatadx-ts';
 // Pass your API key directly. Add marketDataType: "STAGE" to target staging.
 const client = await Client.connectWith({ apiKey: 'td1_...' });
 
-// First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-const greeks = await client.marketData.optionHistoryGreeksFirstOrder('SPY', '20260619', { date: '20240315' });
+// First-order Greeks for every strike on SPY's 2026-06-18 expiry, as of 2024-03-15
+const greeks = await client.marketData.optionHistoryGreeksFirstOrder('SPY', '20260618', { date: '20240315' });
 for (const t of greeks.slice(0, 5)) {
   console.log(`K=${t.strike} ${t.right} delta=${t.delta.toFixed(4)} theta=${t.theta.toFixed(4)}`);
 }
@@ -105,7 +105,7 @@ await client.stream.startStreaming((event) => {
   }
 });
 
-const leg = { expiration: '20260620', strike: '550', right: 'C' };
+const leg = { expiration: '20261218', strike: '550', right: 'C' };
 client.stream.subscribeMany([
   Contract.option('SPY', leg).quote(),
   Contract.option('SPY', leg).trade(),
@@ -118,7 +118,7 @@ Build subscriptions with the fluent `Contract` API and pass them — one at a ti
 import { Contract, SecType } from 'thetadatadx-ts';
 
 const stock = Contract.stock('AAPL');
-const option = Contract.option('SPY', { expiration: '20260620', strike: '550', right: 'C' });
+const option = Contract.option('SPY', { expiration: '20261218', strike: '550', right: 'C' });
 
 client.stream.subscribe(stock.quote());
 client.stream.subscribeMany([option.quote(), option.trade(), option.openInterest()]);

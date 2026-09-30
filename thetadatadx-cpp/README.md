@@ -61,8 +61,8 @@ int main() {
         .api_key("td1_...")
         .connect();
 
-    // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
+    // First-order Greeks for every strike on SPY's 2026-06-18 expiry, as of 2024-03-15
+    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260618", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
                     t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
@@ -149,7 +149,7 @@ int main() {
     // Fluent contract-first subscriptions.
     auto stock  = thetadatadx::Contract::stock("AAPL");
     // OptionLeg: expiration, strike, right
-    auto option = thetadatadx::Contract::option("SPY", {"20260620", "550", "C"});
+    auto option = thetadatadx::Contract::option("SPY", {"20261218", "550", "C"});
 
     streaming.subscribe(stock.quote());
     streaming.subscribe_many({option.quote(), option.trade()});

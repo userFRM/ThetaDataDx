@@ -47,8 +47,8 @@ from thetadatadx import Client
 # Pass your API key directly. Use market_data_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
-# First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.market_data.option_history_greeks_first_order("SPY", "20260619", date="20240315")
+# First-order Greeks for every strike on SPY's 2026-06-18 expiry, as of 2024-03-15
+greeks = client.market_data.option_history_greeks_first_order("SPY", "20260618", date="20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "theta", "vega"]).head())
@@ -114,7 +114,7 @@ def on_chunk(ticks):
     for t in ticks:
         ...   # write to Parquet, push to a bus, accumulate stats
 
-(client.market_data.option_history_quote_builder("QQQ", "20260516").date("20260516")
+(client.market_data.option_history_quote_builder("QQQ", "20260515").date("20260515")
     .interval("tick")
     .strike_range(5)
     .stream(on_chunk))
@@ -142,7 +142,7 @@ def on_event(event):
                 f"ask_exchange={ax} ms_of_day={ms}"
             )
 
-spy_call = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+spy_call = Contract.option("SPY", expiration="20261218", strike="550", right="C")
 
 with client.streaming(on_event) as session:
     session.subscribe_many([spy_call.quote(), spy_call.trade()])
@@ -155,7 +155,7 @@ Build subscriptions with the fluent `Contract` API and pass them — one at a ti
 from thetadatadx import Contract, SecType
 
 stock  = Contract.stock("AAPL")
-option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+option = Contract.option("SPY", expiration="20261218", strike="550", right="C")
 
 with client.streaming(on_event) as session:
     session.subscribe(stock.quote())

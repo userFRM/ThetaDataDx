@@ -40,8 +40,8 @@ def main() -> None:
     creds = Credentials.from_file("creds.txt")
     client = Client(creds, Config.production())
 
-    # Build a strike chain around 550, both wings, 20-Jun-2026.
-    expiration = "20260620"
+    # Build a strike chain around 550, both wings, 18-Dec-2026.
+    expiration = "20261218"
     strikes = ["540", "545", "550", "555", "560"]
     chain = [
         Contract.option("SPY", expiration=expiration, strike=k, right="C")

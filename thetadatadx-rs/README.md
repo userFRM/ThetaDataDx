@@ -51,7 +51,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
     // EOD Greeks for a SPY option chain across Q1 2024.
     let chain = client
         .market_data()
-        .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
+        .option_history_greeks_eod("SPY", "20260618", "20240101", "20240331")
         .await?;
 
     for t in chain.iter().take(5) {
@@ -150,7 +150,7 @@ client.stream().start_streaming(|event: &StreamEvent| {
 
 client.stream().subscribe(Contract::stock("AAPL").quote())?;
 client.stream().subscribe(
-    Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?
+    Contract::option("SPY", OptionLeg { expiration: "20261218", strike: "550", right: "C" })?
         .trade(),
 )?;
 

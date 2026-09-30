@@ -31,7 +31,7 @@ client.stream().start_streaming(|event: &StreamEvent| {
     }
 })?;
 
-let sub = Contract::option("SPY", OptionLeg { expiration: "20260618", strike: "570", right: "C" })?.open_interest();
+let sub = Contract::option("SPY", OptionLeg { expiration: "20261218", strike: "570", right: "C" })?.open_interest();
 client.stream().subscribe(sub.clone())?;
 
 // Remove this stream; the session stays open for other subscriptions.
@@ -51,7 +51,7 @@ def on_event(event):
 
 client.stream.start_streaming(on_event)
 
-sub = Contract.option("SPY", expiration="20260618", strike="570", right="C").open_interest()
+sub = Contract.option("SPY", expiration="20261218", strike="570", right="C").open_interest()
 client.stream.subscribe(sub)
 
 # Remove this stream; the session stays open for other subscriptions.
@@ -72,7 +72,7 @@ await client.stream.startStreaming((event) => {
   }
 });
 
-const sub = Contract.option('SPY', { expiration: '20260618', strike: '570', right: 'C' }).openInterest();
+const sub = Contract.option('SPY', { expiration: '20261218', strike: '570', right: 'C' }).openInterest();
 client.stream.subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
@@ -91,7 +91,7 @@ client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
     }
 });
 
-auto sub = thetadatadx::Contract::option("SPY", {.expiration = "20260618", .strike = "570", .right = "C"}).open_interest();
+auto sub = thetadatadx::Contract::option("SPY", {.expiration = "20261218", .strike = "570", .right = "C"}).open_interest();
 client.stream().subscribe(sub);
 
 // Remove this stream; the session stays open for other subscriptions.
@@ -112,7 +112,7 @@ WebSocket streaming from the bundled [server binary](/server/). Send one JSON en
 
 ```bash
 websocat ws://127.0.0.1:25520/v1/events
-{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "OPEN_INTEREST", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}}
+{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "OPEN_INTEREST", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}}
 ```
 
 The WebSocket envelope takes the strike as the terminal's 1/10-cent integer (`570000` = $570.00) by default, matching the terminal wire; pass the server's `--strike-format dollars` flag to use a dollar value instead. The native SDK builders take dollars.
