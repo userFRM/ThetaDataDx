@@ -345,7 +345,7 @@ const STREAMS: &[StreamSpec] = &[
         path: "streaming/indices/market-value",
         title: "Index Market Value",
         description: "Real-time calculated market value for an index.",
-        prose: "Streams the market value for an index, delivered as an `IndexMarketValue` event carrying `ms_of_day`, `market_price` and `date`. An index has no NBBO, so there is no `market_bid` or `market_ask` beside the price and no midpoint between them: the event type is distinct from the stock and option `MarketValue` for that reason, rather than carrying fields that do not apply. The price is served exactly as the feed sent it. Market value is a per-index subscription with no full-stream broadcast.",
+        prose: "Streams the market value for an index, delivered as an `IndexMarketValue` event carrying `ms_of_day`, `market_price` and `date`. An index has no NBBO, so there is no `market_bid` or `market_ask` beside the price and no midpoint between them: the event type is distinct from the stock and option `MarketValue` for that reason, rather than carrying fields that do not apply. The market price is the vendor's indicative figure: the index level moved by a random 1 to 5 cents up or down, never exact, as the vendor serves it on every surface. For the exact level, subscribe to the index price instead. Market value is a per-index subscription with no full-stream broadcast.",
         event: "IndexMarketValue",
         rust_sub: "Contract::index(\"SPX\").market_value()",
         python_sub: "Contract.index(\"SPX\").market_value()",

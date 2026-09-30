@@ -114,7 +114,7 @@ pub struct ThetaDataDxStreamIndexMarketValue {
     pub contract: ThetaDataDxContract,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
-    /// Index market price (dollars), as the feed sent it.
+    /// Index market value (dollars): the vendor's indicative figure, the index level moved by a random 1 to 5 cents. The exact level is the index price.
     pub market_price: f64,
     /// Trading date as `YYYYMMDD`.
     pub date: i32,

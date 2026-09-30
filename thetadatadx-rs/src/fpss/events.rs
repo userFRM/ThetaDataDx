@@ -178,7 +178,9 @@ pub enum StreamData {
     ///
     /// An index has no NBBO, so the vendor publishes a market price alone:
     /// no `market_bid`, no `market_ask`, and no midpoint between them. The
-    /// price is served exactly as the feed sent it.
+    /// price is the vendor's indicative figure, the index level moved by a
+    /// random 1 to 5 cents up or down, as the vendor serves it. The exact
+    /// level is the index price subscription.
     IndexMarketValue {
         /// Full parsed contract for this tick. Holds the unresolved-
         /// contract sentinel (`sec_type == SecType::Unknown`; the
@@ -188,7 +190,7 @@ pub enum StreamData {
         contract: Arc<Contract>,
         /// Milliseconds since midnight Eastern Time.
         ms_of_day: i32,
-        /// The index market price (dollars), as sent.
+        /// The indicative index market price (dollars).
         market_price: f64,
         /// Trading date as `YYYYMMDD`.
         date: i32,
