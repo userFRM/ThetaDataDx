@@ -381,7 +381,7 @@ pub(super) fn strip_field_count_from_doc(doc: &str) -> String {
 /// `high`, `low`), never the trailing `expiration`/`strike`/`right`
 /// triple which is identical across a result set and carries no
 /// per-row diagnostic signal.
-fn repr_fields_for_tick(_type_name: &str, def: &TickTypeDef, max_fields: usize) -> Vec<ReprField> {
+fn repr_fields_for_tick(def: &TickTypeDef, max_fields: usize) -> Vec<ReprField> {
     let mut fields: Vec<ReprField> = Vec::new();
     for column in &def.columns {
         if fields.len() >= max_fields {
@@ -499,7 +499,7 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     writeln!(out, "#[pymethods]").unwrap();
     writeln!(out, "impl {class} {{").unwrap();
     out.push_str(&render_python_tick_class_new(type_name, def));
-    let repr_fields = repr_fields_for_tick(type_name, def, 6);
+    let repr_fields = repr_fields_for_tick(def, 6);
     if repr_fields.is_empty() {
         // Unlikely (every tick has columns), but keep the fallback so
         // a future schema type without columns still compiles.

@@ -400,19 +400,13 @@ fn python_utility_doc(utility: &UtilitySpec) -> Option<&str> {
 
 fn python_utility_function(utility: &UtilitySpec) -> String {
     let mut out = String::new();
-    // Doc policy differs by kind: the Greeks calculators carry the shared
-    // cross-language `doc`; the four special helpers carry Python-specific
+    // Doc policy differs by kind: the four special helpers carry Python-specific
     // doc; the lookup-table forwarders are self-evident and undocumented
     // on the Python surface (the `.pyi` stub holds the user-facing text).
     if let Some(doc) = python_utility_doc(utility) {
         push_rust_doc_comment(&mut out, "", doc);
     }
     out.push_str("#[pyfunction]\n");
-    if utility.params.len() > 6 {
-        out.push_str(
-            "#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by SDK callers\n",
-        );
-    }
     match utility.kind {
         UtilityKind::Forwarder => {
             assert_forwarder_code_params(utility);

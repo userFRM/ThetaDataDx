@@ -186,7 +186,7 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
     let doc = if def.doc.is_empty() {
         format!("`{type_name}` tick.")
     } else {
-        let count = struct_field_count(type_name, def);
+        let count = struct_field_count(def);
         scrub_provenance(&with_field_count(&def.doc, count))
     };
     for line in doc.lines() {
@@ -275,7 +275,7 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
 
 /// Field count rendered in the `-- N fields` doc phrase: every schema
 /// column plus the `contract_id` tail (`expiration` / `strike` / `right`).
-fn struct_field_count(_type_name: &str, def: &TickTypeDef) -> usize {
+fn struct_field_count(def: &TickTypeDef) -> usize {
     def.columns.len() + usize::from(def.contract_id) * 3
 }
 
