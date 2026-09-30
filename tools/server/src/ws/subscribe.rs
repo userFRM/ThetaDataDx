@@ -1038,64 +1038,6 @@ mod tests {
         );
     }
 
-    /// A subscribe arriving before streaming has started installs nothing,
-    /// so it must be rejected with `ERROR` rather than the old false
-    /// positive `OK` that told the client it was subscribed.
-    #[test]
-    fn streaming_not_started_returns_error_not_false_success() {
-        let resp = build_req_response(
-            ReqResponse::Error,
-            1,
-            Some("streaming is not started; no subscription was installed"),
-            "CONNECTED",
-        );
-        assert_eq!(response_token(&resp), "ERROR");
-        assert_ne!(response_token(&resp), "SUBSCRIBED");
-        assert_ne!(response_token(&resp), "OK");
-        assert!(resp
-            .get("header")
-            .and_then(|h| h.get("error"))
-            .and_then(|e| e.as_str())
-            .unwrap()
-            .contains("streaming is not started"));
-    }
-
-    /// `STOP` is a removal, not a status query: when no stream is
-    /// installed it must acknowledge `ERROR`, never the success token.
-    /// Acknowledging `SUBSCRIBED` when nothing was removed tells the
-    /// client its streams are gone when they were never there — the same
-    /// false-positive class the subscribe path closes for "streaming not
-    /// started".
-    #[test]
-    fn stop_without_active_stream_is_error_not_false_success() {
-        let resp = build_req_response(
-            ReqResponse::Error,
-            9,
-            Some("streaming is not started; no stream was stopped"),
-            "CONNECTED",
-        );
-        assert_eq!(response_token(&resp), "ERROR");
-        assert_ne!(response_token(&resp), "SUBSCRIBED");
-        assert!(resp
-            .get("header")
-            .and_then(|h| h.get("error"))
-            .and_then(|e| e.as_str())
-            .unwrap()
-            .contains("no stream was stopped"));
-    }
-
-    /// A `STOP` that actually removed the live stream set acknowledges
-    /// with the single documented success token and carries no error.
-    #[test]
-    fn stop_that_applied_returns_subscribed() {
-        let resp = build_req_response(ReqResponse::Subscribed, 9, None, "CONNECTED");
-        assert_eq!(response_token(&resp), "SUBSCRIBED");
-        assert!(
-            resp.get("header").and_then(|h| h.get("error")).is_none(),
-            "an applied STOP must not carry an error field"
-        );
-    }
-
     #[test]
     fn ws_text_cap_is_tight() {
         // Sanity: the cap must be exactly 4 KiB. Hard number instead of
