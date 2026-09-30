@@ -1189,6 +1189,17 @@ impl Client {
                     )
                 }));
                 match drained {
+                    // The I/O thread left without a fault because the server
+                    // ended the session or the reconnect budget ran out. The
+                    // `ReconnectsExhausted` event that says so is a control
+                    // event, which never becomes a row, so without this the
+                    // reader would see the same clean end as its own close.
+                    // `fail` flushes the partial batch first.
+                    Ok(crate::PollOutcome::Shutdown) if client.reconnects_exhausted() => {
+                        sink.fail(crate::streaming::StreamError::Disconnected(
+                            "fpss session ended and will not reconnect".to_string(),
+                        ));
+                    }
                     // Clean shutdown: flush the final partial batch and publish
                     // the terminal end-of-stream marker so the reader sees
                     // `finished` after consuming every queued batch.
