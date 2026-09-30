@@ -83,7 +83,8 @@ pub use types::{flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType, 
 ///
 /// Test-facing helper used by the byte-match integration suite to share
 /// one live capture across CSV / JSONL smoke tests without hitting the
-/// wire twice. Hidden from `docs.rs`; not part of the stable public API.
+/// wire twice. Compiled only with the private `__test-helpers` feature.
+#[cfg(feature = "__test-helpers")]
 #[doc(hidden)]
 pub fn decoded_decode_to_file_for_test(
     raw_path: &std::path::Path,
