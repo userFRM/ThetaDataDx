@@ -131,10 +131,34 @@ pub(crate) fn project_full_subscriptions(
             };
             Some(serde_json::json!({
                 "kind": kind_str,
-                "contract": format!("{sec_type:?}"),
+                "contract": sec_type.as_str(),
             }))
         })
         .collect::<Vec<_>>())
+}
+
+#[cfg(test)]
+mod full_subscription_projection_tests {
+    use super::project_full_subscriptions;
+    use thetadatadx::fpss::protocol::SubscriptionKind;
+    use thetadatadx::SecType;
+
+    /// `contract` carries the upper-case wire name `SecType.name` reports, so
+    /// a caller can compare the two directly.
+    #[test]
+    fn contract_is_the_wire_security_type_name() {
+        let projected = project_full_subscriptions(vec![
+            (SubscriptionKind::Trade, SecType::Option),
+            (SubscriptionKind::OpenInterest, SecType::Stock),
+        ]);
+        assert_eq!(
+            projected,
+            serde_json::json!([
+                {"kind": "full_trades", "contract": "OPTION"},
+                {"kind": "full_open_interest", "contract": "STOCK"},
+            ])
+        );
+    }
 }
 
 // ── Credentials ──
