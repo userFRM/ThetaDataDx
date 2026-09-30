@@ -442,8 +442,8 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
         .unwrap();
     }
     if def.contract_id {
-        // Contract identity is populated on wildcard queries only —
-        // absent identity is undefined/null on the JS surface,
+        // Contract identity is populated whenever the response carries
+        // it; absent identity is undefined/null on the JS surface,
         // matching the streaming `Contract` payload convention.
         out.push_str("    pub expiration: Option<i32>,\n");
         out.push_str("    pub strike: Option<f64>,\n");
