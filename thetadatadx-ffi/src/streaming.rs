@@ -244,35 +244,17 @@ struct StreamingConnectParams {
     reconnect: thetadatadx::config::ReconnectConfig,
 }
 
-/// Thread every connection-side knob from a [`StreamingConnectParams`]
-/// snapshot into an [`thetadatadx::fpss::StreamingClientBuilder`].
-///
-/// The single source of truth for the FFI's two build sites (initial
-/// `set_callback` connect and `thetadatadx_streaming_reconnect`) so a future knob
-/// cannot be wired into one and silently dropped from the other.
+/// Build a [`thetadatadx::fpss::StreamingClientBuilder`] from a
+/// [`StreamingConnectParams`] snapshot, for the FFI's two build sites
+/// (initial `set_callback` connect and `thetadatadx_streaming_reconnect`).
 fn streaming_builder(
     params: &StreamingConnectParams,
 ) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
-    thetadatadx::fpss::StreamingClient::builder(&params.creds, params.streaming.hosts())
-        .ring_size(params.streaming.ring_size)
-        .consumer_cpu(params.streaming.consumer_cpu)
-        .wait_mode(params.streaming.wait_mode)
-        .park_interval_us(params.streaming.park_interval_us)
-        .reconnect_policy(params.reconnect.policy.clone())
-        .reconnect_wait_ms(params.reconnect.wait_ms)
-        .reconnect_wait_max_ms(params.reconnect.wait_max_ms)
-        .reconnect_wait_rate_limited_ms(params.reconnect.wait_rate_limited_ms)
-        .reconnect_wait_server_restart_ms(params.reconnect.wait_server_restart_ms)
-        .reconnect_jitter(params.reconnect.jitter)
-        .reconnect_replay_burst_size(params.reconnect.replay_burst_size)
-        .reconnect_replay_pace_ms(params.reconnect.replay_pace_ms)
-        .connect_timeout_ms(params.streaming.connect_timeout_ms)
-        .read_timeout_ms(params.streaming.timeout_ms)
-        .ping_interval_ms(params.streaming.ping_interval_ms)
-        .io_read_slice_ms(params.streaming.io_read_slice_ms)
-        .keepalive_idle_secs(params.streaming.keepalive_idle_secs)
-        .keepalive_interval_secs(params.streaming.keepalive_interval_secs)
-        .keepalive_retries(params.streaming.keepalive_retries)
+    thetadatadx::fpss::StreamingClientBuilder::from_config(
+        &params.creds,
+        &params.streaming,
+        &params.reconnect,
+    )
 }
 
 // ═══════════════════════════════════════════════════════════════════════

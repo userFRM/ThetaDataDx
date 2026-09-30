@@ -981,28 +981,13 @@ impl Client {
         let gen_at_entry = self.streaming.stop_generation.load(Ordering::Acquire);
 
         let config = self.market_data.config();
-        let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
-            .ring_size(config.streaming.ring_size)
-            .consumer_cpu(config.streaming.consumer_cpu)
-            .wait_mode(config.streaming.wait_mode)
-            .park_interval_us(config.streaming.park_interval_us)
-            .reconnect_policy(config.reconnect.policy.clone())
-            .reconnect_wait_ms(config.reconnect.wait_ms)
-            .reconnect_wait_max_ms(config.reconnect.wait_max_ms)
-            .reconnect_wait_rate_limited_ms(config.reconnect.wait_rate_limited_ms)
-            .reconnect_wait_server_restart_ms(config.reconnect.wait_server_restart_ms)
-            .reconnect_jitter(config.reconnect.jitter)
-            .reconnect_replay_burst_size(config.reconnect.replay_burst_size)
-            .reconnect_replay_pace_ms(config.reconnect.replay_pace_ms)
-            .connect_timeout_ms(config.streaming.connect_timeout_ms)
-            .read_timeout_ms(config.streaming.timeout_ms)
-            .ping_interval_ms(config.streaming.ping_interval_ms)
-            .io_read_slice_ms(config.streaming.io_read_slice_ms)
-            .keepalive_idle_secs(config.streaming.keepalive_idle_secs)
-            .keepalive_interval_secs(config.streaming.keepalive_interval_secs)
-            .keepalive_retries(config.streaming.keepalive_retries)
-            .build()
-            .map_err(crate::error::Error::from)?;
+        let client = crate::fpss::StreamingClientBuilder::from_config(
+            &self.creds,
+            &config.streaming,
+            &config.reconnect,
+        )
+        .build()
+        .map_err(crate::error::Error::from)?;
         let client_arc = Arc::new(client);
 
         // Spawn the dispatcher behind a startup gate so the consumer body

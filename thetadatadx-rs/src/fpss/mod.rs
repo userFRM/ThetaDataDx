@@ -128,7 +128,7 @@ use std::time::Duration;
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::{ReconnectPolicy, WaitMode};
+use crate::config::{ReconnectConfig, ReconnectPolicy, StreamingConfig, WaitMode};
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -491,38 +491,89 @@ impl<'a> StreamingClientBuilder<'a> {
     /// defaults for the rest.
     #[must_use]
     pub fn new(creds: &'a Credentials, hosts: &'a [(String, u16)]) -> Self {
-        let reconnect = crate::config::ReconnectConfig::production_defaults();
-        let fpss = crate::config::StreamingConfig::production_defaults();
+        // The production ring size gives a direct-builder user production-
+        // grade headroom by default. ThetaData streams large shapes (10k-15k
+        // option contracts plus full trade streams); a small default ring
+        // overflows under real market bursts and drops the newest events.
+        // Callers that want a smaller footprint can set `.ring_size(..)`.
+        Self::with_hosts(
+            creds,
+            hosts,
+            &StreamingConfig::production_defaults(),
+            &ReconnectConfig::production_defaults(),
+        )
+    }
+
+    /// Construct a builder carrying every connection-side knob of a
+    /// [`StreamingConfig`] and a [`ReconnectConfig`], hosts included.
+    ///
+    /// This is how the unified client and every language binding connect,
+    /// so a knob added to either config reaches all of them at once.
+    #[must_use]
+    pub fn from_config(
+        creds: &'a Credentials,
+        streaming: &'a StreamingConfig,
+        reconnect: &ReconnectConfig,
+    ) -> Self {
+        Self::with_hosts(creds, &streaming.hosts, streaming, reconnect)
+    }
+
+    fn with_hosts(
+        creds: &'a Credentials,
+        hosts: &'a [(String, u16)],
+        streaming: &StreamingConfig,
+        reconnect: &ReconnectConfig,
+    ) -> Self {
+        // Destructured without `..`, so a field added to either config does
+        // not compile until it is carried into the builder here.
+        let StreamingConfig {
+            hosts: _,
+            timeout_ms,
+            ring_size,
+            ping_interval_ms,
+            connect_timeout_ms,
+            io_read_slice_ms,
+            keepalive_idle_secs,
+            keepalive_interval_secs,
+            keepalive_retries,
+            consumer_cpu,
+            wait_mode,
+            park_interval_us,
+        } = *streaming;
+        let ReconnectConfig {
+            wait_ms,
+            wait_max_ms,
+            wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
+            ref policy,
+        } = *reconnect;
         Self {
             creds,
             hosts,
-            // Match the production ring size so a direct-builder user gets
-            // production-grade headroom by default. ThetaData streams large
-            // shapes (10k-15k option contracts plus full trade streams); a
-            // small default ring overflows under real market bursts and drops
-            // the newest events. Callers that want a smaller footprint can set
-            // `.ring_size(..)` explicitly.
-            ring_size: fpss.ring_size,
-            policy: ReconnectPolicy::default(),
-            wait_ms: reconnect.wait_ms,
-            wait_max_ms: reconnect.wait_max_ms,
-            wait_rate_limited_ms: reconnect.wait_rate_limited_ms,
-            wait_server_restart_ms: reconnect.wait_server_restart_ms,
-            jitter: reconnect.jitter,
-            replay_burst_size: reconnect.replay_burst_size,
-            replay_pace_ms: reconnect.replay_pace_ms,
-            connect_timeout_ms: fpss.connect_timeout_ms,
-            read_timeout_ms: fpss.timeout_ms,
-            ping_interval_ms: fpss.ping_interval_ms,
-            io_read_slice_ms: fpss.io_read_slice_ms,
-            keepalive_idle_secs: fpss.keepalive_idle_secs,
-            keepalive_interval_secs: fpss.keepalive_interval_secs,
-            keepalive_retries: fpss.keepalive_retries,
+            ring_size,
+            policy: policy.clone(),
+            wait_ms,
+            wait_max_ms,
+            wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
+            connect_timeout_ms,
+            read_timeout_ms: timeout_ms,
+            ping_interval_ms,
+            io_read_slice_ms,
+            keepalive_idle_secs,
+            keepalive_interval_secs,
+            keepalive_retries,
             wait_strategy: ring::AdaptiveWaitStrategy::from_mode(
-                fpss.wait_mode,
-                Duration::from_micros(fpss.park_interval_us),
+                wait_mode,
+                Duration::from_micros(park_interval_us),
             ),
-            consumer_cpu: fpss.consumer_cpu,
+            consumer_cpu,
         }
     }
 
@@ -3300,31 +3351,61 @@ mod builder_tests {
         assert!(err.to_string().contains("park_interval_us"), "{err}");
     }
 
-    /// The fluent builder is the only channel through which tuning
-    /// reaches the runtime. If a future refactor drops any setter, this
-    /// test fails to compile — the desired regression guard.
+    /// `from_config` is how the unified client and every binding connect,
+    /// so each config knob must land in its own connect argument. The
+    /// exhaustive destructure makes a new field a compile error; this
+    /// catches a field carried into the wrong slot or left at its default.
+    /// Every knob is set away from its default so neither can pass.
     #[test]
-    fn production_config_threads_timing_knobs_through_builder() {
-        let cfg = DirectConfig::production();
+    fn from_config_threads_every_knob_into_the_connect_args() {
+        let mut cfg = DirectConfig::production();
+        let s = &mut cfg.streaming;
+        s.hosts = vec![("stream.example.com".to_owned(), 12345)];
+        s.timeout_ms = 111_111;
+        s.ring_size = 1 << 20;
+        s.ping_interval_ms = 22_222;
+        s.connect_timeout_ms = 33_333;
+        s.io_read_slice_ms = 44;
+        s.keepalive_idle_secs = 66;
+        s.keepalive_interval_secs = 77;
+        s.keepalive_retries = 8;
+        s.consumer_cpu = Some(3);
+        s.wait_mode = WaitMode::Park;
+        s.park_interval_us = 999;
+        let r = &mut cfg.reconnect;
+        r.wait_ms = 1_010;
+        r.wait_max_ms = 2_020;
+        r.wait_rate_limited_ms = 3_030;
+        r.wait_server_restart_ms = 4_040;
+        r.jitter = JitterMode::None;
+        r.replay_burst_size = 51;
+        r.replay_pace_ms = 62;
+        r.policy = ReconnectPolicy::Manual;
+
         let creds = Credentials::new("user", "pw");
-        let args = StreamingClientBuilder::new(&creds, &cfg.streaming.hosts)
-            .ring_size(cfg.streaming.ring_size)
-            .reconnect_policy(cfg.reconnect.policy.clone())
-            .reconnect_wait_ms(cfg.reconnect.wait_ms)
-            .reconnect_wait_rate_limited_ms(cfg.reconnect.wait_rate_limited_ms)
-            .connect_timeout_ms(cfg.streaming.connect_timeout_ms)
-            .read_timeout_ms(cfg.streaming.timeout_ms)
-            .ping_interval_ms(cfg.streaming.ping_interval_ms)
-            .into_args();
-        assert_eq!(args.connect_timeout_ms, cfg.streaming.connect_timeout_ms);
-        assert_eq!(args.read_timeout_ms, cfg.streaming.timeout_ms);
-        assert_eq!(args.ping_interval_ms, cfg.streaming.ping_interval_ms);
-        assert_eq!(args.ring_size, cfg.streaming.ring_size);
-        assert_eq!(args.wait_ms, cfg.reconnect.wait_ms);
-        assert_eq!(
-            args.wait_rate_limited_ms,
-            cfg.reconnect.wait_rate_limited_ms
-        );
+        let args =
+            StreamingClientBuilder::from_config(&creds, &cfg.streaming, &cfg.reconnect).into_args();
+
+        assert_eq!(args.hosts, cfg.streaming.hosts.as_slice());
+        assert_eq!(args.read_timeout_ms, 111_111);
+        assert_eq!(args.ring_size, 1 << 20);
+        assert_eq!(args.ping_interval_ms, 22_222);
+        assert_eq!(args.connect_timeout_ms, 33_333);
+        assert_eq!(args.io_read_slice_ms, 44);
+        assert_eq!(args.keepalive_idle_secs, 66);
+        assert_eq!(args.keepalive_interval_secs, 77);
+        assert_eq!(args.keepalive_retries, 8);
+        assert_eq!(args.consumer_cpu, Some(3));
+        assert_eq!(args.wait_strategy.mode, WaitMode::Park);
+        assert_eq!(args.wait_strategy.park, Duration::from_micros(999));
+        assert_eq!(args.wait_ms, 1_010);
+        assert_eq!(args.wait_max_ms, 2_020);
+        assert_eq!(args.wait_rate_limited_ms, 3_030);
+        assert_eq!(args.wait_server_restart_ms, 4_040);
+        assert_eq!(args.jitter, JitterMode::None);
+        assert_eq!(args.replay_burst_size, 51);
+        assert_eq!(args.replay_pace_ms, 62);
+        assert!(matches!(args.policy, ReconnectPolicy::Manual));
     }
 }
 

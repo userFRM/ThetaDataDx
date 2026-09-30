@@ -79,32 +79,8 @@ impl FpssParams {
         }
     }
 
-    /// Thread every connection-side knob from the snapshot into a
-    /// [`fpss::StreamingClientBuilder`]. Kept in lockstep with the
-    /// unified client's connect path (`thetadatadx-rs/src/client.rs`)
-    /// and the C ABI (`thetadatadx-ffi/src/streaming.rs::streaming_builder`) so the
-    /// standalone client honours the full streaming and reconnect surface.
     fn builder(&self) -> fpss::StreamingClientBuilder<'_> {
-        fpss::StreamingClientBuilder::new(&self.creds, self.streaming.hosts())
-            .ring_size(self.streaming.ring_size)
-            .consumer_cpu(self.streaming.consumer_cpu)
-            .wait_mode(self.streaming.wait_mode)
-            .park_interval_us(self.streaming.park_interval_us)
-            .reconnect_policy(self.reconnect.policy.clone())
-            .reconnect_wait_ms(self.reconnect.wait_ms)
-            .reconnect_wait_max_ms(self.reconnect.wait_max_ms)
-            .reconnect_wait_rate_limited_ms(self.reconnect.wait_rate_limited_ms)
-            .reconnect_wait_server_restart_ms(self.reconnect.wait_server_restart_ms)
-            .reconnect_jitter(self.reconnect.jitter)
-            .reconnect_replay_burst_size(self.reconnect.replay_burst_size)
-            .reconnect_replay_pace_ms(self.reconnect.replay_pace_ms)
-            .connect_timeout_ms(self.streaming.connect_timeout_ms)
-            .read_timeout_ms(self.streaming.timeout_ms)
-            .ping_interval_ms(self.streaming.ping_interval_ms)
-            .io_read_slice_ms(self.streaming.io_read_slice_ms)
-            .keepalive_idle_secs(self.streaming.keepalive_idle_secs)
-            .keepalive_interval_secs(self.streaming.keepalive_interval_secs)
-            .keepalive_retries(self.streaming.keepalive_retries)
+        fpss::StreamingClientBuilder::from_config(&self.creds, &self.streaming, &self.reconnect)
     }
 }
 
@@ -1177,75 +1153,6 @@ impl StreamingClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use thetadatadx::config::{JitterMode, ReconnectPolicy};
-
-    /// Anti-drift guard for the standalone connect path.
-    ///
-    /// `FpssParams` snapshots the whole `StreamingConfig` + `ReconnectConfig`
-    /// and `builder()` threads every field into the `StreamingClientBuilder`,
-    /// so the standalone Python `StreamingClient` honours the same streaming
-    /// and reconnect surface as the unified client and the C ABI. This test
-    /// sets every streaming and reconnect knob to a non-default value and
-    /// asserts each one survives the snapshot. A future field that
-    /// `from_config` forgets to carry makes this fail rather than silently
-    /// dropping a user's tuning.
-    #[test]
-    fn from_config_preserves_every_streaming_and_reconnect_knob() {
-        let creds = RustCredentials::new("user@example.com", "secret");
-        let mut config = DirectConfig::production();
-
-        // Streaming: flip every knob away from its production default.
-        config.set_streaming_hosts(vec![("stream.example.com".to_owned(), 12345)]);
-        config.streaming.timeout_ms = 111_111;
-        config.streaming.ring_size = 1 << 20;
-        config.streaming.ping_interval_ms = 22_222;
-        config.streaming.connect_timeout_ms = 33_333;
-        config.streaming.io_read_slice_ms = 44;
-        config.streaming.keepalive_idle_secs = 66;
-        config.streaming.keepalive_interval_secs = 77;
-        config.streaming.keepalive_retries = 8;
-        config.streaming.consumer_cpu = Some(3);
-
-        // Reconnect: flip every knob away from its production default.
-        config.reconnect.wait_ms = 1_010;
-        config.reconnect.wait_max_ms = 2_020;
-        config.reconnect.wait_rate_limited_ms = 3_030;
-        config.reconnect.wait_server_restart_ms = 4_040;
-        config.reconnect.jitter = JitterMode::None;
-        config.reconnect.replay_burst_size = 51;
-        config.reconnect.replay_pace_ms = 62;
-        config.reconnect.policy = ReconnectPolicy::Manual;
-
-        let params = FpssParams::from_config(&creds, &config);
-
-        let s = &params.streaming;
-        assert_eq!(s.hosts(), config.streaming_hosts());
-        assert_eq!(s.timeout_ms, 111_111);
-        assert_eq!(s.ring_size, 1 << 20);
-        assert_eq!(s.ping_interval_ms, 22_222);
-        assert_eq!(s.connect_timeout_ms, 33_333);
-        assert_eq!(s.io_read_slice_ms, 44);
-        assert_eq!(s.keepalive_idle_secs, 66);
-        assert_eq!(s.keepalive_interval_secs, 77);
-        assert_eq!(s.keepalive_retries, 8);
-        assert_eq!(s.consumer_cpu, Some(3));
-
-        let r = &params.reconnect;
-        assert_eq!(r.wait_ms, 1_010);
-        assert_eq!(r.wait_max_ms, 2_020);
-        assert_eq!(r.wait_rate_limited_ms, 3_030);
-        assert_eq!(r.wait_server_restart_ms, 4_040);
-        assert_eq!(r.jitter, JitterMode::None);
-        assert_eq!(r.replay_burst_size, 51);
-        assert_eq!(r.replay_pace_ms, 62);
-        assert!(
-            matches!(r.policy, ReconnectPolicy::Manual),
-            "reconnect policy must survive the snapshot"
-        );
-
-        // The snapshot must build without panicking with every knob set.
-        let _ = params.builder();
-    }
 
     /// An OUTER dispatcher panic (the event-iteration machinery, not a user
     /// callback) must flip `is_streaming()` / `is_authenticated()` to `false`
