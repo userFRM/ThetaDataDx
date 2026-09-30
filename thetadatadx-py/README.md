@@ -132,12 +132,12 @@ def on_event(event):
     match event:
         case Trade(price=px, size=sz, exchange=ex, ms_of_day=ms, sequence=seq, condition=cond, contract=c):
             print(
-                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} trade price={px:.2f} size={sz} "
+                f"{c.symbol} {c.expiration} {c.strike} {c.right} trade price={px:.2f} size={sz} "
                 f"exchange={ex} ms_of_day={ms} sequence={seq} condition={cond}"
             )
         case Quote(bid=b, ask=a, bid_size=bs, ask_size=asz, bid_exchange=bx, ask_exchange=ax, ms_of_day=ms, contract=c):
             print(
-                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} quote bid={b:.2f} ask={a:.2f} "
+                f"{c.symbol} {c.expiration} {c.strike} {c.right} quote bid={b:.2f} ask={a:.2f} "
                 f"bid_size={bs} ask_size={asz} bid_exchange={bx} "
                 f"ask_exchange={ax} ms_of_day={ms}"
             )
