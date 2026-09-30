@@ -1776,10 +1776,14 @@ impl AsyncClient {
             if let Ok(method) = market_data.getattr(name) {
                 return Ok(method.unbind());
             }
-            // Flat-file async terminals (e.g. `flatfile_to_path_async`) live on
-            // the `flat_files` namespace, not `market_data`.
+            // The flat-file dataset terminals (`option_eod_async`, ...) live on
+            // the `flat_files` namespace; `flatfile_to_path_async` lives on
+            // `Client` itself.
             let flat_files = bound.getattr("flat_files")?;
-            return Ok(flat_files.getattr(name)?.unbind());
+            if let Ok(method) = flat_files.getattr(name) {
+                return Ok(method.unbind());
+            }
+            return Ok(bound.getattr(name)?.unbind());
         }
         if ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) && !DIRECT_ON_CLIENT.contains(&name) {
             let stream = bound.getattr("stream")?;
