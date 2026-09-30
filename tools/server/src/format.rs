@@ -2293,8 +2293,7 @@ pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<S
 }
 
 /// The plain-text form of a cell value, before HTML-escaping. Strings render
-/// verbatim, null renders empty, and numbers / booleans serialise (collapsing
-/// any non-finite leaf first, mirroring [`render_csv_value`]).
+/// verbatim, null renders empty, and numbers / booleans serialise.
 fn html_cell_text(value: &sonic_rs::Value) -> String {
     if let Some(s) = value.as_str() {
         return s.to_owned();
@@ -2302,9 +2301,7 @@ fn html_cell_text(value: &sonic_rs::Value) -> String {
     if value.is_null() {
         return String::new();
     }
-    let mut owned = value.clone();
-    thetadatadx::json_canon::canonicalize(&mut owned);
-    sonic_rs::to_string(&owned).unwrap_or_default()
+    sonic_rs::to_string(value).unwrap_or_default()
 }
 
 /// HTML-escape `&`, `<`, `>`, `"` so an attacker-controlled cell (a symbol or
@@ -2330,18 +2327,11 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     if value.is_null() {
         return String::new();
     }
-    // Canonicalise into an owned tree before serialising. The non-finite f64
-    // collapse already happened upstream in the JSON envelope, but a CSV
-    // cell that was constructed independently (e.g. from a hand-built
-    // `sonic_rs::Value`) might still carry a non-finite leaf — collapse it
-    // here so the encoder cannot fail. If serialisation still errors, emit
-    // an explicit sentinel string so the CSV column is observable rather
-    // than silently empty.
-    let mut owned = value.clone();
-    thetadatadx::json_canon::canonicalize(&mut owned);
-    match sonic_rs::to_string(&owned) {
+    // If serialisation errors, emit an explicit sentinel string so the CSV
+    // column is observable rather than silently empty.
+    match sonic_rs::to_string(value) {
         // Serialized numbers and booleans never contain an RFC-4180 special.
-        Ok(rendered) if owned.is_number() || owned.is_boolean() => rendered,
+        Ok(rendered) if value.is_number() || value.is_boolean() => rendered,
         Ok(rendered) => escape_csv_field(&rendered),
         Err(err) => {
             tracing::warn!(error = %err, "csv cell serialisation failed; emitting sentinel");

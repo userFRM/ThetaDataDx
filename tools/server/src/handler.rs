@@ -135,19 +135,18 @@ fn deprecated_v2_param_response(params: &HashMap<String, String>) -> Option<Resp
 /// `pub(crate)` so the rate-limit rejection path in `router` emits the
 /// same canonical envelope as every other error.
 pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
-    let mut body = format::error_envelope(error_type, msg);
-    let json_bytes =
-        thetadatadx::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
-            tracing::error!(
-                error = %err,
-                "error envelope failed to serialise; emitting minimal fallback"
-            );
-            format!(
-                "{{\"header\":{{\"error_type\":\"serialization_error\",\
+    let body = format::error_envelope(error_type, msg);
+    let json_bytes = sonic_rs::to_string(&body).unwrap_or_else(|err| {
+        tracing::error!(
+            error = %err,
+            "error envelope failed to serialise; emitting minimal fallback"
+        );
+        format!(
+            "{{\"header\":{{\"error_type\":\"serialization_error\",\
              \"error_msg\":\"failed to serialise error envelope: {err}\"}},\
              \"response\":[]}}"
-            )
-        });
+        )
+    });
     (
         status,
         [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
@@ -158,13 +157,12 @@ pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) ->
 
 /// Serialize a `sonic_rs::Value` to an axum JSON response body.
 ///
-/// The value tree is canonicalised in place (non-finite f64 -> JSON `null`)
-/// before serialisation so cross-language SDK agreement holds. If
-/// serialisation still fails — a logic bug, not a data bug — surface it as a
-/// structured `500` carrying the underlying error message rather than an
-/// empty `200 OK` body.
-fn json_response(val: &mut sonic_rs::Value) -> Response {
-    match thetadatadx::json_canon::canonicalize_and_serialize(val) {
+/// A non-finite f64 cannot reach the tree (see `json_canon`), so it already
+/// serialises as JSON `null`. If serialisation fails anyway (a logic bug, not
+/// a data bug), surface it as a structured `500` carrying the underlying error
+/// message rather than an empty `200 OK` body.
+fn json_response(val: &sonic_rs::Value) -> Response {
+    match sonic_rs::to_string(val) {
         Ok(json_bytes) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
@@ -576,16 +574,12 @@ fn csv_attachment_filename(ep: &EndpointMeta, params: &HashMap<String, String>) 
     format!("{}.csv", ep.name)
 }
 
-/// Render the `response` rows of a canonicalised envelope as NDJSON.
+/// Render the `response` rows of an envelope as NDJSON.
 ///
 /// One JSON object per row, `\n`-delimited — the line-at-a-time framing
 /// Pandas / Polars / DuckDB ingest natively. An empty response renders
 /// as an empty body (zero lines), mirroring the CSV branch.
-fn ndjson_response(json_val: &mut sonic_rs::Value) -> Response {
-    // Collapse non-finite leaves once across the whole tree, then
-    // serialise row-by-row; per-row serialisation cannot reintroduce
-    // non-canonical cells.
-    thetadatadx::json_canon::canonicalize(json_val);
+fn ndjson_response(json_val: &sonic_rs::Value) -> Response {
     let rows = json_val
         .get("response")
         .and_then(|v: &sonic_rs::Value| v.as_array());
@@ -704,20 +698,20 @@ pub async fn generic_with_overrides(
     let rows = format::response_rows(ep, params.get("symbol").map(String::as_str), &output);
     match response_format {
         ResponseFormat::Json => {
-            let mut json_val = format::json_envelope(ep, rows);
-            json_response(&mut json_val)
+            let json_val = format::json_envelope(ep, rows);
+            json_response(&json_val)
         }
         ResponseFormat::JsonLegacy => {
             // The legacy shape is columnar and carries no envelope: one array
             // per column, in the order the columns appear on the rows.
-            let mut json_val = format::json_legacy(ep, &rows);
-            json_response(&mut json_val)
+            let json_val = format::json_legacy(ep, &rows);
+            json_response(&json_val)
         }
         ResponseFormat::Ndjson => {
             // NDJSON stays flat (one contract-inline row per line) — only the
             // JSON envelope groups under `contract`.
-            let mut json_val = format::ok_envelope(rows);
-            ndjson_response(&mut json_val)
+            let json_val = format::ok_envelope(rows);
+            ndjson_response(&json_val)
         }
         ResponseFormat::Csv => {
             let disposition = format!(
@@ -1399,11 +1393,11 @@ mod tests {
 
     #[tokio::test]
     async fn ndjson_response_emits_one_object_per_row() {
-        let mut envelope = format::ok_envelope(vec![
+        let envelope = format::ok_envelope(vec![
             sonic_rs::json!({"symbol": "AAPL", "close": 200.5}),
             sonic_rs::json!({"symbol": "MSFT", "close": 470.0}),
         ]);
-        let resp = ndjson_response(&mut envelope);
+        let resp = ndjson_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers()
@@ -1431,8 +1425,8 @@ mod tests {
 
     #[tokio::test]
     async fn ndjson_response_renders_empty_response_as_empty_body() {
-        let mut envelope = format::ok_envelope(vec![]);
-        let resp = ndjson_response(&mut envelope);
+        let envelope = format::ok_envelope(vec![]);
+        let resp = ndjson_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert!(body.is_empty(), "zero rows render zero lines, got {body:?}");
@@ -1444,8 +1438,8 @@ mod tests {
         if let Some(o) = row.as_object_mut() {
             o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
         }
-        let mut envelope = format::ok_envelope(vec![row]);
-        let resp = ndjson_response(&mut envelope);
+        let envelope = format::ok_envelope(vec![row]);
+        let resp = ndjson_response(&envelope);
         let body = read_body(resp).await;
         assert!(
             body.contains("\"vega\":null"),
@@ -1675,8 +1669,8 @@ mod tests {
 
     #[tokio::test]
     async fn json_response_uses_bare_json_content_type() {
-        let mut envelope = format::ok_envelope(vec![Value::from("AAPL")]);
-        let resp = json_response(&mut envelope);
+        let envelope = format::ok_envelope(vec![Value::from("AAPL")]);
+        let resp = json_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers()
@@ -1696,16 +1690,16 @@ mod tests {
         let mut row = sonic_rs::json!({
             "symbol": "AAPL",
             "delta": 0.5_f64,
-            // `vega` slot is filled in below with a pre-collapsed NaN sentinel
-            // so the canonicaliser walk still has work to do on a real leaf.
+            // `vega` slot is filled in below from a NaN through the single
+            // conversion point.
             "vega": Value::new_null(),
         });
         if let Some(o) = row.as_object_mut() {
             o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
         }
-        let mut envelope = format::ok_envelope(vec![row]);
+        let envelope = format::ok_envelope(vec![row]);
 
-        let resp = json_response(&mut envelope);
+        let resp = json_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let body = read_body(resp).await;

@@ -482,8 +482,8 @@ pub mod utils {
 #[doc(hidden)]
 pub use crate::tdbe::time;
 
-/// Canonical JSON helpers (`finite_or_null`, `canonicalize`,
-/// `canonicalize_and_serialize`) for the CLI / server / MCP renderers.
+/// Canonical JSON helper (`finite_or_null`) for the CLI / server / MCP
+/// renderers.
 ///
 /// Only available when the `__internal` feature is enabled. NOT a stable
 /// public surface — for workspace tools and bindings only.

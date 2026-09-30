@@ -1450,7 +1450,7 @@ async fn handle_request(
             let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
 
             match execute_tool(client, tool_name, &arguments, start_time).await {
-                Ok(mut result) => build_tool_call_response(id, &mut result),
+                Ok(result) => build_tool_call_response(id, &result),
                 Err(ToolError::InvalidParams(msg)) => {
                     JsonRpcResponse::error(id, -32602, format!("Invalid params: {msg}"))
                 }
@@ -1466,14 +1466,14 @@ async fn handle_request(
 
 /// Build the JSON-RPC response for a successful `tools/call` invocation.
 ///
-/// Canonicalises non-finite f64 leaves to JSON `null` (cross-language SDK
-/// agreement, see `json_canon`) and surfaces any residual serialisation
-/// failure as a JSON-RPC `-32603` Internal Error so the LLM client never
-/// receives a successful but empty `tools/call` result. Kept separate from the
-/// `tools/call` arm so a test can exercise the canonicalisation path without
-/// spinning up a live `Client` client.
-fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
-    match thetadatadx::json_canon::canonicalize_and_serialize(result) {
+/// Surfaces any serialisation failure as a JSON-RPC `-32603` Internal Error
+/// so the LLM client never receives a successful but empty `tools/call`
+/// result. A non-finite f64 cannot reach the tree (see `json_canon`), so it
+/// serialises as JSON `null`. Kept separate from the `tools/call` arm so a
+/// test can exercise the serialisation path without spinning up a live
+/// `Client` client.
+fn build_tool_call_response(id: Value, result: &Value) -> JsonRpcResponse {
+    match sonic_rs::to_string(result) {
         Ok(text) => JsonRpcResponse::success(
             id,
             json!({
@@ -2059,8 +2059,8 @@ mod tests {
 
     #[test]
     fn tool_call_results_are_typed_and_carry_identity() {
-        let mut payload = json!({ "rows": [] });
-        let response = build_tool_call_response(Value::from(3), &mut payload);
+        let payload = json!({ "rows": [] });
+        let response = build_tool_call_response(Value::from(3), &payload);
         let result = response.result.expect("tools/call result");
         assert_eq!(
             result.get("resultType").and_then(|v: &Value| v.as_str()),
@@ -2667,7 +2667,7 @@ mod tests {
         }
 
         let id = sonic_rs::json!(42);
-        let resp = build_tool_call_response(id, &mut tool_result);
+        let resp = build_tool_call_response(id, &tool_result);
 
         // Success path — `result` must be Some, `error` must be None.
         assert!(
@@ -2717,9 +2717,8 @@ mod tests {
         let original = sonic_rs::json!({
             "ticks": [{ "symbol": "AAPL", "delta": 0.5_f64 }]
         });
-        let mut tool_result = original.clone();
         let id = sonic_rs::json!("call-1");
-        let resp = build_tool_call_response(id, &mut tool_result);
+        let resp = build_tool_call_response(id, &original);
         assert!(resp.error.is_none());
         let text = resp
             .result

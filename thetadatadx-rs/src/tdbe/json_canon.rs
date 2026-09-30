@@ -1,18 +1,17 @@
 //! JSON canonicalisation helpers shared by the REST server and MCP tools.
 //!
-//! Standards-compliant JSON encoders refuse `NaN`, `+Infinity`, and
-//! `-Infinity` because the JSON spec has no representation for them. The
-//! `sonic_rs` encoder writes JSON `null` in their place, but the cross-language
-//! SDK contract (see `scripts/ci/check_agreement.py`) requires every frontend —
-//! REST, MCP — to canonicalise non-finite f64 to `null` BEFORE the value tree
-//! leaves the frontend, so callers cannot observe a backend-specific drift.
+//! JSON has no representation for `NaN`, `+Infinity`, or `-Infinity`, and the
+//! cross-language SDK contract (see `scripts/ci/check_agreement.py`) requires
+//! every frontend (REST and MCP) to emit JSON `null` for a non-finite f64.
 //!
-//! This crate owns the canonicalisation pass so both frontends share one
-//! implementation.
+//! [`finite_or_null`] is the single conversion point. No pass over a finished
+//! value tree is needed: a `sonic_rs::Value` cannot hold a non-finite number,
+//! because its constructors and serde serializer turn one into `null` or
+//! refuse it, and its parser rejects a literal that overflows to infinity.
 
 #![forbid(unsafe_code)]
 
-use sonic_rs::{JsonNumberTrait, JsonValueMutTrait, JsonValueTrait, Number, Value};
+use sonic_rs::{Number, Value};
 
 /// Convert a single f64 to a JSON-safe value: finite passthrough, non-finite
 /// becomes JSON null. The single canonicalisation point so both frontends
@@ -22,48 +21,10 @@ pub fn finite_or_null(value: f64) -> Value {
     Number::from_f64(value).map_or_else(Value::new_null, Value::from)
 }
 
-/// Walk `value` in place and replace every non-finite f64 inside numbers,
-/// arrays, and objects with JSON `null`.
-///
-/// After this call returns, every leaf number in the tree is either a JSON
-/// integer or a finite f64. The walk is non-allocating in the steady state —
-/// only the non-finite leaves are replaced.
-pub fn canonicalize(value: &mut Value) {
-    if let Some(arr) = value.as_array_mut() {
-        for item in arr.iter_mut() {
-            canonicalize(item);
-        }
-        return;
-    }
-    if let Some(obj) = value.as_object_mut() {
-        for (_, v) in obj.iter_mut() {
-            canonicalize(v);
-        }
-        return;
-    }
-    if let Some(num) = value.as_number() {
-        if let Some(f) = num.as_f64() {
-            if !f.is_finite() {
-                *value = Value::new_null();
-            }
-        }
-    }
-}
-
-/// Canonicalise the value tree in place and serialise it.
-///
-/// # Errors
-///
-/// Forwards any `sonic_rs::Error` from the serialiser. Callers MUST translate
-/// this into a structured error response — never an empty body.
-pub fn canonicalize_and_serialize(value: &mut Value) -> Result<String, sonic_rs::Error> {
-    canonicalize(value);
-    sonic_rs::to_string(&*value)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sonic_rs::JsonValueTrait;
 
     #[test]
     fn nan_becomes_null() {
@@ -101,53 +62,19 @@ mod tests {
         assert_eq!(v.as_f64(), Some(-1234.5678));
     }
 
+    /// Pins the `sonic_rs` property the non-finite contract rests on:
+    /// a `Value` cannot carry a non-finite number, so serialising any value
+    /// tree built through serde emits `null` and the parser refuses an
+    /// overflowing literal. An upgrade that starts storing non-finite floats
+    /// would leak `NaN` into REST and MCP bodies; this fails first.
     #[test]
-    fn canonicalize_walks_arrays() {
-        // `Value::from(f64::NAN)` is not callable directly (no `From<f64>`).
-        // We seed the array with three slots — a finite f64, a pre-collapsed
-        // NaN, and another finite f64 — then run the canonicaliser to prove
-        // the walk does not corrupt the surrounding finite values.
-        let mut arr = sonic_rs::array![
-            sonic_rs::to_value(&1.0_f64).expect("finite ok"),
-            finite_or_null(f64::NAN),
-            sonic_rs::to_value(&3.0_f64).expect("finite ok"),
-        ]
-        .into_value();
-        canonicalize(&mut arr);
-        let s = sonic_rs::to_string(&arr).expect("serialises after canonicalise");
-        assert_eq!(s, "[1.0,null,3.0]");
-    }
-
-    #[test]
-    fn canonicalize_walks_objects() {
-        let mut obj = sonic_rs::json!({
-            "ok": 1.5_f64,
-            "bad": Value::new_null(),
-            "nested": {
-                "deep": Value::new_null(),
-            }
-        });
-        if let Some(o) = obj.as_object_mut() {
-            o.insert(&"bad", finite_or_null(f64::NAN));
-            if let Some(nested) = o.get_mut(&"nested").and_then(|v| v.as_object_mut()) {
-                nested.insert(&"deep", finite_or_null(f64::INFINITY));
-            }
-        }
-        canonicalize(&mut obj);
-        let s = sonic_rs::to_string(&obj).expect("serialises");
-        assert!(s.contains("\"bad\":null"), "got {s}");
-        assert!(s.contains("\"deep\":null"), "got {s}");
-        assert!(s.contains("\"ok\":1.5"), "got {s}");
-    }
-
-    #[test]
-    fn canonicalize_and_serialize_succeeds_after_nan() {
-        let mut v = sonic_rs::array![
-            finite_or_null(f64::NAN),
-            sonic_rs::to_value(&2.0_f64).expect("finite"),
-        ]
-        .into_value();
-        let s = canonicalize_and_serialize(&mut v).expect("must serialise");
-        assert_eq!(s, "[null,2.0]");
+    fn sonic_value_cannot_hold_a_non_finite_number() {
+        let value = sonic_rs::to_value(&[f64::NAN, f64::INFINITY, f64::NEG_INFINITY])
+            .expect("serde serialisation of floats");
+        assert_eq!(
+            sonic_rs::to_string(&value).expect("serialises"),
+            "[null,null,null]"
+        );
+        assert!(sonic_rs::from_str::<Value>("1e999").is_err());
     }
 }
