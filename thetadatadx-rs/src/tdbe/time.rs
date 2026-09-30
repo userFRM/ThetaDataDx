@@ -166,8 +166,7 @@ fn eastern_offset_ms_at(epoch_ms: i64) -> i64 {
         return -5 * 3_600 * 1_000;
     }
     // First, determine the UTC year/month/day to find DST boundaries.
-    let epoch_secs = epoch_ms / 1_000;
-    let days_since_epoch = epoch_secs / 86_400;
+    let days_since_epoch = epoch_ms.div_euclid(86_400_000);
 
     // Civil date from days since 1970-01-01 (Euclidean algorithm).
     let z = days_since_epoch + 719_468;
@@ -310,8 +309,9 @@ pub fn timestamp_to_ms_of_day(epoch_ms: u64) -> i32 {
 #[must_use]
 pub fn timestamp_to_date(epoch_ms: u64) -> i32 {
     let offset = eastern_offset_ms(epoch_ms);
-    let local_secs = (epoch_ms as i64 + offset) / 1_000;
-    let days = local_secs / 86400 + 719_468;
+    // Floor, not truncate: the first hours after the Unix epoch are still
+    // the previous day in Eastern Time, where the local time is negative.
+    let days = (epoch_ms as i64 + offset).div_euclid(86_400_000) + 719_468;
     let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
     let doe = (days - era * 146_097) as u32;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
@@ -628,8 +628,10 @@ mod tests {
 
     #[test]
     fn date_ms_to_epoch_ms_round_trips_edt_and_est() {
-        // 2026-04-01 09:30:00 ET (EDT) and 2026-01-15 09:30:00 ET (EST).
-        for epoch_ms in [1_775_050_200_000_u64, 1_768_487_400_000_u64] {
+        // 2026-04-01 09:30:00 ET (EDT), 2026-01-15 09:30:00 ET (EST), and
+        // 1969-12-31 20:00:00 ET, where the local time before the Unix epoch
+        // must land on the previous day.
+        for epoch_ms in [1_775_050_200_000_u64, 1_768_487_400_000_u64, 3_600_000_u64] {
             let date = timestamp_to_date(epoch_ms);
             let ms = timestamp_to_ms_of_day(epoch_ms);
             // Reason: market-data epochs fit i64.
