@@ -60,6 +60,10 @@ pub const RATE_LIMITED_JITTER_WINDOW: Duration = Duration::from_secs(30);
 /// `None`: invalid credentials, account conflicts, …) short-circuit
 /// the I/O loop before the closure is consulted — no return value can
 /// turn a credential rejection into a retry loop.
+///
+/// The closure runs on a thread of its own. A stream stopped while it is
+/// deciding stops without waiting for the answer, which is then discarded,
+/// and a closure that panics stops the reconnects.
 #[derive(Clone)]
 #[non_exhaustive]
 pub enum ReconnectPolicy {

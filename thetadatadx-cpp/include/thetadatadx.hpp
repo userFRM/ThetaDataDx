@@ -804,7 +804,7 @@ public:
 
     /** Install a custom reconnect policy driven by a C callback.
      *  Permanent disconnect reasons never reach the callback; it runs
-     *  on the SDK's streaming I/O thread and must be thread-safe.
+     *  on an SDK streaming thread and must be thread-safe.
      *  Return the delay in milliseconds or a negative value to stop.
      *  Pass nullptr to restore the default Auto policy.
      *

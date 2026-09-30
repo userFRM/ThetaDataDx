@@ -578,7 +578,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
 /// Reconnect-decision callback type for
 /// `thetadatadx_config_set_reconnect_callback`.
 ///
-/// Invoked on the streaming I/O thread after each retriable
+/// Invoked on an SDK streaming thread after each retriable
 /// involuntary disconnect. `reason` is the `RemoveReason` discriminant
 /// as `i32`; `attempt` is the 1-based consecutive-reconnect counter.
 /// Return the reconnect delay in milliseconds, or any negative value
@@ -604,7 +604,7 @@ pub type ThetaDataDxReconnectCallback =
 ///
 /// # Thread-safety contract
 ///
-/// The callback runs on the SDK's streaming I/O thread, not on the
+/// The callback runs on an SDK streaming thread, not on the
 /// thread that registered it. `cb` and `user_data` must therefore be
 /// safe to use from another thread for as long as any client built
 /// from this config is alive. Passing `cb = NULL` restores the
@@ -643,7 +643,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
         unsafe impl Sync for CallbackCtx {}
         impl CallbackCtx {
             fn invoke(&self, reason: i32, attempt: u32) -> i64 {
-                // The decision callback runs on the streaming I/O thread,
+                // The decision callback runs on an SDK streaming thread,
                 // not on a `ffi_boundary!`-guarded entry point, so a Rust
                 // panic raised on this path would otherwise unwind across the
                 // C ABI on a foreign thread. Wrap the invocation in

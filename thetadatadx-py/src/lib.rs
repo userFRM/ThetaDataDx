@@ -409,8 +409,8 @@ impl Config {
 
     /// Install a custom reconnect policy driven by a Python callable.
     ///
-    /// ``callback(reason: int, attempt: int)`` is invoked on the
-    /// streaming I/O thread after each retriable involuntary
+    /// ``callback(reason: int, attempt: int)`` is invoked on an SDK
+    /// streaming thread after each retriable involuntary
     /// disconnect; return the reconnect delay in milliseconds, or
     /// ``None`` to stop reconnecting (the stream then emits the
     /// terminal ``ReconnectsExhausted`` event). Permanent disconnect
@@ -430,7 +430,7 @@ impl Config {
             return Ok(());
         };
         // Reject a non-callable up front: otherwise the stored policy fails at
-        // reconnect time on the I/O thread, where the error is unraisable.
+        // reconnect time on a streaming thread, where the error is unraisable.
         if !Python::attach(|py| callback.bind(py).is_callable()) {
             return Err(errors::invalid_parameter_err(
                 "reconnect_callback must be callable",

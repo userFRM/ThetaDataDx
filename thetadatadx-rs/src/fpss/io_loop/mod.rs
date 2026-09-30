@@ -1350,7 +1350,11 @@ where
                 // default stable window governs the reset cadence.
                 reconnect_state.maybe_reset_after_stable(&ReconnectAttemptLimits::default());
                 let attempt = reconnect_state.record(ReconnectAttemptClass::Transient);
-                let Some(d) = f(reason, attempt) else {
+                let decision = custom_decision_or_shutdown(f, reason, attempt, &shutdown);
+                if shutdown.load(Ordering::Relaxed) {
+                    break 'session;
+                }
+                let Some(d) = decision else {
                     tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
                     publish_exhausted!(reason, attempt - 1);
                     break 'session;
@@ -2012,6 +2016,44 @@ fn sleep_until_or_shutdown(delay: Duration, shutdown: &AtomicBool) {
             return;
         }
         thread::sleep(SLICE.min(deadline - now));
+    }
+}
+
+/// Ask a `Custom` reconnect policy for its decision, abandoning the wait
+/// within ~100 ms of `shutdown` being raised.
+///
+/// The closure runs on its own thread because it may be waiting on a thread
+/// that is itself waiting on this one. The TypeScript policy queues its
+/// callback onto the Node main thread, and a stop issued from that thread
+/// joins the streaming threads synchronously: called inline, the decision and
+/// the stop each waited for the other until the binding's own 30 s timeout,
+/// freezing the Node event loop for the whole window. An abandoned closure
+/// finishes on its own and its answer is discarded. A closure that panics
+/// yields `None`, stopping the reconnects.
+fn custom_decision_or_shutdown(
+    policy: &Arc<dyn Fn(RemoveReason, u32) -> Option<Duration> + Send + Sync>,
+    reason: RemoveReason,
+    attempt: u32,
+    shutdown: &AtomicBool,
+) -> Option<Duration> {
+    const SLICE: Duration = Duration::from_millis(100);
+    let (tx, rx) = std_mpsc::sync_channel(1);
+    let worker_policy = Arc::clone(policy);
+    let spawned = thread::Builder::new()
+        .name("thetadatadx-reconnect-decision".into())
+        .spawn(move || {
+            let _ = tx.send(worker_policy(reason, attempt));
+        });
+    if spawned.is_err() {
+        // No thread to spare: decide inline.
+        return policy(reason, attempt);
+    }
+    loop {
+        match rx.recv_timeout(SLICE) {
+            Ok(decision) => return decision,
+            Err(std_mpsc::RecvTimeoutError::Timeout) if !shutdown.load(Ordering::Relaxed) => {}
+            Err(_) => return None,
+        }
     }
 }
 
@@ -3005,6 +3047,48 @@ mod tests {
         assert!(
             elapsed >= Duration::from_millis(45),
             "sleeper must not return before the signal; slept {elapsed:?}"
+        );
+    }
+
+    /// A stop raised while a `Custom` policy is still deciding must end the
+    /// wait within one slice, with no reconnect, even though the decision
+    /// has not arrived: the TypeScript policy's decision needs the very
+    /// thread that is blocked stopping the stream. A decision that does
+    /// arrive is passed through.
+    #[test]
+    fn custom_decision_yields_to_shutdown() {
+        let answers: Arc<dyn Fn(RemoveReason, u32) -> Option<Duration> + Send + Sync> =
+            Arc::new(|_, _| Some(Duration::from_millis(7)));
+        assert_eq!(
+            custom_decision_or_shutdown(
+                &answers,
+                RemoveReason::ServerRestarting,
+                1,
+                &AtomicBool::new(false)
+            ),
+            Some(Duration::from_millis(7))
+        );
+
+        let stalls: Arc<dyn Fn(RemoveReason, u32) -> Option<Duration> + Send + Sync> =
+            Arc::new(|_, _| {
+                thread::sleep(Duration::from_secs(5));
+                Some(Duration::ZERO)
+            });
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let signaller = Arc::clone(&shutdown);
+        let signal_thread = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(50));
+            signaller.store(true, Ordering::Release);
+        });
+        let start = Instant::now();
+        let decision =
+            custom_decision_or_shutdown(&stalls, RemoveReason::ServerRestarting, 1, &shutdown);
+        let elapsed = start.elapsed();
+        signal_thread.join().expect("signal thread joins");
+        assert_eq!(decision, None);
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "a pending decision must yield to shutdown within one slice; waited {elapsed:?}"
         );
     }
 

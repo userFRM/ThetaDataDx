@@ -1494,7 +1494,7 @@ int32_t thetadatadx_config_get_reconnect_replay_pace_ms(const ThetaDataDxConfig*
 
 /**
  * Reconnect-decision callback for thetadatadx_config_set_reconnect_callback.
- * Invoked on the streaming I/O thread after each retriable involuntary
+ * Invoked on an SDK streaming thread after each retriable involuntary
  * disconnect.
  * @param reason The disconnect-reason discriminant.
  * @param attempt The 1-based consecutive-reconnect counter.
@@ -1518,7 +1518,7 @@ typedef int64_t (*ThetaDataDxReconnectCallback)(int32_t reason, uint32_t attempt
  *           policy.
  * @param user_data Opaque pointer passed back to cb unchanged.
  * @return 0 on success, -1 if config is null.
- * @note cb runs on the streaming I/O thread: cb and user_data must be safe
+ * @note cb runs on an SDK streaming thread: cb and user_data must be safe
  *       to use from another thread for as long as any client built from
  *       this config is alive.
  */
