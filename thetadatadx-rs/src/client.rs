@@ -266,7 +266,24 @@ pub(crate) struct StreamingState {
     /// Ring-overflow drops accrued by every retired session, kept for the
     /// same reason as [`Self::retired_panics`].
     retired_dropped: AtomicU64,
+    /// The per-contract and full-stream subscriptions of a session that
+    /// [`Client::reconnect_streaming_scoped`] tore down but could not
+    /// replay, because the fresh session failed to start.
+    ///
+    /// Tearing the old session down clears its subscription lists, so
+    /// without this a retried reconnect would find a `Stopped` slot, replay
+    /// nothing, and report success on a session carrying no subscriptions.
+    /// The next reconnect replays this set; any other teardown discards it,
+    /// since an explicit stop drops subscriptions.
+    unrestored: Mutex<Option<SubscriptionSnapshot>>,
 }
+
+/// A session's per-contract and full-stream subscriptions, as a reconnect
+/// saves them to replay onto the fresh session.
+type SubscriptionSnapshot = (
+    Vec<(SubscriptionKind, Contract)>,
+    Vec<(SubscriptionKind, SecType)>,
+);
 
 /// The deferred, lock-free part of a teardown, extracted under the dispatcher
 /// lock by [`StreamingState::extract_for_teardown_locked`] and finished by
@@ -324,6 +341,7 @@ impl StreamingState {
             dispatcher: Mutex::new(DispatcherSession::Idle),
             retired_panics: AtomicU64::new(0),
             retired_dropped: AtomicU64::new(0),
+            unrestored: Mutex::new(None),
         }
     }
 
@@ -441,6 +459,13 @@ impl StreamingState {
         // dispatcher lock, so it is also mutually exclusive with
         // `start_dispatcher`'s generation snapshot and the reader-close gate.
         self.stop_generation.fetch_add(1, Ordering::AcqRel);
+        // A teardown ends whatever a failed reconnect left to replay: an
+        // explicit stop drops subscriptions, and a reconnect has already
+        // taken its snapshot before it gets here.
+        *self
+            .unrestored
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         // Whether the session being retired should register its drain flag for
         // `await_drain`. `await_drain` exists to wait for a user CALLBACK to
         // finish firing; the columnar (batches) pull session has no callback,
@@ -1784,20 +1809,37 @@ impl Client {
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
-        // 1. Save active subscriptions before stopping
+        // 1. Save active subscriptions before stopping. With no live
+        //    session, a previous reconnect that failed to start left its
+        //    snapshot behind; replay that one.
         let saved_subs = match &**self.streaming.state.load() {
             StreamingSlot::Live { client } => (
                 client.active_subscriptions(),
                 client.active_full_subscriptions(),
             ),
-            StreamingSlot::Idle | StreamingSlot::Stopped => (Vec::new(), Vec::new()),
+            StreamingSlot::Idle | StreamingSlot::Stopped => self
+                .streaming
+                .unrestored
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take()
+                .unwrap_or_default(),
         };
 
         // 2. Stop streaming
         self.stop_streaming();
 
-        // 3. Start a new streaming connection
-        self.start_streaming_scoped(handler, scope, on_teardown)?;
+        // 3. Start a new streaming connection. On failure, keep the
+        //    snapshot for the next reconnect: the teardown above cleared
+        //    the only other copy.
+        if let Err(e) = self.start_streaming_scoped(handler, scope, on_teardown) {
+            *self
+                .streaming
+                .unrestored
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(saved_subs);
+            return Err(e);
+        }
 
         // 4. Re-subscribe all saved subscriptions (paced), accumulating
         //    failures.
@@ -2634,7 +2676,9 @@ impl StreamSurface<'_> {
     ///
     /// Returns [`Error::PartialReconnect`] when the session re-established
     /// but some subscriptions failed to restore, or a network /
-    /// authentication / parsing error on the restart.
+    /// authentication / parsing error on the restart. When the restart
+    /// fails, the previous subscriptions are kept, and the next reconnect
+    /// restores them.
     pub fn reconnect_streaming<F>(&self, handler: F) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
