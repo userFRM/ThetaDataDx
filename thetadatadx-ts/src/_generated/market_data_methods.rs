@@ -2065,13 +2065,9 @@ impl MarketDataView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().stock_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_symbols().await,
+                Some(ms) => client.market_data().stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -2094,13 +2090,9 @@ impl MarketDataView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_dates(&request_type, &symbol).await,
+                Some(ms) => client.market_data().stock_list_dates_with_deadline(&request_type, &symbol, std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -3628,13 +3620,9 @@ impl MarketDataView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_symbols().await,
+                Some(ms) => client.market_data().option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -3698,13 +3686,9 @@ impl MarketDataView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_expirations(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_expirations(&symbol).await,
+                Some(ms) => client.market_data().option_list_expirations_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -3729,13 +3713,9 @@ impl MarketDataView {
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_strikes(&symbol, expiration.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_strikes(&symbol, expiration.as_str()).await,
+                Some(ms) => client.market_data().option_list_strikes_with_deadline(&symbol, expiration.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -9907,13 +9887,9 @@ impl MarketDataView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().index_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_symbols().await,
+                Some(ms) => client.market_data().index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -9935,13 +9911,9 @@ impl MarketDataView {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().index_list_dates(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_dates(&symbol).await,
+                Some(ms) => client.market_data().index_list_dates_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -11054,13 +11026,9 @@ impl MarketDataClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().stock_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_symbols().await,
+                Some(ms) => client.market_data().stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -11083,13 +11051,9 @@ impl MarketDataClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_dates(&request_type, &symbol).await,
+                Some(ms) => client.market_data().stock_list_dates_with_deadline(&request_type, &symbol, std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -12617,13 +12581,9 @@ impl MarketDataClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_symbols().await,
+                Some(ms) => client.market_data().option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -12687,13 +12647,9 @@ impl MarketDataClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_expirations(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_expirations(&symbol).await,
+                Some(ms) => client.market_data().option_list_expirations_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -12718,13 +12674,9 @@ impl MarketDataClient {
         let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
-            let call = client.market_data().option_list_strikes(&symbol, expiration.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_strikes(&symbol, expiration.as_str()).await,
+                Some(ms) => client.market_data().option_list_strikes_with_deadline(&symbol, expiration.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -18896,13 +18848,9 @@ impl MarketDataClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().index_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_symbols().await,
+                Some(ms) => client.market_data().index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })
         .await
@@ -18924,13 +18872,9 @@ impl MarketDataClient {
         };
         let client = self.client_handle()?;
         spawn_endpoint_task(async move {
-            let call = client.market_data().index_list_dates(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_dates(&symbol).await,
+                Some(ms) => client.market_data().index_list_dates_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         })
         .await

@@ -44,7 +44,7 @@ use super::super::sdk_helpers::{
     builder_params, is_snapshot_endpoint, is_time_arg, method_params, python_method_arg_decl,
     python_optional_type, python_pyclass_list_class, python_pyclass_list_converter,
     python_pyclass_row_class, python_string_arg_type, python_vec_to_pylist_converter,
-    render_rust_doc_block, sdk_method_arg_name, snapshot_returns_plain_pylist, write_timeout_call,
+    render_rust_doc_block, sdk_method_arg_name, snapshot_returns_plain_pylist, write_list_call,
 };
 
 /// Emit `thetadatadx-py/src/_generated/decode_bench.rs` — the offline decode hook.
@@ -351,13 +351,13 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
             .expect("list endpoint must declare list_column");
         out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
         if builder_params.is_empty() {
-            writeln!(
-                out,
-                "            let call = self.client.market_data().{}({});",
-                endpoint.name, positional_args
-            )
-            .unwrap();
-            write_timeout_call(&mut out, "            ");
+            write_list_call(
+                &mut out,
+                "            ",
+                &format!("self.client.market_data().{}", endpoint.name),
+                &positional_args,
+                false,
+            );
         } else {
             // With optionals the endpoint hands back a builder, so
             // `timeout_ms` rides the builder's own deadline the way it does
@@ -550,13 +550,13 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             .as_deref()
             .expect("list endpoint must declare list_column");
         if builder_params.is_empty() {
-            writeln!(
-                out,
-                "            let call = client.market_data().{}({});",
-                endpoint.name, positional_args
-            )
-            .unwrap();
-            write_timeout_call(&mut out, "            ");
+            write_list_call(
+                &mut out,
+                "            ",
+                &format!("client.market_data().{}", endpoint.name),
+                &positional_args,
+                false,
+            );
         } else {
             writeln!(
                 out,
@@ -674,14 +674,10 @@ fn emit_string_list_setters(out: &mut String, builder_params: &[&GeneratedParam]
         .unwrap();
         out.push_str("            }\n");
     }
-    // A zero `timeout_ms` means "no deadline" on every other endpoint here,
-    // so leave the builder untouched and let the configured default apply.
     out.push_str("            if let Some(ms) = timeout_ms {\n");
-    out.push_str("                if ms > 0 {\n");
     out.push_str(
-        "                    request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
+        "                request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
     );
-    out.push_str("                }\n");
     out.push_str("            }\n");
     out.push_str("            request.await\n");
 }
@@ -1407,13 +1403,13 @@ fn write_sync_list_dispatch(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    writeln!(
+    write_list_call(
         out,
-        "{indent}    let call = client.market_data().{}({});",
-        endpoint.name, positional_args_closure
-    )
-    .unwrap();
-    write_timeout_call(out, &format!("{indent}    "));
+        &format!("{indent}    "),
+        &format!("client.market_data().{}", endpoint.name),
+        &positional_args_closure,
+        !builder_params(endpoint).is_empty(),
+    );
     write!(out, "{indent}}})").unwrap();
 }
 
@@ -1464,13 +1460,13 @@ fn write_async_list_dispatch(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    writeln!(
+    write_list_call(
         out,
-        "{indent}    let call = client.market_data().{}({});",
-        endpoint.name, positional_args
-    )
-    .unwrap();
-    write_timeout_call(out, &format!("{indent}    "));
+        &format!("{indent}    "),
+        &format!("client.market_data().{}", endpoint.name),
+        &positional_args,
+        !builder_params(endpoint).is_empty(),
+    );
     // Convert the resolved `Vec<String>` into the typed `StringList` and
     // coerce up to `Py<PyAny>` to satisfy the helper's convert signature.
     writeln!(

@@ -25,13 +25,9 @@ impl StockListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().stock_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_symbols().await,
+                Some(ms) => client.market_data().stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -42,13 +38,9 @@ impl StockListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().stock_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_symbols().await,
+                Some(ms) => client.market_data().stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -95,13 +87,9 @@ impl StockListDatesBuilder {
         let request_type = self.request_type.clone();
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_dates(&request_type, &symbol).await,
+                Some(ms) => client.market_data().stock_list_dates_with_deadline(&request_type, &symbol, std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -114,13 +102,9 @@ impl StockListDatesBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().stock_list_dates(&request_type, &symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_dates(&request_type, &symbol).await,
+                Some(ms) => client.market_data().stock_list_dates_with_deadline(&request_type, &symbol, std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -2574,13 +2558,9 @@ impl OptionListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().option_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_symbols().await,
+                Some(ms) => client.market_data().option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -2591,13 +2571,9 @@ impl OptionListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_symbols().await,
+                Some(ms) => client.market_data().option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -2657,13 +2633,9 @@ impl OptionListDatesBuilder {
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().option_list_dates(&request_type, &symbol, &expiration);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_dates(&request_type, &symbol, &expiration).await,
+                Some(ms) => client.market_data().option_list_dates(&request_type, &symbol, &expiration).with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -2677,13 +2649,9 @@ impl OptionListDatesBuilder {
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_dates(&request_type, &symbol, &expiration);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_dates(&request_type, &symbol, &expiration).await,
+                Some(ms) => client.market_data().option_list_dates(&request_type, &symbol, &expiration).with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -2723,13 +2691,9 @@ impl OptionListExpirationsBuilder {
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().option_list_expirations(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_expirations(&symbol).await,
+                Some(ms) => client.market_data().option_list_expirations_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "expiration")
@@ -2741,13 +2705,9 @@ impl OptionListExpirationsBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_expirations(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_expirations(&symbol).await,
+                Some(ms) => client.market_data().option_list_expirations_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
@@ -2795,13 +2755,9 @@ impl OptionListStrikesBuilder {
         let symbol = self.symbol.clone();
         let expiration = self.expiration.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().option_list_strikes(&symbol, &expiration);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_strikes(&symbol, &expiration).await,
+                Some(ms) => client.market_data().option_list_strikes_with_deadline(&symbol, &expiration, std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "strike")
@@ -2814,13 +2770,9 @@ impl OptionListStrikesBuilder {
         let expiration = self.expiration.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_strikes(&symbol, &expiration);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_strikes(&symbol, &expiration).await,
+                Some(ms) => client.market_data().option_list_strikes_with_deadline(&symbol, &expiration, std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
@@ -13383,13 +13335,9 @@ impl IndexListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().index_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_symbols().await,
+                Some(ms) => client.market_data().index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -13400,13 +13348,9 @@ impl IndexListSymbolsBuilder {
         let client = self.client.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().index_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_symbols().await,
+                Some(ms) => client.market_data().index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -13445,13 +13389,9 @@ impl IndexListDatesBuilder {
         let timeout_ms = self.timeout_ms;
         let symbol = self.symbol.clone();
         let values: Vec<String> = run_blocking(py, async move {
-            let call = client.market_data().index_list_dates(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_dates(&symbol).await,
+                Some(ms) => client.market_data().index_list_dates_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -13463,13 +13403,9 @@ impl IndexListDatesBuilder {
         let symbol = self.symbol.clone();
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let call = client.market_data().index_list_dates(&symbol);
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_dates(&symbol).await,
+                Some(ms) => client.market_data().index_list_dates_with_deadline(&symbol, std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -15163,13 +15099,9 @@ impl MarketDataView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().stock_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => self.client.market_data().stock_list_symbols().await,
+                Some(ms) => self.client.market_data().stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -15191,13 +15123,9 @@ impl MarketDataView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().stock_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_symbols().await,
+                Some(ms) => client.market_data().stock_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -15230,13 +15158,9 @@ impl MarketDataView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => self.client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str()).await,
+                Some(ms) => self.client.market_data().stock_list_dates_with_deadline(request_type.as_str(), symbol.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -15260,13 +15184,9 @@ impl MarketDataView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().stock_list_dates(request_type.as_str(), symbol.as_str()).await,
+                Some(ms) => client.market_data().stock_list_dates_with_deadline(request_type.as_str(), symbol.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }
@@ -16483,13 +16403,9 @@ impl MarketDataView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().option_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => self.client.market_data().option_list_symbols().await,
+                Some(ms) => self.client.market_data().option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -16511,13 +16427,9 @@ impl MarketDataView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_symbols().await,
+                Some(ms) => client.market_data().option_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -16566,9 +16478,7 @@ impl MarketDataView {
                 request = request.right(value.as_str());
             }
             if let Some(ms) = timeout_ms {
-                if ms > 0 {
-                    request = request.with_deadline(std::time::Duration::from_millis(ms));
-                }
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         })?;
@@ -16609,9 +16519,7 @@ impl MarketDataView {
                 request = request.right(value.as_str());
             }
             if let Some(ms) = timeout_ms {
-                if ms > 0 {
-                    request = request.with_deadline(std::time::Duration::from_millis(ms));
-                }
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
@@ -16651,13 +16559,9 @@ impl MarketDataView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().option_list_expirations(symbol.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => self.client.market_data().option_list_expirations(symbol.as_str()).await,
+                Some(ms) => self.client.market_data().option_list_expirations_with_deadline(symbol.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "expiration")
@@ -16681,13 +16585,9 @@ impl MarketDataView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_expirations(symbol.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_expirations(symbol.as_str()).await,
+                Some(ms) => client.market_data().option_list_expirations_with_deadline(symbol.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "expiration").map(|p| p.into_any()))
     }
@@ -16723,13 +16623,9 @@ impl MarketDataView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => self.client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str()).await,
+                Some(ms) => self.client.market_data().option_list_strikes_with_deadline(symbol.as_str(), expiration.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "strike")
@@ -16754,13 +16650,9 @@ impl MarketDataView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().option_list_strikes(symbol.as_str(), expiration.as_str()).await,
+                Some(ms) => client.market_data().option_list_strikes_with_deadline(symbol.as_str(), expiration.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "strike").map(|p| p.into_any()))
     }
@@ -21784,13 +21676,9 @@ impl MarketDataView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().index_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => self.client.market_data().index_list_symbols().await,
+                Some(ms) => self.client.market_data().index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "symbol")
@@ -21812,13 +21700,9 @@ impl MarketDataView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().index_list_symbols();
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_symbols().await,
+                Some(ms) => client.market_data().index_list_symbols_with_deadline(std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "symbol").map(|p| p.into_any()))
     }
@@ -21850,13 +21734,9 @@ impl MarketDataView {
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<StringList>> {
         let values: Vec<String> = run_blocking(py, async move {
-            let call = self.client.market_data().index_list_dates(symbol.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => self.client.market_data().index_list_dates(symbol.as_str()).await,
+                Some(ms) => self.client.market_data().index_list_dates_with_deadline(symbol.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         })?;
         strings_to_string_list(py, values, "date")
@@ -21879,13 +21759,9 @@ impl MarketDataView {
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let call = client.market_data().index_list_dates(symbol.as_str());
             match timeout_ms {
-                None | Some(0) => call.await,
-                Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {
-                    Ok(inner) => inner,
-                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),
-                },
+                None => client.market_data().index_list_dates(symbol.as_str()).await,
+                Some(ms) => client.market_data().index_list_dates_with_deadline(symbol.as_str(), std::time::Duration::from_millis(ms)).await,
             }
         }, |py, values| strings_to_string_list(py, values, "date").map(|p| p.into_any()))
     }

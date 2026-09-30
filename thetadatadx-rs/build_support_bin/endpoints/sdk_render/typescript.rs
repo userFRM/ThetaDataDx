@@ -49,7 +49,7 @@ use super::super::helpers::{compose_endpoint_doc, endpoint_streams, is_streaming
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{
     builder_params, is_time_arg, method_params, render_rust_doc_block, sdk_method_arg_name,
-    to_camel_case, to_pascal_case, ts_class_name, ts_class_vec_converter, write_timeout_call,
+    to_camel_case, to_pascal_case, ts_class_name, ts_class_vec_converter, write_list_call,
 };
 
 /// napi classes that carry the market-data endpoint surface. Both expose a
@@ -291,13 +291,13 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             );
         }
         if builder_params(endpoint).is_empty() {
-            writeln!(
-                out,
-                "            let call = client.market_data().{name}({positional_args});",
-                name = endpoint.name,
-            )
-            .unwrap();
-            write_timeout_call(&mut out, "            ");
+            write_list_call(
+                &mut out,
+                "            ",
+                &format!("client.market_data().{}", endpoint.name),
+                &positional_args,
+                false,
+            );
         } else {
             // With optionals the endpoint hands back a builder, so the
             // setters and the deadline are applied to it, as on every other
