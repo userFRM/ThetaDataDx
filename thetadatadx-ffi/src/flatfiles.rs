@@ -21,7 +21,9 @@ use std::ptr;
 
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, ReqType, SecType};
 
-use crate::error::{cstr_to_str, set_error, set_error_from};
+use crate::error::{
+    cstr_to_str, set_error, set_error_from, set_error_with_code, THETADATADX_ERR_INVALID_PARAMETER,
+};
 use crate::runtime;
 use crate::streaming::ThetaDataDxClient;
 use crate::types::ThetaDataDxMarketDataClient;
@@ -137,7 +139,7 @@ unsafe fn parse_ff_args(
     let sec = match unsafe { parse_sec(sec_type) } {
         Ok(v) => v,
         Err(e) => {
-            set_error(&e);
+            set_error_with_code(&e, THETADATADX_ERR_INVALID_PARAMETER);
             return None;
         }
     };
@@ -145,7 +147,7 @@ unsafe fn parse_ff_args(
     let req = match unsafe { parse_req(req_type) } {
         Ok(v) => v,
         Err(e) => {
-            set_error(&e);
+            set_error_with_code(&e, THETADATADX_ERR_INVALID_PARAMETER);
             return None;
         }
     };
@@ -362,7 +364,7 @@ unsafe fn parse_ff_write_args(
     let fmt = match unsafe { parse_fmt(format) } {
         Ok(v) => v,
         Err(e) => {
-            set_error(&e);
+            set_error_with_code(&e, THETADATADX_ERR_INVALID_PARAMETER);
             return None;
         }
     };
@@ -466,5 +468,37 @@ fn flatfile_write_rc(res: Result<std::path::PathBuf, thetadatadx::Error>) -> i32
             set_error_from(&e);
             -1
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_ff_args, parse_ff_write_args};
+    use crate::error::{thetadatadx_last_error_code, THETADATADX_ERR_INVALID_PARAMETER};
+
+    /// An unknown sec_type, req_type or format is a bad caller value, so it
+    /// carries the invalid-parameter code the C++ `InvalidParameterError`
+    /// and the other bindings key on.
+    #[test]
+    fn unknown_flat_file_names_are_invalid_parameters() {
+        let assert_invalid = |name: &str, rejected: bool| {
+            assert!(rejected, "an unknown {name} was accepted");
+            assert_eq!(
+                thetadatadx_last_error_code(),
+                THETADATADX_ERR_INVALID_PARAMETER,
+                "an unknown {name} is not typed as an invalid parameter",
+            );
+        };
+        // SAFETY: NUL-terminated literals, alive for the call.
+        let rejected =
+            unsafe { parse_ff_args(c"FUTURE".as_ptr(), c"EOD".as_ptr(), c"20240105".as_ptr()) };
+        assert_invalid("sec_type", rejected.is_none());
+        // SAFETY: NUL-terminated literals, alive for the call.
+        let rejected =
+            unsafe { parse_ff_args(c"OPTION".as_ptr(), c"BOGUS".as_ptr(), c"20240105".as_ptr()) };
+        assert_invalid("req_type", rejected.is_none());
+        // SAFETY: NUL-terminated literals, alive for the call.
+        let rejected = unsafe { parse_ff_write_args(c"parquet".as_ptr(), c"out.parquet".as_ptr()) };
+        assert_invalid("format", rejected.is_none());
     }
 }
