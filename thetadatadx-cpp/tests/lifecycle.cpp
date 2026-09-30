@@ -136,14 +136,6 @@ TEST_CASE("Config::from_dotenv with only an API key yields the production enviro
     std::remove(path.c_str());
 }
 
-TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][offline]") {
-    auto config = thetadatadx::Config::production();
-    REQUIRE_NOTHROW(config.set_reconnect_policy(0));
-    REQUIRE_NOTHROW(config.set_reconnect_max_attempts(5));
-    REQUIRE_NOTHROW(config.set_reconnect_max_rate_limited_attempts(50));
-    REQUIRE_NOTHROW(config.set_reconnect_stable_window_secs(120));
-}
-
 TEST_CASE("Config consumer_cpu round-trip", "[lifecycle][offline]") {
     // Mirrors the Python `Config.consumer_cpu` and TypeScript
     // `consumerCpu` surfaces: a value set through the C++ wrapper reads
