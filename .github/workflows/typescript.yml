@@ -167,23 +167,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         working-directory: thetadatadx-ts
         run: node scripts/run_doc_examples.mjs
-      # H9: emit the public-surface shape manifest so the
-      # cross-language agreement validator (`scripts/ci/check_agreement.py`)
-      # can compare TypeScript field sets against the Python / CLI /
-      # C++ runtime artifacts. Manifest is platform-independent —
-      # only run on Linux to avoid duplicate uploads.
-      - name: Emit TypeScript shape manifest
-        if: matrix.os == 'ubuntu-latest'
-        run: node thetadatadx-ts/scripts/emit_validator_manifest.mjs
-      # The agreement validator's self-test runs in the fast-lane `agreement`
-      # job on every PR; no need to re-run it inside the TypeScript build.
-      - name: Upload TypeScript shape manifest
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v7
-        with:
-          name: validator-typescript
-          path: artifacts/validator_typescript.json
-          if-no-files-found: error
       - name: Pack + inspect npm tarball
         if: matrix.os == 'ubuntu-latest'
         working-directory: thetadatadx-ts

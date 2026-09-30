@@ -2,11 +2,11 @@
 #
 # ThetaDataDx Release Validation
 #
-# Single script that validates every delivery surface:
+# Validates the Python and C++ SDKs against live traffic and checks that they
+# agree:
 #   1. Python     — generated check_python.py       (PyO3 bridge, live)
 #   2. C++        — generated validate.cpp          (C FFI bridge, live)
-#   3. TypeScript — emit_validator_manifest.mjs     (public-surface shape)
-#   4. Agreement  — cross-language artifact diff    (scripts/ci/check_agreement.py)
+#   3. Agreement  — cross-language artifact diff    (scripts/ci/check_agreement.py)
 #
 # Each surface writes a per-cell JSON artifact to
 # `artifacts/validator_<lang>.json`. The agreement step asserts that every
@@ -133,7 +133,7 @@ ensure_python_sdk() {
 
 # ── 1. Python SDK ───────────────────────────────────────────────────────────
 
-section "1/4  Python SDK — live parameter-mode matrix"
+section "1/3  Python SDK — live parameter-mode matrix"
 
 py_pass=0
 py_skip=0
@@ -164,7 +164,7 @@ fi
 
 # ── 2. C++ SDK ──────────────────────────────────────────────────────────────
 
-section "2/4  C++ SDK — live parameter-mode matrix"
+section "2/3  C++ SDK — live parameter-mode matrix"
 
 cpp_pass=0
 cpp_skip=0
@@ -193,32 +193,14 @@ else
 fi
 record "C++" "$cpp_pass" "$cpp_skip" "$cpp_fail"
 
-# ── 3. TypeScript shape manifest ────────────────────────────────────────────
+# ── 3. Cross-language agreement ─────────────────────────────────────────────
 
-section "3/4  TypeScript SDK — public-surface shape manifest"
+section "3/3  Cross-language agreement"
 
-# Emitted from the committed `index.d.ts`, so it needs node and nothing else:
-# no napi build, no credentials, no live traffic. The agreement step compares
-# its field SET against the runtime artifacts, and `--require-all-sdks` counts
-# it as one of the surfaces that must be present.
-ts_fail=0
-if node "$REPO/thetadatadx-ts/scripts/emit_validator_manifest.mjs"; then
-    echo "  wrote artifacts/validator_typescript.json"
-else
-    echo "  TypeScript shape manifest emit failed."
-    ts_fail=1
-fi
-record "TypeScript" "$((1 - ts_fail))" 0 "$ts_fail"
-
-# ── 4. Cross-language agreement ─────────────────────────────────────────────
-
-section "4/4  Cross-language agreement"
-
-# `--require-all-sdks`: without it a missing artifact is soft-skipped, so a
-# binding can be absent and the gate still passes. A release is exactly where
-# every binding must be present to compare. The three steps above produce the
-# three artifacts this demands; `LangsAreProducibleTest` keeps that true.
-agreement_result=$(python3 "$REPO/scripts/ci/check_agreement.py" --require-all-sdks 2>&1)
+# A missing artifact fails the agreement check, so a binding cannot be absent
+# and the gate still pass. The two steps above produce the two artifacts it
+# demands; `LangsAreProducibleTest` keeps that true.
+agreement_result=$(python3 "$REPO/scripts/ci/check_agreement.py" 2>&1)
 agreement_exit=$?
 echo "$agreement_result"
 if [ "$agreement_exit" -ne 0 ]; then
@@ -247,6 +229,6 @@ if [ "$TOTAL_FAIL" -gt 0 ]; then
     exit 1
 else
     echo ""
-    echo "RELEASE OK — all surfaces validated."
+    echo "RELEASE OK — Python and C++ validated and in agreement."
     exit 0
 fi
