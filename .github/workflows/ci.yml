@@ -326,17 +326,30 @@ jobs:
       - run: python3 scripts/release/tests/test_validate_release.py
 
   cargo-deny:
-    name: Cargo deny
+    name: Cargo deny (${{ matrix.manifest }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # The workspace and every crate excluded from it, each of which
+        # resolves and ships its own Cargo.lock.
+        manifest:
+          - Cargo.toml
+          - thetadatadx-py/Cargo.toml
+          - thetadatadx-ts/Cargo.toml
+          - tools/server/Cargo.toml
+          - tools/mcp/Cargo.toml
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
           # Run every sub-check (advisories, bans, licenses, sources).
-          # Policy lives in deny.toml at the repo root.
+          # Policy lives in deny.toml at the repo root, which cargo-deny
+          # finds from each manifest's parent directories.
           arguments: --all-features
+          manifest-path: ${{ matrix.manifest }}
 
   # ═══════════════════════════════════════════════════════════════
   # HEAVY LANE. Cross-platform builds and the slow compile-heavy jobs.
