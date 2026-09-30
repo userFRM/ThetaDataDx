@@ -367,7 +367,7 @@ impl StreamingClient {
         let cfg = match config {
             Some(c) => c,
             None => {
-                owned_default = Config::production();
+                owned_default = Config::production()?;
                 &owned_default
             }
         };

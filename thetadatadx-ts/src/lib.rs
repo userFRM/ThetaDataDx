@@ -287,15 +287,25 @@ pub(crate) async fn connect_market_data_from_file_core(
     Ok(Arc::new(client))
 }
 
+/// The production defaults with the environment overrides applied.
+///
+/// An unrecognised `THETADATA_*_TYPE` selector or an out-of-range override is
+/// returned as a typed error. The panicking `DirectConfig::production()` must
+/// not be called from a napi entry point: a panic cannot unwind out of the
+/// native callback, so it aborts the whole Node process.
+pub(crate) fn production_config() -> napi::Result<config::DirectConfig> {
+    config::DirectConfig::try_production().map_err(to_napi_err)
+}
+
 /// Snapshot an optional [`Config`] handle into an owned [`DirectConfig`],
 /// falling back to the production default when none is supplied. The
 /// snapshot decouples the client from later mutations of the `Config`
 /// handle, matching the connect-time snapshot semantics every binding
 /// shares.
-pub(crate) fn config_or_production(config: Option<&Config>) -> config::DirectConfig {
+pub(crate) fn config_or_production(config: Option<&Config>) -> napi::Result<config::DirectConfig> {
     match config {
-        Some(c) => c.snapshot(),
-        None => config::DirectConfig::production(),
+        Some(c) => Ok(c.snapshot()),
+        None => production_config(),
     }
 }
 
@@ -415,7 +425,7 @@ impl ClientConnectOptions {
         // independently on top of the production defaults; either absent
         // keeps that channel on production. An unrecognized value is a
         // config error naming the valid set, never a silent fallback.
-        let mut cfg = config::DirectConfig::production();
+        let mut cfg = production_config()?;
         if let Some(raw) = market_data_type.as_deref() {
             let environment = config::MarketDataEnvironment::parse(raw).ok_or_else(|| {
                 config_option_err(format!(
@@ -987,7 +997,7 @@ impl Client {
     /// must return its instance synchronously.
     #[napi]
     pub async fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<Client> {
-        let cfg = config_or_production(config);
+        let cfg = config_or_production(config)?;
         // Seed the process-global runtime from this client's config before
         // spawning onto it, then run the connect handshake off the libuv
         // thread. The credentials are cloned so the spawned future owns
@@ -1015,7 +1025,8 @@ impl Client {
     /// method returns a `Promise<Client>`.
     #[napi(js_name = "connectFromFile")]
     pub async fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
-        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
+        let client =
+            connect_market_data_from_file_core(path, config_or_production(config)?).await?;
         Ok(Client {
             client: Mutex::new(Some(client)),
             callback: Arc::new(Mutex::new(None)),
@@ -1309,7 +1320,7 @@ impl MarketDataClient {
         creds: &Credentials,
         config: Option<&Config>,
     ) -> napi::Result<MarketDataClient> {
-        let cfg = config_or_production(config);
+        let cfg = config_or_production(config)?;
         let rt = runtime_from_config(&cfg.runtime)?;
         let creds = creds.inner.clone();
         let client = rt
@@ -1333,7 +1344,8 @@ impl MarketDataClient {
         path: String,
         config: Option<&Config>,
     ) -> napi::Result<MarketDataClient> {
-        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
+        let client =
+            connect_market_data_from_file_core(path, config_or_production(config)?).await?;
         Ok(MarketDataClient {
             client: Mutex::new(Some(client)),
         })

@@ -36,3 +36,12 @@ def test_environment_getters_are_read_only():
         cfg.market_data_environment = "STAGE"
     with pytest.raises(AttributeError):
         cfg.streaming_environment = "DEV"
+
+
+@pytest.mark.parametrize("preset", ["production", "stage", "dev"])
+def test_bad_environment_selector_raises_a_typed_error(monkeypatch, preset):
+    # An unrecognised selector must reach the caller as an ordinary exception
+    # naming the variable, not as a Rust panic that `except Exception` misses.
+    monkeypatch.setenv("THETADATA_MARKET_DATA_TYPE", "production")
+    with pytest.raises(client.InvalidParameterError, match="THETADATA_MARKET_DATA_TYPE"):
+        getattr(client.Config, preset)()

@@ -323,21 +323,31 @@ impl Config {
 impl Config {
     /// Production configuration (ThetaData NJ datacenter).
     #[staticmethod]
-    fn production() -> Self {
-        Self::from_direct(config::DirectConfig::production())
+    fn production() -> PyResult<Self> {
+        Ok(Self::from_direct(
+            config::DirectConfig::try_production().map_err(to_py_err)?,
+        ))
     }
 
     /// Dev streaming configuration (port 20200, infinite historical replay).
     #[staticmethod]
-    fn dev() -> Self {
-        Self::from_direct(config::DirectConfig::dev())
+    fn dev() -> PyResult<Self> {
+        Ok(Self::from_direct(
+            config::DirectConfig::try_production()
+                .map_err(to_py_err)?
+                .with_streaming_environment(config::StreamingEnvironment::Dev),
+        ))
     }
 
     /// Market-data-staging configuration (market-data staging cluster + auth marker;
     /// streaming stays on production). Testing, unstable.
     #[staticmethod]
-    fn stage() -> Self {
-        Self::from_direct(config::DirectConfig::stage())
+    fn stage() -> PyResult<Self> {
+        Ok(Self::from_direct(
+            config::DirectConfig::try_production()
+                .map_err(to_py_err)?
+                .with_market_data_environment(config::MarketDataEnvironment::Stage),
+        ))
     }
 
     /// Source the target environment from a ``.env``-format file.
@@ -695,7 +705,7 @@ fn resolve_direct_config(
         return Ok(guard.clone());
     }
     apply_env_overrides(
-        config::DirectConfig::production(),
+        config::DirectConfig::try_production().map_err(to_py_err)?,
         market_data_type,
         streaming_type,
     )
@@ -1738,7 +1748,7 @@ impl AsyncClient {
         let cfg = match config {
             Some(c) => c,
             None => {
-                owned_default = Config::production();
+                owned_default = Config::production()?;
                 &owned_default
             }
         };

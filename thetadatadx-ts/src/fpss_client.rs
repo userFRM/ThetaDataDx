@@ -934,7 +934,7 @@ impl StreamingClient {
     /// may be reused or mutated afterward without affecting this client.
     #[napi(factory)]
     pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<StreamingClient> {
-        let direct = config_or_production(config);
+        let direct = config_or_production(config)?;
         // Seed the process-global runtime from this client's runtime config
         // so `workerThreads` is honored when this is the first client in
         // the process, even though the streaming connection is opened lazily by
@@ -955,7 +955,7 @@ impl StreamingClient {
         config: Option<&Config>,
     ) -> napi::Result<StreamingClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let direct = config_or_production(config);
+        let direct = config_or_production(config)?;
         // Seed the process-global runtime from this client's runtime config
         // so `workerThreads` is honored when this is the first client in
         // the process, even though the streaming connection is opened lazily by

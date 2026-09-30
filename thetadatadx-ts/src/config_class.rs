@@ -65,27 +65,31 @@ pub struct Config {
 impl Config {
     /// Production config (`ThetaData` NJ datacenter).
     #[napi(factory)]
-    pub fn production() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(config::DirectConfig::production())),
-        }
+    pub fn production() -> napi::Result<Self> {
+        Ok(Self {
+            inner: Arc::new(Mutex::new(crate::production_config()?)),
+        })
     }
 
     /// Dev streaming config (port 20200, infinite historical replay).
     #[napi(factory)]
-    pub fn dev() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(config::DirectConfig::dev())),
-        }
+    pub fn dev() -> napi::Result<Self> {
+        let dev = crate::production_config()?
+            .with_streaming_environment(config::StreamingEnvironment::Dev);
+        Ok(Self {
+            inner: Arc::new(Mutex::new(dev)),
+        })
     }
 
     /// Market-data-staging config (market-data staging cluster + auth marker; streaming
     /// stays on production). Unstable testing servers.
     #[napi(factory)]
-    pub fn stage() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(config::DirectConfig::stage())),
-        }
+    pub fn stage() -> napi::Result<Self> {
+        let stage = crate::production_config()?
+            .with_market_data_environment(config::MarketDataEnvironment::Stage);
+        Ok(Self {
+            inner: Arc::new(Mutex::new(stage)),
+        })
     }
 
     /// Source the target environment from a `.env`-format file.
