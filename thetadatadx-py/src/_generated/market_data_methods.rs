@@ -565,7 +565,7 @@ impl StockHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -587,27 +587,24 @@ impl StockHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -641,23 +638,17 @@ impl StockHistoryEodBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -675,12 +666,18 @@ impl StockHistoryEodBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -859,7 +856,7 @@ impl StockHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -907,27 +904,24 @@ impl StockHistoryOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = ohlc_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -987,23 +981,17 @@ impl StockHistoryOhlcBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -1021,12 +1009,18 @@ impl StockHistoryOhlcBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -1188,7 +1182,7 @@ impl StockHistoryTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1232,27 +1226,24 @@ impl StockHistoryTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -1308,23 +1299,17 @@ impl StockHistoryTradeBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -1342,12 +1327,18 @@ impl StockHistoryTradeBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -1527,7 +1518,7 @@ impl StockHistoryQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1575,27 +1566,24 @@ impl StockHistoryQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -1655,23 +1643,17 @@ impl StockHistoryQuoteBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -1689,12 +1671,18 @@ impl StockHistoryQuoteBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -1872,7 +1860,7 @@ impl StockHistoryTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1920,27 +1908,24 @@ impl StockHistoryTradeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -2000,23 +1985,17 @@ impl StockHistoryTradeQuoteBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2034,12 +2013,18 @@ impl StockHistoryTradeQuoteBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -2156,7 +2141,7 @@ impl StockAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2183,27 +2168,24 @@ impl StockAtTimeTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -2242,23 +2224,17 @@ impl StockAtTimeTradeBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2276,12 +2252,18 @@ impl StockAtTimeTradeBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -2398,7 +2380,7 @@ impl StockAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `stock_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2425,27 +2407,24 @@ impl StockAtTimeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -2484,23 +2463,17 @@ impl StockAtTimeQuoteBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -2518,12 +2491,18 @@ impl StockAtTimeQuoteBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -2877,7 +2856,7 @@ impl OptionListContractsBuilder {
         }, |py, ticks| option_contracts_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_list_contracts` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
@@ -2906,27 +2885,24 @@ impl OptionListContractsBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match option_contracts_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = option_contracts_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -2967,23 +2943,17 @@ impl OptionListContractsBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match option_contracts_vec_to_pylist(py, owned) {
+                            let py_list = match option_contracts_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -3001,12 +2971,18 @@ impl OptionListContractsBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -5086,7 +5062,7 @@ impl OptionHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -5125,27 +5101,24 @@ impl OptionHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -5196,23 +5169,17 @@ impl OptionHistoryEodBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -5230,12 +5197,18 @@ impl OptionHistoryEodBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -5454,7 +5427,7 @@ impl OptionHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -5511,27 +5484,24 @@ impl OptionHistoryOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = ohlc_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -5600,23 +5570,17 @@ impl OptionHistoryOhlcBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -5634,12 +5598,18 @@ impl OptionHistoryOhlcBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -5858,7 +5828,7 @@ impl OptionHistoryTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -5915,27 +5885,24 @@ impl OptionHistoryTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -6004,23 +5971,17 @@ impl OptionHistoryTradeBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -6038,12 +5999,18 @@ impl OptionHistoryTradeBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -6277,7 +6244,7 @@ impl OptionHistoryQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -6338,27 +6305,24 @@ impl OptionHistoryQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -6431,23 +6395,17 @@ impl OptionHistoryQuoteBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -6465,12 +6423,18 @@ impl OptionHistoryQuoteBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -6705,7 +6669,7 @@ impl OptionHistoryTradeQuoteBuilder {
         }, |py, ticks| trade_quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -6766,27 +6730,24 @@ impl OptionHistoryTradeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -6859,23 +6820,17 @@ impl OptionHistoryTradeQuoteBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -6893,12 +6848,18 @@ impl OptionHistoryTradeQuoteBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -7084,7 +7045,7 @@ impl OptionHistoryOpenInterestBuilder {
         }, |py, ticks| open_interest_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_open_interest` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7133,27 +7094,24 @@ impl OptionHistoryOpenInterestBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match open_interest_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = open_interest_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -7214,23 +7172,17 @@ impl OptionHistoryOpenInterestBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match open_interest_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -7248,12 +7200,18 @@ impl OptionHistoryOpenInterestBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -7490,7 +7448,7 @@ impl OptionHistoryGreeksEodBuilder {
         }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7549,27 +7507,24 @@ impl OptionHistoryGreeksEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match greeks_eod_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = greeks_eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -7640,23 +7595,17 @@ impl OptionHistoryGreeksEodBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match greeks_eod_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -7674,12 +7623,18 @@ impl OptionHistoryGreeksEodBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -7961,7 +7916,7 @@ impl OptionHistoryGreeksAllBuilder {
         }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8034,27 +7989,24 @@ impl OptionHistoryGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match greeks_all_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -8139,23 +8091,17 @@ impl OptionHistoryGreeksAllBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match greeks_all_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -8173,12 +8119,18 @@ impl OptionHistoryGreeksAllBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -8459,7 +8411,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         }, |py, ticks| trade_greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8532,27 +8484,24 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -8637,23 +8586,17 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -8671,12 +8614,18 @@ impl OptionHistoryTradeGreeksAllBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -8958,7 +8907,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9031,27 +8980,24 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -9136,23 +9082,17 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match greeks_first_order_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -9170,12 +9110,18 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -9456,7 +9402,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         }, |py, ticks| trade_greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9529,27 +9475,24 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -9634,23 +9577,17 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -9668,12 +9605,18 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -9955,7 +9898,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10028,27 +9971,24 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -10133,23 +10073,17 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match greeks_second_order_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -10167,12 +10101,18 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -10453,7 +10393,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         }, |py, ticks| trade_greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10526,27 +10466,24 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -10631,23 +10568,17 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -10665,12 +10596,18 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -10952,7 +10889,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11025,27 +10962,24 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -11130,23 +11064,17 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match greeks_third_order_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -11164,12 +11092,18 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -11450,7 +11384,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         }, |py, ticks| trade_greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11523,27 +11457,24 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -11628,23 +11559,17 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -11662,12 +11587,18 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -11948,7 +11879,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         }, |py, ticks| iv_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12021,27 +11952,24 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match iv_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = iv_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -12126,23 +12054,17 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match iv_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -12160,12 +12082,18 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -12445,7 +12373,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         }, |py, ticks| trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_history_trade_greeks_implied_volatility` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12518,27 +12446,24 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_greeks_implied_volatility_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -12623,23 +12548,17 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -12657,12 +12576,18 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -12831,7 +12756,7 @@ impl OptionAtTimeTradeBuilder {
         }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_trade` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12871,27 +12796,24 @@ impl OptionAtTimeTradeBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = trade_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -12943,23 +12865,17 @@ impl OptionAtTimeTradeBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -12977,12 +12893,18 @@ impl OptionAtTimeTradeBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -13149,7 +13071,7 @@ impl OptionAtTimeQuoteBuilder {
         }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `option_at_time_quote` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13189,27 +13111,24 @@ impl OptionAtTimeQuoteBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = quote_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -13261,23 +13180,17 @@ impl OptionAtTimeQuoteBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -13295,12 +13208,18 @@ impl OptionAtTimeQuoteBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -13713,7 +13632,7 @@ impl IndexHistoryEodBuilder {
         }, |py, ticks| eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13735,27 +13654,24 @@ impl IndexHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -13789,23 +13705,17 @@ impl IndexHistoryEodBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -13823,12 +13733,18 @@ impl IndexHistoryEodBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -13964,7 +13880,7 @@ impl IndexHistoryOhlcBuilder {
         }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_history_ohlc` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13998,27 +13914,24 @@ impl IndexHistoryOhlcBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = ohlc_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -14064,23 +13977,17 @@ impl IndexHistoryOhlcBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -14098,12 +14005,18 @@ impl IndexHistoryOhlcBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -14267,7 +14180,7 @@ impl IndexHistoryPriceBuilder {
         }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_history_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14311,27 +14224,24 @@ impl IndexHistoryPriceBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match price_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = price_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -14387,23 +14297,17 @@ impl IndexHistoryPriceBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match price_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -14421,12 +14325,18 @@ impl IndexHistoryPriceBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -14520,7 +14430,7 @@ impl IndexAtTimePriceBuilder {
         }, |py, ticks| index_price_at_time_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `index_at_time_price` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14543,27 +14453,24 @@ impl IndexAtTimePriceBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match index_price_at_time_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = index_price_at_time_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -14598,23 +14505,17 @@ impl IndexAtTimePriceBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match index_price_at_time_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -14632,12 +14533,18 @@ impl IndexAtTimePriceBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
@@ -14898,7 +14805,7 @@ impl InterestRateHistoryEodBuilder {
         }, |py, ticks| interest_rate_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
-    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. A `RuntimeError` raised by `handler` aborts the stream and propagates as the method's return value.
+    /// Stream chunks of `interest_rate_history_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14920,27 +14827,24 @@ impl InterestRateHistoryEodBuilder {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.stream_ticks(|chunk| {
-                if cb_err_for_closure.lock().unwrap().is_some() {
-                    return;
-                }
                 Python::attach(|py| {
-                    let py_list = match interest_rate_ticks_vec_to_pylist(py, chunk) {
-                        Ok(list) => list,
+                    let delivered = interest_rate_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
                         Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
+                            std::ops::ControlFlow::Break(())
                         }
-                    };
-                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
                     }
-                });
+                })
             }).await
         });
-        // Surface the callback PyErr before any later stream/deadline
-        // error observed while draining after the callback stopped
-        // processing; the callback exception is the proximate cause.
+        // The callback's exception is what ended the stream.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
@@ -14974,23 +14878,17 @@ impl InterestRateHistoryEodBuilder {
                 // in-flight market-data calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
-                    None
-                } else {
-                    Some(chunk)
-                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
                     // task awaiting it.
                     let join = tokio::task::spawn_blocking(move || {
                         Python::attach(|py| {
-                            let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
+                            let py_list = match interest_rate_ticks_vec_to_pylist(py, chunk) {
                                 Ok(list) => list,
                                 Err(e) => {
                                     *cb_err_for_task.lock().unwrap() = Some(e);
@@ -15008,12 +14906,18 @@ impl InterestRateHistoryEodBuilder {
                         // re-raised RuntimeError instead of being swallowed.
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
                 }
             }).await)
         }, move |py, stream_result| {
-            // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before any later stream/deadline
-            // error observed after the callback stopped processing.
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }

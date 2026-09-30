@@ -1287,10 +1287,14 @@ macro_rules! parsed_endpoint {
                 }).await
             }
 
+            /// Binding terminal: stream presence-carrying chunks into
+            /// `handler`. A `Break` from the handler ends the whole call,
+            /// every band of a fan-out included, and the call returns
+            /// `Ok(())` without calling the handler again.
             #[doc(hidden)]
             pub async fn stream_ticks<F>(self, handler: F) -> Result<(), Error>
             where
-                F: FnMut($crate::columns::Ticks<$item>) + Send,
+                F: FnMut($crate::columns::Ticks<$item>) -> std::ops::ControlFlow<()> + Send,
             {
                 let $builder_name {
                     client,
@@ -1311,6 +1315,8 @@ macro_rules! parsed_endpoint {
                     let params = proto::$query { $($field : $val),* };
                     let handler_mutex = std::sync::Mutex::new(handler);
                     let handler_mutex = &handler_mutex;
+                    let stopped = std::sync::atomic::AtomicBool::new(false);
+                    let stopped = &stopped;
                     #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                     let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                     $(shard_read_field!(shard_query, params, $field);)*
@@ -1324,6 +1330,11 @@ macro_rules! parsed_endpoint {
                                 client, $name, plan, params,
                                 [ $($field),* ],
                                 |snap, banded, delivered| async move {
+                                    // The handler ended the call: a band still
+                                    // waiting to start opens no request.
+                                    if stopped.load(std::sync::atomic::Ordering::Relaxed) {
+                                        return Ok(());
+                                    }
                                     let request = proto::$req {
                                         query_info: Some(client.build_query_info(snap.uuid.clone())),
                                         params: Some(banded.clone()),
@@ -1335,7 +1346,7 @@ macro_rules! parsed_endpoint {
                                     )
                                     .await
                                     .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered).await
+                                    client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
                                 }
                             )?;
                         }
@@ -1364,7 +1375,7 @@ macro_rules! parsed_endpoint {
                                         )
                                         .await
                                         .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered).await
+                                        client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
                                     }
                                 },
                             ).await?;
@@ -1504,11 +1515,12 @@ macro_rules! parsed_endpoint {
                 }).await
             }
 
+            /// Async twin of `stream_ticks`, with the same `Break` contract.
             #[doc(hidden)]
             pub async fn stream_ticks_async<F, HFut>(self, handler: F) -> Result<(), Error>
             where
                 F: FnMut($crate::columns::Ticks<$item>) -> HFut + Send,
-                HFut: std::future::Future<Output = ()> + Send,
+                HFut: std::future::Future<Output = std::ops::ControlFlow<()>> + Send,
             {
                 let $builder_name {
                     client,
@@ -1531,6 +1543,8 @@ macro_rules! parsed_endpoint {
                     // `stream_async` above.
                     let handler_mutex = tokio::sync::Mutex::new(handler);
                     let handler_mutex = &handler_mutex;
+                    let stopped = std::sync::atomic::AtomicBool::new(false);
+                    let stopped = &stopped;
                     #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                     let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                     $(shard_read_field!(shard_query, params, $field);)*
@@ -1544,6 +1558,11 @@ macro_rules! parsed_endpoint {
                                 client, $name, plan, params,
                                 [ $($field),* ],
                                 |snap, banded, delivered| async move {
+                                    // The handler ended the call: a band still
+                                    // waiting to start opens no request.
+                                    if stopped.load(std::sync::atomic::Ordering::Relaxed) {
+                                        return Ok(());
+                                    }
                                     let request = proto::$req {
                                         query_info: Some(client.build_query_info(snap.uuid.clone())),
                                         params: Some(banded.clone()),
@@ -1555,7 +1574,7 @@ macro_rules! parsed_endpoint {
                                     )
                                     .await
                                     .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered).await
+                                    client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered, stopped).await
                                 }
                             )?;
                         }
@@ -1584,7 +1603,7 @@ macro_rules! parsed_endpoint {
                                         )
                                         .await
                                         .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered).await
+                                        client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered, stopped).await
                                     }
                                 },
                             ).await?;

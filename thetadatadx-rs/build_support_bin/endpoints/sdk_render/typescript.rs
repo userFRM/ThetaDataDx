@@ -810,8 +810,8 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     // array, hand it to the `ThreadsafeFunction`, and await the JS callback
     // result before the next chunk is fetched. `call_async_catch` turns a
     // thrown JS handler error into `Err(napi::Error)` instead of routing it
-    // through `uncaughtException`; the first such error wins and later chunks
-    // skip callback invocation while the core stream drains.
+    // through `uncaughtException`; the first such error ends the stream, so
+    // no further chunk is fetched or handed to the callback.
     out.push_str(
         "            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);\n",
     );
@@ -819,23 +819,17 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     out.push_str("                .stream_ticks_async(move |chunk| {\n");
     out.push_str("                    let callback = std::sync::Arc::clone(&callback);\n");
     out.push_str("                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);\n");
-    out.push_str("                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {\n");
-    out.push_str("                        None\n");
-    out.push_str("                    } else {\n");
     writeln!(
         out,
-        "                        Some({vec_converter}(chunk.as_slice()))"
+        "                    let rows = {vec_converter}(chunk.as_slice());"
     )
     .unwrap();
-    out.push_str("                    };\n");
     out.push_str("                    async move {\n");
-    out.push_str("                        let Some(rows) = rows else { return; };\n");
-    out.push_str(
-        "                        if let Err(err) = callback.call_async_catch(rows).await {\n",
-    );
-    out.push_str("                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());\n");
-    out.push_str("                            if guard.is_none() {\n");
-    out.push_str("                                *guard = Some(err);\n");
+    out.push_str("                        match callback.call_async_catch(rows).await {\n");
+    out.push_str("                            Ok(_) => std::ops::ControlFlow::Continue(()),\n");
+    out.push_str("                            Err(err) => {\n");
+    out.push_str("                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);\n");
+    out.push_str("                                std::ops::ControlFlow::Break(())\n");
     out.push_str("                            }\n");
     out.push_str("                        }\n");
     out.push_str("                    }\n");

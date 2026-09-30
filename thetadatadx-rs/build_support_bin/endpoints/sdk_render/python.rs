@@ -985,8 +985,8 @@ fn write_sync_stream_terminal(
         "Stream chunks of `{}` rows into `handler` without materialising the full \
          response in memory. `handler(chunk: list[Tick]) -> None` is called once per \
          gRPC chunk; the chunk is freed before the stream's next chunk is fetched.{fan_out} \
-         A `RuntimeError` raised by `handler` aborts the stream and propagates as the \
-         method's return value.",
+         An exception raised by `handler` stops the stream, so no further chunk is \
+         fetched, and is raised from this call.",
         endpoint.name
     );
     out.push_str(&render_rust_doc_block("    ", &doc));
@@ -1004,36 +1004,31 @@ fn write_sync_stream_terminal(
     out.push_str("        let stream_result = run_blocking(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
     out.push_str("            request.stream_ticks(|chunk| {\n");
-    out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
-    out.push_str("                    return;\n");
-    out.push_str("                }\n");
     out.push_str("                Python::attach(|py| {\n");
     writeln!(
         out,
-        "                    let py_list = match {}(py, chunk) {{",
+        "                    let delivered = {}(py, chunk).and_then(|py_list| {{",
         pylist_converter
     )
     .unwrap();
-    out.push_str("                        Ok(list) => list,\n");
+    out.push_str(
+        "                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();\n",
+    );
+    out.push_str("                        handler_for_closure.call1(py, (py_list,)).map(drop)\n");
+    out.push_str("                    });\n");
+    out.push_str("                    match delivered {\n");
+    out.push_str("                        Ok(()) => std::ops::ControlFlow::Continue(()),\n");
     out.push_str("                        Err(e) => {\n");
+    out.push_str("                            // The first error ends the stream: no further\n");
+    out.push_str("                            // chunk is fetched or handed to the handler.\n");
     out.push_str("                            *cb_err_for_closure.lock().unwrap() = Some(e);\n");
-    out.push_str("                            return;\n");
+    out.push_str("                            std::ops::ControlFlow::Break(())\n");
     out.push_str("                        }\n");
-    out.push_str("                    };\n");
-    out.push_str(
-        "                    let _reentry_guard = crate::DeliveryHandlerGuard::enter();\n",
-    );
-    out.push_str(
-        "                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {\n",
-    );
-    out.push_str("                        *cb_err_for_closure.lock().unwrap() = Some(e);\n");
     out.push_str("                    }\n");
-    out.push_str("                });\n");
+    out.push_str("                })\n");
     out.push_str("            }).await\n");
     out.push_str("        });\n");
-    out.push_str("        // Surface the callback PyErr before any later stream/deadline\n");
-    out.push_str("        // error observed while draining after the callback stopped\n");
-    out.push_str("        // processing; the callback exception is the proximate cause.\n");
+    out.push_str("        // The callback's exception is what ended the stream.\n");
     out.push_str("        if let Some(py_err) = callback_error.lock().unwrap().take() {\n");
     out.push_str("            return Err(py_err);\n");
     out.push_str("        }\n");
@@ -1108,14 +1103,6 @@ fn write_async_stream_terminal(
     out.push_str("                // in-flight market-data calls. The handler Py<PyAny> is\n");
     out.push_str("                // Arc'd once (Send + Sync); we clone the Arc per chunk\n");
     out.push_str("                // (no GIL needed), never clone_ref.\n");
-    // Short-circuit synchronously once a handler has errored: handlers run
-    // one-at-a-time (awaited in-line), so a post-error drain skips both the
-    // handler and any Python conversion work.
-    out.push_str("                let owned = if cb_err_for_closure.lock().unwrap().is_some() {\n");
-    out.push_str("                    None\n");
-    out.push_str("                } else {\n");
-    out.push_str("                    Some(chunk)\n");
-    out.push_str("                };\n");
     out.push_str(
         "                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);\n",
     );
@@ -1126,7 +1113,6 @@ fn write_async_stream_terminal(
         "                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);\n",
     );
     out.push_str("                async move {\n");
-    out.push_str("                    let Some(owned) = owned else { return; };\n");
     out.push_str("                    // GIL acquired strictly inside spawn_blocking — never\n");
     out.push_str("                    // held on the async side while awaiting the join, so a\n");
     out.push_str("                    // pool thread waiting on the GIL cannot deadlock the\n");
@@ -1135,7 +1121,7 @@ fn write_async_stream_terminal(
     out.push_str("                        Python::attach(|py| {\n");
     writeln!(
         out,
-        "                            let py_list = match {}(py, owned) {{",
+        "                            let py_list = match {}(py, chunk) {{",
         pylist_converter
     )
     .unwrap();
@@ -1162,12 +1148,18 @@ fn write_async_stream_terminal(
     out.push_str("                        // re-raised RuntimeError instead of being swallowed.\n");
     out.push_str("                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);\n");
     out.push_str("                    }\n");
+    out.push_str("                    // The first error ends the stream: no further chunk\n");
+    out.push_str("                    // is fetched or handed to the handler.\n");
+    out.push_str("                    if cb_err_for_join.lock().unwrap().is_some() {\n");
+    out.push_str("                        std::ops::ControlFlow::Break(())\n");
+    out.push_str("                    } else {\n");
+    out.push_str("                        std::ops::ControlFlow::Continue(())\n");
+    out.push_str("                    }\n");
     out.push_str("                }\n");
     out.push_str("            }).await)\n");
     out.push_str("        }, move |py, stream_result| {\n");
-    out.push_str("            // Post-await converter — reacquired GIL. Re-raise any\n");
-    out.push_str("            // captured callback PyErr before any later stream/deadline\n");
-    out.push_str("            // error observed after the callback stopped processing.\n");
+    out.push_str("            // Post-await converter, with the GIL reacquired. The callback's\n");
+    out.push_str("            // exception is what ended the stream.\n");
     out.push_str("            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {\n");
     out.push_str("                return Err(py_err);\n");
     out.push_str("            }\n");

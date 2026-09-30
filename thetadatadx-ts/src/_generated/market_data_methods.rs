@@ -2479,17 +2479,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -2653,17 +2649,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -2841,17 +2833,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -3036,17 +3024,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -3233,17 +3217,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -3396,17 +3376,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -3541,17 +3517,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -3797,17 +3769,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(option_contracts_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = option_contracts_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -5251,17 +5219,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -5464,17 +5428,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -5693,17 +5653,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -5930,17 +5886,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -6172,17 +6124,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -6386,17 +6334,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(open_interest_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -6615,17 +6559,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -6883,17 +6823,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_all_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -7162,17 +7098,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_all_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -7442,17 +7374,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -7721,17 +7649,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -8001,17 +7925,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -8280,17 +8200,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -8560,17 +8476,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -8839,17 +8751,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -9118,17 +9026,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(iv_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = iv_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -9396,17 +9300,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -9611,17 +9511,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -9794,17 +9690,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -10183,17 +10075,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -10332,17 +10220,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -10510,17 +10394,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(price_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = price_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -10653,17 +10533,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(index_price_at_time_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = index_price_at_time_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -10950,17 +10826,13 @@ impl MarketDataView {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(interest_rate_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = interest_rate_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -11440,17 +11312,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -11614,17 +11482,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -11802,17 +11666,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -11997,17 +11857,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -12194,17 +12050,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -12357,17 +12209,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -12502,17 +12350,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -12758,17 +12602,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(option_contracts_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = option_contracts_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -14212,17 +14052,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -14425,17 +14261,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -14654,17 +14486,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -14891,17 +14719,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -15133,17 +14957,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -15347,17 +15167,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(open_interest_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = open_interest_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -15576,17 +15392,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -15844,17 +15656,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_all_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -16123,17 +15931,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_all_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -16403,17 +16207,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -16682,17 +16482,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -16962,17 +16758,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -17241,17 +17033,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -17521,17 +17309,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -17800,17 +17584,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -18079,17 +17859,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(iv_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = iv_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -18357,17 +18133,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -18572,17 +18344,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = trade_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -18755,17 +18523,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = quote_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -19144,17 +18908,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = eod_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -19293,17 +19053,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = ohlc_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -19471,17 +19227,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(price_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = price_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -19614,17 +19366,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(index_price_at_time_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = index_price_at_time_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }
@@ -19911,17 +19659,13 @@ impl MarketDataClient {
                 .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
-                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
-                        None
-                    } else {
-                        Some(interest_rate_ticks_to_class_vec(chunk.as_slice()))
-                    };
+                    let rows = interest_rate_ticks_to_class_vec(chunk.as_slice());
                     async move {
-                        let Some(rows) = rows else { return; };
-                        if let Err(err) = callback.call_async_catch(rows).await {
-                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
-                            if guard.is_none() {
-                                *guard = Some(err);
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
                             }
                         }
                     }

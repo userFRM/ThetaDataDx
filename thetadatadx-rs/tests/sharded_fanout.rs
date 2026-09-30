@@ -18,6 +18,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::ops::ControlFlow;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -541,6 +542,34 @@ async fn streaming_sharded_pull_forwards_every_bands_chunks() {
     let mut rows = std::mem::take(&mut *sink.lock().unwrap());
     rows.sort_unstable();
     assert_eq!(rows, vec![101, 102, 201, 202]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_handler_break_ends_every_band_of_the_pull() {
+    // Each band carries two chunks and the handler asks to stop on the first
+    // chunk it sees. That must end the whole call: neither band's later
+    // chunks nor the sibling band reach the handler again.
+    let script = MockScript::new(vec![
+        (DAY1, vec![BandResponse::ok(vec![day1_rows(), day1_rows()])]),
+        (DAY2, vec![BandResponse::ok(vec![day2_rows(), day2_rows()])]),
+    ]);
+    let mock = spawn_band_mock(Arc::clone(&script)).await;
+    let client = client_for_mock(&mock, 2).await;
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = Arc::clone(&calls);
+    client
+        .stock_history_trade("AAPL")
+        .start_date(DAY1)
+        .end_date(DAY2)
+        .stream_ticks(move |_ticks| {
+            seen.fetch_add(1, Ordering::Relaxed);
+            ControlFlow::Break(())
+        })
+        .await
+        .expect("a handler break ends the call cleanly");
+
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

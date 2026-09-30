@@ -308,6 +308,11 @@ impl MarketDataClient {
     /// [`crate::columns::Ticks`] wrap the `stream_ticks` terminal hands
     /// its handler (the SDK bindings read the per-chunk column set).
     ///
+    /// The handler can end the call: a `Break` stops this drain, and
+    /// `stopped`, shared by every band of the call, keeps any band from
+    /// calling the handler again. The flag is read and set under the handler
+    /// lock, so no call can slip in after the one that returned `Break`.
+    ///
     /// # Errors
     ///
     /// Same as [`Self::deliver_chunk_slices`].
@@ -317,12 +322,13 @@ impl MarketDataClient {
         parser: P,
         handler: &std::sync::Mutex<F>,
         delivered: &std::sync::atomic::AtomicBool,
+        stopped: &std::sync::atomic::AtomicBool,
     ) -> Result<(), Error>
     where
         T: crate::columns::WireColumns,
         P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
         E: Into<Error>,
-        F: FnMut(crate::columns::Ticks<T>) + Send,
+        F: FnMut(crate::columns::Ticks<T>) -> ControlFlow<()> + Send,
     {
         let mut decode_error: Option<Error> = None;
         let drain_result = self
@@ -339,13 +345,22 @@ impl MarketDataClient {
                         let columns = chunk_columns::<T>(&chunk_table);
                         let ticks = crate::columns::Ticks::new(rows, columns);
                         let delivered_nonempty = !ticks.is_empty();
-                        if let Ok(mut h) = handler.lock() {
-                            (*h)(ticks);
+                        match handler.lock() {
+                            Ok(_) if stopped.load(std::sync::atomic::Ordering::Relaxed) => {
+                                ControlFlow::Break(())
+                            }
+                            Ok(mut h) => {
+                                let flow = (*h)(ticks);
+                                if delivered_nonempty {
+                                    delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                                }
+                                if flow.is_break() {
+                                    stopped.store(true, std::sync::atomic::Ordering::Relaxed);
+                                }
+                                flow
+                            }
+                            Err(_) => ControlFlow::Continue(()),
                         }
-                        if delivered_nonempty {
-                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
-                        }
-                        ControlFlow::Continue(())
                     }
                     Err(e) => {
                         decode_error = Some(e.into());
@@ -454,7 +469,8 @@ impl MarketDataClient {
 
     /// Async twin of [`Self::deliver_chunk_ticks`] for the
     /// `stream_ticks_async` terminal. Same across-the-await handler lock
-    /// as [`Self::deliver_chunk_slices_async`].
+    /// as [`Self::deliver_chunk_slices_async`], and the same `Break` and
+    /// `stopped` contract as [`Self::deliver_chunk_ticks`].
     ///
     /// # Errors
     ///
@@ -465,13 +481,14 @@ impl MarketDataClient {
         parser: P,
         handler: &tokio::sync::Mutex<F>,
         delivered: &std::sync::atomic::AtomicBool,
+        stopped: &std::sync::atomic::AtomicBool,
     ) -> Result<(), Error>
     where
         T: crate::columns::WireColumns,
         P: Fn(&proto::DataTable) -> Result<Vec<T>, E>,
         E: Into<Error>,
         F: FnMut(crate::columns::Ticks<T>) -> HFut + Send,
-        HFut: Future<Output = ()> + Send,
+        HFut: Future<Output = ControlFlow<()>> + Send,
     {
         let mut decode_error: Option<Error> = None;
         // Same delivery-scope marker as `deliver_chunk_slices_async`.
@@ -502,11 +519,20 @@ impl MarketDataClient {
                     if let Some(ticks) = ticks {
                         let delivered_nonempty = !ticks.is_empty();
                         let mut h = handler.lock().await;
+                        if stopped.load(std::sync::atomic::Ordering::Relaxed) {
+                            return ControlFlow::Break(());
+                        }
                         let user_fut = (*h)(ticks);
                         if delivered_nonempty {
                             delivered.store(true, std::sync::atomic::Ordering::Relaxed);
                         }
-                        super::client::in_delivery_scope(sem_addr, user_fut).await;
+                        if super::client::in_delivery_scope(sem_addr, user_fut)
+                            .await
+                            .is_break()
+                        {
+                            stopped.store(true, std::sync::atomic::Ordering::Relaxed);
+                            return ControlFlow::Break(());
+                        }
                     }
                     if stop_stream {
                         ControlFlow::Break(())
