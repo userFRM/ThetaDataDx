@@ -320,6 +320,10 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 scripts/ci/tests/test_check_agreement.py
+      # validate_release.sh drives the agreement check at release time and
+      # must fail closed when a validator crashes, emits no counts or fails
+      # to build. Its offline tests need no credentials.
+      - run: python3 scripts/release/tests/test_validate_release.py
 
   cargo-deny:
     name: Cargo deny
