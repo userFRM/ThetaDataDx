@@ -27,6 +27,7 @@ use crate::flatfiles::framing::{msg, read_frame, write_frame, Frame};
 use crate::flatfiles::mdds_spki::MddsSpkiVerifier;
 use crate::flatfiles::types::{disconnect_reason_code, FlatFilesUnavailableReason};
 use crate::fpss::protocol::build_login_payload;
+use crate::tdbe::types::enums::RemoveReason;
 
 /// Established, authenticated MDDS connection.
 pub(crate) struct AuthedSession {
@@ -162,12 +163,15 @@ pub(crate) async fn login(
 
 /// Convenience: connect to the first reachable host in a list, then auth.
 ///
-/// Retries only on transient connect-layer failures (TCP, TLS, I/O). A
-/// semantic server rejection — the credentials were rejected, the auth
-/// frame was malformed, the server emitted a `DISCONNECTED` — is
-/// short-circuited: replaying it across every MDDS host is pointless,
-/// risks rate-limiting the account, and the original error already
-/// describes what the server objected to.
+/// Moves on to the next host after a connect-layer failure (TCP, TLS, I/O)
+/// or a `DISCONNECTED` whose reason is transient (a restarting server, a
+/// login timeout), since another host may be serving. A rejection of the
+/// account itself (refused credentials or account, a malformed auth frame,
+/// the account's request-rate limit) is short-circuited: every host would
+/// refuse it the same way, and the original error already describes what
+/// the server objected to. A rate-limited login in particular is left to the
+/// retry ladder's backoff, since logging in on the next host at once would
+/// only spend more of the account's allowance.
 ///
 /// `connect_timeout` bounds the combined TCP + TLS handshake **and** auth
 /// exchange for a single host. A host that accepts the socket but never
@@ -214,10 +218,20 @@ pub(crate) async fn connect_and_login<'a>(
     Err(last_err.unwrap_or_else(|| Error::config_missing("mdds.hosts")))
 }
 
-/// A login error the server has authoritatively decided — no point
-/// retrying against another host.
+/// A login error every host would answer the same way, so there is no
+/// point trying the next one.
 fn is_terminal_login_error(err: &Error) -> bool {
-    matches!(err, Error::FlatFilesUnavailable(_) | Error::Auth { .. })
+    match err {
+        Error::Auth { .. } => true,
+        // The rate limit is per account: transient, but not host-local.
+        Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected { reason_code })
+            if RemoveReason::from_code(*reason_code as i16) == RemoveReason::TooManyRequests =>
+        {
+            true
+        }
+        Error::FlatFilesUnavailable(reason) => !reason.is_transient(),
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -244,6 +258,28 @@ mod tests {
         assert_eq!(p.len(), 4 + len);
         // first character of the JSON body must be '{'.
         assert_eq!(p[4], b'{');
+    }
+
+    /// A host-local `DISCONNECTED` during login (a restarting host, a login
+    /// timeout) moves on to the next host; a permanent or account-wide
+    /// rejection does not.
+    #[test]
+    fn account_wide_login_rejections_stop_host_failover() {
+        let rejected = |reason_code| {
+            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected { reason_code })
+        };
+        // ServerRestarting, LoginTimedOut, TimedOut.
+        for code in [15, 14, 4] {
+            assert!(!is_terminal_login_error(&rejected(code)), "ord {code}");
+        }
+        // InvalidCredentials, TooManyRequests, NoStartDate.
+        for code in [0, 12, 13] {
+            assert!(is_terminal_login_error(&rejected(code)), "ord {code}");
+        }
+        assert!(is_terminal_login_error(&Error::Auth {
+            kind: AuthErrorKind::ServerError,
+            message: String::new(),
+        }));
     }
 
     #[tokio::test]
