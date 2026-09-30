@@ -5,6 +5,7 @@
 //! `thetadatadx`, and returns the JVM terminal JSON envelope (or CSV when
 //! `format=csv`).
 
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use axum::extract::{FromRequestParts, State};
@@ -14,7 +15,7 @@ use axum::response::{IntoResponse, Response};
 use sonic_rs::prelude::*;
 
 use thetadatadx::endpoint::{invoke_endpoint, EndpointArgs, EndpointError};
-use thetadatadx::EndpointMeta;
+use thetadatadx::{EndpointMeta, ParamType};
 
 use crate::format;
 use crate::state::AppState;
@@ -192,10 +193,13 @@ pub(crate) const MAX_QUERY_PARAMS: usize = 32;
 //  BoundedQuery — count params BEFORE allocating the HashMap
 // ---------------------------------------------------------------------------
 
-/// Axum extractor that parses the raw URI query string into a
-/// `HashMap<String, String>` while enforcing [`MAX_QUERY_PARAMS`] **during**
-/// parsing — not after `serde_urlencoded` has already populated the full
-/// HashMap.
+/// Axum extractor that parses the raw URI query string into its
+/// `(key, value)` pairs while enforcing [`MAX_QUERY_PARAMS`] **during**
+/// parsing, not after `serde_urlencoded` has already allocated every pair.
+///
+/// The pairs keep every occurrence of a repeated key, in request order;
+/// [`fold_query_pairs`] resolves repeats against the endpoint's declared
+/// parameter types.
 ///
 /// # Why a custom extractor
 ///
@@ -211,12 +215,11 @@ pub(crate) const MAX_QUERY_PARAMS: usize = 32;
 /// pairs is rejected with 400 Bad Request the moment the 33rd `&` is
 /// counted — no per-key `String` allocation, no HashMap rehashing.
 ///
-/// Memory bound during parse: at most `MAX_QUERY_PARAMS` capacity on the
-/// HashMap, independent of how long the attacker's query string was. The
-/// body / URI limits stay in place via axum's `DefaultBodyLimit` and the
-/// URI length limit in `hyper`.
+/// Memory bound during parse: at most `MAX_QUERY_PARAMS` pairs, independent
+/// of how long the attacker's query string was. The body / URI limits stay in
+/// place via axum's `DefaultBodyLimit` and the URI length limit in `hyper`.
 #[derive(Debug)]
-pub(crate) struct BoundedQuery<const N: usize>(pub HashMap<String, String>);
+pub(crate) struct BoundedQuery<const N: usize>(pub Vec<(String, String)>);
 
 /// Error surfaced when a client sends more than `N` query parameters.
 ///
@@ -259,9 +262,8 @@ where
             }
         }
 
-        // Now it's safe to parse into a HashMap — the pair count is at
-        // most N, so the HashMap capacity is bounded by the cap.
-        let params: HashMap<String, String> =
+        // Now it's safe to parse: the pair count is at most N.
+        let params: Vec<(String, String)> =
             serde_urlencoded::from_str(query).map_err(|e| BoundedQueryError {
                 status: StatusCode::BAD_REQUEST,
                 message: format!("invalid query string: {e}"),
@@ -269,6 +271,37 @@ where
 
         Ok(BoundedQuery(params))
     }
+}
+
+/// Resolve the raw query pairs into one value per key, the way the vendor
+/// terminal reads a repeated key.
+///
+/// A list-typed parameter (`symbol` on the snapshot routes) collects every
+/// occurrence: `symbol=AAPL&symbol=MSFT` becomes the comma-separated
+/// `AAPL,MSFT` the list parser already accepts, which is also how an OpenAPI
+/// client serialises an array parameter by default. Any other parameter keeps
+/// its first occurrence. The list-typed set is the registry's own
+/// `ParamType::Symbols` declaration for this endpoint.
+fn fold_query_pairs(ep: &EndpointMeta, pairs: Vec<(String, String)>) -> HashMap<String, String> {
+    let mut params: HashMap<String, String> = HashMap::with_capacity(pairs.len());
+    for (key, value) in pairs {
+        match params.entry(key) {
+            Entry::Vacant(slot) => {
+                slot.insert(value);
+            }
+            Entry::Occupied(mut slot) => {
+                let is_list = ep.params.iter().any(|param| {
+                    param.name == slot.key() && param.param_type == ParamType::Symbols
+                });
+                if is_list {
+                    let joined = slot.get_mut();
+                    joined.push(',');
+                    joined.push_str(&value);
+                }
+            }
+        }
+    }
+    params
 }
 
 fn build_endpoint_args(
@@ -606,10 +639,11 @@ pub async fn generic(
 /// work that follows.
 pub async fn generic_with_overrides(
     State(state): State<AppState>,
-    BoundedQuery(mut params): BoundedQuery<MAX_QUERY_PARAMS>,
+    BoundedQuery(pairs): BoundedQuery<MAX_QUERY_PARAMS>,
     ep: &EndpointMeta,
     overrides: &[(&str, String)],
 ) -> Response {
+    let mut params = fold_query_pairs(ep, pairs);
     for (key, value) in overrides {
         params.insert((*key).to_string(), value.clone());
     }
@@ -1115,7 +1149,7 @@ mod tests {
 
     async fn run_bounded_query<const N: usize>(
         query: &str,
-    ) -> Result<HashMap<String, String>, BoundedQueryError> {
+    ) -> Result<Vec<(String, String)>, BoundedQueryError> {
         let uri = format!("http://example.test/v3/foo?{query}");
         let req = Request::builder()
             .uri(uri)
@@ -1187,19 +1221,38 @@ mod tests {
 
     #[tokio::test]
     async fn bounded_query_parses_normal_request() {
-        // Realistic 4-param request: must parse into the HashMap exactly.
+        // Realistic 4-param request: must parse into its pairs exactly.
         let params = run_bounded_query::<{ MAX_QUERY_PARAMS }>(
             "symbol=AAPL&start_date=20240101&end_date=20240201&format=json",
         )
         .await
         .expect("normal query must parse");
-        assert_eq!(params.get("symbol").map(String::as_str), Some("AAPL"));
-        assert_eq!(
-            params.get("start_date").map(String::as_str),
-            Some("20240101")
-        );
-        assert_eq!(params.get("end_date").map(String::as_str), Some("20240201"));
-        assert_eq!(params.get("format").map(String::as_str), Some("json"));
+        let expected = [
+            ("symbol", "AAPL"),
+            ("start_date", "20240101"),
+            ("end_date", "20240201"),
+            ("format", "json"),
+        ]
+        .map(|(k, v)| (k.to_string(), v.to_string()));
+        assert_eq!(params, expected);
+    }
+
+    /// A repeated key resolves the way the terminal reads it: the snapshot
+    /// routes' list-typed `symbol` collects every occurrence (the default
+    /// OpenAPI serialisation of an array parameter), and any other parameter
+    /// keeps its first occurrence. A last-wins map silently dropped `AAPL`.
+    #[tokio::test]
+    async fn repeated_query_keys_fold_like_the_terminal() {
+        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
+        let pairs = run_bounded_query::<{ MAX_QUERY_PARAMS }>(
+            "symbol=AAPL&venue=nqb&symbol=MSFT&format=json&venue=utp_cta&format=csv",
+        )
+        .await
+        .expect("repeated keys must parse");
+        let params = fold_query_pairs(ep, pairs);
+        assert_eq!(params["symbol"], "AAPL,MSFT");
+        assert_eq!(params["venue"], "nqb");
+        assert_eq!(params["format"], "json");
     }
 
     // -----------------------------------------------------------------------
