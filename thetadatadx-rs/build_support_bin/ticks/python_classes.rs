@@ -472,8 +472,8 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
         .unwrap();
     }
     if def.contract_id {
-        // Contract identity is populated on wildcard queries only —
-        // absent identity is `None`, matching the streaming
+        // Contract identity is populated whenever the response carries
+        // it; absent identity is `None`, matching the streaming
         // `ContractRef` convention (one absence shape per binding).
         out.push_str("    #[pyo3(get)] pub expiration: Option<i32>,\n");
         out.push_str("    #[pyo3(get)] pub strike: Option<f64>,\n");
@@ -484,9 +484,9 @@ fn render_python_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String
     // `__repr__` shows the first six schema fields with their live
     // values so REPLs and debuggers (pdb, IDE watch windows, pytest
     // short-repr) surface per-instance data instead of a useless
-    // `"<EodTick(...)>"`. Six is a readable cap; `contract_id` columns
-    // (`expiration`/`strike`/`right`) are identical across a result
-    // set and carry no per-row signal, so we skip them.
+    // `"<EodTick(...)>"`. Six is a readable cap. The contract identity
+    // (`expiration`/`strike`/`right`) is not a schema column, so it is
+    // not among them.
     //
     // `#[new]` constructor accepts every field as a kwarg defaulting
     // to zero / empty-string. Tick classes are primarily returned

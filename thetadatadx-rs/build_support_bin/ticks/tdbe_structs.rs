@@ -259,11 +259,13 @@ fn render_one_struct(type_name: &str, def: &TickTypeDef) -> String {
     // compatibility. Reordering would silently shift offsets for
     // already-compiled C / C++ consumers even when total `size_of` stays the same.
     if def.contract_id {
-        out.push_str("    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.\n");
+        out.push_str(
+            "    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.\n",
+        );
         out.push_str("    pub expiration: i32,\n");
-        out.push_str("    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.\n");
+        out.push_str("    /// Contract strike price in dollars, or 0.0 when the response does not carry it.\n");
         out.push_str("    pub strike: f64,\n");
-        out.push_str("    /// Contract right: `'C'` for a call, `'P'` for a put. `'\\0'` on single-contract queries.\n");
+        out.push_str("    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\\0'` when the response does not carry it.\n");
         out.push_str("    pub right: char,\n");
     }
 

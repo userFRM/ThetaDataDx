@@ -92,11 +92,11 @@ pub struct EodTick {
     pub has_ask_condition: bool,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -194,11 +194,11 @@ pub struct GreeksAllTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -339,11 +339,11 @@ pub struct GreeksEodTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -404,11 +404,11 @@ pub struct GreeksFirstOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -467,11 +467,11 @@ pub struct GreeksSecondOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -529,11 +529,11 @@ pub struct GreeksThirdOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -683,11 +683,11 @@ pub struct IvTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -727,11 +727,11 @@ pub struct MarketValueTick {
     pub market_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -777,11 +777,11 @@ pub struct OhlcTick {
     pub vwap: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -808,11 +808,11 @@ pub struct OpenInterestTick {
     pub open_interest: i32,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -922,11 +922,11 @@ pub struct QuoteTick {
     pub has_ask_condition: bool,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -1049,11 +1049,11 @@ pub struct TradeGreeksAllTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -1151,11 +1151,11 @@ pub struct TradeGreeksFirstOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -1242,11 +1242,11 @@ pub struct TradeGreeksImpliedVolatilityTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -1342,11 +1342,11 @@ pub struct TradeGreeksSecondOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -1441,11 +1441,11 @@ pub struct TradeGreeksThirdOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -1563,11 +1563,11 @@ pub struct TradeQuoteTick {
     pub has_ask_condition: bool,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 
@@ -1651,11 +1651,11 @@ pub struct TradeTick {
     pub records_back: i32,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
-    /// Contract expiration (`YYYYMMDD`). Populated on wildcard queries, 0 otherwise.
+    /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
-    /// Contract strike price in dollars. Populated on wildcard queries, 0.0 otherwise.
+    /// Contract strike price in dollars, or 0.0 when the response does not carry it.
     pub strike: f64,
-    /// Contract right: `'C'` for a call, `'P'` for a put. `'\0'` on single-contract queries.
+    /// Contract right: `'C'` for a call, `'P'` for a put, or `'\0'` when the response does not carry it.
     pub right: char,
 }
 

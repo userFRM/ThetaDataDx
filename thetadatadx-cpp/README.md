@@ -235,7 +235,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 | Calendar | 3 | Market open/close, holidays, early closes |
 | Interest rate | 1 | EOD rate history |
 
-Every market-data endpoint is a method on `thetadatadx::MarketDataClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On wildcard option queries the server fills `expiration`, `strike`, and `right`; on single-contract queries those fields are `0`. The full method list lives in [`thetadatadx.hpp`](include/thetadatadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
+Every market-data endpoint is a method on `thetadatadx::MarketDataClient`. All prices (`open`, `high`, `low`, `close`, `bid`, `ask`, `price`, `strike`) are `double`, decoded during parsing. On option rows the server fills `expiration`, `strike`, and `right`, for single-contract and wildcard queries alike; a field the response does not carry is `0`. The full method list lives in [`thetadatadx.hpp`](include/thetadatadx.hpp) and the [API reference](https://userfrm.github.io/ThetaDataDx/reference/).
 
 ## Errors
 
