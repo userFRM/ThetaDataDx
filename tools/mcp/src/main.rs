@@ -1307,7 +1307,7 @@ async fn execute_tool(
 ///
 /// Returns `None` when there are no credentials, when the connect failed, or
 /// when it has not settled inside `bound`. All three are the same answer to
-/// the caller: there is no connection to advertise a tool set from.
+/// the caller: there is no connection to list or call tools against.
 async fn wait_for_connect<'a>(
     client: &'a Arc<OnceCell<Client>>,
     connect_settled: &tokio::sync::watch::Receiver<bool>,
@@ -1329,12 +1329,9 @@ async fn handle_request(
     connect_settled: &tokio::sync::watch::Receiver<bool>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
-    // OnceCell::get is lock-free; no guard is held across the awaits below.
-    // This snapshot is taken before the background connect may have landed,
-    // so `tools/list` re-reads the cell through `wait_for_connect` rather
-    // than answering from it.
-    let client_cell = client;
-    let client = client_cell.get();
+    // The background connect may not have landed yet, so the arms that need
+    // the client read it through `wait_for_connect` when they run rather than
+    // from a snapshot taken here.
     let id = req.id.clone().unwrap_or(Value::new_null());
 
     // `2026-07-28` moved version negotiation onto every request, so the check
@@ -1404,7 +1401,7 @@ async fn handle_request(
             // otherwise just the offline tools.
             // Wait for the connect so a client that lists once at startup
             // does not cache the offline set.
-            let access = wait_for_connect(client_cell, connect_settled, CONNECT_SETTLE_WAIT)
+            let access = wait_for_connect(client, connect_settled, CONNECT_SETTLE_WAIT)
                 .await
                 .map(SubscriptionAccess::from_client);
             let tools = tool_definitions_for(access);
@@ -1428,6 +1425,11 @@ async fn handle_request(
                 .unwrap_or("");
             let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
 
+            // A call that arrives while the connect is still in flight, for
+            // example from a client reusing a cached tool list across a
+            // restart, waits for it rather than being told the credentials
+            // are missing.
+            let client = wait_for_connect(client, connect_settled, CONNECT_SETTLE_WAIT).await;
             match execute_tool(client, tool_name, &arguments, start_time).await {
                 Ok(result) => build_tool_call_response(id, &result),
                 Err(ToolError::InvalidParams(msg)) => {

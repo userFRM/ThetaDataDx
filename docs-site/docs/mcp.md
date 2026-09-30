@@ -91,7 +91,7 @@ Run `thetadatadx-mcp-server` by hand: the process must start silently and wait o
 ::: details Only `ping` appears
 That is offline mode: credentials were missing or rejected, or the vendor was unreachable. Check `THETADATA_API_KEY`, or `THETADATA_EMAIL` / `THETADATA_PASSWORD`, in the client's `env` block, and run with `RUST_LOG=debug` to see which of the two it was.
 
-The connect is not blocking: the server answers `initialize` immediately and connects in the background, because a client that waits on the handshake times out. `tools/list` waits up to five seconds for that connect to settle before it answers, so a listing made at startup reports the connected surface. If the vendor takes longer than that, the listing is the offline set, which is the honest answer while there is no connection; list again once the connection is up.
+The connect is not blocking: the server answers `initialize` immediately and connects in the background, because a client that waits on the handshake times out. `tools/list` and `tools/call` wait up to five seconds for that connect to settle before they answer, so a listing or a call made at startup sees the connected surface. If the vendor takes longer than that, the listing is the offline set, which is the honest answer while there is no connection; list again once the connection is up.
 :::
 
 ::: details Calls fail with permission errors
