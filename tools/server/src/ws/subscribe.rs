@@ -603,10 +603,10 @@ fn non_option_contract(sec_type: &str, symbol: &str) -> Contract {
 ///   per-contract subscription per contract side. `MARKET_VALUE` is the
 ///   calculated per-contract market-value feed and has no full-stream
 ///   form on the wire.
-/// - `OHLC` maps to the per-contract Trade stream: OHLCVC bars are
-///   derived from trades, so the bar feed flows once the trade
-///   subscription is installed. Previously this arm silently returned
-///   OK without installing anything.
+/// - `OHLC` maps to the per-contract Trade stream: the upstream sends its
+///   OHLCVC bars on the trade subscription, so the bar feed flows once it
+///   is installed. It is the same subscription `TRADE` installs, so
+///   removing either removes both.
 /// - `FULL_TRADES` / `FULL_OPEN_INTEREST` map to the security-type-wide
 ///   full stream.
 /// - Anything else is an error listing the accepted vocabulary.
@@ -637,8 +637,8 @@ fn subscription_plan(
     match req_type {
         "QUOTE" => Ok(per_contract(SubscriptionKind::Quote)),
         "TRADE" => Ok(per_contract(SubscriptionKind::Trade)),
-        // OHLCVC bars are derived from the trade stream; subscribing the
-        // underlying Trade feed is what makes the OHLC events flow.
+        // The upstream sends OHLCVC bars on the trade subscription;
+        // installing the Trade feed is what makes the OHLC events flow.
         "OHLC" => Ok(per_contract(SubscriptionKind::Trade)),
         "OPEN_INTEREST" => Ok(per_contract(SubscriptionKind::OpenInterest)),
         // Market value is a calculated per-contract feed with no
@@ -852,9 +852,9 @@ mod tests {
         );
     }
 
-    /// OHLCVC bars are derived from trades: `req_type=OHLC` installs the
-    /// per-contract Trade subscription so the bar feed flows. The old
-    /// arm returned OK without installing anything.
+    /// The upstream sends OHLCVC bars on the trade subscription:
+    /// `req_type=OHLC` installs the per-contract Trade subscription so the
+    /// bar feed flows.
     #[test]
     fn plan_maps_ohlc_to_trade_subscription() {
         let plan = subscription_plan("OHLC", "STOCK", &stock_contracts()).unwrap();

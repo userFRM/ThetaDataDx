@@ -44,7 +44,7 @@ Option contracts carry the four-tuple. By default the `strike` is the terminal's
 
 ## Event messages
 
-Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, or `OHLC`, plus a `STATUS` heartbeat every second. `OHLC` bars arrive from upstream automatically — one per traded contract, ahead of that contract's trade; they are not derived from your subscriptions and are not subscribed to separately. An `OPEN_INTEREST` subscription is accepted, but open interest has no WebSocket frame: the data is delivered through the native SDK callbacks and the REST surface, not over this endpoint.
+Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, or `OHLC`, plus a `STATUS` heartbeat every second. `OHLC` bars ride the trade stream: the upstream sends one ahead of each trade on a contract you hold a trade subscription for. A contract has a single upstream trade subscription carrying both, so `req_type: OHLC` is another name for the contract's `TRADE` subscription rather than a separate one: `add: true` installs it, and `add: false` removes it, which also stops that contract's `TRADE` frames. An `OPEN_INTEREST` subscription is accepted, but open interest has no WebSocket frame: the data is delivered through the native SDK callbacks and the REST surface, not over this endpoint.
 
 ## Try it
 
