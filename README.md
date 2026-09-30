@@ -279,7 +279,7 @@ sends a quote and an OHLC bar before each trade, so add an `Ohlcvc` case to the
 callback to handle the bars:
 
 ```python
-from thetadatadx import Ohlcvc
+from thetadatadx import Ohlcvc, SecType
 
 def on_full_trade(event):
     match event:
