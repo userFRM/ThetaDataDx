@@ -1216,8 +1216,9 @@ mod config_file {
         /// gRPC connect timeout (seconds). `validate` enforces the same
         /// range as the programmatic path.
         connect_timeout_secs: u64,
-        /// Per-request market-data deadline (seconds). `0` disables the
-        /// per-request deadline. Default `300`; not range-limited.
+        /// Per-request market-data deadline (seconds). Default `300`; not
+        /// range-limited. A `0` is stored verbatim and floored to `300` at
+        /// request time, so it does not disable the deadline.
         request_timeout_secs: u64,
         /// Buffered-response size (bytes) above which a warning is logged.
         /// Default `104_857_600` (100 MiB).
@@ -1469,7 +1470,7 @@ mod config_file {
             out.market_data.warn_on_buffered_threshold_bytes =
                 cf.market_data.warn_on_buffered_threshold_bytes;
             // `connect_timeout_secs` is range-checked by `out.validate()` below;
-            // `request_timeout_secs` (0 = disabled) and the warn threshold are
+            // `request_timeout_secs` and the warn threshold are
             // unbounded, matching the programmatic path.
 
             // An explicit `[streaming] hosts` list is the operator's full host
@@ -1905,7 +1906,7 @@ mod tests {
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
             assert_eq!(config.market_data.connect_timeout_secs, 30);
-            // 0 is a valid "no per-request deadline" sentinel, not floored.
+            // 0 is stored verbatim; the floor is applied at request time.
             assert_eq!(config.market_data.request_timeout_secs, 0);
             assert_eq!(
                 config.market_data.warn_on_buffered_threshold_bytes,

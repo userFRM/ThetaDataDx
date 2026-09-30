@@ -40,8 +40,9 @@ max_message_size = 4194304
 # gRPC connect timeout (seconds). Default 10. Validated to [1, 300].
 # connect_timeout_secs = 10
 
-# Per-request market-data deadline (seconds). Default 300. Set 0 to disable
-# the per-request deadline. Not range-limited.
+# Per-request market-data deadline (seconds). Default 300. A 0 is floored to
+# 300 at request time, so a silent server cannot hang a request; opt a single
+# request out with with_deadline(0) instead. Not range-limited.
 # request_timeout_secs = 300
 
 # Buffered-response size (bytes) above which a warning is logged. Default
