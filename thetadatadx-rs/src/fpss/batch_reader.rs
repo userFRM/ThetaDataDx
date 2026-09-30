@@ -759,9 +759,19 @@ impl RecordBatchStream {
         }
     }
 
-    /// Non-blocking poll of the next batch for the async [`futures_core::Stream`]
-    /// impl. Registers `waker` when the queue is momentarily empty.
-    fn poll_next_inner(&self, cx: &Context<'_>) -> Poll<Option<Result<RecordBatch, StreamError>>> {
+    /// Non-blocking poll of the next batch, behind the async
+    /// [`futures_core::Stream`] impl and the bindings' awaitable pulls.
+    /// Registers the task's waker when the queue is momentarily empty.
+    ///
+    /// Unlike [`Self::next_blocking`], abandoning a pending pull takes nothing
+    /// off the queue. One waker is kept, so only one task may wait at a time:
+    /// a second concurrent poller displaces the first, and a caller that
+    /// shares the reader serialises its pulls.
+    #[doc(hidden)]
+    pub fn poll_next_batch(
+        &self,
+        cx: &Context<'_>,
+    ) -> Poll<Option<Result<RecordBatch, StreamError>>> {
         let mut guard = lock(&self.shared.inner);
         if let Some(batch) = guard.batches.pop_front() {
             self.shared.cv.notify_all();
@@ -808,7 +818,7 @@ impl futures_core::Stream for RecordBatchStream {
     fn poll_next(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // `RecordBatchStream` holds no self-referential state; polling
         // through a shared reference is sound.
-        self.get_mut().poll_next_inner(cx)
+        self.get_mut().poll_next_batch(cx)
     }
 }
 

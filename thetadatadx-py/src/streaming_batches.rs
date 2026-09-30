@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use pyo3::exceptions::{PyRuntimeError, PyStopAsyncIteration, PyStopIteration};
+use pyo3::exceptions::{PyStopAsyncIteration, PyStopIteration};
 use pyo3::prelude::*;
 
 use thetadatadx::streaming::{Backpressure, RecordBatchStream as CoreRecordBatchStream};
@@ -71,14 +71,16 @@ pub(crate) fn open_reader(
     let stream = py.detach(|| builder.build()).map_err(to_py_err)?;
     Ok(RecordBatchStream {
         inner: Arc::new(stream),
+        pull: Arc::new(tokio::sync::Mutex::new(())),
     })
 }
 
 /// A pull reader of `pyarrow.RecordBatch` values off the live streaming session.
 ///
 /// Both a synchronous `Iterable` (the blocking `__next__` releases the GIL
-/// so other Python threads run while it waits) and an `AsyncIterable`
-/// (`__anext__` awaits the next batch on a worker thread). Also a sync and
+/// so other Python threads run while it waits, and still answers Ctrl+C) and
+/// an `AsyncIterable` (`__anext__` awaits the next batch without parking a
+/// thread, so cancelling it loses no batch). Also a sync and
 /// async context manager that closes the stream — unsubscribing and tearing
 /// the session down — on exit. Yields columnar batches under a fixed schema
 /// (see `schema`); concatenate them freely.
@@ -96,6 +98,28 @@ pub(crate) fn open_reader(
 #[pyclass]
 pub struct RecordBatchStream {
     inner: Arc<CoreRecordBatchStream>,
+    /// Serialises pulls. The core keeps a single waker for a waiting pull,
+    /// so two concurrent pulls would leave the first one never woken.
+    pull: Arc<tokio::sync::Mutex<()>>,
+}
+
+/// Await the next batch of `reader`, `None` at end of stream. A pending pull
+/// takes nothing off the queue, so dropping it (a cancelled awaitable, or
+/// Ctrl+C on a blocking pull) loses no batch.
+fn next_batch(
+    reader: &RecordBatchStream,
+) -> impl std::future::Future<Output = Result<Option<arrow::array::RecordBatch>, thetadatadx::Error>>
+       + Send
+       + 'static {
+    let inner = Arc::clone(&reader.inner);
+    let pull = Arc::clone(&reader.pull);
+    async move {
+        let _turn = pull.lock().await;
+        std::future::poll_fn(|cx| inner.poll_next_batch(cx))
+            .await
+            .transpose()
+            .map_err(thetadatadx::Error::from)
+    }
 }
 
 #[pymethods]
@@ -106,19 +130,11 @@ impl RecordBatchStream {
     }
 
     /// Blocking pull of the next `pyarrow.RecordBatch`. Releases the GIL
-    /// across the wait so other Python threads keep running, raising
+    /// across the wait so other Python threads keep running, and checks for
+    /// signals while it waits so Ctrl+C interrupts a quiet stream. Raises
     /// `StopIteration` at end of stream.
     fn __next__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let inner = Arc::clone(&self.inner);
-        // GIL released for the blocking ring wait; re-acquired only to build
-        // the pyarrow object after a batch lands. This is the no-GIL
-        // discipline on the blocking pull. The core stream releases its own
-        // queue lock across the wait, so a concurrent `close()` is honored
-        // promptly.
-        let batch = py
-            .detach(|| inner.next_blocking())
-            .map_err(|e| to_py_err(thetadatadx::Error::from(e)))?;
-        match batch {
+        match crate::run_blocking(py, next_batch(self))? {
             Some(batch) => record_batch_to_pyarrow(py, batch),
             None => Err(PyStopIteration::new_err(())),
         }
@@ -129,19 +145,14 @@ impl RecordBatchStream {
         slf
     }
 
-    /// Await the next `pyarrow.RecordBatch`. The blocking pull runs on a
-    /// blocking-pool thread (it never holds the GIL); the awaitable resolves
-    /// to the batch or raises `StopAsyncIteration` at end of stream.
+    /// Await the next `pyarrow.RecordBatch`, raising `StopAsyncIteration` at
+    /// end of stream. The wait holds no thread and no GIL, and a cancelled
+    /// awaitable (for example under `asyncio.wait_for`) leaves the next batch
+    /// for the next pull.
     fn __anext__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let inner = Arc::clone(&self.inner);
+        let next = next_batch(self);
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            // The pull is blocking; run it on the blocking pool so the async
-            // executor thread is never parked. No GIL is held here.
-            let pulled = tokio::task::spawn_blocking(move || inner.next_blocking())
-                .await
-                .map_err(|e| PyRuntimeError::new_err(format!("batch pull task failed: {e}")))?
-                .map_err(|e| to_py_err(thetadatadx::Error::from(e)))?;
-            match pulled {
+            match next.await.map_err(to_py_err)? {
                 Some(batch) => Python::attach(|py| record_batch_to_pyarrow(py, batch)),
                 None => Err(PyStopAsyncIteration::new_err(())),
             }
