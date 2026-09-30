@@ -3,7 +3,7 @@
 use axum::extract::ws::WebSocket;
 use sonic_rs::prelude::*;
 
-use thetadatadx::fpss::protocol::Contract;
+use thetadatadx::fpss::protocol::{Contract, Subscription};
 use thetadatadx::time::is_valid_yyyymmdd;
 use thetadatadx::SecType;
 
@@ -157,7 +157,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
     // whole security type, not a single contract, so it is handled before
     // the per-contract `contract` envelope is read. Our SDK's documented
     // `req_type=FULL_TRADES` token maps to the same full-trade stream and
-    // stays accepted on the per-contract path below; this branch adds the
+    // is accepted below, also without a `contract`; this branch adds the
     // terminal's substring shape so a terminal WS client repoints
     // unchanged.
     if msg_type.contains("BULK") && req_type == "TRADE" {
@@ -167,170 +167,33 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
     }
 
     let contract_obj = obj.get("contract").unwrap_or(&null_val);
-    // Accept the v3 `"symbol"` key first, fall back to legacy `"root"`
-    // so existing consumers keep working without an envelope rewrite.
-    // The two keys are mutually exclusive in practice; downstream
-    // validation runs against whichever the caller sent.
-    let symbol_val = contract_obj
-        .get("symbol")
-        .or_else(|| contract_obj.get("root"))
-        .unwrap_or(&null_val);
-    let symbol = symbol_val.as_str().unwrap_or("");
-
-    // Bound the client-supplied ticker symbol length BEFORE the string
-    // flows into `Contract::stock(symbol)` /
-    // `Contract::option_raw(symbol, ...)`. Without this a malicious
-    // client can send a multi-megabyte `"symbol"` value in the JSON
-    // subscribe envelope, triggering allocation inside the FPSS
-    // contract map keyed by that string. Mirrors the REST validation
-    // performed in `handler::build_endpoint_args`.
-    if let Err(e) = validation::validate_symbol(symbol, "symbol") {
-        tracing::warn!(error = %e, "WS subscribe: symbol failed length validation");
-        let resp = build_req_response(
-            ReqResponse::Error,
-            req_id,
-            Some(e.message.as_str()),
-            state.fpss_status(),
-        );
-        send_response(socket, &resp, "bad_request_reply").await;
-        return;
-    }
+    let subscriptions = match command_subscriptions(
+        &req_type,
+        &sec_type,
+        contract_obj,
+        state.strike_format(),
+    ) {
+        Ok(subs) => subs,
+        Err(err_msg) => {
+            tracing::warn!(req_type = %req_type, error = %err_msg, "WS subscribe: command rejected");
+            let resp = build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(err_msg.as_str()),
+                state.fpss_status(),
+            );
+            send_response(socket, &resp, "bad_request_reply").await;
+            return;
+        }
+    };
 
     tracing::info!(
         msg_type = %msg_type,
-        sec_type = %sec_type,
-        req_type = %req_type,
         req_id = req_id,
-        symbol = %symbol,
         add = is_add,
+        subscriptions = ?subscriptions,
         "WebSocket subscription command"
     );
-
-    let contracts = if sec_type == "OPTION" {
-        // Reject externally-sourced values that don't fit `i32`. Silent
-        // narrowing (`as i32`) on client input is a principle violation:
-        // a caller sending `strike = 9_000_000_000` would have wrapped
-        // to a garbage ThetaData contract instead of surfacing the bad
-        // request. Both `expiration` and `strike` are parsed fallibly.
-        let exp_val = contract_obj.get("expiration").unwrap_or(&null_val);
-        let exp_i64 = match exp_val.as_i64() {
-            Some(v) => v,
-            None => {
-                tracing::warn!("WS subscribe: option expiration missing or not an integer");
-                let resp = build_req_response(
-                    ReqResponse::Error,
-                    req_id,
-                    Some("expiration must be an integer"),
-                    state.fpss_status(),
-                );
-                send_response(socket, &resp, "bad_request_reply").await;
-                return;
-            }
-        };
-        let exp = match i32::try_from(exp_i64) {
-            Ok(v) => v,
-            Err(_) => {
-                tracing::warn!(
-                    expiration = exp_i64,
-                    "WS subscribe: option expiration out of i32 range"
-                );
-                let err_msg = format!("expiration {exp_i64} exceeds i32 range");
-                let resp = build_req_response(
-                    ReqResponse::Error,
-                    req_id,
-                    Some(err_msg.as_str()),
-                    state.fpss_status(),
-                );
-                send_response(socket, &resp, "bad_request_reply").await;
-                return;
-            }
-        };
-        // The canonical Gregorian validator gates the expiration before it
-        // reaches `Contract::option_raw`, so this path accepts exactly the
-        // dates the REST validators and `Contract::option` accept.
-        if !is_valid_yyyymmdd(exp) {
-            tracing::warn!(
-                expiration = exp,
-                "WS subscribe: option expiration is not a real Gregorian date"
-            );
-            let err_msg = format!(
-                "'exp' is not a valid YYYYMMDD calendar date (got {exp}; \
-                 reject reason: month/day decomposition is not a real \
-                 Gregorian day, e.g. Feb 30 or Apr 31)"
-            );
-            let resp = build_req_response(
-                ReqResponse::Error,
-                req_id,
-                Some(err_msg.as_str()),
-                state.fpss_status(),
-            );
-            send_response(socket, &resp, "bad_request_reply").await;
-            return;
-        }
-        // `strike` encoding follows the server's `--strike-format`: the
-        // terminal's 1/10-cent integer (`550000` for `$550.00`, used
-        // verbatim — the default, matching the outbound WS frame) or a
-        // dollar value (`550`, scaled to wire thousandths). Either way it
-        // reaches `Contract::option_raw` in wire units.
-        let strike_val = contract_obj.get("strike").unwrap_or(&null_val);
-        let parsed_strike = match state.strike_format() {
-            StrikeFormat::Terminal => parse_strike_thousandths(strike_val.as_f64()),
-            StrikeFormat::Dollars => parse_strike_dollars(strike_val.as_f64()),
-        };
-        let strike = match parsed_strike {
-            Ok(v) => v,
-            Err(err_msg) => {
-                tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'strike'");
-                let resp = build_req_response(
-                    ReqResponse::Error,
-                    req_id,
-                    Some(err_msg.as_str()),
-                    state.fpss_status(),
-                );
-                send_response(socket, &resp, "bad_request_reply").await;
-                return;
-            }
-        };
-        let right_val = contract_obj.get("right").unwrap_or(&null_val);
-        let sides = match parse_right_sides(right_val.as_str().map(str::trim)) {
-            Ok(sides) => sides,
-            Err(err_msg) => {
-                tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'right'");
-                let resp = build_req_response(
-                    ReqResponse::Error,
-                    req_id,
-                    Some(err_msg.as_str()),
-                    state.fpss_status(),
-                );
-                send_response(socket, &resp, "bad_request_reply").await;
-                return;
-            }
-        };
-        // `Both` / `*` fans out into one contract per side — the FPSS
-        // wire addresses single-side contracts only, so the wildcard
-        // becomes two subscribe dispatches here at the SDK boundary.
-        sides
-            .iter()
-            .map(|&is_call| Contract::option_raw(symbol, exp, is_call, strike))
-            .collect::<Vec<_>>()
-    } else {
-        vec![non_option_contract(&sec_type, symbol)]
-    };
-
-    let subscriptions = match subscription_plan(&req_type, &sec_type, &contracts) {
-        Ok(subs) => subs,
-        Err(err_msg) => {
-            tracing::warn!(req_type = %req_type, "WS subscribe: unsupported req_type");
-            let resp = build_req_response(
-                ReqResponse::Error,
-                req_id,
-                Some(err_msg.as_str()),
-                state.fpss_status(),
-            );
-            send_response(socket, &resp, "bad_request_reply").await;
-            return;
-        }
-    };
 
     let stream = state.client().stream();
     if stream.is_streaming() {
@@ -520,6 +383,86 @@ fn apply_bulk_trade(
 // ---------------------------------------------------------------------------
 //  Pure command -> subscription planning (testable without a socket)
 // ---------------------------------------------------------------------------
+
+/// Translate a subscribe command's `req_type`, `sec_type` and `contract`
+/// envelope into the FPSS subscriptions it names.
+///
+/// `FULL_TRADES` / `FULL_OPEN_INTEREST` address a whole security type, so
+/// their envelope carries no `contract` and none is read. Every other
+/// `req_type` names one contract: its symbol is length-checked before it
+/// reaches the FPSS contract map, and an option's expiration, strike and
+/// right are parsed into one contract per side.
+fn command_subscriptions(
+    req_type: &str,
+    sec_type: &str,
+    contract_obj: &sonic_rs::Value,
+    strike_format: StrikeFormat,
+) -> Result<Vec<Subscription>, String> {
+    if matches!(req_type, "FULL_TRADES" | "FULL_OPEN_INTEREST") {
+        return subscription_plan(req_type, sec_type, &[]);
+    }
+
+    // Accept the v3 `"symbol"` key first, fall back to legacy `"root"`
+    // so existing consumers keep working without an envelope rewrite.
+    let symbol = contract_obj
+        .get("symbol")
+        .or_else(|| contract_obj.get("root"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    // Bound the client-supplied ticker symbol length BEFORE the string
+    // flows into `Contract::stock(symbol)` / `Contract::option_raw(...)`,
+    // where it keys an allocation in the FPSS contract map. Mirrors the
+    // REST validation performed in `handler::build_endpoint_args`.
+    validation::validate_symbol(symbol, "symbol").map_err(|e| e.message)?;
+
+    let contracts = if sec_type == "OPTION" {
+        // Externally-sourced values are parsed fallibly, never narrowed
+        // with `as`: a wrapped value would address a garbage contract
+        // instead of surfacing the bad request.
+        let exp_i64 = contract_obj
+            .get("expiration")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| "expiration must be an integer".to_string())?;
+        let exp = i32::try_from(exp_i64)
+            .map_err(|_| format!("expiration {exp_i64} exceeds i32 range"))?;
+        // The canonical Gregorian validator gates the expiration before it
+        // reaches `Contract::option_raw`, so this path accepts exactly the
+        // dates the REST validators and `Contract::option` accept.
+        if !is_valid_yyyymmdd(exp) {
+            return Err(format!(
+                "'exp' is not a valid YYYYMMDD calendar date (got {exp}; \
+                 reject reason: month/day decomposition is not a real \
+                 Gregorian day, e.g. Feb 30 or Apr 31)"
+            ));
+        }
+        // `strike` encoding follows the server's `--strike-format`: the
+        // terminal's 1/10-cent integer (`550000` for `$550.00`, used
+        // verbatim; the default, matching the outbound WS frame) or a
+        // dollar value (`550`, scaled to wire thousandths). Either way it
+        // reaches `Contract::option_raw` in wire units.
+        let raw_strike = contract_obj.get("strike").and_then(|v| v.as_f64());
+        let strike = match strike_format {
+            StrikeFormat::Terminal => parse_strike_thousandths(raw_strike),
+            StrikeFormat::Dollars => parse_strike_dollars(raw_strike),
+        }?;
+        let sides = parse_right_sides(
+            contract_obj
+                .get("right")
+                .and_then(|v| v.as_str())
+                .map(str::trim),
+        )?;
+        // `Both` / `*` fans out into one contract per side, since the FPSS
+        // wire addresses single-side contracts only.
+        sides
+            .iter()
+            .map(|&is_call| Contract::option_raw(symbol, exp, is_call, strike))
+            .collect()
+    } else {
+        vec![non_option_contract(sec_type, symbol)]
+    };
+
+    subscription_plan(req_type, sec_type, &contracts)
+}
 
 /// `req_type` values accepted on the subscribe path. Echoed in the ERROR
 /// diagnostic for unknown values so clients can discover the vocabulary
@@ -925,25 +868,40 @@ mod tests {
         ));
     }
 
+    /// The documented full-stream envelope carries no `contract`: it plans
+    /// the security-type-wide stream instead of failing the per-contract
+    /// symbol and option checks, which a full stream never reads.
     #[test]
-    fn plan_maps_full_streams_to_sec_type_scope() {
-        let plan = subscription_plan("FULL_TRADES", "OPTION", &[]).unwrap();
-        assert_eq!(
-            plan,
-            vec![Subscription::Full {
-                sec_type: SecType::Option,
-                kind: FullSubscriptionKind::Trades,
-            }]
-        );
-
-        let plan = subscription_plan("FULL_OPEN_INTEREST", "OPTION", &[]).unwrap();
-        assert_eq!(
-            plan,
-            vec![Subscription::Full {
-                sec_type: SecType::Option,
-                kind: FullSubscriptionKind::OpenInterest,
-            }]
-        );
+    fn full_streams_need_no_contract() {
+        let no_contract = sonic_rs::Value::default();
+        for (req_type, sec_type, expected) in [
+            (
+                "FULL_TRADES",
+                "STOCK",
+                (SecType::Stock, FullSubscriptionKind::Trades),
+            ),
+            (
+                "FULL_TRADES",
+                "OPTION",
+                (SecType::Option, FullSubscriptionKind::Trades),
+            ),
+            (
+                "FULL_OPEN_INTEREST",
+                "OPTION",
+                (SecType::Option, FullSubscriptionKind::OpenInterest),
+            ),
+        ] {
+            let plan =
+                command_subscriptions(req_type, sec_type, &no_contract, StrikeFormat::Terminal);
+            assert_eq!(
+                plan,
+                Ok(vec![Subscription::Full {
+                    sec_type: expected.0,
+                    kind: expected.1,
+                }]),
+                "{req_type} {sec_type}"
+            );
+        }
     }
 
     /// Open interest is option-only; a security-type-wide open-interest
