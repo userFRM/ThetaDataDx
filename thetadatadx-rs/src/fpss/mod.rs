@@ -2478,6 +2478,19 @@ impl StreamingClient {
         self.reconnects_exhausted.load(Ordering::Acquire)
     }
 
+    /// Whether the calling thread is this client's I/O thread, which runs a
+    /// custom reconnect policy's decision closure.
+    ///
+    /// A teardown called from there must not wait for the event dispatcher:
+    /// the dispatcher exits only once the I/O thread drops the ring producer,
+    /// which it cannot do while it is blocked in that wait.
+    #[must_use]
+    pub fn on_io_thread(&self) -> bool {
+        self.io_handle
+            .as_ref()
+            .is_some_and(|h| h.thread().id() == thread::current().id())
+    }
+
     /// Get the server address the initial connect landed on.
     ///
     /// Snapshot from connect time; auto-reconnect may move the session

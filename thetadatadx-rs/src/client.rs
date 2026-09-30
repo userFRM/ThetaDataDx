@@ -541,6 +541,11 @@ impl StreamingState {
         if let Some(client) = &client {
             client.shutdown();
         }
+        // A custom reconnect policy's closure runs on the I/O thread, and the
+        // dispatcher exits only once that thread drops the ring producer, so
+        // joining it from there would never return. Detach instead, as for a
+        // dispatcher self-call below.
+        let on_io_thread = client.as_ref().is_some_and(|c| c.on_io_thread());
         if let DispatcherSession::Running {
             handle,
             on_teardown,
@@ -568,7 +573,7 @@ impl StreamingState {
             // see the failure even though the slot is now `Stopped`, by
             // RE-ACQUIRING the lock, which is safe now that the join has
             // completed and the lock is free.
-            if handle.thread().id() != std::thread::current().id() {
+            if !on_io_thread && handle.thread().id() != std::thread::current().id() {
                 // Signal-grace-wake-join. `client.shutdown()` above signalled
                 // the event ring, so a dispatcher parked there exits on its own
                 // and is joined without ever firing the hook. The hook fires
