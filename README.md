@@ -102,7 +102,7 @@ client = Client(api_key="td1_...")
 greeks = client.market_data.option_history_greeks_first_order("SPY", "20260619", date="20240315")
 
 df = greeks.to_polars()
-print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
+print(df.select(["strike", "right", "delta", "theta", "vega"]).head())
 ```
 
 Other ways to construct the client:
@@ -220,8 +220,8 @@ int main() {
 
     auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
-        std::printf("K=%.2f %c delta=%+.4f gamma=%+.4f\n",
-                    t.strike, t.right, t.delta, t.gamma);
+        std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
+                    t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
     }
 }
 ```
