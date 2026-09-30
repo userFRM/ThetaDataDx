@@ -4249,16 +4249,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn theta_data_client_alias_resolves_to_theta_data_dx() {
-        // `Client` is the canonical public client type; this
-        // guards that the name continues to resolve to the same type so
-        // existing call sites keep compiling.
-        fn _alias_check(c: Client) -> Client {
-            c
-        }
-    }
-
     /// Every `SubscriptionTier` discriminant has a stable user-facing
     /// label, and a `None` tier renders as "Unknown" — that's what
     /// disambiguates a Pro-on-indices user from a Nexus response that

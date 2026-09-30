@@ -2218,7 +2218,7 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_degenerate_replay_and_ladder() {
+    fn validate_rejects_degenerate_reconnect_settings() {
         let mut config = DirectConfig::production_defaults();
         config.reconnect.replay_burst_size = 0;
         let err = config.validate().expect_err("must reject zero burst");
@@ -2229,6 +2229,32 @@ mod tests {
         config.reconnect.wait_max_ms = 1_000;
         let err = config.validate().expect_err("must reject inverted ladder");
         assert!(err.to_string().contains("wait_max_ms"));
+
+        // Every auto-reconnect attempt budget must allow forward progress
+        // (at least one attempt) and stay within band, so a zero cannot stall
+        // the driver and a typo cannot make it spin effectively forever.
+        type Budget = fn(&mut ReconnectAttemptLimits) -> &mut u32;
+        let budgets: [(&str, Budget); 3] = [
+            ("reconnect.max_attempts", |l| &mut l.max_attempts),
+            ("reconnect.max_rate_limited_attempts", |l| {
+                &mut l.max_rate_limited_attempts
+            }),
+            ("reconnect.max_server_restart_attempts", |l| {
+                &mut l.max_server_restart_attempts
+            }),
+        ];
+        for (field, budget) in budgets {
+            for bad in [0, 100_001] {
+                let mut limits = ReconnectAttemptLimits::default();
+                *budget(&mut limits) = bad;
+                let mut config = DirectConfig::production_defaults();
+                config.reconnect.policy = ReconnectPolicy::Auto(limits);
+                let err = config
+                    .validate()
+                    .expect_err("an out-of-band budget must be rejected");
+                assert!(err.to_string().contains(field), "{field} = {bad}: {err}");
+            }
+        }
     }
 
     #[test]

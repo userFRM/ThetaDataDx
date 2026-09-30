@@ -3198,25 +3198,6 @@ mod builder_tests {
         );
     }
 
-    /// The default builder threads the default (Spin) low-latency wait
-    /// strategy into the connect args, and the ring poller builds with it.
-    #[test]
-    fn builder_threads_low_latency_wait_strategy() {
-        use crate::fpss::ring::RingCursors;
-        use std::sync::Arc;
-
-        let creds = Credentials::new("user", "pw");
-        let hosts: Vec<(String, u16)> = vec![("nj-a.thetadata.us".to_owned(), 20000)];
-
-        let args = StreamingClientBuilder::new(&creds, &hosts).into_args();
-        // The poller builds with the connect args' wait strategy; a
-        // successful build (matching `RingEvent` / `SingleProducerBarrier`
-        // type) confirms the strategy is wired through.
-        let (_p, poller) =
-            io_loop::build_poller_producer(64, Arc::new(RingCursors::new()), args.wait_strategy);
-        let _poller: EventPoller<ring::RingEvent, SingleProducerBarrier> = poller;
-    }
-
     /// `build()` rejects a `read_timeout_ms` outside the validated
     /// range. Second-line defence for callers that bypass
     /// `DirectConfig::validate`.

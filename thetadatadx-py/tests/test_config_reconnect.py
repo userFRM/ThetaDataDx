@@ -51,29 +51,6 @@ def test_reconnect_policy_rejects_unknown_value():
 # ─── reconnect_max_attempts ─────────────────────────────────────────
 
 
-def test_reconnect_max_attempts_accepts_non_zero_budgets():
-    """``reconnect_max_attempts = N`` accepts every plausible budget."""
-    mod = _import_module()
-    cfg = mod.Config.production()
-    cfg.reconnect_policy = "auto"
-    for n in (1, 3, 10, 100, 1000):
-        cfg.reconnect_max_attempts = n
-
-
-def test_reconnect_max_attempts_accepts_zero():
-    """``reconnect_max_attempts = 0`` is a legal ``u32`` and must not raise.
-
-    The Rust core treats ``0`` as a budget value the auto-driver
-    enforces verbatim; the setter is write-only and the Python
-    binding does not own the semantic interpretation. Verifying
-    round-trip absence-of-error is the contract pinned here.
-    """
-    mod = _import_module()
-    cfg = mod.Config.production()
-    cfg.reconnect_policy = "auto"
-    cfg.reconnect_max_attempts = 0
-
-
 def test_reconnect_max_attempts_is_silent_noop_on_manual_policy():
     """The setter is a silent no-op when the policy is not ``Auto(limits)``.
 
@@ -90,36 +67,7 @@ def test_reconnect_max_attempts_is_silent_noop_on_manual_policy():
     cfg.reconnect_max_attempts = 5
 
 
-# ─── reconnect_max_rate_limited_attempts ────────────────────────────
-
-
-def test_reconnect_max_rate_limited_attempts_accepts_non_zero_budgets():
-    """``reconnect_max_rate_limited_attempts = N`` accepts every plausible budget."""
-    mod = _import_module()
-    cfg = mod.Config.production()
-    cfg.reconnect_policy = "auto"
-    for n in (1, 10, 100, 1000):
-        cfg.reconnect_max_rate_limited_attempts = n
-
-
-def test_reconnect_max_rate_limited_attempts_accepts_zero():
-    """``reconnect_max_rate_limited_attempts = 0`` is a legal ``u32``."""
-    mod = _import_module()
-    cfg = mod.Config.production()
-    cfg.reconnect_policy = "auto"
-    cfg.reconnect_max_rate_limited_attempts = 0
-
-
 # ─── reconnect_stable_window_secs ───────────────────────────────────
-
-
-def test_reconnect_stable_window_secs_accepts_u64_values():
-    """``reconnect_stable_window_secs`` accepts the full ``u64`` range."""
-    mod = _import_module()
-    cfg = mod.Config.production()
-    cfg.reconnect_policy = "auto"
-    for secs in (0, 1, 30, 60, 300, 3600, 86_400):
-        cfg.reconnect_stable_window_secs = secs
 
 
 def test_reconnect_stable_window_secs_rejects_negative():

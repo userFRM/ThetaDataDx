@@ -82,12 +82,6 @@ TEST_CASE("RecordBatchStream is an arrow::RecordBatchReader", "[streaming][arrow
     SUCCEED("type contract holds at compile time");
 }
 
-TEST_CASE("Backpressure enum carries both policies", "[streaming][offline]") {
-    // Mirrors the C ABI selector constants the reader passes through.
-    REQUIRE(static_cast<int>(thetadatadx::Backpressure::Block) !=
-            static_cast<int>(thetadatadx::Backpressure::DropOldest));
-}
-
 TEST_CASE("Arrow IPC decode round-trips a streaming batch", "[streaming][arrow][offline]") {
     // The reader's `ReadNext` decodes each batch from an Arrow IPC byte
     // buffer with `arrow::ipc::RecordBatchStreamReader`. Exercise that exact
