@@ -952,16 +952,17 @@ class MarketValue:
 
 @final
 class IndexMarketValue:
-    """A real-time index MarketValue tick — the index price as the feed sent it."""
+    """A real-time index MarketValue tick: the vendor's indicative index figure."""
 
     contract: ContractRef
     """The index this market-value tick is for."""
     ms_of_day: int
     """Milliseconds since midnight Eastern Time when the market value was recorded."""
     market_price: float
-    """The index market price, in dollars, as the feed sent it. An index has no
-    NBBO, so this is not a midpoint of anything and there is no ``market_bid``
-    or ``market_ask`` beside it."""
+    """The indicative index market price, in dollars: the index level moved by a
+    random 1 to 5 cents up or down, as the vendor serves it. The exact level is
+    the index price subscription. An index has no NBBO, so this is not a midpoint
+    of anything and there is no ``market_bid`` or ``market_ask`` beside it."""
     date: int
     """Trading date as a ``YYYYMMDD`` integer."""
     received_at_ns: int

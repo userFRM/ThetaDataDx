@@ -113,7 +113,7 @@ doc = "Streaming index MarketValue tick (wire code 25, index contracts): `ms_of_
 columns = [
     { name = "contract",      type = "Contract" },
     { name = "ms_of_day",     type = "i32" },
-    { name = "market_price",  type = "f64", doc = "Index market price (dollars), as the feed sent it." },
+    { name = "market_price",  type = "f64", doc = "Index market value (dollars): the vendor's indicative figure, the index level moved by a random 1 to 5 cents. The exact level is the index price." },
     { name = "date",          type = "i32" },
     { name = "received_at_ns", type = "u64" },
 ]

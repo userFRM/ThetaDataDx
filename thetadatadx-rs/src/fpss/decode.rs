@@ -14,6 +14,7 @@ use std::time::Instant;
 use crate::tdbe::types::enums::StreamMsgType;
 use crate::tdbe::types::price::Price;
 use metrics::Counter;
+use rand::RngExt;
 
 use super::delta::{
     Baseline, DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS,
@@ -79,6 +80,40 @@ fn strict_fpss_price(value: i32, price_type: i32) -> Option<f64> {
     Price::with_value_and_type(value, price_type)
         .ok()
         .map(|p| p.to_f64())
+}
+
+/// Dollars per wire price unit for each price type: index `0` is zero, and
+/// `n` in `1..=19` is `10^(n - 10)`. Written out as literals so the offset
+/// below converts with exactly these doubles.
+const GATEWAY_PRICE_UNITS: [f64; 20] = [
+    0.0, 1.0E-9, 1.0E-8, 1.0E-7, 1.0E-6, 1.0E-5, 1.0E-4, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0,
+    1000.0, 10000.0, 100000.0, 1000000.0, 1.0E7, 1.0E8, 1.0E9,
+];
+
+/// The indicative index market value, in wire price units.
+///
+/// The vendor sells index market value as an indicative figure and states
+/// that it carries a random offset in a closed range; the exact index level
+/// is the separate price subscription. Its gateway serves the level moved by
+/// 1 to 5 cents up or down, never exact. The stream frame carries the exact
+/// level, so this applies that offset here: a uniformly random 1 to 5 cents
+/// either way, never zero, in the tick's own price units and never below
+/// one unit. `None` for a price type outside the table.
+fn gateway_index_market_value(price: i32, price_type: i32) -> Option<i32> {
+    let unit = *GATEWAY_PRICE_UNITS.get(usize::try_from(price_type).ok()?)?;
+    let mut cents: i32 = rand::rng().random_range(-5..5);
+    if cents >= 0 {
+        cents += 1;
+    }
+    // `as` truncates toward zero and saturates; a saturated offset is stepped
+    // back by one so it stays off the integer bounds.
+    let mut offset = (f64::from(cents) * 0.01 / unit) as i32;
+    if offset == i32::MAX {
+        offset -= 1;
+    } else if offset == i32::MIN {
+        offset += 1;
+    }
+    Some(price.wrapping_add(offset).max(1))
 }
 
 /// Calculated market bid/ask, in raw wire-integer price units (the same
@@ -582,7 +617,8 @@ pub fn decode_frame(
                 Some((contract_id, Baseline::Trade)) => {
                     // Index: the vendor sends `ms_of_day`, the price and the
                     // date. There is no bid, no ask, and so no midpoint
-                    // between them. The price is served as the feed sent it.
+                    // between them. The market value served is the gateway's
+                    // indicative figure, see `gateway_index_market_value`.
                     warn_unknown_contract(
                         contract_id,
                         "index_market_value",
@@ -590,7 +626,9 @@ pub fn decode_frame(
                         local_contracts,
                     );
                     let pt = buf[6];
-                    let Some(market_price) = strict_fpss_price(buf[4], pt) else {
+                    let Some(market_price) = gateway_index_market_value(buf[4], pt)
+                        .and_then(|value| strict_fpss_price(value, pt))
+                    else {
                         FPSS_MARKET_VALUE_DECODE_FAILURES.increment(1);
                         FPSS_INVALID_PRICE_TYPE_MARKET_VALUE.increment(1);
                         warn_invalid_price_type("index_market_value", contract_id, pt);
@@ -1786,12 +1824,13 @@ mod tests {
         assert_eq!(mid, i32::MIN);
     }
 
-    /// Drive the full `decode_frame` pipeline with a synthetic FIT
-    /// MARKET_VALUE frame (same 11-field quote layout) and assert the
-    /// emitted `StreamData::MarketValue` carries the calculated bid/ask/price
-    /// reassembled to dollars via the same `Price` path as every other tick.
+    /// The streamed index market value is the gateway's indicative figure:
+    /// the wire price moved by 1 to 5 cents up or down, never left exact.
+    /// Across 200 decodes every offset must be one the gateway can produce,
+    /// and all ten must appear, so serving the raw price, dropping the
+    /// never-zero step or skewing the range each fail here.
     #[test]
-    fn decode_frame_index_market_value_serves_the_price_as_sent() {
+    fn decode_frame_index_market_value_carries_the_gateway_offset() {
         // An index market value carries the 8-field trade layout, not the
         // 11-field quote layout, because an index has no NBBO. The terminal
         // routes it to the trade baseline for the same reason.
@@ -1804,47 +1843,59 @@ mod tests {
             12_345,     // sequence
             0,          // size
             0,          // condition
-            560_012,    // price
+            560_012,    // price, in cents at price type 8
             0,          // exchange
             8,          // price_type
             20_250_428, // date
         ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
-        local_contracts.insert(200, Arc::new(Contract::index("SPX")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
-        let mut delta_state = DeltaState::new();
-        let primary = decode_frame(
-            StreamMsgType::MarketValue,
-            &fit_payload,
-            &authenticated,
-            &mut local_contracts,
-            &shutdown,
-            &mut delta_state,
-        );
-        let evt = primary.expect("an index market value must decode");
-        match expect_public(&evt) {
-            StreamEvent::Data(StreamData::IndexMarketValue {
-                contract,
-                ms_of_day,
-                market_price,
-                date,
-                ..
-            }) => {
-                assert_eq!(&*contract.symbol, "SPX");
-                assert_eq!(*ms_of_day, 34_200_000);
-                assert_eq!(*date, 20_250_428);
-                // Exactly the price the feed sent, reassembled through
-                // Price(value, price_type).
-                assert!(
-                    (*market_price - Price::new(560_012, 8).to_f64()).abs() < f64::EPSILON,
-                    "index market price must be served as sent, got {market_price}"
-                );
+        let mut seen = std::collections::BTreeSet::new();
+        for _ in 0..200 {
+            let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+            local_contracts.insert(200, Arc::new(Contract::index("SPX")));
+            let mut delta_state = DeltaState::new();
+            let evt = decode_frame(
+                StreamMsgType::MarketValue,
+                &fit_payload,
+                &authenticated,
+                &mut local_contracts,
+                &shutdown,
+                &mut delta_state,
+            )
+            .expect("an index market value must decode");
+            match expect_public(&evt) {
+                StreamEvent::Data(StreamData::IndexMarketValue {
+                    contract,
+                    ms_of_day,
+                    market_price,
+                    date,
+                    ..
+                }) => {
+                    assert_eq!(&*contract.symbol, "SPX");
+                    assert_eq!(*ms_of_day, 34_200_000);
+                    assert_eq!(*date, 20_250_428);
+                    let cents = ((*market_price - 5_600.12) * 100.0).round() as i32;
+                    assert!(
+                        (1..=5).contains(&cents.abs()),
+                        "offset of {cents} cents is outside what the gateway produces"
+                    );
+                    seen.insert(cents);
+                }
+                other => panic!("expected an IndexMarketValue event, got {other:?}"),
             }
-            other => panic!("expected an IndexMarketValue event, got {other:?}"),
         }
+        assert_eq!(
+            seen.into_iter().collect::<Vec<_>>(),
+            vec![-5, -4, -3, -2, -1, 1, 2, 3, 4, 5],
+            "every gateway offset should appear across 200 decodes"
+        );
     }
 
+    /// Drive the full `decode_frame` pipeline with a synthetic FIT
+    /// MARKET_VALUE frame (same 11-field quote layout) and assert the
+    /// emitted `StreamData::MarketValue` carries the calculated bid/ask/price
+    /// reassembled to dollars via the same `Price` path as every other tick.
     #[test]
     fn decode_frame_market_value_emits_calculated_fields() {
         // 11-field quote layout (FIT prefix: contract_id):
