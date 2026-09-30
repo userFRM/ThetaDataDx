@@ -1280,8 +1280,15 @@ impl StreamingClient {
                         message: format!("FPSS server rejected login: {reason:?}"),
                     });
                 }
+                // A throttled login is the documented rate-limit error, so a
+                // caller backs off instead of redialling into the throttle.
+                let kind = if reason == RemoveReason::TooManyRequests {
+                    crate::error::StreamErrorKind::TooManyRequests
+                } else {
+                    crate::error::StreamErrorKind::Disconnected
+                };
                 return Err(Error::Stream {
-                    kind: crate::error::StreamErrorKind::Disconnected,
+                    kind,
                     message: format!("server rejected login: {reason:?}"),
                 });
             }
