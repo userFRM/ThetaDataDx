@@ -379,18 +379,28 @@ pub(in crate::fpss) fn wire_req_id(counter_value: i64) -> i32 {
     (counter_value & 0x7FFF_FFFF) as i32
 }
 
-/// Whether a security type has an upstream full-stream broadcast.
+/// Whether the feed broadcasts `kind` as a full stream for `sec_type`.
 ///
-/// Full-stream subscriptions are only broadcast for [`SecType::Stock`] and
-/// [`SecType::Option`]. The server accepts a full-stream subscribe frame for
-/// other security types and answers with a `Subscribed` response, but never
+/// Full-stream trades are broadcast only for [`SecType::Stock`] and
+/// [`SecType::Option`], and full-stream open interest only for
+/// [`SecType::Option`]: open interest counts option contracts outstanding and
+/// a stock does not have one. The server accepts a full-stream subscribe frame
+/// for any other pair and answers with a `Subscribed` response, but never
 /// streams a tick, so the subscribe boundary rejects them up front rather than
 /// leaving the caller waiting on a feed that will never arrive. Indices and
 /// rates are addressed per-contract instead
 /// (for example `Contract::index("VIX").trade()`).
 #[must_use]
-pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
-    matches!(sec_type, SecType::Stock | SecType::Option)
+pub(crate) fn full_stream_supported(
+    sec_type: SecType,
+    kind: protocol::FullSubscriptionKind,
+) -> bool {
+    match kind {
+        protocol::FullSubscriptionKind::Trades => {
+            matches!(sec_type, SecType::Stock | SecType::Option)
+        }
+        protocol::FullSubscriptionKind::OpenInterest => matches!(sec_type, SecType::Option),
+    }
 }
 
 /// Whether the feed publishes `kind` for `sec_type` per contract.
@@ -2268,23 +2278,30 @@ impl StreamingClient {
         unsubscribe: bool,
     ) -> Result<(), Error> {
         self.check_connected()?;
-        // Reject security types with no upstream full-stream broadcast before
+        // Reject a pair with no upstream full-stream broadcast before
         // allocating a req_id, emitting a frame, or tracking the subscription
-        // for reconnect replay. Stock and Option are the only security types
-        // with a full-stream broadcast; an index or rate full-stream subscribe
-        // is accepted on the wire and answered `Subscribed`, then never streams
-        // a tick — so it is rejected here at the subscribe boundary instead.
-        if !full_stream_sec_type_supported(sec_type) {
+        // for reconnect replay. Such a subscribe is accepted on the wire and
+        // answered `Subscribed`, then never streams a tick, so it is rejected
+        // here at the subscribe boundary instead.
+        if !full_stream_supported(sec_type, kind) {
+            let remedy = match kind {
+                protocol::FullSubscriptionKind::Trades => {
+                    "Full-stream Trades is published for Stock and Option; subscribe \
+                     per-contract instead (for example Contract::index(\"VIX\").trade())."
+                }
+                protocol::FullSubscriptionKind::OpenInterest => {
+                    "Open interest is published only for options."
+                }
+            };
             return Err(Error::Config {
                 kind: crate::error::ConfigErrorKind::InvalidValue {
                     field: "Subscription::full".to_string(),
                     message: format!(
-                        "full-stream subscriptions are supported only for Stock and Option; \
-                         {sec_type:?} has no full broadcast upstream — subscribe per-contract \
-                         instead (for example Contract::index(\"VIX\").trade())"
+                        "{sec_type:?} has no full-stream {kind:?} broadcast upstream; the \
+                         server accepts the subscribe and then never sends a tick. {remedy}"
                     ),
                 },
-                message: "unsupported full-stream security type".to_string(),
+                message: "unsupported full-stream subscription".to_string(),
                 source: None,
             });
         }
@@ -3313,9 +3330,7 @@ mod builder_tests {
 
 #[cfg(test)]
 mod full_stream_guard_tests {
-    use super::{
-        full_stream_sec_type_supported, HarnessPublishMode, StreamingClient, SubscriptionKind,
-    };
+    use super::{full_stream_supported, HarnessPublishMode, StreamingClient, SubscriptionKind};
     use crate::error::{ConfigErrorKind, Error};
     use crate::fpss::protocol::{Contract, SecTypeExt};
     use crate::tdbe::types::enums::SecType;
@@ -3329,18 +3344,32 @@ mod full_stream_guard_tests {
         }
     }
 
-    /// The full-stream broadcast is only delivered upstream for Stock and
-    /// Option. The subscribe boundary uses this predicate to reject any
-    /// other security type before emitting a frame or tracking the
-    /// subscription for reconnect replay, so a caller is told up front
-    /// rather than waiting on a feed that will never arrive.
+    /// The full-stream broadcasts that exist upstream: trades for Stock and
+    /// Option, open interest for Option only. The subscribe boundary uses
+    /// this predicate to reject any other pair before emitting a frame or
+    /// tracking the subscription for reconnect replay, so a caller is told
+    /// up front rather than waiting on a feed that will never arrive.
     #[test]
-    fn full_stream_supported_only_for_stock_and_option() {
-        assert!(full_stream_sec_type_supported(SecType::Stock));
-        assert!(full_stream_sec_type_supported(SecType::Option));
-        assert!(!full_stream_sec_type_supported(SecType::Index));
-        assert!(!full_stream_sec_type_supported(SecType::Rate));
-        assert!(!full_stream_sec_type_supported(SecType::Unknown));
+    fn full_stream_supported_matches_the_published_broadcasts() {
+        use crate::fpss::protocol::FullSubscriptionKind::{OpenInterest, Trades};
+        for (sec_type, kind, expected) in [
+            (SecType::Stock, Trades, true),
+            (SecType::Option, Trades, true),
+            (SecType::Index, Trades, false),
+            (SecType::Rate, Trades, false),
+            (SecType::Unknown, Trades, false),
+            (SecType::Stock, OpenInterest, false),
+            (SecType::Option, OpenInterest, true),
+            (SecType::Index, OpenInterest, false),
+            (SecType::Rate, OpenInterest, false),
+            (SecType::Unknown, OpenInterest, false),
+        ] {
+            assert_eq!(
+                full_stream_supported(sec_type, kind),
+                expected,
+                "full-stream {kind:?} for {sec_type:?}"
+            );
+        }
     }
 
     /// End-to-end: a full-stream subscription on an index is rejected at the
