@@ -18,29 +18,17 @@ pub mod codec;
 pub mod conditions;
 pub mod exchange;
 pub mod flags;
+// Only the workspace tools reach the canonical-JSON helpers, through the
+// `__internal` re-export.
+#[cfg(feature = "__internal")]
 pub mod json_canon;
 pub mod right;
 pub mod sequences;
 pub mod time;
 pub mod types;
 
-// Module-root facade. The data-format layer keeps a complete, flat
-// re-export surface so internal callers reach `crate::tdbe::CalendarStatus`
-// and the tick types without threading the
-// full submodule path, and so the crate root can re-export from one
-// coherent place. The crate's curated public surface (see `lib.rs`) reaches
-// several of these through the longer submodule path, so `unused_imports`
-// is allowed on the facade rather than trimming it to whichever items
-// today's callers happen to reach the short way.
-//
-// The fixed-point price encoding (`types::price::Price` and friends) is
-// deliberately NOT on this facade: it is a wire-internal detail the decode
-// layer reaches through the full `types::price` leaf path, never a short
-// `crate::tdbe::Price` alias, so the encoding cannot drift onto the public
-// surface through the convenience re-export.
-#[allow(unused_imports)]
-pub use types::enums::{
-    CalendarStatus, Interval, RateType, RequestType, Right, SecType, Venue, Version,
-};
-#[allow(unused_imports)]
-pub use types::tick::*;
+// Short paths for the two enums internal callers name as
+// `crate::tdbe::{CalendarStatus, Right}`. Everything else, including the
+// crate root's public re-exports, uses the full `types::{enums, tick, price}`
+// leaf paths.
+pub use types::enums::{CalendarStatus, Right};

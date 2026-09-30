@@ -71,13 +71,6 @@ impl<'a> FitReader<'a> {
         }
     }
 
-    /// Current byte position in the buffer.
-    #[inline]
-    #[must_use]
-    pub fn position(&self) -> usize {
-        self.pos
-    }
-
     /// Returns `true` when the cursor has reached or passed the end of the buffer.
     #[inline]
     #[must_use]

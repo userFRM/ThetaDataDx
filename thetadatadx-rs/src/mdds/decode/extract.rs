@@ -579,8 +579,8 @@ mod internal_tests {
         let col = extract_price_column(&table, "price");
         assert_eq!(col.len(), 1);
         let p = col[0].expect("price_type=19 must round-trip");
-        assert_eq!(p.value(), 100);
-        assert_eq!(p.price_type(), 19);
+        assert_eq!(p.value, 100);
+        assert_eq!(p.price_type.get(), 19);
     }
 
     #[test]
@@ -588,8 +588,8 @@ mod internal_tests {
         let table = price_table("price", &[(12345, 10)]);
         let col = extract_price_column(&table, "price");
         let p = col[0].expect("in-range price must round-trip");
-        assert_eq!(p.value(), 12345);
-        assert_eq!(p.price_type(), 10);
+        assert_eq!(p.value, 12345);
+        assert_eq!(p.price_type.get(), 10);
     }
 
     #[test]

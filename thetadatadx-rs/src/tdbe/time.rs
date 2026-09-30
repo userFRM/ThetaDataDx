@@ -93,17 +93,6 @@ pub fn is_valid_yyyymmdd(yyyymmdd: i32) -> bool {
     is_valid_gregorian_date(year, month as u32, day as u32)
 }
 
-/// Inclusive lower bound of the supported `epoch_ms` conversion window:
-/// `1900-01-01 00:00:00 UTC` as Unix epoch milliseconds.
-///
-/// The Eastern-Time conversion functions are documented to operate over
-/// the `1900..=2100` calendar range (see [`is_valid_gregorian_date`]).
-/// `epoch_ms` is `0` at the Unix epoch, so the lower bound is negative on
-/// the i64 timeline; clamped to `0` here because the wire carries an
-/// unsigned `u64`, and any pre-1970 instant is corrupt input on a
-/// market-data surface.
-pub const MIN_SUPPORTED_EPOCH_MS: u64 = 0;
-
 /// Inclusive upper bound of the supported `epoch_ms` conversion window:
 /// `2100-12-31 23:59:59.999 UTC` as Unix epoch milliseconds.
 ///
@@ -114,14 +103,15 @@ pub const MIN_SUPPORTED_EPOCH_MS: u64 = 0;
 pub const MAX_SUPPORTED_EPOCH_MS: u64 = 4_133_980_799_999;
 
 /// Floor of the offset-resolution window: 1900-01-01T00:00:00Z. Distinct from
-/// [`MIN_SUPPORTED_EPOCH_MS`], which is the decode boundary's unsigned floor
-/// for a wire `Timestamp`. The date validator accepts `1900..=2100`, so the
+/// the decode boundary's floor for a wire `Timestamp`, which is the unsigned
+/// Unix epoch. The date validator accepts `1900..=2100`, so the
 /// offset resolution has to answer for the whole of that range rather than for
 /// the half that happens to be non-negative.
 const MIN_OFFSET_EPOCH_MS: i64 = -2_208_988_800_000;
 
 /// Whether `epoch_ms` lies inside the supported Eastern-Time conversion
-/// window (`MIN_SUPPORTED_EPOCH_MS..=MAX_SUPPORTED_EPOCH_MS`).
+/// window (`0..=MAX_SUPPORTED_EPOCH_MS`; the wire value is unsigned, so the
+/// floor is the Unix epoch).
 ///
 /// The decode boundary uses this to reject a corrupt wire `Timestamp`
 /// (an unbounded `u64` from the proto) before it reaches the date
@@ -400,9 +390,8 @@ pub fn date_ms_to_epoch_ms(date: i32, ms_of_day: i32) -> Option<i64> {
     // offset at the implied UTC instant. Converges for every instant
     // outside the 2 AM local transition window.
     let est_guess = local_ms + 5 * 3_600 * 1_000;
-    // `eastern_offset_ms` takes epoch ms as u64; market-data dates are
-    // bounded to 1900..=2100 by the validator, but pre-1970 dates would
-    // go negative — clamp through max(0) for the offset probe only.
+    // `eastern_offset_ms_at` takes signed epoch ms and answers for the
+    // whole 1900..=2100 validator range, so no clamp is needed.
     let offset = eastern_offset_ms_at(est_guess);
     let epoch = local_ms - offset;
     let offset = eastern_offset_ms_at(epoch);

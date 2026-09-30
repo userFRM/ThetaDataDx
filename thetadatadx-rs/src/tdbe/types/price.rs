@@ -77,6 +77,7 @@ impl PriceType {
     /// Construct a `PriceType` by saturating into `0..=MAX_PRICE_TYPE`.
     /// Values below 0 snap to 0; values above the cap snap to
     /// [`MAX_PRICE_TYPE`]. Used by the lossy [`Price::new`] constructor.
+    #[cfg(any(test, feature = "__internal"))]
     #[inline]
     #[must_use]
     pub const fn saturating(price_type: i32) -> Self {
@@ -161,7 +162,10 @@ impl Price {
     /// Construct a `Price`, saturating `price_type` into the valid
     /// `0..=MAX_PRICE_TYPE` range. Out-of-range inputs snap to the nearest
     /// boundary; callers that must reject bad inputs use
-    /// [`Self::with_value_and_type`] instead.
+    /// [`Self::with_value_and_type`] instead. Built for tests and the
+    /// `__internal` consumers (bindings, benches); decode uses the strict
+    /// constructor.
+    #[cfg(any(test, feature = "__internal"))]
     #[inline]
     #[must_use]
     pub fn new(value: i32, price_type: i32) -> Self {
@@ -186,23 +190,6 @@ impl Price {
             value,
             price_type: PriceType::new(price_type)?,
         })
-    }
-
-    /// Mantissa accessor. The raw field is crate-private so the
-    /// `0..=MAX_PRICE_TYPE` invariant cannot be bypassed by construction.
-    #[inline]
-    #[must_use]
-    pub const fn value(&self) -> i32 {
-        self.value
-    }
-
-    /// Decimal-exponent accessor, in `0..=MAX_PRICE_TYPE`. The exponent is
-    /// stored as a validated [`PriceType`] so the invariant cannot be
-    /// bypassed by construction.
-    #[inline]
-    #[must_use]
-    pub const fn price_type(&self) -> i32 {
-        self.price_type.get()
     }
 
     /// Convert to f64. This is lossy but useful for display/calculations.
@@ -440,23 +427,12 @@ mod tests {
     #[test]
     fn new_saturates_out_of_range_price_type() {
         // Above the cap saturates to MAX_PRICE_TYPE.
-        assert_eq!(Price::new(1, 99).price_type(), MAX_PRICE_TYPE);
+        assert_eq!(Price::new(1, 99).price_type.get(), MAX_PRICE_TYPE);
         // Below 0 saturates to 0.
-        assert_eq!(Price::new(1, -3).price_type(), 0);
+        assert_eq!(Price::new(1, -3).price_type.get(), 0);
         // Extremes do not panic and land in range.
-        assert_eq!(Price::new(1, i32::MIN).price_type(), 0);
-        assert_eq!(Price::new(1, i32::MAX).price_type(), MAX_PRICE_TYPE);
-    }
-
-    /// Accessors return the validated exponent and mantissa. The exponent
-    /// is stored as a [`PriceType`] so the `0..=MAX_PRICE_TYPE` invariant
-    /// cannot be bypassed by external construction.
-    #[test]
-    fn accessors_match_fields() {
-        let p = Price::new(15025, 8);
-        assert_eq!(p.value(), 15025);
-        assert_eq!(p.price_type(), 8);
-        assert_eq!(p.price_type(), p.price_type.get());
+        assert_eq!(Price::new(1, i32::MIN).price_type.get(), 0);
+        assert_eq!(Price::new(1, i32::MAX).price_type.get(), MAX_PRICE_TYPE);
     }
 
     /// `PriceType::new` accepts the supported range and rejects everything
