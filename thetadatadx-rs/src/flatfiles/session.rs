@@ -24,8 +24,9 @@ use tokio_rustls::TlsConnector;
 use crate::auth::Credentials;
 use crate::error::{AuthErrorKind, Error};
 use crate::flatfiles::framing::{msg, read_frame, write_frame, Frame};
-use crate::flatfiles::mdds_spki::MddsSpkiVerifier;
+use crate::flatfiles::mdds_spki::ALLOWED_MDDS_HOSTS;
 use crate::flatfiles::types::{disconnect_reason_code, FlatFilesUnavailableReason};
+use crate::fpss::pinning::PinnedVerifier;
 use crate::fpss::protocol::build_login_payload;
 use crate::tdbe::types::enums::RemoveReason;
 
@@ -54,7 +55,7 @@ pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStr
         ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
             .with_safe_default_protocol_versions()?
             .dangerous()
-            .with_custom_certificate_verifier(MddsSpkiVerifier::new())
+            .with_custom_certificate_verifier(PinnedVerifier::new(ALLOWED_MDDS_HOSTS))
             .with_no_client_auth();
     let connector = TlsConnector::from(Arc::new(cfg));
     let server_name: ServerName<'static> =

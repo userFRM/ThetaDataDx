@@ -7,8 +7,8 @@
 //! [`flatfile_request_raw`] (raw INDEX + DATA blob). All three are
 //! also reachable via [`crate::Client`].
 //!
-//! Server identity is SPKI-pinned via the internal
-//! `mdds_spki::MddsSpkiVerifier`. On-disk blob layout is documented
+//! Server identity is SPKI-pinned with the same internal verifier the
+//! streaming client uses, restricted to the MDDS hosts. On-disk blob layout is documented
 //! at the module level in `crate::flatfiles::index` (private; see
 //! `cargo doc --document-private-items`).
 
