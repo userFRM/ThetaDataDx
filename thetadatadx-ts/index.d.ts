@@ -825,6 +825,10 @@ export declare class FlatFileRowList {
    * Return a JSON array of objects, one per row. Useful for quick
    * inspection, structured logging, or wiring into JS-side
    * dataframes that don't read Arrow IPC.
+   *
+   * Keys keep the row's column order: `symbol`, `expiration`, `strike`,
+   * `right`, then the vendor's columns in file order, as Python's
+   * `to_list` does.
    */
   toJson(): string
 }

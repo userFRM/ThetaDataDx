@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use arrow_ipc::writer::StreamWriter;
 use napi::bindgen_prelude::Buffer;
-use serde_json::{json, Map as JsonMap, Value as JsonValue};
+use serde_json::Value as JsonValue;
 
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
@@ -159,35 +159,82 @@ impl FlatFileRowList {
     /// Return a JSON array of objects, one per row. Useful for quick
     /// inspection, structured logging, or wiring into JS-side
     /// dataframes that don't read Arrow IPC.
+    ///
+    /// Keys keep the row's column order: `symbol`, `expiration`, `strike`,
+    /// `right`, then the vendor's columns in file order, as Python's
+    /// `to_list` does.
     #[napi(js_name = "toJson")]
-    pub fn to_json(&self) -> napi::Result<String> {
-        let mut out: Vec<JsonValue> = Vec::with_capacity(self.rows.len());
-        for row in &self.rows {
-            let mut obj = JsonMap::new();
-            obj.insert("symbol".into(), json!(row.symbol));
-            obj.insert(
-                "expiration".into(),
-                row.expiration.map_or(JsonValue::Null, JsonValue::from),
-            );
-            obj.insert(
-                "strike".into(),
-                row.strike.map_or(JsonValue::Null, JsonValue::from),
-            );
-            obj.insert(
-                "right".into(),
-                row.right
-                    .map_or(JsonValue::Null, |c| JsonValue::String(c.to_string())),
-            );
-            for (name, value) in &row.fields {
-                let v = match value {
+    pub fn to_json(&self) -> String {
+        // Written by hand: `serde_json::Map` sorts its keys unless its
+        // `preserve_order` feature is on, and turning that on here would also
+        // reorder the keys of the SDK's own JSON file writers in this build.
+        let mut out = String::from("[");
+        for (i, row) in self.rows.iter().enumerate() {
+            if i > 0 {
+                out.push(',');
+            }
+            let contract = [
+                ("symbol", JsonValue::from(row.symbol.as_str())),
+                (
+                    "expiration",
+                    row.expiration.map_or(JsonValue::Null, JsonValue::from),
+                ),
+                (
+                    "strike",
+                    row.strike.map_or(JsonValue::Null, JsonValue::from),
+                ),
+                (
+                    "right",
+                    row.right
+                        .map_or(JsonValue::Null, |c| JsonValue::String(c.to_string())),
+                ),
+            ];
+            let fields = row.fields.iter().map(|(name, value)| {
+                let value = match value {
                     FlatFileValue::Int(v) => JsonValue::from(*v),
                     FlatFileValue::Price(v) => JsonValue::from(*v),
                 };
-                obj.insert(name.clone(), v);
+                (name.as_str(), value)
+            });
+            for (j, (name, value)) in contract.into_iter().chain(fields).enumerate() {
+                out.push(if j == 0 { '{' } else { ',' });
+                out.push_str(&JsonValue::from(name).to_string());
+                out.push(':');
+                out.push_str(&value.to_string());
             }
-            out.push(JsonValue::Object(obj));
+            out.push('}');
         }
-        serde_json::to_string(&out).map_err(|e| napi::Error::from_reason(e.to_string()))
+        out.push(']');
+        out
+    }
+}
+
+#[cfg(test)]
+mod to_json_tests {
+    use super::{FlatFileRowList, FlatFileValue};
+    use thetadatadx::flatfiles::FlatFileRow;
+
+    /// The vendor's columns come out in the order the file carries them, after
+    /// the contract columns, not sorted by name.
+    #[test]
+    fn keys_keep_the_row_column_order() {
+        let list = FlatFileRowList {
+            rows: vec![FlatFileRow {
+                symbol: "SPY".into(),
+                expiration: Some(20_240_315),
+                strike: Some(500.0),
+                right: Some('C'),
+                fields: vec![
+                    ("ms_of_day".into(), FlatFileValue::Int(34_200_000)),
+                    ("open".into(), FlatFileValue::Price(1.25)),
+                    ("close".into(), FlatFileValue::Price(1.5)),
+                ],
+            }],
+        };
+        assert_eq!(
+            list.to_json(),
+            r#"[{"symbol":"SPY","expiration":20240315,"strike":500.0,"right":"C","ms_of_day":34200000,"open":1.25,"close":1.5}]"#
+        );
     }
 }
 
