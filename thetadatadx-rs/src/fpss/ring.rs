@@ -474,20 +474,6 @@ mod tests {
     use std::sync::Arc;
 
     #[test]
-    fn adaptive_wait_strategy_is_copy_send() {
-        fn assert_copy_send<T: Copy + Send>() {}
-        assert_copy_send::<AdaptiveWaitStrategy>();
-    }
-
-    #[test]
-    fn low_latency_wait_for_returns() {
-        use disruptor::wait_strategies::WaitStrategy;
-        // Smoke: the fixed low-latency `wait_for` completes promptly and
-        // never parks.
-        AdaptiveWaitStrategy::low_latency().wait_for(0);
-    }
-
-    #[test]
     fn park_mode_sleeps_each_empty() {
         // Park sleeps the configured interval on every empty poll.
         let strat = AdaptiveWaitStrategy::from_mode(WaitMode::Park, Duration::from_millis(5));

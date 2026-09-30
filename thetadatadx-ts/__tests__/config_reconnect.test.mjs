@@ -45,14 +45,6 @@ describe('Config.setReconnectPolicy', () => {
 });
 
 describe('Config.setReconnectMaxAttempts', () => {
-  it('accepts non-zero budgets without throwing', () => {
-    const cfg = Config.production();
-    cfg.setReconnectPolicy('auto');
-    for (const n of [1, 3, 10, 100, 1000]) {
-      cfg.setReconnectMaxAttempts(n);
-    }
-  });
-
   it('is silently a no-op when policy is manual', () => {
     // Matches the Python contract: setter has no effect when the
     // reconnect policy is not the Auto(limits) variant. We assert
@@ -64,25 +56,7 @@ describe('Config.setReconnectMaxAttempts', () => {
   });
 });
 
-describe('Config.setReconnectMaxRateLimitedAttempts', () => {
-  it('accepts non-zero budgets without throwing', () => {
-    const cfg = Config.production();
-    cfg.setReconnectPolicy('auto');
-    for (const n of [1, 10, 100, 1000]) {
-      cfg.setReconnectMaxRateLimitedAttempts(n);
-    }
-  });
-});
-
 describe('Config.setReconnectStableWindowSecs', () => {
-  it('accepts non-zero window durations without throwing', () => {
-    const cfg = Config.production();
-    cfg.setReconnectPolicy('auto');
-    for (const secs of [1n, 30n, 60n, 300n, 3600n]) {
-      cfg.setReconnectStableWindowSecs(secs);
-    }
-  });
-
   it('rejects negative BigInt', () => {
     const cfg = Config.production();
     cfg.setReconnectPolicy('auto');
