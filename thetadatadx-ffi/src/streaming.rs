@@ -43,7 +43,7 @@ use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 /// data (callback slots, the dispatcher state machine, drain flags), so the
 /// inner value stays usable and the consistent behaviour is to keep serving
 /// the C caller. `into_inner` returns that still-valid guard.
-trait LockRecover<T> {
+pub(crate) trait LockRecover<T> {
     fn lock_recover(&self) -> MutexGuard<'_, T>;
 }
 
@@ -84,7 +84,7 @@ pub type ThetaDataDxStreamCallback =
 /// same bundle can be re-registered on `thetadatadx_*_reconnect` without
 /// re-invoking the user.
 #[derive(Clone, Copy)]
-struct FfiCallback {
+pub(crate) struct FfiCallback {
     callback: ThetaDataDxStreamCallback,
     ctx: *mut c_void,
 }
@@ -123,8 +123,9 @@ pub struct ThetaDataDxClient {
     /// Callback registered via `thetadatadx_client_set_callback`. `None` until
     /// the first registration; persisted across `thetadatadx_client_reconnect`
     /// so the reconnect path can re-attach the same C user function
-    /// without re-asking the caller for it.
-    callback: Mutex<Option<FfiCallback>>,
+    /// without re-asking the caller for it. Cleared when
+    /// `thetadatadx_client_batches_open` starts a batch session in its place.
+    pub(crate) callback: Mutex<Option<FfiCallback>>,
 }
 
 // `FfpssDispatcherSession` is imported above as a `use` alias of the

@@ -46,7 +46,7 @@ use std::sync::Arc;
 use thetadatadx::streaming::{Backpressure, RecordBatchStream};
 
 use crate::error::set_error;
-use crate::streaming::ThetaDataDxClient;
+use crate::streaming::{LockRecover, ThetaDataDxClient};
 use crate::types::ThetaDataDxArrowBytes;
 
 /// Backpressure policy selector for [`thetadatadx_client_batches_open`].
@@ -93,7 +93,9 @@ pub struct ThetaDataDxRecordBatchStream {
 /// Returns a handle on success, or null with `thetadatadx_last_error()` set
 /// on failure (network / auth / parse error, an unknown `backpressure`
 /// value, or a stream already active on the client). Free the handle with
-/// [`thetadatadx_record_batch_stream_free`].
+/// [`thetadatadx_record_batch_stream_free`]. Opening a reader drops the
+/// callback registration a stopped callback session saved, so
+/// `thetadatadx_client_reconnect` cannot revive it over the reader.
 ///
 /// # Safety
 ///
@@ -127,6 +129,13 @@ pub unsafe extern "C" fn thetadatadx_client_batches_open(
                 return std::ptr::null_mut();
             }
         };
+        // Hold the saved callback registration across the start, the same
+        // lock `thetadatadx_client_set_callback` holds across its own, and
+        // drop it once the batch session is live. Kept, it would let
+        // `thetadatadx_client_reconnect` tear this reader down and restart a
+        // callback session on a `ctx` the caller may already have freed after
+        // stop and drain.
+        let mut callback = client.callback.lock_recover();
         let stream = client
             .inner
             .stream()
@@ -136,9 +145,12 @@ pub unsafe extern "C" fn thetadatadx_client_batches_open(
             .backpressure(backpressure)
             .build();
         match stream {
-            Ok(inner) => Box::into_raw(Box::new(ThetaDataDxRecordBatchStream {
-                inner: Arc::new(inner),
-            })),
+            Ok(inner) => {
+                *callback = None;
+                Box::into_raw(Box::new(ThetaDataDxRecordBatchStream {
+                    inner: Arc::new(inner),
+                }))
+            }
             Err(e) => {
                 crate::error::set_error_from(&e);
                 std::ptr::null_mut()

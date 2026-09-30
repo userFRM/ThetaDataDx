@@ -1018,6 +1018,9 @@ typedef struct ThetaDataDxRecordBatchStream ThetaDataDxRecordBatchStream;
 /** Open a pull-based Arrow RecordBatch reader over the unified client's
  *  stream — a sibling to thetadatadx_client_set_callback. Open first — this
  *  starts the streaming session — then subscribe on the same surface.
+ *  Opening a reader drops the callback registration a stopped callback
+ *  session saved, so thetadatadx_client_reconnect cannot revive it over the
+ *  reader.
  *  @param handle Client from thetadatadx_client_connect.
  *  @param batch_size Rows per batch (0 clamped to 1).
  *  @param linger_ms Partial-batch flush deadline in ms (quiet-stream flush).
