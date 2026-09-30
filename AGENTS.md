@@ -20,7 +20,7 @@ binaries.
 | `thetadatadx-py/` | Python bindings (PyO3). Ships as `thetadatadx-py` on PyPI, imports as `thetadatadx`. |
 | `thetadatadx-ts/` | TypeScript/Node bindings (napi-rs). |
 | `thetadatadx-cpp/` | Header-and-source C++ SDK over the C ABI. CMake. |
-| `tools/server/` | A drop-in replacement for the vendor's JVM terminal. Local-only: it binds a loopback port for the user's own tooling. |
+| `tools/server/` | A drop-in replacement for the vendor's JVM terminal, serving the user's own tooling. Like the terminal, it binds all interfaces by default; `--bind 127.0.0.1` restricts it to loopback. |
 | `tools/mcp/` | An MCP server. Holds live subscriptions and answers questions about them, plus history and flat-file tools. |
 | `scripts/ci/` | The gate suite. One script per gate, dispatched by `scripts/ci.py`. |
 | `docs-site/` | The published documentation. Its changelog is kept identical to `CHANGELOG.md`. |
@@ -394,8 +394,9 @@ produce a plausible one that is not there, and a fix for a defect that does not 
 with a test that locks it in.
 
 Reject in particular anything that trades a real cost for a hypothetical one. A guard that discards
-live data to close a race nobody can reach is not an improvement. `tools/server` binds a loopback
-port for the machine's own user, so hardening it against hostile traffic is scope, not safety.
+live data to close a race nobody can reach is not an improvement. `tools/server` matches the
+terminal's exposure (all interfaces by default, unauthenticated system routes, `--bind 127.0.0.1`
+for loopback only), so hardening it against hostile traffic is scope, not safety.
 
 When two independent reviewers land on the same point, look again at it even if you dismissed it the
 first time.
