@@ -993,7 +993,7 @@ jobs:
                 return 0
               fi
 
-              existing=$(python3 -c 'import json, sys, urllib.request; url = f"https://crates.io/api/v1/crates/{sys.argv[1]}"; data = json.load(urllib.request.urlopen(url, timeout=30)); print(data["crate"]["max_version"])' "$package")
+              existing=$(python3 -c 'import json, sys, urllib.request; url = f"https://crates.io/api/v1/crates/{sys.argv[1]}"; data = json.load(urllib.request.urlopen(url, timeout=30)); print(data["crate"]["max_version"])' "$package") || existing=""
 
               if [ "$existing" = "$version" ]; then
                 echo "$package $version already exists on crates.io; skipping publish"
