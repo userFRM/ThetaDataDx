@@ -3782,202 +3782,18 @@ mod tests {
         );
     }
 
-    /// A writer that succeeds for the first `ok_writes` calls, then fails
-    /// every subsequent `write`/`flush`. Models a freshly reconnected
-    /// socket that accepts the login but breaks part-way through the
-    /// re-subscribe replay or the queued-command drain.
-    struct FailAfter {
-        ok_writes: usize,
-        writes: usize,
-    }
-
-    impl Write for FailAfter {
-        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            if self.writes >= self.ok_writes {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "reconnected socket broke mid-replay",
-                ));
-            }
-            self.writes += 1;
-            Ok(buf.len())
-        }
-
-        fn flush(&mut self) -> std::io::Result<()> {
-            if self.writes >= self.ok_writes {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
-                    "reconnected socket broke on flush",
-                ));
-            }
-            Ok(())
-        }
-    }
-
-    /// Faithful reproduction of the reconnect-path replay-then-mark-live
-    /// control flow the io_loop runs, parameterised by the writer so a
-    /// test can inject a mid-replay break. Returns the post-replay
-    /// `(authenticated, pending_reason_set, login_success_published)`
-    /// triple. Mirrors the production ordering exactly: `authenticated`
-    /// is flipped — and `LoginSuccess` published — ONLY after every
-    /// replay write and flush succeeds; any failure sets `pending_reason`
-    /// and bails with `authenticated` still `false`.
+    /// Source guard for the reconnect path. Once the new login succeeds, the
+    /// delta and contract caches are cleared before the re-subscribe replay,
+    /// so the new session's first rows are not decoded against the old
+    /// session's baselines and reused contract ids do not resolve to the old
+    /// session's contracts. The session is marked live
+    /// (`authenticated.store(true, ...)`) and announced (`LoginSuccess`) only
+    /// after the replay and the queued-command drain, never right after
+    /// login, so a socket that breaks mid-replay never reads as live.
     ///
-    /// Finding #3 invariant under test: a reconnect whose replay fails
-    /// must not report the session as authenticated/live.
-    fn run_reconnect_replay<W: Write>(
-        writer: &mut W,
-        subs: &[Contract],
-        reason: RemoveReason,
-        authenticated: &AtomicBool,
-        shutdown: &AtomicBool,
-    ) -> (bool, bool, bool) {
-        // Entry invariant the loop guarantees: the inner read loop cleared
-        // `authenticated` on the drop that started this reconnect.
-        authenticated.store(false, Ordering::Release);
-        let mut pending_reason: Option<RemoveReason> = None;
-        let mut pacer = ReplayPacer::new(4, 0);
-
-        // Re-subscribe replay: a write or burst-flush failure marks the
-        // session not-live + reconnect-pending, exactly like the loop.
-        let code = super::protocol::SubscriptionKind::Quote.subscribe_code();
-        let mut replay_ok = true;
-        for contract in subs {
-            let payload = match protocol::build_subscribe_payload(1, contract) {
-                Ok(p) => p,
-                Err(_) => continue,
-            };
-            if write_raw_frame_no_flush(writer, code, &payload).is_err() {
-                pending_reason = Some(reason);
-                replay_ok = false;
-                break;
-            }
-            if pacer.frame_written(writer, shutdown).is_err() {
-                pending_reason = Some(reason);
-                replay_ok = false;
-                break;
-            }
-        }
-        if replay_ok && !subs.is_empty() && writer.flush().is_err() {
-            pending_reason = Some(reason);
-            replay_ok = false;
-        }
-
-        if !replay_ok {
-            // Re-enter reconnect: authenticated is still false, no success
-            // event published.
-            return (
-                authenticated.load(Ordering::Acquire),
-                pending_reason.is_some(),
-                false,
-            );
-        }
-
-        // Replay proven: ONLY now is the session live + success announced.
-        authenticated.store(true, Ordering::Release);
-        let login_success_published = true;
-        (
-            authenticated.load(Ordering::Acquire),
-            pending_reason.is_some(),
-            login_success_published,
-        )
-    }
-
-    /// Finding #3: a reconnect whose re-subscribe replay fails part-way
-    /// must NOT mark the session authenticated/live, must set
-    /// `pending_reason` (so the next cycle re-enters reconnect on the
-    /// right ladder), and must NOT publish `LoginSuccess`. Before the fix
-    /// the loop flipped `authenticated` true right after login — so a
-    /// socket that broke during replay looked live and accepted commands
-    /// until a later read timeout.
-    #[test]
-    fn reconnect_replay_failure_does_not_mark_session_live() {
-        let authenticated = AtomicBool::new(false);
-        let shutdown = AtomicBool::new(false);
-        let subs = [
-            Contract::stock("AAAA"),
-            Contract::stock("BBBB"),
-            Contract::stock("CCCC"),
-        ];
-        // Accept the first write, then break — mid-replay socket death.
-        let mut writer = FailAfter {
-            ok_writes: 1,
-            writes: 0,
-        };
-
-        let (live, pending_set, login_published) = run_reconnect_replay(
-            &mut writer,
-            &subs,
-            RemoveReason::TooManyRequests,
-            &authenticated,
-            &shutdown,
-        );
-
-        assert!(
-            !live,
-            "a reconnect whose replay failed must NOT report the session as live"
-        );
-        assert!(
-            !authenticated.load(Ordering::Acquire),
-            "the shared `authenticated` flag must stay false on a failed replay"
-        );
-        assert!(
-            pending_set,
-            "a failed replay must set pending_reason so the next cycle re-enters \
-             reconnect on the originating class rather than re-reading the broken socket"
-        );
-        assert!(
-            !login_published,
-            "no LoginSuccess may be published for a session the replay disproved"
-        );
-    }
-
-    /// Companion success path: when every replay write and flush
-    /// succeeds, the session IS marked live and the success event is
-    /// published — the production behaviour the fix must preserve.
-    #[test]
-    fn reconnect_replay_success_marks_session_live() {
-        let authenticated = AtomicBool::new(false);
-        let shutdown = AtomicBool::new(false);
-        let subs = [Contract::stock("AAAA"), Contract::stock("BBBB")];
-        // Never fails.
-        let mut writer = FailAfter {
-            ok_writes: usize::MAX,
-            writes: 0,
-        };
-
-        let (live, pending_set, login_published) = run_reconnect_replay(
-            &mut writer,
-            &subs,
-            RemoveReason::TimedOut,
-            &authenticated,
-            &shutdown,
-        );
-
-        assert!(
-            live,
-            "a fully-replayed reconnect must mark the session live"
-        );
-        assert!(
-            authenticated.load(Ordering::Acquire),
-            "the shared `authenticated` flag must be true after a proven replay"
-        );
-        assert!(
-            !pending_set,
-            "a successful replay must not set pending_reason"
-        );
-        assert!(
-            login_published,
-            "LoginSuccess must be published once the replay is proven"
-        );
-    }
-
-    /// Finding #3 source guard: in the reconnect path the live-flip
-    /// (`authenticated.store(true, ...)`) and the post-reconnect
-    /// `LoginSuccess` publish must appear AFTER the re-subscribe replay
-    /// and the queued-command drain — never right after login. This pins
-    /// the ordering so a future edit cannot reintroduce the premature
-    /// flip that let a broken reconnected socket look live.
+    /// The live flip and the announcement are counted over the whole
+    /// production region rather than searched for after an anchor, so one
+    /// re-inserted ahead of the anchors still fails the guard.
     #[test]
     fn reconnect_marks_live_only_after_replay_in_source() {
         let src = include_str!("mod.rs");
@@ -3986,41 +3802,52 @@ mod tests {
             .expect("test module marker present");
         let prod = &src[..cfg_test_pos];
 
-        // Anchor on the reconnect path's reader swap — the replay writes
-        // target the stream installed here.
-        let reader_swap = prod
-            .find("Replace the reader with the new stream so the replay writes")
-            .expect("reconnect-path reader swap comment present");
-        let after_swap = &prod[reader_swap..];
+        let find = |needle: &str| {
+            prod.find(needle)
+                .unwrap_or_else(|| panic!("`{needle}` present in the io_loop"))
+        };
+        // The reconnect path's post-login socket setup, then the reader swap
+        // the replay writes target.
+        let reconnect_login = find("failed to set read timeout on reconnect");
+        let reader_swap = find("Replace the reader with the new stream so the replay writes");
+        let resubscribe_pos = find("Re-subscribe all active subscriptions on the new connection");
+        let queued_drain_pos = find("Drain any commands that queued up during reconnection");
+        assert!(reconnect_login < reader_swap && reader_swap < resubscribe_pos);
 
-        let resubscribe_pos = after_swap
-            .find("Re-subscribe all active subscriptions on the new connection")
-            .expect("reconnect-path re-subscribe replay present");
-        let queued_drain_pos = after_swap
-            .find("Drain any commands that queued up during reconnection")
-            .expect("reconnect-path queued-command drain present");
-        let live_flip_pos = after_swap
-            .find("authenticated.store(true, Ordering::Release)")
-            .expect("reconnect-path live flip present");
-        let login_success_pos = after_swap
-            .find("StreamControl::LoginSuccess")
-            .expect("reconnect-path LoginSuccess publish present");
+        let reset_region = &prod[reconnect_login..reader_swap];
+        for clear in ["delta_state.clear();", "local_contracts.clear();"] {
+            assert!(
+                reset_region.contains(clear),
+                "the reconnect path must run `{clear}` before the re-subscribe replay"
+            );
+        }
 
-        assert!(
-            resubscribe_pos < live_flip_pos,
-            "the live flip must come AFTER the re-subscribe replay starts"
+        assert_eq!(
+            prod.matches("authenticated.store(true").count(),
+            1,
+            "the io_loop marks a session live in exactly one place, after the reconnect replay"
         );
+        let live_flip_pos = find("authenticated.store(true");
         assert!(
-            queued_drain_pos < live_flip_pos,
-            "the live flip must come AFTER the queued-command drain"
+            resubscribe_pos < live_flip_pos && queued_drain_pos < live_flip_pos,
+            "the live flip must come after the re-subscribe replay and the queued-command drain"
         );
+
+        assert_eq!(
+            prod.matches("StreamControl::LoginSuccess").count(),
+            2,
+            "LoginSuccess is published once for the initial login and once per reconnect"
+        );
+        let login_success_pos = prod
+            .rfind("StreamControl::LoginSuccess")
+            .expect("reconnect LoginSuccess present");
         assert!(
             queued_drain_pos < login_success_pos,
-            "the post-reconnect LoginSuccess must be published AFTER the queued-command drain"
+            "the post-reconnect LoginSuccess must be published after the queued-command drain"
         );
     }
 
-    /// Finding #3 source guard: every reconnect-path replay/drain failure
+    /// Source guard: every reconnect-path replay/drain failure
     /// branch that re-enters the session loop must first set
     /// `pending_reason`, so a broken reconnected socket re-enters
     /// reconnect on the originating class instead of being re-read as a

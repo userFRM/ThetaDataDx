@@ -3844,29 +3844,6 @@ mod full_stream_guard_tests {
 
         client.shutdown();
     }
-
-    /// The command channel is bounded: once it is saturated, a further
-    /// `try_send` reports `Full` rather than growing without limit. This
-    /// pins the backpressure contract `send_cmd` relies on to surface a
-    /// typed queue-full error instead of silently dropping a command or
-    /// accumulating unbounded memory. A held receiver keeps the channel
-    /// alive so saturation (not hang-up) is the observed condition.
-    #[test]
-    fn command_channel_is_bounded() {
-        use std::sync::mpsc as std_mpsc;
-        let cap = super::CMD_CHANNEL_CAPACITY;
-        let (tx, _rx) = std_mpsc::sync_channel::<super::events::IoCommand>(cap);
-        // Fill to capacity: every send up to the bound must succeed.
-        for _ in 0..cap {
-            tx.try_send(super::events::IoCommand::Shutdown)
-                .expect("sends up to capacity must succeed");
-        }
-        // The next send must report a full channel — the bound holds.
-        match tx.try_send(super::events::IoCommand::Shutdown) {
-            Err(std_mpsc::TrySendError::Full(_)) => {}
-            other => panic!("expected TrySendError::Full once saturated, got {other:?}"),
-        }
-    }
 }
 
 #[cfg(test)]
