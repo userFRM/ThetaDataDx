@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-09-23
+## [0.5.0] - 2026-09-30
 
 ### Added
 
@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The exchange `symbol` column is described as what it is.** It was documented in three places as a MIC identifier. It is the vendor's short symbol: code 5 is `CBOE` here and `XCBO` as a MIC, and the vendor carries the MIC as a separate field. A caller who read the documentation and joined the column against ISO 10383 got no matches and no error. The value and the field name are unchanged.
 
+- **An option tick documents its contract fields as the vendor fills them.** `expiration`, `strike` and `right` were documented as populated on a wildcard query only, reading `0` on a single-contract query. The vendor sends all three on a single-contract response too: history trade, quote, OHLC, end of day, first-order greeks and open interest each return the contract's expiration, strike and right, the same values a wildcard query returns for it. A caller who followed the documentation skipped fields that are always filled. They are now documented as populated whenever the response carries them, and `0` only when it does not.
+
 - **A shipped C++ header no longer names an internal transport.** The layout-guard header, which reaches every C++ consumer through the public include path, described the pinned structs using the wire protocol's internal name rather than the channel vocabulary the rest of the surface uses.
 
 - **`trade_quote` pairs each trade with the quote strictly before it by default.** The `exclusive` argument on `option_history_trade_quote` and `stock_history_trade_quote` defaulted to false, which is the documented default in the vendor's protocol definition. The terminal does not use it: when the value is omitted the terminal sends true, pairing each trade with the last NBBO quote strictly before the trade rather than one that may carry the trade's own timestamp. A caller who omitted the argument got a different quote against the same trade than the terminal returned for the same request, a systematic divergence in the paired ask and size. The default is true on every surface now, so an omitted `exclusive` matches the terminal. Pass it as false for the previous pairing.
@@ -70,8 +72,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`panic_count()` and `dropped_event_count()` keep their count after the session ends.** Both are documented as cumulative and were read off the live session alone, so they answered zero from the moment `stop_streaming()` returned and a reconnect discarded whatever the previous session had recorded. They now count across every session the client has run, including faults and drops recorded while a stopping session drains.
 
 - **The standalone Python `StreamingClient.start_streaming` refuses a callback that is not callable.** It raises `InvalidParameterError` at the call site, as the unified client already did. It used to connect and then fail on the first event, off the calling thread, so the caller saw a stream that came up and never delivered.
-
-- **The server refuses `strike` or `right` on `/v3/option/list/dates`.** The vendor narrows that route by both, and this SDK does not carry either filter yet, so the server used to answer with the dates for every strike and both sides as if they were the ones asked for. A request naming either is now refused with a 400 that says so.
 
 - **Every server timestamp carries three fraction digits.** A whole second renders `.000` and trailing zeros stay, which is how the terminal formats it; the fraction used to be dropped or trimmed.
 
