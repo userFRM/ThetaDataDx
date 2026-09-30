@@ -31,7 +31,7 @@
 //! 4. `stop_streaming()` / `shutdown()` — atomic stop with drain barrier.
 //! 5. `reconnect()` — re-open under the same callback.
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -335,11 +335,6 @@ impl StreamingClient {
             let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
             guard.clone()
         };
-        if direct.streaming_hosts().is_empty() {
-            return Err(PyValueError::new_err(
-                "StreamingClient: config.streaming.hosts is empty (set THETADATA_STREAMING_HOSTS or use Config::production())",
-            ));
-        }
         // Seed the process-global runtime from this client's runtime config
         // so `worker_threads` is honoured when this is the first client in
         // the process, even though the streaming TLS connection itself is

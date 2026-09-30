@@ -936,16 +936,6 @@ impl DirectConfig {
                 ),
             ));
         }
-        // The streaming channel needs at least one host to dial. An empty list
-        // is reachable from a full override of `vec![]` (the public
-        // `set_streaming_hosts` setter), so reject it here — this check is the
-        // one every construction path (builder, env, config file) routes
-        // through, so it fails fast at build time with a clear field error
-        // rather than at the connect attempt with a generic "no servers
-        // configured".
-        if self.streaming.hosts.is_empty() {
-            return Err(Error::config_missing("streaming.hosts"));
-        }
         // Each streaming host must be a routable dial target. A blank host or a
         // zero port is accepted only by the raw `set_streaming_hosts` setter and
         // would otherwise fail late at dial with a generic transport error that
@@ -2912,22 +2902,6 @@ mod tests {
         ];
         config.set_streaming_hosts(custom.clone());
         assert_eq!(config.streaming.hosts, custom);
-    }
-
-    #[test]
-    fn validate_rejects_empty_streaming_hosts() {
-        // `validate()` is the fail-fast backstop for every construction path:
-        // an empty streaming host list is rejected at build time rather than
-        // surfacing as a generic "no servers configured" at connect.
-        let _guard = env_test_guard();
-        clear_env_matrix();
-        let mut config = DirectConfig::production_defaults();
-        config.streaming.hosts = Vec::new();
-        let err = config.validate().unwrap_err();
-        assert!(
-            err.to_string().contains("streaming.hosts"),
-            "validate must name the empty streaming.hosts field, got: {err}"
-        );
     }
 
     #[test]

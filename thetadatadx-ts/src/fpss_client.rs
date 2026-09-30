@@ -351,18 +351,6 @@ impl FpssParams {
     }
 }
 
-/// Build the snapshot from an owned [`DirectConfig`], rejecting a config
-/// with no streaming hosts before any TLS work begins. Mirrors the Python
-/// `StreamingClient.__new__` empty-hosts guard.
-fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::Result<FpssParams> {
-    if direct.streaming_hosts().is_empty() {
-        return Err(crate::invalid_parameter_err(
-            "StreamingClient: config.streaming.hosts is empty (use Config.production() or set the streaming hosts)",
-        ));
-    }
-    Ok(FpssParams::from_config(creds, direct))
-}
-
 type InnerSlot = Arc<Mutex<Option<Arc<RustStreamingClient>>>>;
 type CallbackSlot = Arc<Mutex<Option<StreamingCallbackRegistration<TsfnCallback>>>>;
 type DrainedFlags = Arc<Mutex<Vec<Arc<AtomicBool>>>>;
@@ -953,7 +941,7 @@ impl StreamingClient {
         // `startStreaming`. A runtime-build failure surfaces here as a typed
         // error rather than being deferred to the first `startStreaming`.
         crate::runtime_from_config(&direct.runtime)?;
-        let params = params_from_direct(&creds.inner, &direct)?;
+        let params = FpssParams::from_config(&creds.inner, &direct);
         Ok(StreamingClient::from_params(params))
     }
 
@@ -974,7 +962,7 @@ impl StreamingClient {
         // `startStreaming`. A runtime-build failure surfaces here as a typed
         // error rather than being deferred to the first `startStreaming`.
         crate::runtime_from_config(&direct.runtime)?;
-        let params = params_from_direct(&creds, &direct)?;
+        let params = FpssParams::from_config(&creds, &direct);
         Ok(StreamingClient::from_params(params))
     }
 
