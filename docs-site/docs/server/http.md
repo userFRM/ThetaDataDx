@@ -45,7 +45,7 @@ The JSON envelope:
 }
 ```
 
-Failures use one envelope shape across every route — see the [error codes table](/articles/error-codes#server-error-envelope).
+A failed request is answered with an HTTP status and a plain-text description; see [server errors](/articles/error-codes#server-errors).
 
 ## Flat files
 

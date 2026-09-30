@@ -438,6 +438,7 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
             kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
             message,
             retry_after,
+            ..
         }) => {
             tracing::warn!(
                 endpoint = ep.name,
@@ -457,6 +458,27 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
                     .insert(axum::http::header::RETRY_AFTER, value);
             }
             resp
+        }
+        // Any other upstream status is answered the way the vendor terminal
+        // answers it: with the HTTP status the service attached in its
+        // `http_status_code` trailer (for example its no-data status for a
+        // query with no rows), falling back to 500 when there is none, and
+        // with the service's description as the body.
+        EndpointError::Server(thetadatadx::Error::Grpc {
+            kind,
+            message,
+            http_status_code,
+            ..
+        }) => {
+            let status = http_status_code
+                .and_then(|code| StatusCode::from_u16(code).ok())
+                .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+            if status.is_server_error() {
+                tracing::warn!(endpoint = ep.name, %kind, %status, error = %message, "request failed");
+            } else {
+                tracing::debug!(endpoint = ep.name, %kind, %status, error = %message, "request rejected upstream");
+            }
+            plain_error_response(status, &message)
         }
         EndpointError::Server(error) => {
             tracing::warn!(endpoint = ep.name, error = %error, "request failed");
@@ -1547,6 +1569,7 @@ mod tests {
                 kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
                 message: "stream quota exceeded".to_string(),
                 retry_after: None,
+                http_status_code: None,
             }),
         );
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -1575,24 +1598,36 @@ mod tests {
         );
     }
 
-    /// Other gRPC faults keep the 500 server_error shape — only the
-    /// capacity condition is retry-hinted.
+    /// Every other gRPC status is answered with the HTTP status the service
+    /// attached in its `http_status_code` trailer, as the terminal does, and
+    /// with the service's description verbatim as the body. Without a usable
+    /// trailer the answer is 500. Only the capacity condition is
+    /// retry-hinted.
     #[tokio::test]
-    async fn other_grpc_faults_stay_500() {
-        let ep = any_endpoint();
-        let resp = endpoint_error_response(
-            ep,
-            EndpointError::Server(thetadatadx::Error::Grpc {
-                kind: thetadatadx::GrpcStatusKind::Internal,
-                message: "decode fault".to_string(),
-                retry_after: None,
-            }),
-        );
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert!(resp
-            .headers()
-            .get(axum::http::header::RETRY_AFTER)
-            .is_none());
+    async fn grpc_faults_answer_with_the_upstream_http_status() {
+        use thetadatadx::GrpcStatusKind;
+        for (kind, http_status_code, expected) in [
+            (GrpcStatusKind::NotFound, Some(472), 472),
+            (GrpcStatusKind::InvalidArgument, Some(400), 400),
+            (GrpcStatusKind::Internal, None, 500),
+            (GrpcStatusKind::PermissionDenied, Some(0), 500),
+        ] {
+            let resp = endpoint_error_response(
+                any_endpoint(),
+                EndpointError::Server(thetadatadx::Error::Grpc {
+                    kind,
+                    message: "upstream description".to_string(),
+                    retry_after: None,
+                    http_status_code,
+                }),
+            );
+            assert_eq!(resp.status().as_u16(), expected, "{kind:?}");
+            assert!(resp
+                .headers()
+                .get(axum::http::header::RETRY_AFTER)
+                .is_none());
+            assert_eq!(read_body(resp).await, "upstream description", "{kind:?}");
+        }
     }
 
     /// v3 registry / data errors are a plain-text body at the right status —

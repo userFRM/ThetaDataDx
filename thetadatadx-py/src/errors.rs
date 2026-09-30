@@ -392,6 +392,7 @@ mod tests {
                 kind: GrpcStatusKind::PermissionDenied,
                 message: "tier insufficient".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "SubscriptionError");
         });
@@ -405,6 +406,7 @@ mod tests {
                 kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "RateLimitError");
         });
@@ -418,6 +420,7 @@ mod tests {
                 kind: GrpcStatusKind::NotFound,
                 message: "no rows".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "NotFoundError");
         });
@@ -431,6 +434,7 @@ mod tests {
                 kind: GrpcStatusKind::Unavailable,
                 message: "backend down".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "UnavailableError");
         });
@@ -454,6 +458,7 @@ mod tests {
                 kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
                 retry_after: Some(std::time::Duration::from_millis(1500)),
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "RateLimitError");
             let value = err.value(py);
@@ -469,6 +474,7 @@ mod tests {
                 kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             let secs_none: Option<f64> = err_none
                 .value(py)

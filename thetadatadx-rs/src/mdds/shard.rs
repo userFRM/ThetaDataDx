@@ -3149,6 +3149,7 @@ mod tests {
             kind: GrpcStatusKind::NotFound,
             message: "No data found for your request".into(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -3225,6 +3226,7 @@ mod tests {
                         kind: GrpcStatusKind::PermissionDenied,
                         message: String::new(),
                         retry_after: None,
+                        http_status_code: None,
                     }),
                 )
             }),
@@ -3415,6 +3417,7 @@ mod tests {
                 kind: GrpcStatusKind::PermissionDenied,
                 message: String::new(),
                 retry_after: None,
+                http_status_code: None,
             }),
         ];
         let err = join_streaming_shards(&bands, shards).await.unwrap_err();
@@ -3443,6 +3446,7 @@ mod tests {
                 kind: GrpcStatusKind::PermissionDenied,
                 message: String::new(),
                 retry_after: None,
+                http_status_code: None,
             }),
         ];
         let err = join_streaming_shards(&bands, shards).await.unwrap_err();
@@ -3472,6 +3476,7 @@ mod tests {
                     kind: GrpcStatusKind::Unavailable,
                     message: String::new(),
                     retry_after: None,
+                    http_status_code: None,
                 },
                 true,
             ),
@@ -3494,6 +3499,7 @@ mod tests {
             kind: GrpcStatusKind::Unavailable,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         };
         let shards = vec![
             failing_band(unavailable()),

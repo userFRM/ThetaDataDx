@@ -1951,6 +1951,7 @@ mod classify_error_tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -2190,6 +2191,7 @@ mod streaming_attempt_tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -2380,6 +2382,7 @@ mod refresh_retry_disabled_tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -2823,6 +2826,7 @@ mod retry_hint_clamp_tests {
             kind: GrpcStatusKind::Unavailable,
             message: "hostile hint".into(),
             retry_after: Some(Duration::from_secs(i64::MAX as u64)),
+            http_status_code: None,
         };
         let clamped = tokio::time::timeout(
             Duration::from_secs(5),

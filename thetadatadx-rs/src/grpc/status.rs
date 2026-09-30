@@ -6,14 +6,19 @@
 //! payload. See <https://grpc.github.io/grpc/core/md_doc_statuscodes.html>
 //! for the canonical code list.
 //!
-//! [`Status`] mirrors exactly the fields the crate consumes — code,
-//! message, and the `google.rpc.RetryInfo` backoff hint — so no
+//! [`Status`] mirrors exactly the fields the crate consumes (code,
+//! message, the `google.rpc.RetryInfo` backoff hint, and the upstream's
+//! `http_status_code` trailer), so no
 //! third-party status type crosses the module boundary. The conversion
 //! from the underlying stack's status type happens once, at
 //! `Status::from_tonic`, inside this module.
 
 /// Fully-qualified `Any.type_url` suffix for `google.rpc.RetryInfo`.
 const RETRY_INFO_TYPE_URL_SUFFIX: &str = "google.rpc.RetryInfo";
+
+/// ASCII trailer in which the market-data service states the HTTP status
+/// that corresponds to a failed call.
+const HTTP_STATUS_CODE_TRAILER: &str = "http_status_code";
 
 /// gRPC status carried in response trailers (or a trailers-only
 /// response head).
@@ -35,6 +40,9 @@ pub struct Status {
     /// cooldown is honoured while a hostile hint cannot pin a request
     /// permit for an unbounded sleep.
     retry_delay: Option<std::time::Duration>,
+    /// HTTP status the service attached in the `http_status_code` trailer,
+    /// when present and numeric.
+    http_status_code: Option<u16>,
 }
 
 impl Status {
@@ -45,6 +53,7 @@ impl Status {
             code,
             message: message.into(),
             retry_delay: None,
+            http_status_code: None,
         }
     }
 
@@ -52,7 +61,8 @@ impl Status {
     /// type. The numeric code and UTF-8 message map directly; the
     /// `grpc-status-details-bin` payload (already base64-decoded by
     /// the receive path) is scanned for a `google.rpc.RetryInfo`
-    /// backoff hint.
+    /// backoff hint, and the `http_status_code` trailer is read as a
+    /// decimal integer (an unparseable value is treated as absent).
     #[must_use]
     pub(crate) fn from_tonic(status: &tonic::Status) -> Self {
         // `tonic::Code` discriminants match the wire codes one-for-one;
@@ -62,6 +72,11 @@ impl Status {
             code,
             message: status.message().to_string(),
             retry_delay: decode_retry_delay(status.details()),
+            http_status_code: status
+                .metadata()
+                .get(HTTP_STATUS_CODE_TRAILER)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.trim().parse().ok()),
         }
     }
 
@@ -83,6 +98,13 @@ impl Status {
     #[must_use]
     pub const fn retry_delay(&self) -> Option<std::time::Duration> {
         self.retry_delay
+    }
+
+    /// HTTP status the service attached to this status in its
+    /// `http_status_code` trailer. `None` when the trailer is absent.
+    #[must_use]
+    pub const fn http_status_code(&self) -> Option<u16> {
+        self.http_status_code
     }
 }
 
@@ -217,7 +239,8 @@ mod tests {
     /// Full-chain pin: the underlying stack's status converts through
     /// [`Status::from_tonic`] into `crate::Error::Grpc` with the
     /// matching [`crate::error::GrpcStatusKind`] for every canonical
-    /// code, and the `RetryInfo` hint lands in `retry_after`.
+    /// code, the `RetryInfo` hint lands in `retry_after`, and the
+    /// `http_status_code` trailer lands in `http_status_code`.
     #[test]
     fn every_status_kind_maps_through_crate_error() {
         use crate::error::{Error, GrpcStatusKind};
@@ -243,13 +266,21 @@ mod tests {
         ];
         for (code, expected_kind) in cases {
             let details = retry_info_details(1, 250_000_000);
-            let upstream = tonic::Status::with_details(code, "wire message", details.into());
+            let mut trailers = tonic::metadata::MetadataMap::new();
+            trailers.insert("http_status_code", "472".parse().expect("ascii value"));
+            let upstream = tonic::Status::with_details_and_metadata(
+                code,
+                "wire message",
+                details.into(),
+                trailers,
+            );
             let err = Error::from(Status::from_tonic(&upstream));
             match err {
                 Error::Grpc {
                     kind,
                     message,
                     retry_after,
+                    http_status_code,
                 } => {
                     assert_eq!(kind, expected_kind, "kind mismatch for {code:?}");
                     assert_eq!(message, "wire message");
@@ -257,6 +288,11 @@ mod tests {
                         retry_after,
                         Some(std::time::Duration::from_millis(1_250)),
                         "RetryInfo hint must survive the full mapping chain for {code:?}"
+                    );
+                    assert_eq!(
+                        http_status_code,
+                        Some(472),
+                        "the http_status_code trailer must survive the full mapping chain for {code:?}"
                     );
                 }
                 other => panic!("expected Error::Grpc for {code:?}, got {other:?}"),

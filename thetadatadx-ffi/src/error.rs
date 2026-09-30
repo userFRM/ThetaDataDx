@@ -361,6 +361,7 @@ mod tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -492,6 +493,7 @@ mod tests {
             kind: GrpcStatusKind::ResourceExhausted,
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(1500)),
+            http_status_code: None,
         });
         assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_RATE_LIMIT);
         assert_eq!(thetadatadx_last_error_retry_after_ms(), 1500);
@@ -509,6 +511,7 @@ mod tests {
             kind: GrpcStatusKind::ResourceExhausted,
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(2000)),
+            http_status_code: None,
         });
         assert_eq!(thetadatadx_last_error_retry_after_ms(), 2000);
         set_error("unrelated failure");
