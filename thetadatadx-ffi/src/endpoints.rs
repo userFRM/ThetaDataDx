@@ -109,27 +109,17 @@ include!("endpoint_request_options.rs");
 include!("endpoint_with_options.rs");
 include!("endpoint_stream.rs");
 
-#[cfg(test)]
-mod null_callback_guard_tests {
-    use std::os::raw::c_void;
-
-    use super::ThetaDataDxTickChunkCallback;
-
-    extern "C" fn noop(_rows: *const c_void, _len: usize, _ctx: *mut c_void) {}
-
-    #[test]
-    fn null_tick_chunk_callback_is_the_none_niche_the_guard_rejects() {
-        // A C caller passing a null function pointer arrives as the `None`
-        // niche of `Option<ThetaDataDxTickChunkCallback>`; every
-        // `thetadatadx_<endpoint>_stream` entry rejects that with a typed
-        // error before building a `TickChunkSink`, so the null pointer is
-        // never stored and never called on a runtime worker thread. A real
-        // pointer is `Some` and proceeds. This pins the representation the
-        // guards depend on so the parameter type cannot silently revert to
-        // the non-nullable `extern "C" fn`.
-        let null_cb: Option<ThetaDataDxTickChunkCallback> = None;
-        assert!(null_cb.is_none());
-        let real_cb: Option<ThetaDataDxTickChunkCallback> = Some(noop);
-        assert!(real_cb.is_some());
-    }
-}
+// A C caller can pass a null chunk callback. It is representable only as the
+// `None` niche of `Option<ThetaDataDxTickChunkCallback>`, which every
+// `thetadatadx_<endpoint>_stream` entry rejects before building its sink.
+// This coercion stops compiling if the generated parameter reverts to a
+// non-nullable `extern "C" fn`.
+const _: unsafe extern "C" fn(
+    *const ThetaDataDxMarketDataClient,
+    *const c_char,
+    *const c_char,
+    *const c_char,
+    Option<ThetaDataDxTickChunkCallback>,
+    *mut c_void,
+    *const ThetaDataDxEndpointRequestOptions,
+) -> i32 = thetadatadx_stock_history_eod_stream;

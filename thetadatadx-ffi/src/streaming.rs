@@ -3054,23 +3054,9 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
 mod null_callback_guard_tests {
     use std::ffi::c_void;
 
-    use super::{ThetaDataDxStreamCallback, ThetaDataDxStreamEvent};
+    use super::ThetaDataDxStreamEvent;
 
     extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
-
-    #[test]
-    fn null_callback_is_the_none_niche_the_guard_rejects() {
-        // A C caller passing a null function pointer arrives as the `None`
-        // niche of `Option<ThetaDataDxStreamCallback>`; both set_callback
-        // entries reject that before constructing an `FfiCallback`. A real
-        // pointer is `Some` and proceeds. This pins the representation the
-        // guards depend on so the parameter type cannot silently revert to
-        // the non-nullable `extern "C" fn`.
-        let null_cb: Option<ThetaDataDxStreamCallback> = None;
-        assert!(null_cb.is_none());
-        let real_cb: Option<ThetaDataDxStreamCallback> = Some(noop);
-        assert!(real_cb.is_some());
-    }
 
     /// Read the thread-local last-error slot set by the C ABI entry points
     /// as an owned `String`, so an assertion does not hold a borrow across
@@ -3126,21 +3112,6 @@ mod null_callback_guard_tests {
             last_error().as_deref(),
             Some("callback function pointer is null"),
         );
-    }
-
-    #[test]
-    fn unified_already_streaming_contract_string_is_stable() {
-        // Pin the exact wording the live-handle gate emits. A second
-        // `thetadatadx_client_set_callback` while the slot is `Live` returns
-        // -1 with this message (documented in the function's "REPLACEMENT
-        // after stop" contract and in the C header); the unified path mirrors
-        // the FPSS one-shot rule for the active window while still permitting
-        // replacement after stop. The string is asserted here so the
-        // documented C ABI contract cannot drift from the implementation
-        // without this test failing.
-        crate::error::thetadatadx_clear_error();
-        crate::error::set_error("streaming already started");
-        assert_eq!(last_error().as_deref(), Some("streaming already started"));
     }
 
     #[test]
