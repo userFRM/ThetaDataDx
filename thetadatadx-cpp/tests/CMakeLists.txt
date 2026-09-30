@@ -7,9 +7,10 @@
 #     compile-time symbol bindings. No network, no credentials.
 #
 #   * Live (gated on `THETADATADX_LIVE_CREDS`): exercise the full FPSS /
-#     historical round-trip against the production server. CI exports
-#     the secret only on the protected branch; PR builds skip the live
-#     subset and pass on offline alone.
+#     historical round-trip against the production server. No CI workflow
+#     sets the variable, so CI runs the offline subset only; set
+#     `THETADATADX_LIVE_CREDS=/path/to/creds.txt` to run the live subset
+#     locally.
 #
 # Catch2 is pulled in via FetchContent so contributors don't need a
 # system-wide install. Pinned to v3.5.4 (the most recent LTS at the
