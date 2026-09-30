@@ -275,8 +275,7 @@ private:
     std::optional<double> retry_after_;
 };
 
-/// Empty result / unknown contract (gRPC `NotFound`,
-/// `Error::NoData`).
+/// Empty result / unknown contract (gRPC `NotFound`).
 class NotFoundError : public ThetaDataError {
 public:
     using ThetaDataError::ThetaDataError;

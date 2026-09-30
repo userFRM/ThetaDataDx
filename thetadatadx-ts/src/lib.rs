@@ -627,7 +627,6 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             GrpcStatusKind::Unavailable => "UnavailableError",
             _ => "ThetaDataError",
         },
-        thetadatadx::Error::NoData => "NotFoundError",
         thetadatadx::Error::Timeout { .. } => "DeadlineExceededError",
         thetadatadx::Error::Transport { .. }
         | thetadatadx::Error::Tls(_)

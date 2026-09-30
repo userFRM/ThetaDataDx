@@ -428,10 +428,6 @@ pub enum Error {
         source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
 
-    /// Query returned no data rows.
-    #[error("No data returned")]
-    NoData,
-
     /// Authentication error.
     #[error("Authentication error ({kind}): {message}")]
     Auth {
@@ -1211,7 +1207,6 @@ mod tests {
         assert_eq!(no_hint.retry_after(), None);
 
         // Non-gRPC variants never carry a retry hint.
-        assert_eq!(Error::NoData.retry_after(), None);
         assert_eq!(Error::Timeout { duration_ms: 500 }.retry_after(), None);
     }
 

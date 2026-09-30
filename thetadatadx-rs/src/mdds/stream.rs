@@ -582,7 +582,7 @@ pub(crate) async fn collect_stream_table(
     }
 
     // An empty stream is valid (e.g. no trades on a holiday) — return an
-    // empty DataTable instead of Error::NoData. Callers that need to
+    // empty DataTable. Callers that need to
     // distinguish "no data" can check `table.data_table.is_empty()`.
     Ok(proto::DataTable {
         headers,

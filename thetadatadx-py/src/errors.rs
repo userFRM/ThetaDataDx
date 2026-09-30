@@ -282,7 +282,6 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
             GrpcStatusKind::Unavailable => UnavailableError::new_err(e.to_string()),
             _ => ThetaDataError::new_err(e.to_string()),
         },
-        thetadatadx::Error::NoData => NotFoundError::new_err(e.to_string()),
         thetadatadx::Error::Timeout { .. } => DeadlineExceededError::new_err(e.to_string()),
         thetadatadx::Error::Transport { .. } => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Tls(_) => NetworkError::new_err(e.to_string()),
@@ -434,15 +433,6 @@ mod tests {
                 retry_after: None,
             });
             assert_exception_class(py, &err, "UnavailableError");
-        });
-    }
-
-    #[test]
-    fn nodata_error_maps_to_not_found() {
-        Python::initialize();
-        Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::NoData);
-            assert_exception_class(py, &err, "NotFoundError");
         });
     }
 

@@ -14,8 +14,8 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 | Bad or expired credentials | `Auth` | `AuthenticationError` / `InvalidCredentialsError` | `thetadatadx::AuthenticationError` / `thetadatadx::InvalidCredentialsError` |
 | Endpoint needs a higher tier | `Grpc` (permission) | `SubscriptionError` | `thetadatadx::SubscriptionError` |
 | Too many requests in flight upstream | `Grpc` (resource exhausted) | `RateLimitError` | `thetadatadx::RateLimitError` |
-| Request returned no rows | `NoData` | `NoDataFoundError` | `thetadatadx::Error` with `kind == NoData` |
-| Per-request deadline elapsed | `Timeout` | `TimeoutError` | `thetadatadx::Error` with `kind == Timeout` |
+| Request returned no rows | `Grpc` (not found) | `NotFoundError` / `NoDataFoundError` | `thetadatadx::NotFoundError` |
+| Per-request deadline elapsed | `Timeout` | `DeadlineExceededError` / `TimeoutError` | `thetadatadx::DeadlineExceededError` |
 | Connection / TLS / protocol fault | `Transport` | `NetworkError` | `thetadatadx::NetworkError` |
 | Response shape unexpected | `Decode` | `SchemaMismatchError` | `thetadatadx::SchemaMismatchError` |
 | Streaming session fault | `Stream` | `StreamError` | `thetadatadx::StreamError` |
@@ -23,7 +23,7 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 
 - **Python** exceptions all derive from `ThetaDataError`, so `except ThetaDataError` is the catch-all.
 - **TypeScript** throws a typed subclass, the same hierarchy the other bindings expose: `catch (e) { if (e instanceof SubscriptionError) ... }`. A rate-limit error carries `retryAfter`. The message still carries the same stable text as the Rust `Display` output, but an instance check is the reliable test, not a pattern over the message.
-- **C++** exceptions derive from `thetadatadx::ThetaDataError`; `NoData` and `Timeout` ride the generic `thetadatadx::Error` with a `kind` discriminator.
+- **C++** exceptions derive from `thetadatadx::ThetaDataError`, so `catch (const thetadatadx::ThetaDataError&)` is the catch-all.
 
 ```python
 from thetadatadx import NoDataFoundError, RateLimitError, ThetaDataError

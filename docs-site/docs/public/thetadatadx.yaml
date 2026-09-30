@@ -3485,7 +3485,7 @@ components:
       properties:
         code:
           type: string
-          enum: [Auth, Http, Grpc, NoData]
+          enum: [Auth, Http, Grpc]
         message:
           type: string
 
