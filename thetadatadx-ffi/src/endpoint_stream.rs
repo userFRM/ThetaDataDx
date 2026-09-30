@@ -28,6 +28,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -43,11 +47,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -90,16 +89,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -142,16 +140,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -194,16 +191,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -246,16 +242,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -304,6 +299,10 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -324,11 +323,6 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -377,6 +371,10 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -397,11 +395,6 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -450,6 +443,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -470,11 +467,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -519,6 +511,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -529,11 +525,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -578,6 +569,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -588,11 +583,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -637,6 +627,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -647,11 +641,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -696,6 +685,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -706,11 +699,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -755,6 +743,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -765,11 +757,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -818,6 +805,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -838,11 +829,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -887,6 +873,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -897,11 +887,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -946,6 +931,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -956,11 +945,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1005,6 +989,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1015,11 +1003,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1064,6 +1047,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1074,11 +1061,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1123,6 +1105,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1133,11 +1119,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1182,6 +1163,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1192,11 +1177,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1241,6 +1221,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1251,11 +1235,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1300,6 +1279,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1310,11 +1293,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1359,6 +1337,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1369,11 +1351,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1418,6 +1395,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1428,11 +1409,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1483,6 +1459,10 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1508,11 +1488,6 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1563,6 +1538,10 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1588,11 +1567,6 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1639,6 +1613,10 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1654,11 +1632,6 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1705,6 +1678,10 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1720,11 +1697,6 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1767,16 +1739,15 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1825,6 +1796,10 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1845,11 +1820,6 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");
@@ -1896,6 +1866,10 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1911,11 +1885,6 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         let Some(callback) = callback else {
             set_error("callback function pointer is null");

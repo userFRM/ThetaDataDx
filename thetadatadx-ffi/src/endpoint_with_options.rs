@@ -13,7 +13,6 @@ pub unsafe extern "C" fn thetadatadx_stock_list_symbols_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
@@ -58,6 +57,10 @@ pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let request_type = require_cstr!(request_type, empty);
         args.insert(
             "request_type".to_string(),
@@ -68,11 +71,6 @@ pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
@@ -116,16 +114,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
@@ -178,16 +175,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
@@ -240,16 +236,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
@@ -302,16 +297,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
@@ -368,6 +362,10 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -383,11 +381,6 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
@@ -440,16 +433,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
@@ -502,16 +494,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
@@ -564,16 +555,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
@@ -626,16 +616,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
@@ -694,6 +683,10 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -714,11 +707,6 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
@@ -777,6 +765,10 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -797,11 +789,6 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
@@ -847,7 +834,6 @@ pub unsafe extern "C" fn thetadatadx_option_list_symbols_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
@@ -894,6 +880,10 @@ pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let request_type = require_cstr!(request_type, empty);
         args.insert(
             "request_type".to_string(),
@@ -909,11 +899,6 @@ pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
@@ -952,16 +937,15 @@ pub unsafe extern "C" fn thetadatadx_option_list_expirations_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
@@ -1002,6 +986,10 @@ pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1012,11 +1000,6 @@ pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
@@ -1062,6 +1045,10 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let request_type = require_cstr!(request_type, empty);
         args.insert(
             "request_type".to_string(),
@@ -1072,11 +1059,6 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
@@ -1131,6 +1113,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1141,11 +1127,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
@@ -1200,6 +1181,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1210,11 +1195,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
@@ -1269,6 +1249,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1279,11 +1263,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
@@ -1338,6 +1317,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1348,11 +1331,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
@@ -1407,6 +1385,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1417,11 +1399,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
@@ -1476,6 +1453,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1486,11 +1467,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
@@ -1545,6 +1521,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1555,11 +1535,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
@@ -1614,6 +1589,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1624,11 +1603,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
@@ -1683,6 +1657,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1693,11 +1671,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
@@ -1752,6 +1725,10 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1762,11 +1739,6 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
@@ -1825,6 +1797,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1845,11 +1821,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
@@ -1904,6 +1875,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1914,11 +1889,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
@@ -1973,6 +1943,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -1983,11 +1957,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
@@ -2042,6 +2011,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2052,11 +2025,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
@@ -2111,6 +2079,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2121,11 +2093,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
@@ -2180,6 +2147,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2190,11 +2161,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
@@ -2253,6 +2219,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2273,11 +2243,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
@@ -2332,6 +2297,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2342,11 +2311,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
@@ -2401,6 +2365,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2411,11 +2379,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
@@ -2470,6 +2433,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2480,11 +2447,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
@@ -2539,6 +2501,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2549,11 +2515,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
@@ -2608,6 +2569,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2618,11 +2583,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
@@ -2677,6 +2637,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2687,11 +2651,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
@@ -2746,6 +2705,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2756,11 +2719,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
@@ -2815,6 +2773,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2825,11 +2787,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
@@ -2884,6 +2841,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2894,11 +2855,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
@@ -2953,6 +2909,10 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -2963,11 +2923,6 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
             "expiration".to_string(),
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
@@ -3028,6 +2983,10 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -3053,11 +3012,6 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
@@ -3118,6 +3072,10 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -3143,11 +3101,6 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
@@ -3193,7 +3146,6 @@ pub unsafe extern "C" fn thetadatadx_index_list_symbols_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
@@ -3236,16 +3188,15 @@ pub unsafe extern "C" fn thetadatadx_index_list_dates_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
@@ -3289,16 +3240,15 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
@@ -3351,16 +3301,15 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
@@ -3413,16 +3362,15 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbols = require_symbol_array!(symbols, symbols_len, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
@@ -3479,6 +3427,10 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -3494,11 +3446,6 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
@@ -3555,6 +3502,10 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -3570,11 +3521,6 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
@@ -3627,16 +3573,15 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
@@ -3695,6 +3640,10 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -3715,11 +3664,6 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
             "time_of_day".to_string(),
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
@@ -3770,7 +3714,6 @@ pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
-
         if let Err(message) = apply_endpoint_request_options(&mut args, options) {
             crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
             return empty;
@@ -3827,16 +3770,15 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let date = require_cstr!(date, empty);
         args.insert(
             "date".to_string(),
             thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
@@ -3889,16 +3831,15 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let year = require_cstr!(year, empty);
         args.insert(
             "year".to_string(),
             thetadatadx::EndpointArgValue::Str(year.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
@@ -3955,6 +3896,10 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
         let symbol = require_cstr!(symbol, empty);
         args.insert(
             "symbol".to_string(),
@@ -3970,11 +3915,6 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
             "end_date".to_string(),
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
-
-        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
-            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
-            return empty;
-        }
 
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await

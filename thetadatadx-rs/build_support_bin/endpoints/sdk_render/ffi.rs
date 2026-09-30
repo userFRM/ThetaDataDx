@@ -259,6 +259,16 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     }
     out.push_str("        let client = require_client!(client, empty);\n\n");
     out.push_str("        let mut args = thetadatadx::EndpointArgs::new();\n");
+    // Fold the shared options bag in BEFORE the positional arguments, so a
+    // bag field that shares a name with a positional argument of this
+    // endpoint (`symbol`, `date`, `start_date`, `end_date`) is overwritten by
+    // the positional value instead of silently replacing it.
+    out.push_str(
+        "        if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
+    );
+    out.push_str("            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);\n");
+    out.push_str("            return empty;\n");
+    out.push_str("        }\n");
 
     for param in &method_params {
         if param.param_type == "Symbols" {
@@ -273,12 +283,7 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
         }
     }
 
-    out.push_str(
-        "\n        if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
-    );
-    out.push_str("            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);\n");
-    out.push_str("            return empty;\n");
-    out.push_str("        }\n\n");
+    out.push('\n');
     out.push_str("        match runtime().block_on(async {\n");
     writeln!(
         out,
@@ -434,6 +439,16 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("        let empty = -1;\n");
     out.push_str("        let client = require_client!(client, empty);\n\n");
     out.push_str("        let mut args = thetadatadx::EndpointArgs::new();\n");
+    // Fold the shared options bag in BEFORE the positional arguments, so a
+    // bag field that shares a name with a positional argument of this
+    // endpoint (`symbol`, `date`, `start_date`, `end_date`) is overwritten by
+    // the positional value instead of silently replacing it.
+    out.push_str(
+        "        if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
+    );
+    out.push_str("            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);\n");
+    out.push_str("            return empty;\n");
+    out.push_str("        }\n");
 
     for param in &method_params {
         if param.param_type == "Symbols" {
@@ -446,12 +461,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
         }
     }
 
-    out.push_str(
-        "\n        if let Err(message) = apply_endpoint_request_options(&mut args, options) {\n",
-    );
-    out.push_str("            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);\n");
-    out.push_str("            return empty;\n");
-    out.push_str("        }\n\n");
+    out.push('\n');
     // A C caller can pass a null function pointer; modelling the parameter
     // as `Option` lets the null bit pattern be represented and rejected here,
     // before the sink is built, instead of being stored and invoked on a
@@ -535,4 +545,61 @@ fn indent_template(template: &str) -> String {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::model::{GeneratedParam, ProtoField};
+    use super::*;
+
+    fn method_param(name: &str, param_type: &str) -> GeneratedParam {
+        GeneratedParam {
+            name: name.to_string(),
+            description: String::new(),
+            param_type: param_type.to_string(),
+            required: true,
+            binding: "method".to_string(),
+            _arg_name: None,
+            default: None,
+        }
+    }
+
+    // The options bag is shared by every endpoint, so it can carry a field
+    // named like one of this endpoint's positional arguments. The positional
+    // insert must come after the bag is folded in, or the bag's value wins.
+    #[test]
+    fn positional_arguments_override_the_options_bag() {
+        let endpoint = GeneratedEndpoint {
+            name: "stock_history_eod".to_string(),
+            description: "stock eod".to_string(),
+            category: "stock".to_string(),
+            subcategory: "history".to_string(),
+            _rest_path: "/v3/stock/history/eod".to_string(),
+            grpc_name: "get_stock_history_eod".to_string(),
+            request_type: "StockHistoryEodRequest".to_string(),
+            query_type: "StockHistoryEodQuery".to_string(),
+            fields: Vec::<ProtoField>::new(),
+            params: vec![
+                method_param("symbol", "Symbol"),
+                method_param("start_date", "Date"),
+                method_param("end_date", "Date"),
+            ],
+            return_type: "EodTicks".to_string(),
+            kind: "marketData".to_string(),
+            list_column: None,
+            vendor_docstring: None,
+        };
+        for rendered in [
+            render_ffi_with_options_endpoint(&endpoint),
+            render_ffi_stream_endpoint(&endpoint),
+        ] {
+            let apply = rendered
+                .find("apply_endpoint_request_options(&mut args, options)")
+                .expect("options bag applied");
+            for key in ["\"symbol\"", "\"start_date\"", "\"end_date\""] {
+                let insert = rendered.find(key).expect("positional argument inserted");
+                assert!(apply < insert, "options bag overrides positional {key}");
+            }
+        }
+    }
 }
