@@ -13,7 +13,7 @@ impl StreamView {
     ///
     /// Backpressure: a slow callback first fills a bounded
     /// delivery queue and then the event ring behind it, at
-    /// which point the oldest events are dropped and counted by
+    /// which point the newest incoming events are dropped and counted by
     /// `droppedEventCount()` while `ringOccupancy()` reports the
     /// in-flight depth. Watch those two signals to detect a
     /// callback that cannot keep up. The receive path is never
