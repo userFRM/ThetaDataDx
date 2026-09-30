@@ -80,6 +80,7 @@ Without credentials, the server still starts and serves the offline tool (`ping`
 - Pin one contract with a concrete strike: `"strike":"385"`.
 - Use `"strike":"*"` when you want a bulk chain-style response; rows then carry contract-identity fields.
 - `strike_range` narrows a bulk selection around the money; it does not fan a pinned strike out to neighbors.
+- One call returns at most 50,000 rows. A larger result is refused with its row count, so narrow it: a symbol, a single strike and right, a `strike_range` or `max_dte`, a coarser `interval`, or a `start_time` / `end_time` window. A full-day tick chain belongs in the SDK's streaming history builders or the flat-file tools.
 
 ## Troubleshooting
 

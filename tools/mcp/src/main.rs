@@ -696,6 +696,30 @@ fn code_or_null(code: i32, present: bool) -> Value {
     }
 }
 
+/// The most rows one tool call returns.
+///
+/// A tool result is one JSON-RPC message that the server builds in memory and
+/// the client reads into a model's context. Serialized, a row is a few hundred
+/// bytes, and each row is held several times over while the message is built,
+/// so this bounds a response at tens of megabytes. The rows are fetched before
+/// they are counted, so the limit bounds what is serialized and sent, not what
+/// is downloaded.
+const MAX_TOOL_ROWS: usize = 50_000;
+
+/// Refuse a result larger than [`MAX_TOOL_ROWS`], naming its size and the ways
+/// to narrow the request, rather than serializing it.
+fn check_row_count(rows: usize) -> Result<(), ToolError> {
+    if rows <= MAX_TOOL_ROWS {
+        return Ok(());
+    }
+    Err(ToolError::InvalidParams(format!(
+        "the result has {rows} rows; one tool call returns at most {MAX_TOOL_ROWS}. \
+         Narrow the request: a symbol, a single strike and right, a strike_range or max_dte, a \
+         coarser interval, a start_time/end_time window, or a shorter date range. Pull larger \
+         results with the SDK's streaming history builders."
+    )))
+}
+
 /// Serialize decoded rows as `{key: [...], "count": n}`.
 ///
 /// `row` renders every field of one tick. The tick struct is a superset of
@@ -706,7 +730,12 @@ fn code_or_null(code: i32, present: bool) -> Value {
 /// Each row is labelled with the symbol the response attributed it to, so a
 /// multi-symbol snapshot, whose rows come back in the vendor's order and omit
 /// symbols with no data, can be read row by row.
-fn tick_rows<T: WireColumns>(key: &str, ticks: &Ticks<T>, row: impl Fn(&T) -> Value) -> Value {
+fn tick_rows<T: WireColumns>(
+    key: &str,
+    ticks: &Ticks<T>,
+    row: impl Fn(&T) -> Value,
+) -> Result<Value, ToolError> {
+    check_row_count(ticks.len())?;
     let columns = ticks.columns();
     let schema = T::all_columns();
     let unsent: Vec<&str> = schema
@@ -733,7 +762,7 @@ fn tick_rows<T: WireColumns>(key: &str, ticks: &Ticks<T>, row: impl Fn(&T) -> Va
             value
         })
         .collect();
-    json!({ key: rows, "count": rows.len() })
+    Ok(json!({ key: rows, "count": rows.len() }))
 }
 
 fn eod_row(t: &thetadatadx::EodTick) -> Value {
@@ -1095,7 +1124,10 @@ fn interest_rate_row(t: &thetadatadx::InterestRateTick) -> Value {
     json!({"date": t.date, "rate": t.rate})
 }
 
-fn serialize_option_contracts(contracts: &[thetadatadx::OptionContract]) -> Value {
+fn serialize_option_contracts(
+    contracts: &[thetadatadx::OptionContract],
+) -> Result<Value, ToolError> {
+    check_row_count(contracts.len())?;
     let rows: Vec<Value> = contracts
         .iter()
         .map(|c| {
@@ -1105,10 +1137,11 @@ fn serialize_option_contracts(contracts: &[thetadatadx::OptionContract]) -> Valu
             })
         })
         .collect();
-    json!({ "contracts": rows, "count": rows.len() })
+    Ok(json!({ "contracts": rows, "count": rows.len() }))
 }
 
-fn serialize_string_list(name: &str, values: &[String]) -> Value {
+fn serialize_string_list(name: &str, values: &[String]) -> Result<Value, ToolError> {
+    check_row_count(values.len())?;
     let key = if name.ends_with("_symbols") {
         "symbols"
     } else if name.ends_with("_dates") {
@@ -1120,10 +1153,10 @@ fn serialize_string_list(name: &str, values: &[String]) -> Value {
     } else {
         "values"
     };
-    json!({ key: values, "count": values.len() })
+    Ok(json!({ key: values, "count": values.len() }))
 }
 
-fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
+fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Result<Value, ToolError> {
     match output {
         EndpointOutput::StringList(values) => serialize_string_list(name, values),
         EndpointOutput::EodTicks(ticks) => tick_rows("ticks", ticks, eod_row),
@@ -1262,7 +1295,7 @@ async fn execute_tool(
         }
     };
 
-    Ok(serialize_endpoint_output(name, &output))
+    serialize_endpoint_output(name, &output)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2514,7 +2547,7 @@ mod tests {
             ],
             QuoteTick::all_columns().with_symbols(["MSFT", "AAPL"]),
         ));
-        let payload = serialize_endpoint_output("stock_snapshot_quote", &quotes);
+        let payload = serialize_endpoint_output("stock_snapshot_quote", &quotes).unwrap();
         let rows = payload["ticks"].as_array().unwrap();
         assert_eq!(rows[0]["symbol"].as_str(), Some("MSFT"));
         assert_eq!(rows[1]["symbol"].as_str(), Some("AAPL"));
@@ -2561,7 +2594,7 @@ mod tests {
             ])
             .with_symbol("AAPL"),
         ));
-        let payload = serialize_endpoint_output("stock_snapshot_trade", &trades);
+        let payload = serialize_endpoint_output("stock_snapshot_trade", &trades).unwrap();
         let row = &payload["ticks"][0];
         assert_eq!(row["symbol"].as_str(), Some("AAPL"));
         assert_eq!(row["condition"].as_i64(), Some(0));
@@ -2572,6 +2605,24 @@ mod tests {
             "records_back",
         ] {
             assert!(row.get(absent).is_none(), "unsent column {absent}: {row:?}");
+        }
+    }
+
+    /// A result past the row limit is refused, naming its size and the limit,
+    /// instead of being serialized into one oversized message.
+    #[test]
+    fn an_oversized_result_is_refused_with_its_size() {
+        let rows = vec![sample_eod_tick(0, 0.0, '\0'); MAX_TOOL_ROWS + 1];
+        let output = EndpointOutput::EodTicks(Ticks::from(rows));
+        match serialize_endpoint_output("stock_history_eod", &output) {
+            Err(ToolError::InvalidParams(message)) => {
+                assert!(
+                    message.contains(&(MAX_TOOL_ROWS + 1).to_string())
+                        && message.contains(&MAX_TOOL_ROWS.to_string()),
+                    "{message}"
+                );
+            }
+            other => panic!("an oversized result must be refused; got {other:?}"),
         }
     }
 
