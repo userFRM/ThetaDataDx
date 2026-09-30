@@ -57,14 +57,14 @@ def test_reconnect_max_attempts_is_silent_noop_on_manual_policy():
     Matches the cross-binding contract: the setter only mutates
     ``ReconnectAttemptLimits`` fields when the policy variant is
     ``Auto``; under ``Manual`` (or the Rust-only ``Custom``) the
-    call is silently absorbed. The Python surface has no getter on
-    this knob (parity with FFI / TS / C++ which are all write-only
-    on the per-class budgets), so the contract is "does not raise".
+    call is silently absorbed. It must not switch the policy to
+    ``Auto``.
     """
     mod = _import_module()
     cfg = mod.Config.production()
     cfg.reconnect_policy = "manual"
     cfg.reconnect_max_attempts = 5
+    assert cfg.reconnect_policy == "manual"
 
 
 # ─── reconnect_stable_window_secs ───────────────────────────────────
@@ -107,10 +107,9 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     """Interleaved reconnect setter and pool-sizing setter calls
     must not interfere with each other.
 
-    Mirrors the TS ``Reconnect setters are independent`` case: the
-    reconnect setters have no getters, so we assert via a market-data
-    tuning getter that that state survives a reconnect setter
-    sequence.
+    Mirrors the TS ``Reconnect setters are independent`` case: every
+    value written under ``Auto`` reads back, and the market-data tuning
+    getter still sees its own value after the reconnect setter sequence.
     """
     mod = _import_module()
     cfg = mod.Config.production()
@@ -120,8 +119,10 @@ def test_reconnect_setter_state_survives_interleaved_calls():
     cfg.reconnect_stable_window_secs = 120
     cfg.warn_on_buffered_threshold_bytes = 8 * 1024 * 1024
     assert cfg.warn_on_buffered_threshold_bytes == 8 * 1024 * 1024
-    # Reconnect policy getter still reads the policy we set.
     assert cfg.reconnect_policy == "auto"
+    assert cfg.reconnect_max_attempts == 7
+    assert cfg.reconnect_max_rate_limited_attempts == 77
+    assert cfg.reconnect_stable_window_secs == 120
 
 
 # ─── ReconnectConfig.wait_ms / wait_rate_limited_ms ────────────────
