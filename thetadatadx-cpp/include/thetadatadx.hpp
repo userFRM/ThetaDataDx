@@ -1852,10 +1852,12 @@ public:
      *  Unlike `StreamingClient::set_callback` (one-shot), the unified path
      *  permits stop+register as a normal user flow: after
      *  `stop_streaming()` another `set_callback` REPLACES the saved
-     *  `(callback, ctx)`. `reconnect()` is built on top of this. Calling
-     *  `set_callback` on a live (running) session also replaces — the
-     *  previous (callback, ctx) is drained out before the new one is wired
-     *  in, with the same `await_drain(5000)` budget.
+     *  `(callback, ctx)`, after the previous one is drained out with the
+     *  same `await_drain(5000)` budget. Calling `set_callback` on a live
+     *  (running) session throws `StreamError` ("streaming already started"),
+     *  matching the C ABI, Python and TypeScript: a new registration starts
+     *  a fresh session, so replacing a live one would silently drop every
+     *  subscription. Use `reconnect()` to restart while keeping them.
      *
      *  A replacement always installs a FRESH node and registers that node's
      *  distinct `&fn`; it never reuses or mutates the previously-registered
@@ -1870,11 +1872,15 @@ public:
         if (!handle_ || !callback_) {
             detail::throw_for_code(THETADATADX_ERR_STREAM, "client is closed");
         }
-        // Replacing a live registration: stop the session and wait for the
-        // consumer thread to stop firing through the old node. Matches the
-        // C ABI's replace-allowed contract, which requires that a fresh
+        if (thetadatadx_client_is_streaming(handle_.get()) == 1) {
+            detail::throw_for_code(THETADATADX_ERR_STREAM, "streaming already started");
+        }
+        // Replacing a stopped registration: wait for the consumer thread to
+        // stop firing through the old node. Matches the C ABI's
+        // replace-after-stop contract, which requires that a fresh
         // callback's storage must not alias a still-running previous
-        // registration.
+        // registration. The stop is a no-op after a user stop and retires a
+        // session whose dispatcher failed.
         if (callback_->slot->fn) {
             thetadatadx_client_stop_streaming(handle_.get());
             int drained = thetadatadx_client_await_drain(handle_.get(), 5000);
