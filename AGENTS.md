@@ -211,9 +211,9 @@ python3 scripts/dev/check_napi_drift.py        # rebuilds napi and diffs the com
 These reach the vendor's production systems and need credentials.
 
 ```sh
-python3 scripts/dev/live_smoke.py creds.txt    # core, server and MCP against production
-python3 scripts/dev/streaming_smoke.py         # takes optional --symbol / --option-symbol
-python3 scripts/dev/streaming_soak.py
+python3 scripts/dev/live_smoke.py creds.txt       # core, server and MCP against production
+python3 scripts/dev/streaming_smoke.py creds.txt  # takes optional --symbol / --option-symbol
+python3 scripts/dev/streaming_soak.py creds.txt
 ```
 
 `just smoke creds.txt` runs the first two.
