@@ -1,7 +1,7 @@
 //! Hand-written flat-file tool surface for the MCP server.
 //!
 //! Mirrors the Python / TypeScript flatfile API. Tools return the
-//! on-disk path of the written CSV / JSONL blob — MCP transports
+//! on-disk path of the written file, because MCP transports
 //! JSON-RPC, not raw bytes, and whole-universe flat files are large.
 //! Returning a path is the same convention the other MCP utility tools
 //! use for any file-producing operation.
@@ -126,8 +126,9 @@ fn token_values(tokens: Vec<String>) -> Vec<Value> {
 pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
     let format_prop = json!({
         "type": "string",
-        "description": "On-disk format. csv = vendor byte-format CSV, jsonl = JSON Lines.",
-        "enum": ["csv", "jsonl"]
+        "description": "On-disk format. csv = vendor byte-format CSV, json = one JSON array, \
+                        jsonl = JSON Lines, html = an HTML table.",
+        "enum": ["csv", "json", "jsonl", "html"]
     });
     let date_prop = json!({
         "type": "string",
@@ -214,37 +215,6 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
     }));
 }
 
-fn parse_sec_type(s: &str) -> Result<SecType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "OPTION" => Ok(SecType::Option),
-        "STOCK" => Ok(SecType::Stock),
-        "INDEX" => Ok(SecType::Index),
-        other => Err(format!("unknown sec_type: {other}")),
-    }
-}
-
-fn parse_req_type(s: &str) -> Result<ReqType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "EOD" => Ok(ReqType::Eod),
-        "QUOTE" => Ok(ReqType::Quote),
-        "OPEN_INTEREST" | "OPENINTEREST" => Ok(ReqType::OpenInterest),
-        "OHLC" => Ok(ReqType::Ohlc),
-        "TRADE" => Ok(ReqType::Trade),
-        "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(format!("unknown req_type: {other}")),
-    }
-}
-
-fn parse_format(value: Option<&str>) -> Result<FlatFileFormat, String> {
-    match value.unwrap_or("csv").to_ascii_lowercase().as_str() {
-        "csv" => Ok(FlatFileFormat::Csv),
-        "jsonl" | "json" => Ok(FlatFileFormat::Jsonl),
-        other => Err(format!(
-            "unknown flat-file format: {other:?} (expected csv or jsonl)"
-        )),
-    }
-}
-
 fn arg_str_opt(args: &Value, key: &str) -> Option<String> {
     args.get(key)
         .and_then(sonic_rs::JsonValueTrait::as_str)
@@ -292,11 +262,11 @@ pub(crate) async fn try_execute_flatfile_tool(
             Ok(s) => s,
             Err(e) => return Some(Err(ToolError::InvalidParams(e))),
         };
-        let sec = match parse_sec_type(&sec_str) {
+        let sec = match sec_str.parse::<SecType>() {
             Ok(v) => v,
             Err(e) => return Some(Err(ToolError::InvalidParams(e))),
         };
-        let req = match parse_req_type(&req_str) {
+        let req = match req_str.parse::<ReqType>() {
             Ok(v) => v,
             Err(e) => return Some(Err(ToolError::InvalidParams(e))),
         };
@@ -322,7 +292,10 @@ pub(crate) async fn try_execute_flatfile_tool(
         Err(e) => return Some(Err(ToolError::InvalidParams(e))),
     };
     let format_str = arg_str_opt(args, "format");
-    let format = match parse_format(format_str.as_deref()) {
+    let format = match format_str
+        .as_deref()
+        .map_or(Ok(FlatFileFormat::Csv), str::parse)
+    {
         Ok(f) => f,
         Err(e) => return Some(Err(ToolError::InvalidParams(e))),
     };

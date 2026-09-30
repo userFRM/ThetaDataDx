@@ -76,14 +76,7 @@ unsafe fn parse_sec(raw: *const c_char) -> Result<SecType, String> {
     let s = unsafe { cstr_to_str(raw) }
         .map_err(|e| format!("sec_type is not valid UTF-8: {e}"))?
         .ok_or_else(|| "sec_type is null".to_string())?;
-    match s.to_uppercase().as_str() {
-        "OPTION" => Ok(SecType::Option),
-        "STOCK" => Ok(SecType::Stock),
-        "INDEX" => Ok(SecType::Index),
-        other => Err(format!(
-            "unknown sec_type: {other:?} (expected OPTION, STOCK, or INDEX)"
-        )),
-    }
+    s.parse()
 }
 
 unsafe fn parse_req(raw: *const c_char) -> Result<ReqType, String> {
@@ -91,17 +84,7 @@ unsafe fn parse_req(raw: *const c_char) -> Result<ReqType, String> {
     let s = unsafe { cstr_to_str(raw) }
         .map_err(|e| format!("req_type is not valid UTF-8: {e}"))?
         .ok_or_else(|| "req_type is null".to_string())?;
-    match s.to_uppercase().as_str() {
-        "EOD" => Ok(ReqType::Eod),
-        "QUOTE" => Ok(ReqType::Quote),
-        "OPEN_INTEREST" | "OPENINTEREST" => Ok(ReqType::OpenInterest),
-        "OHLC" => Ok(ReqType::Ohlc),
-        "TRADE" => Ok(ReqType::Trade),
-        "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(format!(
-            "unknown req_type: {other:?} (expected EOD, QUOTE, OPEN_INTEREST, OHLC, TRADE, TRADE_QUOTE)"
-        )),
-    }
+    s.parse()
 }
 
 unsafe fn parse_fmt(raw: *const c_char) -> Result<FlatFileFormat, String> {
@@ -109,15 +92,7 @@ unsafe fn parse_fmt(raw: *const c_char) -> Result<FlatFileFormat, String> {
     let s = unsafe { cstr_to_str(raw) }
         .map_err(|e| format!("format is not valid UTF-8: {e}"))?
         .unwrap_or("csv");
-    match s.to_lowercase().as_str() {
-        "csv" => Ok(FlatFileFormat::Csv),
-        "json" => Ok(FlatFileFormat::Json),
-        "jsonl" | "ndjson" => Ok(FlatFileFormat::Jsonl),
-        "html" => Ok(FlatFileFormat::Html),
-        other => Err(format!(
-            "unknown flat-file format: {other:?} (expected csv, json, jsonl, ndjson, or html)"
-        )),
-    }
+    s.parse()
 }
 
 // ── FFI entry points ───────────────────────────────────────────────────

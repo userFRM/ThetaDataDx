@@ -127,46 +127,6 @@ rejection_response_fn!(query_rejection_response, QueryRejection);
 // siblings return — the contract clients drive retry / backoff off.
 rejection_response_fn!(path_rejection_response, PathRejection);
 
-// ── Enum parsing ─────────────────────────────────────────────────────────
-
-fn parse_sec_type(s: &str) -> Result<SecType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "OPTION" => Ok(SecType::Option),
-        "STOCK" => Ok(SecType::Stock),
-        "INDEX" => Ok(SecType::Index),
-        other => Err(format!("unknown sec_type: {other}")),
-    }
-}
-
-fn parse_req_type(s: &str) -> Result<ReqType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "EOD" => Ok(ReqType::Eod),
-        "QUOTE" => Ok(ReqType::Quote),
-        "OPEN_INTEREST" | "OPENINTEREST" => Ok(ReqType::OpenInterest),
-        "OHLC" => Ok(ReqType::Ohlc),
-        "TRADE" => Ok(ReqType::Trade),
-        "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(format!("unknown req_type: {other}")),
-    }
-}
-
-fn parse_format(value: Option<&str>) -> Result<FlatFileFormat, String> {
-    match value.unwrap_or("csv").to_ascii_lowercase().as_str() {
-        "csv" => Ok(FlatFileFormat::Csv),
-        // `ndjson` and `jsonl` are the same line-delimited framing under two
-        // names; both stream as `application/x-ndjson`.
-        "ndjson" | "jsonl" => Ok(FlatFileFormat::Jsonl),
-        // `json` streams a single JSON array; `html` an HTML table. Both are
-        // written row-by-row by their `RowSink`, so neither buffers the whole
-        // daily blob.
-        "json" => Ok(FlatFileFormat::Json),
-        "html" => Ok(FlatFileFormat::Html),
-        other => Err(format!(
-            "unknown flat-file format: {other:?} (supported: csv, json, ndjson, jsonl, html)"
-        )),
-    }
-}
-
 /// Reject an `(sec_type, req_type)` pair the flat-file distribution does not
 /// serve, at the route boundary, before any temp-path or upstream work.
 ///
@@ -213,15 +173,19 @@ async fn handle_get(
         Ok(p) => p,
         Err(rej) => return path_rejection_response(&rej),
     };
-    let sec_type = match parse_sec_type(&sec_type_s) {
+    let sec_type = match sec_type_s.parse::<SecType>() {
         Ok(v) => v,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
-    let req_type = match parse_req_type(&req_type_s) {
+    let req_type = match req_type_s.parse::<ReqType>() {
         Ok(v) => v,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
-    let format = match parse_format(params.format.as_deref()) {
+    let format = match params
+        .format
+        .as_deref()
+        .map_or(Ok(FlatFileFormat::Csv), str::parse)
+    {
         Ok(f) => f,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
@@ -453,16 +417,16 @@ mod tests {
             ("html", FlatFileFormat::Html, "text/html; charset=utf-8"),
             ("HTML", FlatFileFormat::Html, "text/html; charset=utf-8"),
         ] {
-            let got = parse_format(Some(token)).expect("documented token must parse");
+            let got: FlatFileFormat = token.parse().expect("documented token must parse");
             assert_eq!(got, want, "token {token:?} must map to {want:?}");
             assert_eq!(content_type_for(got), ctype, "content type for {token:?}");
         }
-        // Absent `format` defaults to csv.
-        assert_eq!(parse_format(None).unwrap(), FlatFileFormat::Csv);
         // Unknown token is a 400 that names the supported set.
-        let err = parse_format(Some("parquet")).expect_err("unknown token must reject");
+        let err = "parquet"
+            .parse::<FlatFileFormat>()
+            .expect_err("unknown token must reject");
         assert!(
-            err.contains("csv, json, ndjson, jsonl, html"),
+            err.contains("csv, json, jsonl, ndjson or html"),
             "rejection must list the supported formats; got {err:?}"
         );
     }

@@ -24,46 +24,9 @@ use serde_json::Value as JsonValue;
 
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
-use crate::{spawn_endpoint_task, to_napi_err};
+use crate::{invalid_parameter_err, spawn_endpoint_task, to_napi_err};
 
 // ── Helpers ────────────────────────────────────────────────────────────
-
-fn parse_flatfile_sec_type(sec: &str) -> napi::Result<SecType> {
-    match sec.to_uppercase().as_str() {
-        "OPTION" => Ok(SecType::Option),
-        "STOCK" => Ok(SecType::Stock),
-        "INDEX" => Ok(SecType::Index),
-        other => Err(crate::invalid_parameter_err(format!(
-            "unknown flat-file sec_type: {other:?} (expected OPTION, STOCK, or INDEX)"
-        ))),
-    }
-}
-
-fn parse_flatfile_req_type(req: &str) -> napi::Result<ReqType> {
-    match req.to_uppercase().as_str() {
-        "EOD" => Ok(ReqType::Eod),
-        "QUOTE" => Ok(ReqType::Quote),
-        "OPEN_INTEREST" | "OPENINTEREST" => Ok(ReqType::OpenInterest),
-        "OHLC" => Ok(ReqType::Ohlc),
-        "TRADE" => Ok(ReqType::Trade),
-        "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(crate::invalid_parameter_err(format!(
-            "unknown flat-file req_type: {other:?} (expected EOD, QUOTE, OPEN_INTEREST, OHLC, TRADE, TRADE_QUOTE)"
-        ))),
-    }
-}
-
-fn parse_flatfile_format(fmt: Option<&str>) -> napi::Result<FlatFileFormat> {
-    match fmt.unwrap_or("csv").to_lowercase().as_str() {
-        "csv" => Ok(FlatFileFormat::Csv),
-        "json" => Ok(FlatFileFormat::Json),
-        "jsonl" | "ndjson" => Ok(FlatFileFormat::Jsonl),
-        "html" => Ok(FlatFileFormat::Html),
-        other => Err(crate::invalid_parameter_err(format!(
-            "unknown flat-file format: {other:?} (expected csv, json, jsonl, ndjson, or html)"
-        ))),
-    }
-}
 
 /// Pull and decode a flat-file blob off the libuv thread.
 ///
@@ -95,9 +58,12 @@ async fn flat_file_to_path_impl(
     path: String,
     format: Option<String>,
 ) -> napi::Result<String> {
-    let sec = parse_flatfile_sec_type(&sec_type)?;
-    let req = parse_flatfile_req_type(&req_type)?;
-    let fmt = parse_flatfile_format(format.as_deref())?;
+    let sec = sec_type.parse::<SecType>().map_err(invalid_parameter_err)?;
+    let req = req_type.parse::<ReqType>().map_err(invalid_parameter_err)?;
+    let fmt = format
+        .as_deref()
+        .map_or(Ok(FlatFileFormat::Csv), str::parse)
+        .map_err(invalid_parameter_err)?;
     let client = Arc::clone(client);
     let path_buf = std::path::PathBuf::from(path);
     let final_path = spawn_endpoint_task(async move {
@@ -294,8 +260,8 @@ impl FlatFilesNamespace {
         req_type: String,
         date: String,
     ) -> napi::Result<FlatFileRowList> {
-        let sec = parse_flatfile_sec_type(&sec_type)?;
-        let req = parse_flatfile_req_type(&req_type)?;
+        let sec = sec_type.parse::<SecType>().map_err(invalid_parameter_err)?;
+        let req = req_type.parse::<ReqType>().map_err(invalid_parameter_err)?;
         let rows = pull_decoded(&self.client, sec, req, &date).await?;
         Ok(FlatFileRowList { rows })
     }

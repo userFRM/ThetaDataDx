@@ -12,7 +12,7 @@
 //!   data_type  EOD | QUOTE | TRADE | TRADE_QUOTE | OPEN_INTEREST | OHLC
 //!   date       YYYYMMDD (e.g. 20260428)
 //!   out_path   destination path; the format extension is appended if absent
-//!   format     CSV | JSONL
+//!   format     CSV | JSON | JSONL | HTML
 //!
 //! Credentials are loaded from `$CREDS` (default `./creds.txt`).
 
@@ -21,35 +21,6 @@ use std::process::ExitCode;
 
 use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
 use thetadatadx::Credentials;
-
-fn parse_sec(s: &str) -> Result<SecType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "OPTION" => Ok(SecType::Option),
-        "STOCK" => Ok(SecType::Stock),
-        "INDEX" => Ok(SecType::Index),
-        other => Err(format!("unknown sec_type {other:?}")),
-    }
-}
-
-fn parse_req(s: &str) -> Result<ReqType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "EOD" => Ok(ReqType::Eod),
-        "QUOTE" => Ok(ReqType::Quote),
-        "TRADE" => Ok(ReqType::Trade),
-        "TRADE_QUOTE" => Ok(ReqType::TradeQuote),
-        "OPEN_INTEREST" => Ok(ReqType::OpenInterest),
-        "OHLC" => Ok(ReqType::Ohlc),
-        other => Err(format!("unknown data_type {other:?}")),
-    }
-}
-
-fn parse_format(s: &str) -> Result<FlatFileFormat, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "CSV" => Ok(FlatFileFormat::Csv),
-        "JSONL" => Ok(FlatFileFormat::Jsonl),
-        other => Err(format!("unknown format {other:?}")),
-    }
-}
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 2)]
 async fn main() -> ExitCode {
@@ -68,17 +39,17 @@ async fn main() -> ExitCode {
         );
         eprintln!("       sec: OPTION | STOCK | INDEX");
         eprintln!("       data_type: EOD | QUOTE | TRADE | TRADE_QUOTE | OPEN_INTEREST | OHLC");
-        eprintln!("       format: CSV | JSONL");
+        eprintln!("       format: CSV | JSON | JSONL | HTML");
         return ExitCode::from(2);
     }
-    let sec = match parse_sec(&args[1]) {
+    let sec = match args[1].parse::<SecType>() {
         Ok(s) => s,
         Err(e) => {
             eprintln!("{e}");
             return ExitCode::from(2);
         }
     };
-    let req = match parse_req(&args[2]) {
+    let req = match args[2].parse::<ReqType>() {
         Ok(r) => r,
         Err(e) => {
             eprintln!("{e}");
@@ -87,7 +58,7 @@ async fn main() -> ExitCode {
     };
     let date = &args[3];
     let out: PathBuf = PathBuf::from(&args[4]);
-    let format = match parse_format(&args[5]) {
+    let format = match args[5].parse::<FlatFileFormat>() {
         Ok(f) => f,
         Err(e) => {
             eprintln!("{e}");
