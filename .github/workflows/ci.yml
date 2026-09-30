@@ -82,12 +82,12 @@ jobs:
             # clippy only for the lint matrix.
             ffi='[{"os":"ubuntu-latest","artifact-name":"ffi-linux-x86_64","artifact-path":"target/release/libthetadatadx_ffi.so\ntarget/release/libthetadatadx_ffi.a"}]'
             bindings='[{"os":"ubuntu-latest","ffi_artifact":"ffi-linux-x86_64"}]'
-            lint='[{"os":"ubuntu-latest","toolchain":"1.88"}]'
+            lint='[{"os":"ubuntu-latest","toolchain":"1.94"}]'
           else
             # main / tag / schedule / merge_group: full cross-platform set.
             ffi='[{"os":"ubuntu-latest","artifact-name":"ffi-linux-x86_64","artifact-path":"target/release/libthetadatadx_ffi.so\ntarget/release/libthetadatadx_ffi.a"},{"os":"macos-latest","artifact-name":"ffi-macos-arm64","artifact-path":"target/release/libthetadatadx_ffi.dylib\ntarget/release/libthetadatadx_ffi.a"},{"os":"windows-latest","artifact-name":"ffi-windows-msvc-x86_64","artifact-path":"target/release/thetadatadx_ffi.dll\ntarget/release/thetadatadx_ffi.dll.lib"}]'
             bindings='[{"os":"ubuntu-latest","ffi_artifact":"ffi-linux-x86_64"},{"os":"macos-latest","ffi_artifact":"ffi-macos-arm64"},{"os":"windows-latest","ffi_artifact":"ffi-windows-msvc-x86_64"}]'
-            lint='[{"os":"ubuntu-latest","toolchain":"1.88"},{"os":"macos-latest","toolchain":"stable"},{"os":"windows-latest","toolchain":"stable"}]'
+            lint='[{"os":"ubuntu-latest","toolchain":"1.94"},{"os":"macos-latest","toolchain":"stable"},{"os":"windows-latest","toolchain":"stable"}]'
           fi
           {
             echo "ffi_matrix={\"include\":${ffi}}"
@@ -379,14 +379,20 @@ jobs:
       fail-fast: false
       # The Linux stable clippy pass is the fast-lane `clippy` job; this
       # matrix covers the MSRV floor (Linux, declared in
-      # `[workspace.package].rust-version`) plus the cross-platform
-      # runners. The `setup` planner keeps a PR to the ubuntu/MSRV leg —
-      # which catches a dependency bump that lifts the rustc floor before
-      # release — and defers the macOS/Windows clippy legs to main and
-      # the nightly run, off the per-push critical path.
+      # `[workspace.package].rust-version` and in each excluded crate's
+      # manifest) plus the cross-platform runners. The `setup` planner
+      # keeps a PR to the ubuntu/MSRV leg — which catches a dependency bump
+      # that lifts the rustc floor before release — and defers the
+      # macOS/Windows clippy legs to main and the nightly run, off the
+      # per-push critical path.
       matrix: ${{ fromJSON(needs.setup.outputs.lint_matrix) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      # rust-toolchain.toml pins `stable`, and a toolchain file outranks
+      # `rustup default`, which is all the install step sets. Without this
+      # the MSRV leg would compile with current stable.
+      RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
@@ -395,7 +401,22 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - if: matrix.toolchain == 'stable'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The floor covers every feature, and the excluded crates declare the
+      # same floor: anyone installing the Python sdist or building the napi
+      # addon compiles them from source. They share the workspace target
+      # directory so common dependencies compile once.
+      - if: matrix.toolchain != 'stable'
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          set -euo pipefail
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          for manifest in thetadatadx-py thetadatadx-ts tools/server tools/mcp; do
+            cargo check --manifest-path "$manifest/Cargo.toml" --all-targets --all-features --locked
+          done
 
   test:
     name: Test

@@ -992,7 +992,7 @@ impl Client {
         // dispatcher to fall through without ever running the consumer
         // body.
         //
-        // `OnceLock::wait()` (stable since Rust 1.87, below our 1.88 MSRV) blocks the
+        // `OnceLock::wait()` (stable since Rust 1.87, below our MSRV) blocks the
         // dispatcher until the spawn site calls `.set(true)` (go) or
         // `.set(false)` (abort).
         let gate: Arc<OnceLock<bool>> = Arc::new(OnceLock::new());

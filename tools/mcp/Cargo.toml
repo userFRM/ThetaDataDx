@@ -2,7 +2,7 @@
 name = "thetadatadx-mcp-server"
 version = "0.5.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "MCP server for ThetaDataDx — gives LLMs instant access to ThetaData market data"
 license = "Apache-2.0"
 repository = "https://github.com/userFRM/ThetaDataDx"

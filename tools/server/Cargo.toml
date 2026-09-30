@@ -2,7 +2,7 @@
 name = "thetadatadx-server"
 version = "0.5.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.94"
 authors = ["userFRM"]
 description = "Drop-in Rust replacement for the ThetaData JVM terminal"
 homepage = "https://github.com/userFRM/ThetaDataDx"
