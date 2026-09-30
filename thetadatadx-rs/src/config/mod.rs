@@ -207,8 +207,9 @@ pub struct DirectConfig {
     /// host, so a port-only override keeps the selected environment's host
     /// cluster and only re-points the primary port.
     streaming_primary_port_override: Option<u16>,
-    /// Explicit full streaming host list (the config-file `[streaming]
-    /// hosts` power-user list). When set, it wins outright in
+    /// Explicit full streaming host list, recorded by
+    /// [`Self::set_streaming_hosts`] (which the config-file `[streaming]
+    /// hosts` loader also uses). When set, it wins outright in
     /// [`Self::apply_streaming_environment`]: environment selection does not
     /// touch the streaming hosts at all.
     streaming_hosts_full_override: Option<Vec<(String, u16)>>,
@@ -457,20 +458,6 @@ impl DirectConfig {
         self.reapply_overrides_to_live_fields();
     }
 
-    /// Record an explicit market-data host override.
-    ///
-    /// The internal entry point the env-var / `.env` / config-file layers use;
-    /// [`Self::set_market_data_host`] is the public equivalent. Recording an
-    /// override makes the host survive a later
-    /// [`Self::apply_market_data_environment`], so an explicit host wins over the
-    /// environment's default — the precedence documented on the struct. The
-    /// override is mirrored onto the live field immediately so a getter reflects
-    /// it before the next switch.
-    pub(crate) fn set_market_data_host_override(&mut self, host: String) {
-        self.market_data_host_override = Some(host);
-        self.reapply_overrides_to_live_fields();
-    }
-
     /// Record an explicit primary streaming host override
     /// (`THETADATA_STREAMING_HOST` / `.env`).
     ///
@@ -496,22 +483,6 @@ impl DirectConfig {
     pub(crate) fn set_streaming_primary_port_override(&mut self, port: u16) {
         self.streaming_primary_port_override = Some(port);
         self.reapply_overrides_to_live_fields();
-    }
-
-    /// Record an explicit full streaming host list (the config-file
-    /// `[streaming] hosts` power-user list).
-    ///
-    /// The internal entry point the config-file loader uses;
-    /// [`Self::set_streaming_hosts`] is the public equivalent and carries the
-    /// shared recording logic. When recorded, the list wins outright in
-    /// [`Self::apply_streaming_environment`]: environment selection does not
-    /// touch the streaming hosts at all. Only the config-file loader supplies a
-    /// full host
-    /// list, so this setter is gated on that feature; the field stays `None`
-    /// (and the override is inert) without it.
-    #[cfg(feature = "config-file")]
-    pub(crate) fn set_streaming_hosts_full_override(&mut self, hosts: Vec<(String, u16)>) {
-        self.set_streaming_hosts(hosts);
     }
 
     /// Select the market-data environment, returning the updated config.
@@ -1482,7 +1453,7 @@ mod config_file {
             // production default host set in force and records no override, so
             // a later environment switch still re-points it.
             if let Some(hosts) = cf.streaming.hosts {
-                out.set_streaming_hosts_full_override(hosts.parse()?);
+                out.set_streaming_hosts(hosts.parse()?);
             }
             out.streaming.timeout_ms = cf.streaming.read_timeout;
             out.streaming.ring_size = cf.streaming.ring_size;

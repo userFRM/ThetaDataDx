@@ -135,7 +135,7 @@ where
     // environment rewrite (and a later `with_market_data_environment` /
     // `with_streaming_environment` switch).
     if let Some(host) = get(ENV_MARKET_DATA_HOST) {
-        cfg.set_market_data_host_override(host);
+        cfg.set_market_data_host(host);
     }
     if let Some(port_str) = get(ENV_MARKET_DATA_PORT) {
         match port_str.parse::<u16>() {

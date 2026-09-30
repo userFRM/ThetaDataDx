@@ -44,7 +44,7 @@ use disruptor::{
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
 use crate::auth::Credentials;
-use crate::backoff::{BackoffSchedule, JitterMode};
+use crate::backoff::{capped_exponential, JitterMode};
 use crate::config::{
     ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RATE_LIMITED_JITTER_WINDOW,
 };
@@ -857,10 +857,7 @@ where
     // budget again rather than inheriting the previous cycle's count —
     // while a connection that flaps after only a frame or two keeps
     // consuming the budget instead of resetting it every short cycle.
-    let mut reconnect_state = ReconnectCounters::new(BackoffSchedule::new(
-        Duration::from_millis(wait_ms),
-        Duration::from_millis(wait_max_ms),
-    ));
+    let mut reconnect_state = ReconnectCounters::new();
 
     // The read deadline is enforced on a wall clock rather than by
     // counting timeout slices: `last_frame_at` advances on every
@@ -1266,7 +1263,11 @@ where
                     ReconnectAttemptClass::Transient => {
                         // Exponential ladder `wait_ms * 2^(n-1)`
                         // capped at `wait_max_ms`, then jittered.
-                        let base = reconnect_state.schedule.deterministic(attempt);
+                        let base = capped_exponential(
+                            Duration::from_millis(wait_ms),
+                            Duration::from_millis(wait_max_ms),
+                            attempt,
+                        );
                         jitter.sample(base)
                     }
                     ReconnectAttemptClass::ServerRestart => {
@@ -2073,8 +2074,7 @@ impl ReplayPacer {
 
 /// Per-class consecutive-reconnect counters with a stable-window reset
 /// driven from the read-side's last-frame timestamp, plus the
-/// wall-clock anchor for the reconnect envelope and the jitter
-/// schedule state.
+/// wall-clock anchor for the reconnect envelope.
 struct ReconnectCounters {
     transient: u32,
     rate_limited: u32,
@@ -2090,19 +2090,16 @@ struct ReconnectCounters {
     /// consecutive-reconnect sequence; `None` outside a sequence.
     /// Anchors the `max_elapsed` envelope.
     burst_started_at: Option<Instant>,
-    /// Exponential-ladder bounds for the generic-transient class.
-    schedule: BackoffSchedule,
 }
 
 impl ReconnectCounters {
-    fn new(schedule: BackoffSchedule) -> Self {
+    fn new() -> Self {
         Self {
             transient: 0,
             rate_limited: 0,
             server_restart: 0,
             last_data_at: None,
             burst_started_at: None,
-            schedule,
         }
     }
 
@@ -2196,10 +2193,6 @@ fn is_read_timeout(e: &Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn test_schedule() -> BackoffSchedule {
-        BackoffSchedule::new(Duration::from_millis(250), Duration::from_secs(30))
-    }
 
     /// Pins `io_loop`'s actual producer-vs-guard drop order. `io_loop` holds
     /// its producer inside a `GuardedProducer`, whose `guard` field is declared
@@ -2315,10 +2308,10 @@ mod tests {
     #[test]
     fn transient_defaults_survive_a_multi_minute_outage() {
         let limits = ReconnectAttemptLimits::default();
-        let schedule = test_schedule();
-        let total: Duration = (1..=limits.max_attempts)
-            .map(|a| schedule.deterministic(a))
-            .sum();
+        let ladder = |attempt| {
+            capped_exponential(Duration::from_millis(250), Duration::from_secs(30), attempt)
+        };
+        let total: Duration = (1..=limits.max_attempts).map(ladder).sum();
         assert!(
             total >= limits.max_elapsed,
             "un-jittered ladder across the attempt budget ({total:?}) must \
@@ -2327,11 +2320,11 @@ mod tests {
         );
         // First attempts are fast (sub-second) so a brief blip
         // recovers quickly...
-        assert_eq!(schedule.deterministic(1), Duration::from_millis(250));
-        assert_eq!(schedule.deterministic(2), Duration::from_millis(500));
+        assert_eq!(ladder(1), Duration::from_millis(250));
+        assert_eq!(ladder(2), Duration::from_millis(500));
         // ...and the tail rides the 30 s cap.
-        assert_eq!(schedule.deterministic(8), Duration::from_secs(30));
-        assert_eq!(schedule.deterministic(30), Duration::from_secs(30));
+        assert_eq!(ladder(8), Duration::from_secs(30));
+        assert_eq!(ladder(30), Duration::from_secs(30));
     }
 
     /// 10 consecutive `TooManyRequests` disconnects must NOT exhaust
@@ -2341,7 +2334,7 @@ mod tests {
     #[test]
     fn ten_too_many_requests_stays_under_rate_limited_budget() {
         let limits = ReconnectAttemptLimits::default();
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         let mut last_attempt = 0;
         for _ in 0..10 {
             let class = ReconnectAttemptLimits::class_for(RemoveReason::TooManyRequests)
@@ -2383,7 +2376,7 @@ mod tests {
     #[test]
     fn rate_limited_class_is_preserved_across_a_failed_first_redial() {
         let limits = ReconnectAttemptLimits::default();
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
 
         // Attempt 1: the live `TooManyRequests` drop. The io_loop derives
         // the class from the just-read reason exactly this way.
@@ -2455,7 +2448,7 @@ mod tests {
     /// restart rather than downgraded by a stale read.
     #[test]
     fn transient_login_rejection_carries_its_own_class() {
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
 
         // Originating drop was a generic timeout (Transient)...
         let _ = counters.record(
@@ -2523,7 +2516,7 @@ mod tests {
             stable_window: Duration::from_millis(5),
             ..ReconnectAttemptLimits::default()
         };
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         counters.record(ReconnectAttemptClass::Transient);
         counters.record(ReconnectAttemptClass::Transient);
         counters.record(ReconnectAttemptClass::RateLimited);
@@ -2573,7 +2566,7 @@ mod tests {
             max_attempts: 5,
             ..ReconnectAttemptLimits::default()
         };
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         let budget = limits.budget_for(ReconnectAttemptClass::Transient);
 
         let mut last_attempt = 0;
@@ -2616,7 +2609,7 @@ mod tests {
             stable_window: Duration::from_millis(10),
             ..ReconnectAttemptLimits::default()
         };
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         // Spend some budget on a prior unstable burst.
         counters.record(ReconnectAttemptClass::Transient);
         counters.record(ReconnectAttemptClass::Transient);
@@ -2649,7 +2642,7 @@ mod tests {
             stable_window: Duration::from_millis(10),
             ..ReconnectAttemptLimits::default()
         };
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         counters.record(ReconnectAttemptClass::Transient);
 
         // First frame anchors the window.
@@ -2678,7 +2671,7 @@ mod tests {
     /// runs, and resets with the counters.
     #[test]
     fn burst_elapsed_anchors_and_resets() {
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         assert_eq!(counters.burst_elapsed(), Duration::ZERO);
         counters.record(ReconnectAttemptClass::Transient);
         std::thread::sleep(Duration::from_millis(10));
@@ -2747,7 +2740,7 @@ mod tests {
         };
         let class = ReconnectAttemptClass::RateLimited;
         let budget = limits.budget_for(class);
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
 
         // A stable session that then drops: the anchor is armed, so the
         // FIRST cycle's reset fires (the one legitimate one).
@@ -2812,7 +2805,7 @@ mod tests {
         };
         let class = ReconnectAttemptClass::Transient;
         let budget = limits.budget_for(class);
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         arm_stable_anchor(&mut counters);
 
         let mut last_attempt = 0;
@@ -2861,7 +2854,7 @@ mod tests {
         };
         let class = ReconnectAttemptClass::ServerRestart;
         let budget = limits.budget_for(class);
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
         arm_stable_anchor(&mut counters);
 
         let mut last_attempt = 0;
@@ -2911,7 +2904,7 @@ mod tests {
             ..ReconnectAttemptLimits::default()
         };
         let class = ReconnectAttemptClass::Transient;
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
 
         // First stable session drops: one reset, attempt 1.
         arm_stable_anchor(&mut counters);
@@ -2958,7 +2951,7 @@ mod tests {
             stable_window: Duration::ZERO,
             ..ReconnectAttemptLimits::default()
         };
-        let mut counters = ReconnectCounters::new(test_schedule());
+        let mut counters = ReconnectCounters::new();
 
         // One reconnect early in the session (no frame arrived, so the
         // anchor is unarmed and the reset cannot fire): the closure sees
