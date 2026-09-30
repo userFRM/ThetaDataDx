@@ -1020,16 +1020,15 @@ where
                         // tell a server-initiated end from a user-initiated
                         // one, so the terminal event is published here, where
                         // the reason is still in hand. Without it a consumer
-                        // reads the session as still trying, for ever.
-                        if let Some(FpssEventInternal::Control(StreamControl::Disconnected {
-                            reason,
-                        })) = &primary
-                        {
-                            let reason = *reason;
-                            if reconnect_delay(reason).is_none() {
-                                publish_exhausted!(reason, 0);
-                            }
-                        }
+                        // reads the session as still trying, for ever. It is
+                        // published after the `Disconnected` it follows from,
+                        // because nothing may follow the terminal event.
+                        let permanent_reason = match &primary {
+                            Some(FpssEventInternal::Control(StreamControl::Disconnected {
+                                reason,
+                            })) if reconnect_delay(*reason).is_none() => Some(*reason),
+                            _ => None,
+                        };
 
                         if let Some(evt) = primary {
                             let reconnect_reason = reconnect_reason_for_decoded_event(&evt);
@@ -1051,6 +1050,9 @@ where
                                 authenticated.store(false, Ordering::Release);
                                 break 'inner reason;
                             }
+                        }
+                        if let Some(reason) = permanent_reason {
+                            publish_exhausted!(reason, 0);
                         }
                     }
                     Ok(FrameRead::Eof) => {
