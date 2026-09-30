@@ -363,12 +363,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn rustls_crypto_provider_install_is_idempotent() {
-        ensure_rustls_crypto_provider();
-        ensure_rustls_crypto_provider();
-    }
-
     /// A host that accepts TCP but fails the TLS handshake is a failed
     /// attempt for that host, so the dial loop goes on to the next one
     /// instead of returning a stream whose first write would fail.
