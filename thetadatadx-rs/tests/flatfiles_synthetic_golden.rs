@@ -227,9 +227,17 @@ fn decode_error_leaves_final_path_untouched() {
         "prior good contents\n",
         "the prior good file must survive the failed decode untouched"
     );
-    // No leftover temp sibling under the final name.
-    let tmp = csv.with_extension("csv.tmp");
-    assert!(!tmp.exists(), "the temp sibling must be reaped on error");
+    // No leftover temp sibling: only the two files this test wrote remain.
+    let mut left: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    left.sort();
+    assert_eq!(
+        left,
+        ["out.csv", "truncated.bin"],
+        "the temp sibling must be reaped on error"
+    );
 
     let _ = std::fs::remove_dir_all(&dir);
 }

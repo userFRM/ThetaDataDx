@@ -119,7 +119,10 @@ pub async fn flatfile_request_with_config(
     config: &FlatFilesConfig,
 ) -> Result<PathBuf, Error> {
     let final_path = format.ensure_extension(output_path.as_ref());
-    let raw_path = final_path.with_extension(format!("{}.raw", format.extension()));
+    // Per-call scratch names: two calls writing the same output path must not
+    // share, truncate or reap each other's raw blob.
+    let raw_path =
+        final_path.with_extension(format!("{}.{}.raw", format.extension(), random_id_hex()));
 
     // Reap the raw scratch blob on every outcome. The raw artifact is created
     // by the wire layer once auth succeeds, so any post-handshake failure
@@ -197,9 +200,11 @@ pub(crate) fn decode_to_file(
     // `finish()` flushes cleanly. A decode fault mid-walk then leaves the
     // partial under the temp name, never a valid-looking partial under the
     // requested final name. The guard reaps the temp on any `?` early return.
+    // The per-call id keeps a concurrent decode onto the same output path from
+    // truncating this one's temp and publishing a file the other still writes.
     let tmp_path = {
         let mut p = output_path.as_os_str().to_owned();
-        p.push(".tmp");
+        p.push(format!(".{}.tmp", random_id_hex()));
         PathBuf::from(p)
     };
     let mut tmp_guard = ScratchGuard::new(&tmp_path);
