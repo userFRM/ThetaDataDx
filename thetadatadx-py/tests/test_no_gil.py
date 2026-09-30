@@ -32,12 +32,10 @@ import pytest
 # ── structural audit ────────────────────────────────────────────────
 
 
-# Comments + docstrings reference `block_on` for explanation; the
-# audit grep below only flags *call sites* in code. We exclude lines
-# that are pure comments (start with `//` after optional whitespace)
-# and doc-comments (`///`).
+# Comments reference `block_on` for explanation; the audit grep below
+# only flags *call sites* in code, after `_strip_comments` blanks out
+# `//` and `///` comments.
 _BLOCK_ON_CALL_SITE = re.compile(r"\.?block_on\s*\(")
-_COMMENT_LINE = re.compile(r"^\s*(///?|\*)")
 
 
 def _sdk_src_root() -> Path:

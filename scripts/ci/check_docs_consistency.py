@@ -36,7 +36,6 @@ ROOT = Path(__file__).resolve().parents[2]
 SURFACE = tomllib.loads((ROOT / "thetadatadx-rs/endpoint_surface.toml").read_text())
 ENDPOINTS = SURFACE["endpoints"]
 TEMPLATES = SURFACE["templates"]
-ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
 # The OpenAPI `servers` block points at the HTTP server root
 # (`http://localhost:25503`), so each documented path must carry the full
 # served route (the registry `rest_path` verbatim, `/v3/...`) for a

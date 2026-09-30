@@ -118,12 +118,11 @@ def _resolve_ts_entry(pkg_dir: pathlib.Path, key: str, fallback: str) -> pathlib
     return pkg_dir / (declared or fallback)
 
 
-# The package entry the gate scans for the TypeScript surface. Resolved from
-# `package.json` `types` (declarations) / `main` (runtime) so the gate reads
-# the actually-shipped root, which re-exports the napi `index.*` and layers
-# the wrapper-side exports on top.
+# The package entry the gate scans for the TypeScript declarations. Resolved
+# from `package.json` `types` so the gate reads the actually-shipped root,
+# which re-exports the napi `index.d.ts` and layers the wrapper-side exports
+# on top.
 TS_DTS = _resolve_ts_entry(TS_PKG_DIR, "types", "index.d.ts")
-TS_MAIN_JS = _resolve_ts_entry(TS_PKG_DIR, "main", "index.js")
 TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
 # The committed generated napi market-data surface. The `<endpoint>WithColumns`
 # reachability gate reads its `#[napi(js_name = ...)]` attributes directly (a
@@ -301,16 +300,6 @@ def _ts_resolve_module(from_file: pathlib.Path, spec: str) -> pathlib.Path | Non
         if cand.is_file():
             return cand
     return None
-
-
-def _collect_ts_dts_classes(
-    dts: pathlib.Path, _seen: set[pathlib.Path] | None = None
-) -> set[str]:
-    """Harvest every exported class / interface / runtime-class-const name
-    declared in `dts`, following `export * from './...'` re-exports so the
-    declared package entry's full surface is seen."""
-    classes, interfaces = _collect_ts_dts_class_kinds(dts, _seen)
-    return classes | interfaces
 
 
 def _collect_ts_dts_class_kinds(
@@ -1065,17 +1054,6 @@ def _snake_to_camel(snake: str) -> str:
     """`reconnect_wait_ms` → `reconnectWaitMs`."""
     head, *rest = snake.split("_")
     return head + "".join(part.capitalize() for part in rest)
-
-
-def _canonical_setter(struct_name: str, suffix: str) -> str | None:
-    """Compose the binding-side canonical setter name from the struct
-    prefix and the row suffix. Returns ``None`` for unknown structs
-    so the caller surfaces a clear diagnostic.
-    """
-    prefix = STRUCT_TO_PREFIX.get(struct_name)
-    if prefix is None:
-        return None
-    return f"{prefix}{suffix}"
 
 
 # Some FFI / C++ setters use the widened `_explicit(has_value, n)` ABI

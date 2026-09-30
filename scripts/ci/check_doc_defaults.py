@@ -54,7 +54,7 @@ import pathlib
 import re
 import sys
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import Optional
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -72,23 +72,6 @@ def _norm_int(literal: str) -> int:
     if not m:
         raise ValueError(f"not an integer literal: {literal!r}")
     return int(m.group(1))
-
-
-# A canonical-value extractor reads a logical field's default out of the
-# Rust source. Each returns an integer in the unit the *bindings*
-# document for that field (ms for `*_ms` knobs, seconds for `*_secs`,
-# bytes for byte knobs, a plain count otherwise).
-CanonExtractor = Callable[[dict[str, str]], int]
-
-
-@dataclass
-class CanonField:
-    """One canonical config default, sourced from the Rust constructors."""
-
-    field_id: str
-    # Human-facing unit, only used in diagnostics.
-    unit: str
-    extractor: CanonExtractor
 
 
 def _read(rel: pathlib.Path, root: pathlib.Path) -> str:
