@@ -1157,8 +1157,8 @@ impl StreamingClient {
             .collect();
         let connect_timeout = Duration::from_millis(connect_timeout_ms);
         let read_timeout = Duration::from_millis(read_timeout_ms);
-        // The write deadline bounds the credentials write that drives the
-        // lazy TLS handshake and every steady-state ping/subscribe write.
+        // The write deadline bounds the TLS handshake, the credentials write
+        // and every steady-state ping/subscribe write.
         // It shares the read timeout's budget: both bound a single
         // unacknowledged transport operation during the connect window.
         let write_timeout = read_timeout;
