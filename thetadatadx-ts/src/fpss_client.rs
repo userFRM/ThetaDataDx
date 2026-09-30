@@ -1284,7 +1284,7 @@ impl StreamingClient {
             .spawn_blocking(move || inner.restore_subscriptions(&per_contract, &full_stream))
             .await
             .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
-            .map_err(|e| napi::Error::from_reason(format!("reconnect succeeded but {e}")))
+            .map_err(to_napi_err)
     }
 
     /// Block until every superseded streaming session's event-ring consumer
