@@ -1273,6 +1273,22 @@ async fn execute_tool(
         return result;
     }
 
+    // The tool schema advertises exactly the endpoint's parameters. A key
+    // outside it, such as a misspelled filter, would be dropped and the call
+    // answered as a wider request, so it is refused by name.
+    if let (Some(ep), Some(obj)) = (thetadatadx::find(name), args.as_object()) {
+        if let Some((key, _)) = obj
+            .iter()
+            .find(|(key, _)| !ep.params.iter().any(|p| p.name == *key))
+        {
+            let accepted: Vec<&str> = ep.params.iter().map(|p| p.name).collect();
+            return Err(ToolError::InvalidParams(format!(
+                "unknown argument '{key}' for {name}; accepted: {}",
+                accepted.join(", ")
+            )));
+        }
+    }
+
     // ── Online tools (require connected client) ─────────────────────
     let client = client.ok_or_else(|| {
         ToolError::ServerError(
@@ -1902,6 +1918,27 @@ mod tests {
             declared_protocol_version(&json!({ "_meta": { "unrelated": "x" } })),
             None
         );
+    }
+
+    /// A key the tool does not declare, such as a misspelled filter, is
+    /// refused by name instead of being dropped and the call answered as a
+    /// wider request.
+    #[tokio::test]
+    async fn an_undeclared_tool_argument_is_refused_by_name() {
+        let args = json!({ "symbol": "AAPL", "date": "20260315", "start_tim": "09:30:00" });
+        match execute_tool(
+            None,
+            "stock_history_quote",
+            &args,
+            std::time::Instant::now(),
+        )
+        .await
+        {
+            Err(ToolError::InvalidParams(message)) => {
+                assert!(message.contains("'start_tim'"), "{message}");
+            }
+            other => panic!("expected the misspelled key to be refused, got {other:?}"),
+        }
     }
 
     #[tokio::test]
