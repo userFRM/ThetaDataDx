@@ -1307,7 +1307,7 @@ async fn execute_tool(
             return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
         }
         Err(EndpointError::Server(error)) => {
-            return Err(ToolError::ServerError(sanitize_error(&error.to_string())));
+            return Err(flatfile_tools::classify_core_error(&error))
         }
     };
 

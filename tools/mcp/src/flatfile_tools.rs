@@ -340,14 +340,16 @@ pub(crate) async fn try_execute_flatfile_tool(
 
 /// Map a core [`thetadatadx::Error`] onto the JSON-RPC error taxonomy.
 ///
-/// An unserved `(sec_type, req_type)` pair fails the SDK's local dataset
-/// gate with a typed invalid-parameter error before any upstream call —
-/// that is a client request fault (`-32602` Invalid params), not a
-/// server-side outage (`-32000` Server error). This mirrors the REST
+/// A request the SDK refuses on its own input, such as an unserved
+/// `(sec_type, req_type)` flat-file pair or a list `symbol` filter naming
+/// several symbols where the list cannot attribute its values, fails with a
+/// typed invalid-parameter error before any upstream call. That is a client
+/// request fault (`-32602` Invalid params), not a server-side outage
+/// (`-32000` Server error). This mirrors the REST
 /// `400` and C-ABI `THETADATADX_ERR_INVALID_PARAMETER` mappings: any core error
 /// whose kind reports [`is_invalid_parameter`](thetadatadx::ConfigErrorKind::is_invalid_parameter)
 /// routes to Invalid params, generically — never keyed on the tool name.
-fn classify_core_error(e: &thetadatadx::Error) -> ToolError {
+pub(crate) fn classify_core_error(e: &thetadatadx::Error) -> ToolError {
     let message = crate::sanitize_error(&e.to_string());
     if matches!(
         e,
