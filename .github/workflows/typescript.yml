@@ -134,6 +134,14 @@ jobs:
         run: |
           npx napi build --platform --release --target ${{ matrix.target }} --strip ${{ matrix.target == 'x86_64-unknown-linux-gnu' && '--use-napi-cross' || '' }}
           node scripts/postbuild_alias_contract.mjs
+      # The tests below load the addon on a runner that has the Visual C++
+      # redistributable, so they pass whether or not it links the runtime
+      # statically. This reads what the addon actually imports.
+      - name: Verify the Windows addon does not import the Visual C++ runtime
+        if: runner.os == 'Windows'
+        working-directory: thetadatadx-ts
+        shell: bash
+        run: python ../scripts/ci/check_windows_crt_static.py thetadatadx-ts.win32-x64-msvc.node
       # Every test below runs on the runner that built the addon, so none of
       # them can see a glibc floor above the runner's own. This reads the
       # floor from the symbol versions the addon requires.

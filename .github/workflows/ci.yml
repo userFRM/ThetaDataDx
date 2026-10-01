@@ -744,6 +744,12 @@ jobs:
       - run: cargo build --release -p thetadatadx-ffi --locked
         env:
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
+      # The runner has the redistributable, so nothing else here would notice
+      # the DLL falling back to the dynamic runtime.
+      - name: Verify the DLL does not import the Visual C++ runtime
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python scripts/ci/check_windows_crt_static.py target/release/thetadatadx_ffi.dll
       - if: runner.os == 'Windows'
         shell: bash
         env:
@@ -816,6 +822,12 @@ jobs:
           CC_x86_64_unknown_linux_musl: musl-gcc
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --locked --manifest-path tools/server/Cargo.toml --target ${{ matrix.target }}
+      # The runner has the redistributable, so nothing else here would notice
+      # the binary falling back to the dynamic runtime.
+      - name: Verify the binary does not import the Visual C++ runtime
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python scripts/ci/check_windows_crt_static.py tools/server/target/${{ matrix.target }}/release/thetadatadx-server.exe
       - name: Package archive
         shell: bash
         run: |
