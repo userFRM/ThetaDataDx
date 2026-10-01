@@ -93,10 +93,10 @@ def main() -> int:
                 f"subscriptions drifted across reconnect: expected {expected_subs!r}, got {after!r}"
             )
 
-        # The retired session can still be firing on_event after reconnect()
-        # returns, and the queue still holds what it delivered before the
-        # reconnect. Wait for it to finish, then discard everything queued so
-        # far, so only data from the restored session can satisfy the drain.
+        # The queue still holds events delivered before the reconnect. Confirm
+        # the retired session has drained (the documented drain barrier), then
+        # discard everything queued so far, so only data from the restored
+        # session can satisfy the drain.
         if not client.stream.await_drain(5_000):
             raise RuntimeError("the session retired by reconnect did not drain within 5s")
         while True:
