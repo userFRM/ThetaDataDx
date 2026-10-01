@@ -1970,7 +1970,7 @@ cpp_returns = "i64"
 # channel, and these getters read each one back. `marketDataEnvironment`
 # reads a `"PROD"` / `"STAGE"` string, the same selector spelling the
 # inline client takes as `marketDataType` / `market_data_type`; `streamingEnvironment`
-# reads a `"PROD"` / `"DEV"` string, matching `streamingType` / `streaming_type`.
+# reads a `"PROD"` / `"STAGE"` / `"DEV"` string, matching `streamingType` / `streaming_type`.
 # Each is exposed on every binding: Python (`Config.market_data_environment`
 # / `Config.streaming_environment` properties), TypeScript
 # (`Config.marketDataEnvironment` / `Config.streamingEnvironment`
@@ -1999,7 +1999,7 @@ typescript = true
 cpp = true
 [method.signature]
 returns = "String"
-python_pyi_returns = 'Literal["PROD", "DEV"]'
+python_pyi_returns = 'Literal["PROD", "STAGE", "DEV"]'
 
 # The reconnect-jitter readback. A value-constrained enum exposed as a
 # readback getter on every binding: Python (`Config.reconnect_jitter`

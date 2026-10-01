@@ -1221,13 +1221,13 @@ ThetaDataDxConfig* thetadatadx_config_stage(void);
 int32_t thetadatadx_config_with_market_data_environment(ThetaDataDxConfig* config, int32_t kind);
 
 /** Select the streaming environment on a config handle in place:
- *  kind 0 = production, kind 1 = dev. The streaming and market-data
- *  channels are selected independently, so this leaves the market-data
- *  channel and the auth marker untouched.
+ *  kind 0 = production, kind 1 = dev, kind 2 = staging. The streaming and
+ *  market-data channels are selected independently, so this leaves the
+ *  market-data channel and the auth marker untouched.
  *  @param config Config handle to mutate.
- *  @param kind 0 for PROD, 1 for DEV.
+ *  @param kind 0 for PROD, 1 for DEV, 2 for STAGE.
  *  @return 0 on success, or -1 on error (config is null, or kind is
- *          outside {0, 1}); check thetadatadx_last_error(). */
+ *          outside {0, 1, 2}); check thetadatadx_last_error(). */
 int32_t thetadatadx_config_with_streaming_environment(ThetaDataDxConfig* config, int32_t kind);
 
 /** Source a config from a .env-format file. Starts from the production
@@ -1974,10 +1974,11 @@ char* thetadatadx_config_get_market_data_environment(const ThetaDataDxConfig* co
 
 /**
  * Read the streaming environment carried by the config: "PROD" for
- * the production cluster or "DEV" for the dev cluster. The streaming and
- * market-data environments are selected independently; the production /
- * stage / dev presets (and the THETADATA_STREAMING_TYPE dotenv key) set the
- * streaming channel, and this is the readback of that selection.
+ * the production cluster, "STAGE" for staging or "DEV" for the dev
+ * cluster. The streaming and market-data environments are selected
+ * independently; the production / stage / dev presets (and the
+ * THETADATA_STREAMING_TYPE dotenv key) set the streaming channel, and this
+ * is the readback of that selection.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null.

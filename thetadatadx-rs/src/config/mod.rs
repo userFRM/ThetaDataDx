@@ -91,7 +91,7 @@ pub use crate::backoff::JitterMode;
 /// | Variable | Type | Effect |
 /// |---|---|---|
 /// | `THETADATA_MARKET_DATA_TYPE` | `PROD`/`STAGE` | selects the market-data environment + auth marker. Case-insensitive. |
-/// | `THETADATA_STREAMING_TYPE` | `PROD`/`DEV` | selects the streaming environment. Case-insensitive. |
+/// | `THETADATA_STREAMING_TYPE` | `PROD`/`STAGE`/`DEV` | selects the streaming environment. Case-insensitive. |
 /// | `THETADATA_MARKET_DATA_HOST` | host | overrides `market_data.host` |
 /// | `THETADATA_MARKET_DATA_PORT` | u16  | overrides `market_data.port` |
 /// | `THETADATA_NEXUS_URL` | url  | overrides the Nexus auth URL |
@@ -104,7 +104,7 @@ pub use crate::backoff::JitterMode;
 /// The market-data and streaming channels are selected
 /// independently: `THETADATA_MARKET_DATA_TYPE` chooses the market-data cluster and the
 /// auth marker (production or staging), `THETADATA_STREAMING_TYPE` chooses the
-/// streaming cluster (production or dev), and neither affects the other. The
+/// streaming cluster (production, staging or dev), and neither affects the other. The
 /// typed [`DirectConfig::with_market_data_environment`] /
 /// [`DirectConfig::with_streaming_environment`] are the programmatic
 /// equivalents.
@@ -182,7 +182,7 @@ pub struct DirectConfig {
     /// streaming channel is selected independently via
     /// [`Self::streaming_environment`].
     pub market_data_environment: MarketDataEnvironment,
-    /// Target streaming environment (production or dev). Defaults to
+    /// Target streaming environment (production, staging or dev). Defaults to
     /// [`StreamingEnvironment::Prod`]; [`DirectConfig::dev`] selects
     /// [`StreamingEnvironment::Dev`]. Selects the cluster the streaming
     /// channel dials and nothing else — it never affects auth, so a dev
@@ -514,7 +514,7 @@ impl DirectConfig {
     /// Select the streaming environment, returning the updated config.
     ///
     /// The programmatic equivalent of the `THETADATA_STREAMING_TYPE`
-    /// (`PROD` / `DEV`) env var: it points the streaming hosts at the chosen
+    /// (`PROD` / `STAGE` / `DEV`) env var: it points the streaming hosts at the chosen
     /// environment and nothing else. Auth and the market-data channel are
     /// unaffected — a dev session authenticates byte-identically to a
     /// production one. Select the market-data channel independently with
@@ -545,7 +545,7 @@ impl DirectConfig {
     ///   the market-data host and the auth marker at the chosen cluster — the
     ///   file-sourced equivalent of the [`THETADATA_MARKET_DATA_TYPE`](Self::production)
     ///   env var and of [`Self::with_market_data_environment`].
-    /// - `THETADATA_STREAMING_TYPE` (`PROD` / `DEV`, case-insensitive) selects the
+    /// - `THETADATA_STREAMING_TYPE` (`PROD` / `STAGE` / `DEV`, case-insensitive) selects the
     ///   streaming environment via [`StreamingEnvironment::parse`], pointing the
     ///   streaming hosts at the chosen cluster — the file-sourced equivalent of
     ///   the [`THETADATA_STREAMING_TYPE`](Self::production) env var and of
@@ -1115,7 +1115,7 @@ impl DirectConfig {
         self.market_data_environment
     }
 
-    /// Target streaming environment (production or dev).
+    /// Target streaming environment (production, staging or dev).
     #[must_use]
     pub fn streaming_environment(&self) -> StreamingEnvironment {
         self.streaming_environment
@@ -3083,9 +3083,8 @@ mod tests {
     fn streaming_port_only_override_keeps_environment_host_cluster() {
         // A port-only `THETADATA_STREAMING_PORT` (host NOT set) must patch
         // ONLY the primary port of the selected streaming environment; the host
-        // cluster stays the environment's. Exercised against the dev cluster (the
-        // only non-prod streaming environment). Previously a port-only override
-        // suppressed the host rebuild entirely.
+        // cluster stays the environment's. Exercised against the dev cluster.
+        // Previously a port-only override suppressed the host rebuild entirely.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.

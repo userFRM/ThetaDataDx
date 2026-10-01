@@ -64,10 +64,11 @@ pub enum MarketDataEnvironment {
 /// session on any of them authenticates exactly as a production one. Defaults
 /// to [`StreamingEnvironment::Prod`].
 ///
-/// Selected with [`DirectConfig::dev`](crate::config::DirectConfig::dev) or
-/// [`DirectConfig::stage`](crate::config::DirectConfig::stage), the
+/// Selected with the
 /// [`with_streaming_environment`](crate::config::DirectConfig::with_streaming_environment)
-/// builder, or `THETADATA_STREAMING_TYPE=DEV` / `=STAGE`.
+/// builder or `THETADATA_STREAMING_TYPE=STAGE` / `=DEV`;
+/// [`DirectConfig::dev`](crate::config::DirectConfig::dev) selects
+/// [`Self::Dev`]. No preset selects [`Self::Stage`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum StreamingEnvironment {

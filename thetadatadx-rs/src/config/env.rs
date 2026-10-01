@@ -35,11 +35,11 @@ use crate::error::Error;
 /// naming the valid set, never a silent fallback.
 pub const ENV_MARKET_DATA_TYPE: &str = "THETADATA_MARKET_DATA_TYPE";
 
-/// Streaming environment selector (`PROD` / `DEV`, case-insensitive). `DEV`
-/// points the streaming channel at the dev replay cluster; `PROD` (or unset)
-/// keeps production. It never affects auth or the market-data channel. An
-/// unrecognized value (including `STAGE`, which the streaming channel does not
-/// support) is a hard error naming the valid set, never a silent fallback.
+/// Streaming environment selector (`PROD` / `STAGE` / `DEV`, case-insensitive).
+/// `STAGE` points the streaming channel at the staging cluster and `DEV` at the
+/// dev replay cluster; `PROD` (or unset) keeps production. It never affects
+/// auth or the market-data channel. An unrecognized value is a hard error
+/// naming the valid set, never a silent fallback.
 pub const ENV_STREAMING_TYPE: &str = "THETADATA_STREAMING_TYPE";
 
 /// Market-data host.
@@ -192,12 +192,11 @@ where
     // Environment selectors last: rebuild each channel's cluster routing,
     // applying the overrides recorded above. A blank value reads as unset (via
     // `get`); an UNRECOGNIZED value is a hard error naming the valid set
-    // (never a silent fallback), so a stale or typo'd selector — including a
-    // cross-channel value like `THETADATA_MARKET_DATA_TYPE=DEV` or
-    // `THETADATA_STREAMING_TYPE=STAGE` — fails loud instead of quietly keeping the
-    // wrong cluster. When a selector is absent we re-apply the CURRENT
-    // environment so a host override recorded above patches the existing
-    // cluster.
+    // (never a silent fallback), so a stale or typo'd selector, including the
+    // cross-channel value `THETADATA_MARKET_DATA_TYPE=DEV`, fails loud instead
+    // of quietly keeping the wrong cluster. When a selector is absent we
+    // re-apply the CURRENT environment so a host override recorded above
+    // patches the existing cluster.
     let market_data = match get(ENV_MARKET_DATA_TYPE) {
         Some(value) => MarketDataEnvironment::parse(&value).ok_or_else(|| {
             Error::config_invalid(

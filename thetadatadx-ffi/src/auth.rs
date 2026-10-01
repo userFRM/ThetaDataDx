@@ -244,11 +244,11 @@ pub unsafe extern "C" fn thetadatadx_config_with_market_data_environment(
 
 /// Select the streaming environment on a config handle in place.
 ///
-/// `kind` is `0` for production or `1` for dev. The streaming and
-/// market-data channels are selected independently, so this leaves the
-/// market-data channel and the auth marker untouched. Returns `0` on
-/// success. Returns `-1` with `thetadatadx_last_error` set when `config`
-/// is null or when `kind` is outside the documented `{0, 1}` set.
+/// `kind` is `0` for production, `1` for dev or `2` for staging. The
+/// streaming and market-data channels are selected independently, so this
+/// leaves the market-data channel and the auth marker untouched. Returns `0`
+/// on success. Returns `-1` with `thetadatadx_last_error` set when `config`
+/// is null or when `kind` is outside the documented `{0, 1, 2}` set.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
     config: *mut ThetaDataDxConfig,
@@ -262,9 +262,10 @@ pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
         let environment = match kind {
             0 => thetadatadx::StreamingEnvironment::Prod,
             1 => thetadatadx::StreamingEnvironment::Dev,
+            2 => thetadatadx::StreamingEnvironment::Stage,
             other => {
                 set_error(&format!(
-                    "streaming environment selector must be 0 (PROD) or 1 (DEV); got {other}"
+                    "streaming environment selector must be 0 (PROD), 1 (DEV) or 2 (STAGE); got {other}"
                 ));
                 return -1;
             }
@@ -357,13 +358,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_environment(
 
 /// Read the streaming environment carried by the config.
 ///
-/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
-/// `"DEV"`) the caller MUST release with `thetadatadx_string_free`. The
-/// streaming and market-data environments are selected independently: the
-/// `production` / `stage` / `dev` presets (and the `THETADATA_STREAMING_TYPE`
-/// dotenv key) set the streaming channel, and this is the readback of that
-/// selection. Returns null if `config` is null (the diagnostic is written
-/// to `thetadatadx_last_error()`).
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"`,
+/// `"STAGE"` or `"DEV"`) the caller MUST release with
+/// `thetadatadx_string_free`. The streaming and market-data environments are
+/// selected independently: the `production` / `stage` / `dev` presets (and
+/// the `THETADATA_STREAMING_TYPE` dotenv key) set the streaming channel, and
+/// this is the readback of that selection. Returns null if `config` is null
+/// (the diagnostic is written to `thetadatadx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
     config: *const ThetaDataDxConfig,
@@ -1792,6 +1793,13 @@ mod auth_metrics_setter_tests {
             assert_eq!(got.as_deref(), Some("STAGE"));
             let got = take_owned(super::thetadatadx_config_get_streaming_environment(cfg));
             assert_eq!(got.as_deref(), Some("DEV"));
+            // Selector 2 is the streaming staging cluster.
+            assert_eq!(
+                super::thetadatadx_config_with_streaming_environment(cfg, 2),
+                0
+            );
+            let got = take_owned(super::thetadatadx_config_get_streaming_environment(cfg));
+            assert_eq!(got.as_deref(), Some("STAGE"));
             // An out-of-range selector is rejected and leaves the config unchanged.
             assert_eq!(
                 super::thetadatadx_config_with_market_data_environment(cfg, 2),
