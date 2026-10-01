@@ -110,7 +110,7 @@ impl Config {
     /// Minimum `1` (validated at connect). Default `50`.
     #[napi(js_name = "setReconnectReplayBurstSize")]
     pub fn set_reconnect_replay_burst_size(&self, n: f64) -> napi::Result<()> {
-        let value = crate::validate_u32_arg_min1("reconnectReplayBurstSize", n)?;
+        let value = crate::validate_u32_arg("reconnectReplayBurstSize", n)?;
         let mut guard = self
             .inner
             .lock()
@@ -458,7 +458,7 @@ impl Config {
     /// `maxAttempts - 1` after the initial call. Default `20`.
     #[napi(js_name = "setRetryMaxAttempts")]
     pub fn set_retry_max_attempts(&self, n: f64) -> napi::Result<()> {
-        let value = crate::validate_u32_arg_min1("retryMaxAttempts", n)?;
+        let value = crate::validate_u32_arg("retryMaxAttempts", n)?;
         let mut guard = self
             .inner
             .lock()
@@ -507,7 +507,7 @@ impl Config {
     /// Default `10`. Validated to the range `[1, 100]` at connect time.
     #[napi(js_name = "setFlatfilesMaxAttempts")]
     pub fn set_flatfiles_max_attempts(&self, n: f64) -> napi::Result<()> {
-        let value = crate::validate_u32_arg_min1("flatfilesMaxAttempts", n)?;
+        let value = crate::validate_u32_arg("flatfilesMaxAttempts", n)?;
         let mut guard = self
             .inner
             .lock()
@@ -917,7 +917,7 @@ impl Config {
     /// reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxAttempts")]
     pub fn set_reconnect_max_attempts(&self, max_attempts: f64) -> napi::Result<()> {
-        let value = crate::validate_u32_arg_min1("reconnectMaxAttempts", max_attempts)?;
+        let value = crate::validate_u32_arg("reconnectMaxAttempts", max_attempts)?;
         let mut guard = self
             .inner
             .lock()
@@ -948,7 +948,7 @@ impl Config {
     /// unless the reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxRateLimitedAttempts")]
     pub fn set_reconnect_max_rate_limited_attempts(&self, max_rate_limited_attempts: f64) -> napi::Result<()> {
-        let value = crate::validate_u32_arg_min1("reconnectMaxRateLimitedAttempts", max_rate_limited_attempts)?;
+        let value = crate::validate_u32_arg("reconnectMaxRateLimitedAttempts", max_rate_limited_attempts)?;
         let mut guard = self
             .inner
             .lock()
@@ -977,7 +977,7 @@ impl Config {
     /// `60`. No effect unless the reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxServerRestartAttempts")]
     pub fn set_reconnect_max_server_restart_attempts(&self, n: f64) -> napi::Result<()> {
-        let value = crate::validate_u32_arg_min1("reconnectMaxServerRestartAttempts", n)?;
+        let value = crate::validate_u32_arg("reconnectMaxServerRestartAttempts", n)?;
         let mut guard = self
             .inner
             .lock()

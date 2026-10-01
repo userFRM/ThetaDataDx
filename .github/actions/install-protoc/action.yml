@@ -31,7 +31,7 @@ runs:
         $extractDir = Join-Path $env:RUNNER_TEMP "protoc-$version-win64"
         $downloadUrl = "https://github.com/protocolbuffers/protobuf/releases/download/v$version/protoc-$version-win64.zip"
 
-        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -MaximumRetryCount 5 -RetryIntervalSec 10
 
         if (Test-Path $extractDir) {
           Remove-Item -Recurse -Force $extractDir

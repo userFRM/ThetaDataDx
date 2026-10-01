@@ -606,24 +606,6 @@ fn rust_lit(raw: &str) -> String {
     raw.replace('"', "\\\"")
 }
 
-/// The TypeScript `u32` setter validator for an accessor: the napi
-/// boundary takes the argument as `f64` (V8 `ToUint32` on a bare `u32`
-/// silently wraps `-1`/`2**32` and truncates `1.5`) and routes it through
-/// a finite/whole/range check. A burst-size or attempt-budget knob — a
-/// value the core rejects at `0` — additionally floors at `1`; every
-/// other `u32` knob (iteration counts, keepalive retries) allows `0`.
-///
-/// The `_attempts` suffix and the `replay_burst_size` field are the
-/// min-1 set; both spellings come straight off the field name so a new
-/// attempt-budget row inherits the floor without a per-row flag.
-fn ts_u32_validator(field: &str) -> &'static str {
-    if field.ends_with("_attempts") || field == "reconnect_replay_burst_size" {
-        "validate_u32_arg_min1"
-    } else {
-        "validate_u32_arg"
-    }
-}
-
 /// The Rust scalar type each abi maps to on the PyO3 surface.
 fn py_type(abi: &str) -> &'static str {
     match abi {
@@ -909,11 +891,10 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                     // `4_294_967_295` (catastrophic as a pool size) and truncate
                     // `1.5`.
                     "u32" => {
-                        let validator = ts_u32_validator(field);
                         write!(
                             out,
-                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<f64>) -> napi::Result<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(crate::{validator}(\"{set_js}\", v)?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
-                            set_js = set_js, field = field, param = param, path = a.path, validator = validator,
+                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<f64>) -> napi::Result<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(crate::validate_u32_arg(\"{set_js}\", v)?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
+                            set_js = set_js, field = field, param = param, path = a.path,
                         )?;
                     }
                     // Wider seeds arrive as `BigInt`; decoded losslessly.
@@ -1005,14 +986,13 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                         },
                     ),
                     // `u32` arrives as `f64` and is validated at the napi
-                    // boundary; the attempt budgets here additionally floor
-                    // at 1 (see `ts_u32_validator`). The diagnostic names the
-                    // camelCase JS key, not the Rust param.
+                    // boundary; the budget's range is `DirectConfig::validate`'s
+                    // to enforce at connect, as on every other binding. The
+                    // diagnostic names the camelCase JS key, not the Rust param.
                     "u32" => (
                         "f64",
                         format!(
-                            "        let value = crate::{}(\"{camel}\", {param})?;\n",
-                            ts_u32_validator(field),
+                            "        let value = crate::validate_u32_arg(\"{camel}\", {param})?;\n",
                             camel = to_camel_case(field),
                         ),
                         "value".to_string(),
@@ -1060,14 +1040,14 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                 ),
                 // `u32` arrives as `f64` and is validated at the napi
                 // boundary so a hostile `-1` / `1.5` / `2**32` is rejected
-                // rather than silently wrapped by V8 `ToUint32`. Attempt
-                // budgets additionally floor at 1 (`ts_u32_validator`); the
-                // diagnostic names the camelCase JS key.
+                // rather than silently wrapped by V8 `ToUint32`. A knob's own
+                // range is `DirectConfig::validate`'s to enforce at connect, as
+                // on every other binding; the diagnostic names the camelCase
+                // JS key.
                 "u32" => (
                     "f64".to_string(),
                     format!(
-                        "        let value = crate::{}(\"{camel}\", {param})?;\n",
-                        ts_u32_validator(field),
+                        "        let value = crate::validate_u32_arg(\"{camel}\", {param})?;\n",
                         camel = to_camel_case(field),
                     ),
                     "value".to_string(),

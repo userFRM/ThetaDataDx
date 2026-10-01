@@ -135,6 +135,17 @@ def test_fpss_client_constructor_signature() -> None:
     assert "StreamingClient(" in rendered, rendered
 
 
+def test_fpss_client_refuses_an_out_of_range_config() -> None:
+    """The standalone client validates its config at construction, as the
+    unified client's connect does, so an out-of-range reconnect budget is
+    refused naming its field instead of reaching the reconnect driver."""
+    mod = _import_module()
+    config = mod.Config.production()
+    config.reconnect_max_attempts = 0
+    with pytest.raises(mod.InvalidParameterError, match="reconnect.max_attempts"):
+        mod.StreamingClient(mod.Credentials("user@example.com", "pw"), config)
+
+
 def test_mdds_client_requires_network_for_construction() -> None:
     """`MarketDataClient.__init__` authenticates against Nexus and opens the
     MDDS gRPC channel, so without a live network the construct call

@@ -1,0 +1,23 @@
+name: Check glibc ceiling
+description: Fail when a Linux shared object requires a glibc symbol version newer than the given one. A test that runs on the runner that built the object cannot see a glibc floor above the runner's own, so this reads the floor from the symbol versions the object requires.
+
+inputs:
+  path:
+    description: The shared object to inspect.
+    required: true
+  glibc:
+    description: The newest glibc version the object may require, for example "2.17".
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        OBJECT: ${{ inputs.path }}
+        CEILING: GLIBC_${{ inputs.glibc }}
+      run: |
+        newest="$(objdump -T "$OBJECT" | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sort -uV | tail -n 1)"
+        echo "newest glibc symbol version required: ${newest:-none found}"
+        [ -n "$newest" ]
+        [ "$(printf '%s\n' "$newest" "$CEILING" | sort -V | tail -n 1)" = "$CEILING" ]
