@@ -211,6 +211,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The documented MCP setup works for a final release.** The docs-site page ran `thetadatadx-mcp-server@next`, a tag a final release never publishes, so npx failed to find a matching version. It now runs the latest release.
 
+- **TypeScript leaves the attempt-budget ranges to connect, like every other binding.** `setReconnectMaxAttempts`, `setReconnectMaxRateLimitedAttempts`, `setReconnectMaxServerRestartAttempts`, `setReconnectReplayBurstSize`, `setRetryMaxAttempts` and `setFlatfilesMaxAttempts` refused `0` at once but accepted any larger value, which connect then refused if it was above the ceiling, so the same mistake failed at a different point depending on the binding. Every out-of-range value is now refused when the configuration is validated, naming the field, as in Python, C++ and the C ABI. Negative, fractional and non-finite values are still refused at the setter.
+
+- **A standalone streaming client validates its configuration when it is built.** The standalone `StreamingClient` in Python, TypeScript and the C ABI skipped the validation the unified client's connect runs, so an out-of-range value such as a reconnect budget of 0 reached the reconnect driver instead of being refused. It is now refused at construction, naming the field.
+
+- **The Linux C ABI library on the release page loads on older distributions.** `libthetadatadx_ffi.so` was linked against the build machine's glibc, so a program using it on RHEL 8, Debian 11 or Ubuntu 20.04 failed to load it. It now links against glibc 2.17, the same floor as the TypeScript addon, and the release build fails if it ever requires anything newer.
+
 ## [0.4.0] - 2026-08-08
 
 ### Removed
