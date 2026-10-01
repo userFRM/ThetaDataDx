@@ -8,8 +8,8 @@
 //!         <sec> <data_type> <date> <out_path> <format>
 //!
 //! Args:
-//!   sec        OPTION | STOCK | INDEX
-//!   data_type  EOD | QUOTE | TRADE | TRADE_QUOTE | OPEN_INTEREST | OHLC
+//!   sec        OPTION | STOCK
+//!   data_type  EOD | TRADE_QUOTE | OPEN_INTEREST (OPEN_INTEREST is OPTION only)
 //!   date       YYYYMMDD (e.g. 20260428)
 //!   out_path   destination path; the format extension is appended if absent
 //!   format     CSV | JSON | JSONL | HTML
@@ -37,8 +37,10 @@ async fn main() -> ExitCode {
             "usage: {} <sec> <data_type> <date> <out_path> <format>",
             args.first().map(String::as_str).unwrap_or("flatfile_demo")
         );
-        eprintln!("       sec: OPTION | STOCK | INDEX");
-        eprintln!("       data_type: EOD | QUOTE | TRADE | TRADE_QUOTE | OPEN_INTEREST | OHLC");
+        eprintln!("       sec: OPTION | STOCK");
+        eprintln!(
+            "       data_type: EOD | TRADE_QUOTE | OPEN_INTEREST (OPEN_INTEREST is OPTION only)"
+        );
         eprintln!("       format: CSV | JSON | JSONL | HTML");
         return ExitCode::from(2);
     }
