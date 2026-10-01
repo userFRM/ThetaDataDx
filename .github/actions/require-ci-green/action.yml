@@ -22,6 +22,7 @@ inputs:
       python.yml:Python verified
       typescript.yml:TypeScript verified
       perf-gate.yml:Perf gate
+      release-mcp-npm.yml:MCP verified
   timeout-minutes:
     description: How long to wait for all of them to conclude before failing.
     required: false

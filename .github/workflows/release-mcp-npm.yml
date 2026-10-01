@@ -125,6 +125,26 @@ jobs:
           path: stage/thetadatadx-mcp-server*
           if-no-files-found: error
 
+  # The build matrix as one verification aggregate that excludes the publish
+  # job. Nothing before the tag builds tools/mcp for these targets, so the
+  # publishers in the other workflows wait on this through require-ci-green:
+  # without it, a target that fails to build here would skip only this
+  # publish while every other registry released the version.
+  verified:
+    name: MCP verified
+    if: always()
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail unless every target built
+        shell: bash
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          echo "build: ${BUILD_RESULT}"
+          [ "${BUILD_RESULT}" = success ]
+
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
