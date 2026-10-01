@@ -553,6 +553,11 @@ describe('Config u32 setter input-validation parity (native)', () => {
         (err) => err instanceof mod.InvalidParameterError && err.message.includes(field),
         `connect must refuse ${field} = 0 before any network round-trip`,
       );
+      assert.throws(
+        () => mod.StreamingClient.connect(mod.Credentials.fromApiKey('td1_example'), cfg),
+        (err) => err instanceof mod.InvalidParameterError && err.message.includes(field),
+        `the standalone StreamingClient must refuse ${field} = 0 as well`,
+      );
     });
   }
 });
