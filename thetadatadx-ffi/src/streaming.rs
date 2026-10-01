@@ -126,6 +126,12 @@ pub struct ThetaDataDxClient {
     /// without re-asking the caller for it. Cleared when
     /// `thetadatadx_client_batches_open` starts a batch session in its place.
     pub(crate) callback: Mutex<Option<FfiCallback>>,
+    /// The subscriptions `thetadatadx_client_reconnect` is replaying. A
+    /// reconnect stops the session before the fallible restart, and the stop
+    /// clears the session's own lists, so this is what a retry after a failed
+    /// restart replays. An explicit stop or a new callback registration
+    /// starts over and clears it.
+    saved_subscriptions: Mutex<Option<SavedSubscriptions>>,
 }
 
 // `FfpssDispatcherSession` is imported above as a `use` alias of the
@@ -509,6 +515,7 @@ pub unsafe extern "C" fn thetadatadx_client_connect(
             Ok(client) => Box::into_raw(Box::new(ThetaDataDxClient {
                 inner: client,
                 callback: Mutex::new(None),
+                saved_subscriptions: Mutex::new(None),
             })),
             Err(e) => {
                 set_error_from(&e);
@@ -660,6 +667,9 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
             set_error("streaming already started");
             return -1;
         }
+        // A new registration starts a fresh session, so a failed reconnect's
+        // saved subscriptions no longer apply.
+        *handle.saved_subscriptions.lock_recover() = None;
         // The slot is not `Live`, so this is either the first registration or a
         // replacement after stop. Store BEFORE `start_streaming` so the engine
         // observes a consistent handle; roll back to `None` if start fails.
@@ -994,23 +1004,26 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
 
-        // Save active subscriptions. If streaming isn't running (or the
-        // subscription locks are poisoned upstream) we must abort the
-        // reconnect -- silently falling back to an empty list drops every
-        // subscription on the floor.
-        let saved_subs = match handle.inner.stream().active_subscriptions() {
-            Ok(subs) => subs,
-            Err(e) => {
-                set_error_from(&e);
-                return -1;
+        // Save active subscriptions. With no live session, a previous
+        // reconnect stopped it and then failed to restart: replay what that
+        // attempt saved. With neither, there is nothing to reconnect, and
+        // falling back to an empty list would drop every subscription.
+        let (saved_subs, saved_full_subs) = {
+            let mut saved = handle.saved_subscriptions.lock_recover();
+            let stream = handle.inner.stream();
+            match (
+                stream.active_subscriptions(),
+                stream.active_full_subscriptions(),
+            ) {
+                (Ok(subs), Ok(full_subs)) => *saved = Some((subs, full_subs)),
+                (Err(e), _) | (_, Err(e)) => {
+                    if saved.is_none() {
+                        set_error_from(&e);
+                        return -1;
+                    }
+                }
             }
-        };
-        let saved_full_subs = match handle.inner.stream().active_full_subscriptions() {
-            Ok(subs) => subs,
-            Err(e) => {
-                set_error_from(&e);
-                return -1;
-            }
+            saved.clone().unwrap_or_default()
         };
 
         // Look up the previously-registered callback so we can re-attach
@@ -1077,11 +1090,12 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
         // back-to-back. The session is live either way; a subscription that
         // failed to restore is reported as `PartialReconnect` so the caller
         // can retry it rather than wait on a contract that never delivers.
-        if let Err(e) = handle
+        let restored = handle
             .inner
             .stream()
-            .restore_subscriptions(&saved_subs, &saved_full_subs)
-        {
+            .restore_subscriptions(&saved_subs, &saved_full_subs);
+        *handle.saved_subscriptions.lock_recover() = None;
+        if let Err(e) = restored {
             set_error_from(&e);
             return -1;
         }
@@ -1247,6 +1261,7 @@ pub unsafe extern "C" fn thetadatadx_client_stop_streaming(handle: *const ThetaD
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
+        *handle.saved_subscriptions.lock_recover() = None;
         handle.inner.stream().stop_streaming();
     })
 }
