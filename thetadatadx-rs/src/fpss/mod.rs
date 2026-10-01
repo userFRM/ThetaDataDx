@@ -2334,8 +2334,16 @@ impl StreamingClient {
         // subscription for reconnect replay. Such a subscribe is accepted on
         // the wire and answered `Subscribed`, then never streams a tick, so it
         // is rejected here at the subscribe boundary instead. An unsubscribe
-        // is left alone, as on the per-contract path.
-        if !unsubscribe && !full_stream_supported(sec_type, kind) {
+        // for a real security type is left alone, as on the per-contract
+        // path, so a full stream opened elsewhere on the account can be
+        // removed. `Unknown` is refused both ways: it is not a security type
+        // the feed addresses, so no full stream for it exists to remove.
+        let refusal = if sec_type == SecType::Unknown {
+            Some(format!(
+                "{sec_type:?} is not a security type the feed publishes, so there is no \
+                 full-stream {kind:?} broadcast to subscribe to or unsubscribe from."
+            ))
+        } else if !unsubscribe && !full_stream_supported(sec_type, kind) {
             let remedy = match kind {
                 protocol::FullSubscriptionKind::Trades => {
                     "Full-stream Trades is published for Stock and Option; subscribe \
@@ -2345,13 +2353,18 @@ impl StreamingClient {
                     "Open interest is published only for options."
                 }
             };
+            Some(format!(
+                "{sec_type:?} has no full-stream {kind:?} broadcast upstream; the server \
+                 accepts the subscribe and then never sends a tick. {remedy}"
+            ))
+        } else {
+            None
+        };
+        if let Some(message) = refusal {
             return Err(Error::Config {
                 kind: crate::error::ConfigErrorKind::InvalidValue {
                     field: "Subscription::full".to_string(),
-                    message: format!(
-                        "{sec_type:?} has no full-stream {kind:?} broadcast upstream; the \
-                         server accepts the subscribe and then never sends a tick. {remedy}"
-                    ),
+                    message,
                 },
                 message: "unsupported full-stream subscription".to_string(),
                 source: None,
@@ -3488,6 +3501,36 @@ mod full_stream_guard_tests {
             client.active_full_subscriptions().is_empty(),
             "rejected full-stream subscription must not be tracked"
         );
+
+        client.shutdown();
+    }
+
+    /// A full-stream unsubscribe goes out for any real security type, so a
+    /// stream opened elsewhere on the account can be removed, but `Unknown`
+    /// names no stream at all and is refused on unsubscribe as on subscribe.
+    #[test]
+    fn full_unsubscribe_refuses_only_unknown() {
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        for (sec_type, refused) in [(SecType::Index, false), (SecType::Unknown, true)] {
+            match client.unsubscribe(sec_type.full_trades()) {
+                Ok(()) => assert!(
+                    !refused,
+                    "full-stream {sec_type:?} unsubscribe must be refused"
+                ),
+                Err(Error::Config {
+                    kind: ConfigErrorKind::InvalidValue { ref field, .. },
+                    ..
+                }) if refused => assert_eq!(field, "Subscription::full"),
+                Err(other) => panic!("full-stream {sec_type:?} unsubscribe: unexpected {other:?}"),
+            }
+        }
 
         client.shutdown();
     }
