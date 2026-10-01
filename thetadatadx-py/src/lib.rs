@@ -730,7 +730,7 @@ fn apply_env_overrides(
     if let Some(raw) = streaming_type {
         let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
             config_err(format!(
-                "streaming_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+                "streaming_type must be \"PROD\", \"STAGE\" or \"DEV\" (case-insensitive); got {raw:?}"
             ))
         })?;
         direct = direct.with_streaming_environment(environment);

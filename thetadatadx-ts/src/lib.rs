@@ -437,7 +437,7 @@ impl ClientConnectOptions {
         if let Some(raw) = streaming_type.as_deref() {
             let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
                 config_option_err(format!(
-                    "streamingType must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+                    "streamingType must be \"PROD\", \"STAGE\" or \"DEV\" (case-insensitive); got {raw:?}"
                 ))
             })?;
             cfg = cfg.with_streaming_environment(environment);
