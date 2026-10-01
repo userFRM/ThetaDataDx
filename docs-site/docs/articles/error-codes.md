@@ -47,12 +47,12 @@ The [HTTP server](/server/http) answers a failed data request the way the termin
 | HTTP status | Meaning |
 |---|---|
 | 400 | Missing or invalid parameter; the body names it. |
-| 404 | Unknown route. |
+| 404 | Unknown endpoint; the body names it. A path the server does not serve at all gets an empty 404. |
 | 410 | A v2 query parameter; the body names its v3 replacement. |
 | 503 | Upstream capacity exhausted after retries; carries `Retry-After`. |
 | Set by the upstream | The upstream service rejected the request. The server answers with the HTTP status the service attaches to the rejection (for example its no-data status when a query matches no rows) and the service's description, or with 500 when the service attaches no status. |
 
-Two kinds of failure are answered with a JSON envelope instead, whose `error_type` names the class: a query string the server cannot accept (more than 32 parameters, or one it cannot parse), and every failure on the [flat-file](/articles/flat-files) routes.
+Three kinds of failure are answered with a JSON envelope instead, whose `error_type` names the class: a query string the server cannot accept (more than 32 parameters, or one it cannot parse), every failure on the [flat-file](/articles/flat-files) routes, and an internal fault while the server renders a response.
 
 ```json
 {
@@ -66,3 +66,4 @@ Two kinds of failure are answered with a JSON envelope instead, whose `error_typ
 | 400 | `bad_request` | The query string or a flat-file parameter was rejected; the message names it. |
 | 404 | `flatfiles_no_data` | No flat file is available to this account for the requested date. |
 | 502 | `flatfiles_unavailable` | The upstream failed while serving the flat file. |
+| 500 | `serialization_error`, `server_error` | The server failed to render the response. This is a defect in the server, not a data condition. |

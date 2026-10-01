@@ -101,7 +101,7 @@ x-anchors:
     schema:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
-    description: Start date in YYYYMMDD format
+    description: Start date in YYYYMMDD or YYYY-MM-DD format
 
   end_date-param: &end_date-param
     name: end_date
@@ -110,7 +110,7 @@ x-anchors:
     schema:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
-    description: End date in YYYYMMDD format
+    description: End date in YYYYMMDD or YYYY-MM-DD format
 
   date-param: &date-param
     name: date
@@ -119,7 +119,7 @@ x-anchors:
     schema:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
-    description: Date in YYYYMMDD format
+    description: Date in YYYYMMDD or YYYY-MM-DD format
 
   date-optional-param: &date-optional-param
     name: date
@@ -128,7 +128,7 @@ x-anchors:
     schema:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
-    description: Date in YYYYMMDD format (optional when using start_date/end_date)
+    description: Date in YYYYMMDD or YYYY-MM-DD format (optional when using start_date/end_date)
 
   start_date-optional-param: &start_date-optional-param
     name: start_date
@@ -137,7 +137,7 @@ x-anchors:
     schema:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
-    description: Range start date in YYYYMMDD format (optional; pair with end_date instead of date)
+    description: Range start date in YYYYMMDD or YYYY-MM-DD format (optional; pair with end_date instead of date)
 
   end_date-optional-param: &end_date-optional-param
     name: end_date
@@ -146,7 +146,7 @@ x-anchors:
     schema:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
-    description: Range end date in YYYYMMDD format (optional; pair with start_date instead of date)
+    description: Range end date in YYYYMMDD or YYYY-MM-DD format (optional; pair with start_date instead of date)
 
   format-param: &format-param
     name: format
@@ -223,7 +223,7 @@ x-anchors:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2}|\*)$'
     description: >-
-      Option expiration date in YYYYMMDD format. Pass `*` to select all
+      Option expiration date in YYYYMMDD or YYYY-MM-DD format. Pass `*` to select all
       expirations for the underlying (chain-wide; query one date at a time).
 
   expiration-no-star-param: &expiration-no-star-param
@@ -234,7 +234,7 @@ x-anchors:
       type: string
       pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
     description: >-
-      Option expiration date in YYYYMMDD format. This endpoint resolves a
+      Option expiration date in YYYYMMDD or YYYY-MM-DD format. This endpoint resolves a
       single concrete expiration and rejects the `*` wildcard.
 
   strike-param: &strike-param
@@ -3135,7 +3135,7 @@ components:
           description: Underlying symbol (e.g. "SPY")
         expiration:
           type: string
-          description: Expiration date in YYYYMMDD format
+          description: Expiration date in YYYYMMDD or YYYY-MM-DD format
         strike:
           type: string
           description: Strike price in dollars as a string
@@ -3347,11 +3347,12 @@ components:
     Error:
       type: object
       description: |
-        The JSON body of the two failures the server answers with an
-        envelope: a query string it cannot accept, and any failure on the
-        flat-file routes. `error_type` is the discriminator a client branches
-        on; see the error codes page for the values. Every other failed request
-        is answered with an HTTP status and a plain-text description.
+        The JSON body of the failures the server answers with an envelope: a
+        query string it cannot accept, any failure on the flat-file routes, and
+        an internal fault while rendering a response. `error_type` is the
+        discriminator a client branches on; see the error codes page for the
+        values. Every other failed request is answered with an HTTP status and
+        a plain-text description.
       required: [header, response]
       properties:
         header:
