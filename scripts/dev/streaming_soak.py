@@ -95,6 +95,20 @@ def main() -> int:
                     raise RuntimeError(
                         f"subscriptions drifted across reconnect: expected {expected_subs!r}, got {after!r}"
                     )
+                # The retired session can still be firing on_event after
+                # reconnect() returns, and the queue still holds what it
+                # delivered before the reconnect. Wait for it to finish, then
+                # discard everything queued so far, so only data from the
+                # restored session can satisfy the drain.
+                if not stream.await_drain(5_000):
+                    raise RuntimeError(
+                        f"the session retired by reconnect {reconnect_count} did not drain within 5s"
+                    )
+                while True:
+                    try:
+                        events.get_nowait()
+                    except queue.Empty:
+                        break
                 symbol, _ = _drain_data_kind(events, timeout_secs=20.0)
                 data_events += 1
                 if not symbol:
@@ -114,10 +128,6 @@ def main() -> int:
         if reconnect_count < args.reconnects:
             raise RuntimeError(
                 f"completed only {reconnect_count} reconnects within soak window; expected {args.reconnects}"
-            )
-        if data_events <= reconnect_count:
-            raise RuntimeError(
-                f"observed insufficient data events after reconnects: {data_events} events, {reconnect_count} reconnects"
             )
     finally:
         stop_consuming.set()
