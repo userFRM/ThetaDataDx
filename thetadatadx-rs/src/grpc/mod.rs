@@ -1,13 +1,14 @@
-//! MDDS gRPC transport over the reference Rust gRPC stack (tonic).
+//! MDDS gRPC transport: tonic's gRPC client over a hyper HTTP/2
+//! connection this module owns.
 //!
 //! # Shape
 //!
 //! The MDDS code path is server-streaming gRPC over HTTP/2 + TLS with
-//! prost-encoded protobuf payloads. This module is a thin wrapper over
-//! `tonic::transport::Channel` + `tonic::client::Grpc`:
+//! prost-encoded protobuf payloads. This module pairs
+//! `tonic::client::Grpc` with its own HTTP/2 connection handling:
 //!
 //! - [`Channel`] — one gRPC channel (one HTTP/2 connection, reconnected
-//!   in place by the underlying stack when it dies). Owns the connect
+//!   by the next RPC after it ends). Owns the connect
 //!   parameters (host, port, optional rustls config, per-frame decode
 //!   ceiling) and dispatches server-streaming RPCs.
 //! - [`ServerStreaming`] — async [`futures_core::Stream`] adapter over
@@ -42,10 +43,10 @@
 //! - A genuine server status (carried in `grpc-status` trailers or a
 //!   trailers-only response) surfaces as [`ChannelError::Rpc`].
 //! - Connection-level transport death (GOAWAY, IO failure, connect
-//!   failure on the in-place reconnect path) surfaces as
+//!   failure on the redial path) surfaces as
 //!   [`ChannelError::ConnectionClosed`]; the retry shell in
 //!   `crate::mdds::macros` classifies it as transient and re-dispatches,
-//!   by which point the underlying stack has lazily reconnected.
+//!   and the re-dispatch dials a fresh connection.
 //! - Per-stream `RST_STREAM` (any reason code) surfaces as
 //!   [`ChannelError::H2Stream`]; the connection itself is healthy and
 //!   the next RPC on the same channel can succeed.

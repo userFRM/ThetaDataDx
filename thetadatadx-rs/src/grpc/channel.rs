@@ -1,16 +1,26 @@
-//! gRPC channel over the reference Rust gRPC stack.
+//! gRPC channel: one HTTP/2 connection at a time, redialled on demand.
 //!
-//! A [`Channel`] owns one `tonic::transport::Channel` — one HTTP/2
-//! connection to a gRPC server, driven by the underlying stack's
-//! connection task. When the connection dies (GOAWAY, IO failure), the
-//! underlying stack reconnects lazily on the next dispatched RPC; the
-//! in-flight RPC observes [`ChannelError::ConnectionClosed`] and the
-//! caller's retry shell (`crate::mdds::macros::classify_error`)
-//! re-dispatches onto the recovered connection or a sibling pool member.
-//! The endpoint carries a dial timeout (`connect_timeout`) so a
-//! reconnect dial to an unreachable or black-holed peer fails fast as a
-//! retryable transport fault rather than hanging the connection task
-//! once per-call deadlines are disabled.
+//! A [`Channel`] holds the request sender of one HTTP/2 client
+//! connection to a gRPC server; the connection itself is driven by its
+//! own task. When the connection ends (GOAWAY, IO failure, peer close),
+//! that task removes the sender and the next dispatched RPC dials a new
+//! connection. An RPC in flight on the dead connection observes
+//! [`ChannelError::ConnectionClosed`] and the caller's retry shell
+//! (`crate::mdds::macros::classify_error`) re-dispatches it onto the new
+//! connection or a sibling pool member. The production constructors
+//! carry a dial timeout (`connect_timeout`) so a redial to an
+//! unreachable or black-holed peer fails fast as a retryable transport
+//! fault rather than hanging once per-call deadlines are disabled.
+//!
+//! The connection task removes the sender, rather than the next RPC
+//! replacing it, because of how the HTTP/2 client fails queued
+//! requests. Each request is queued for the connection task, which
+//! fails whatever is still queued when it exits. A request queued at
+//! the instant the task exits can land after that sweep, and is then
+//! failed only when the last sender for the connection is dropped. A
+//! sender kept until the next RPC notices the dead connection leaves
+//! such a request unanswered for as long as the channel stays idle:
+//! without a deadline, for ever.
 //!
 //! [`Channel::server_streaming`] sends a single server-streaming RPC and
 //! returns a [`ServerStreaming`] that yields decoded response messages.
@@ -22,20 +32,21 @@
 //!
 //! TLS rides through a custom connector (`GrpcConnector`) so the
 //! existing single-provider rustls configuration (`ring`, webpki roots,
-//! `h2` ALPN) is reused verbatim — the underlying stack's own TLS
-//! features stay disabled and the dependency graph keeps exactly one
-//! `CryptoProvider`. The same connector serves plaintext h2c for mock
-//! servers and sidecar deployments.
+//! `h2` ALPN) is reused verbatim and the dependency graph keeps exactly
+//! one `CryptoProvider`. The same connector serves plaintext h2c for
+//! mock servers and sidecar deployments.
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use http::header::{HeaderValue, USER_AGENT};
 use http::uri::{PathAndQuery, Scheme, Uri};
-use hyper_util::rt::TokioIo;
+use hyper::client::conn::http2;
+use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
@@ -44,9 +55,12 @@ use tokio_rustls::TlsConnector;
 use super::status::Status;
 use super::stream::ServerStreaming;
 
-/// User-agent reported on every request. The underlying stack appends
-/// its own product token after this prefix.
-const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
+/// User-agent reported on every request.
+const USER_AGENT_VALUE: &str = concat!("thetadatadx-grpc/", env!("CARGO_PKG_VERSION"));
+
+/// Error type of the request path beneath [`Channel`]: dial, handshake
+/// and HTTP/2 faults, classified by walking their source chains.
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 /// HTTP/2 session tuning threaded from `DirectConfig::mdds` —
 /// flow-control windows and keepalive cadence. The short channel
@@ -170,34 +184,36 @@ pub enum ChannelError {
     /// `GOAWAY` in either direction, IO failure at the transport
     /// layer, peer shutdown, and reconnect-path connect failures.
     ///
-    /// The underlying stack reacts by lazily reconnecting on the next
-    /// dispatched RPC; the caller's retry shell re-dispatches and
-    /// observes the fresh connection.
+    /// The channel dials a fresh connection on the next dispatched
+    /// RPC; the caller's retry shell re-dispatches and observes it.
     #[error("h2 connection closed: {0}")]
     ConnectionClosed(String),
 }
 
 /// One gRPC channel to a server.
 ///
-/// Wraps a `tonic::transport::Channel` (one HTTP/2 connection with
-/// lazy in-place reconnect) plus the per-channel state the pool and
-/// dispatch paths need: the per-frame decode ceiling, the `:scheme`
-/// the channel speaks, and the in-flight stream counter the
-/// [`super::ChannelPool`] uses for least-loaded picks.
+/// Wraps a [`Transport`] (one HTTP/2 connection at a time, redialled
+/// on demand) plus the per-channel state the pool and dispatch paths
+/// need: the per-frame decode ceiling, the `:scheme` the channel
+/// speaks, and the in-flight stream counter the [`super::ChannelPool`]
+/// uses for least-loaded picks.
 pub struct Channel {
-    /// Underlying gRPC channel. Cloning is cheap (a handle onto the
-    /// shared connection); one clone is taken per dispatched RPC.
-    inner: tonic::transport::Channel,
+    /// Request path. Cloning is cheap (a handle onto the shared
+    /// connection state); one clone is taken per dispatched RPC.
+    transport: Transport,
+    /// `scheme://host:port` of the server. Every request URI is this
+    /// origin plus the method path, which pins the `:scheme` and
+    /// `:authority` pseudo-headers to the transport and target.
+    origin: Uri,
     /// Per-frame decode ceiling propagated to every RPC dispatched on
     /// this channel. Mirrors `DirectConfig::mdds.max_message_size`;
     /// response frames above it are rejected by the decode layer
     /// before allocation.
     max_message_size: usize,
     /// `:scheme` this channel speaks — `https` over TLS, `http` over
-    /// plaintext h2c. Derived from the connect constructor; the
-    /// underlying stack pins the request pseudo-header to the
-    /// endpoint URI's scheme, so the field exists only for the
-    /// test-surface accessor ([`Self::scheme_str`]).
+    /// plaintext h2c. Derived from the connect constructor; the request
+    /// pseudo-header follows [`Self::origin`], so the field exists only
+    /// for the test-surface accessor ([`Self::scheme_str`]).
     #[cfg(any(test, feature = "__test-helpers"))]
     scheme: Scheme,
     /// Number of currently-open streams on this channel. Incremented
@@ -269,10 +285,10 @@ impl Channel {
     /// decode ceiling and HTTP/2 session tuning (flow-control windows,
     /// keepalive cadence), both threaded from `DirectConfig::mdds`.
     ///
-    /// `connect_timeout` bounds every dial — the eager open AND each
-    /// lazy in-place reconnect — so a black-holed target fails fast as
-    /// a retryable transport fault instead of hanging the connection
-    /// task indefinitely.
+    /// `connect_timeout` bounds every dial (the eager open and each
+    /// redial after the connection ends), so a black-holed target fails
+    /// fast as a retryable transport fault instead of hanging the RPC
+    /// that dials it.
     ///
     /// # Errors
     ///
@@ -352,14 +368,14 @@ impl Channel {
     /// keepalive cadence), both threaded from `DirectConfig::mdds`.
     ///
     /// The supplied `rustls::ClientConfig` is used verbatim for the
-    /// initial connect and every in-place reconnect, so SPKI pinning,
+    /// initial connect and every redial, so SPKI pinning,
     /// ALPN, and session-resumption configuration land identically
     /// across connection cycles.
     ///
-    /// `connect_timeout` bounds every dial — the eager open AND each
-    /// lazy in-place reconnect — so a black-holed target fails fast as
-    /// a retryable transport fault instead of hanging the connection
-    /// task indefinitely.
+    /// `connect_timeout` bounds every dial (the eager open and each
+    /// redial after the connection ends), so a black-holed target fails
+    /// fast as a retryable transport fault instead of hanging the RPC
+    /// that dials it.
     ///
     /// # Errors
     ///
@@ -384,20 +400,18 @@ impl Channel {
         .await
     }
 
-    /// Shared connect path: build the endpoint, attach the custom
-    /// TCP(+TLS) connector, and open the connection eagerly so a dead
+    /// Shared connect path: build the transport around the custom
+    /// TCP(+TLS) connector and open the connection eagerly so a dead
     /// target fails the constructor rather than the first RPC.
     ///
-    /// When `connect_timeout` is `Some`, it is applied to the
-    /// `Endpoint` so the dial timeout rides inside the channel's own
-    /// connection service. The eager open below is bounded by it, and
-    /// — crucially — so is every lazy reconnect tonic issues after a
-    /// dropped connection: without it a reconnect dial to a black-holed
-    /// peer would hang the connection task forever once per-call
-    /// deadlines are disabled, and the retry shell would never observe
-    /// a retryable transport fault. The caller may additionally wrap
-    /// the eager open in its own timeout; the two are complementary —
-    /// this one is the only bound that survives onto the reconnect path.
+    /// When `connect_timeout` is `Some`, the transport applies it to
+    /// every dial: the eager open below and each redial after a dropped
+    /// connection. Without it a redial to a black-holed peer would hang
+    /// the RPC that triggered it once per-call deadlines are disabled,
+    /// and the retry shell would never observe a retryable transport
+    /// fault. The caller may additionally wrap the eager open in its own
+    /// timeout; the two are complementary, and this one is the only
+    /// bound that covers the redials.
     async fn connect(
         host: &str,
         port: u16,
@@ -411,19 +425,24 @@ impl Channel {
         } else {
             Scheme::HTTP
         };
-        let uri = format!("{scheme}://{host}:{port}");
-        let endpoint = build_endpoint(&uri, tuning, connect_timeout)?;
+        let origin = format!("{scheme}://{host}:{port}");
+        let origin = Uri::try_from(origin.as_str()).map_err(|e| ChannelError::InvalidPath {
+            path: origin.clone(),
+            message: e.to_string(),
+        })?;
         let connector = GrpcConnector {
             host: Arc::from(host),
             port,
             tls,
         };
-        let inner = endpoint
-            .connect_with_connector(connector)
+        let transport = Transport::new(connector, tuning, connect_timeout);
+        transport
+            .dial()
             .await
-            .map_err(|e| classify_connect_error(host, port, &e))?;
+            .map_err(|e| classify_connect_error(host, port, &*e))?;
         Ok(Self {
-            inner,
+            transport,
+            origin,
             max_message_size,
             #[cfg(any(test, feature = "__test-helpers"))]
             scheme,
@@ -596,27 +615,25 @@ impl Channel {
         // drop it on return.
         let token = InFlightToken::new(Arc::clone(&self.in_flight));
 
-        let mut grpc = tonic::client::Grpc::new(self.inner.clone())
-            .max_decoding_message_size(self.max_message_size);
+        // The transport is always ready (it dials inside the call), so
+        // the client's readiness wait is skipped.
+        let mut grpc =
+            tonic::client::Grpc::with_origin(self.transport.clone(), self.origin.clone())
+                .max_decoding_message_size(self.max_message_size);
         let mut request = tonic::Request::new(req);
-        let deadline_ms = deadline.map(|d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX));
         if let Some(d) = deadline {
-            // Advertised via the `grpc-timeout` request header (so the
-            // server can release resources on expiry) and enforced
-            // client-side by the underlying stack's timeout layer for
-            // the open phase. The streaming phase is enforced by the
-            // wrapper below.
+            // Advertised via the `grpc-timeout` request header so the
+            // server can release resources on expiry. Enforced locally
+            // by the timeout around the open phase below and by the
+            // stream wrapper for the streaming phase.
             request.set_timeout(d);
         }
 
         let codec = tonic_prost::ProstCodec::<Req, Resp>::default();
         let open = async {
-            grpc.ready()
-                .await
-                .map_err(|e| classify_dispatch_error(&e, deadline_ms))?;
             grpc.server_streaming(request, path, codec)
                 .await
-                .map_err(|status| classify_status(status, deadline_ms))
+                .map_err(classify_status)
         };
         // The underlying gRPC implementation panics while parsing a
         // status whose `grpc-status-details-bin` value is not valid
@@ -649,7 +666,7 @@ impl Channel {
                 if remaining.is_zero() {
                     return Err(deadline_error(d));
                 }
-                stream.with_deadline(remaining, deadline_ms.unwrap_or(u64::MAX))
+                stream.with_deadline(remaining, u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
             }
             None => stream,
         })
@@ -670,47 +687,160 @@ fn deadline_error(d: Duration) -> ChannelError {
     }
 }
 
-/// Build the `tonic::transport::Endpoint` for a channel: user-agent,
-/// `TCP_NODELAY`, the HTTP/2 flow-control windows and keepalive cadence
-/// from [`ChannelTuning`], and — when `connect_timeout` is `Some` — the
-/// dial timeout.
+// ─── Transport ──────────────────────────────────────────────────────
+
+/// Request path beneath [`Channel`]: one HTTP/2 connection at a time,
+/// dialled on demand and redialled after it ends.
 ///
-/// The dial timeout is applied to the endpoint itself rather than only
-/// wrapping the eager open: `connect_with_connector` lifts the
-/// endpoint's connect timeout into a `hyper_timeout::TimeoutConnector`
-/// around the custom connector, so the same bound governs every lazy
-/// in-place reconnect tonic issues after a dropped connection. Without
-/// it, a reconnect dial to a black-holed peer hangs the connection task
-/// forever once per-call deadlines are disabled, and the retry shell
-/// never observes a retryable transport fault.
-///
-/// Split out from [`Channel::connect`] so the timeout wiring is unit-
-/// testable through [`tonic::transport::Endpoint::get_connect_timeout`]
-/// without standing up a live dial.
-fn build_endpoint(
-    uri: &str,
-    tuning: ChannelTuning,
+/// The live connection's request sender is stored here, and the
+/// connection's own task removes it as soon as the connection ends (the
+/// module docs explain why that cannot wait for the next RPC). An RPC
+/// holds a clone of the sender only while it enqueues its request, so
+/// the stored sender is the last one, and dropping it fails any request
+/// the dead connection left queued.
+#[derive(Clone)]
+struct Transport {
+    shared: Arc<TransportShared>,
+}
+
+struct TransportShared {
+    connector: GrpcConnector,
+    /// HTTP/2 session settings: the flow-control windows and keepalive
+    /// cadence from [`ChannelTuning`], with keepalive driven by the
+    /// runtime's timer.
+    http2: http2::Builder<TokioExecutor>,
+    /// Bound on each dial (TCP connect plus TLS handshake).
     connect_timeout: Option<Duration>,
-) -> Result<tonic::transport::Endpoint, ChannelError> {
-    let endpoint = tonic::transport::Endpoint::from_shared(uri.to_string())
-        .map_err(|e| ChannelError::InvalidPath {
-            path: uri.to_string(),
-            message: e.to_string(),
-        })?
-        .user_agent(format!("{USER_AGENT_PREFIX}/{}", env!("CARGO_PKG_VERSION")))
-        .map_err(|e| ChannelError::InvalidPath {
-            path: uri.to_string(),
-            message: format!("user-agent: {e}"),
-        })?
-        .tcp_nodelay(true)
-        .initial_stream_window_size(tuning.initial_stream_window_size)
-        .initial_connection_window_size(tuning.initial_connection_window_size)
-        .http2_keep_alive_interval(tuning.keepalive_interval)
-        .keep_alive_timeout(tuning.keepalive_timeout);
-    Ok(match connect_timeout {
-        Some(dial_timeout) => endpoint.connect_timeout(dial_timeout),
-        None => endpoint,
-    })
+    /// Sender of the live connection, tagged with that connection's
+    /// sequence number so the task of a connection that has already
+    /// been replaced never removes its successor's sender.
+    live: Mutex<Option<(u64, http2::SendRequest<tonic::body::Body>)>>,
+    /// Serialises dials, so RPCs that find no live connection at the
+    /// same time share one new connection instead of opening one each.
+    dial_lock: tokio::sync::Mutex<()>,
+    /// Sequence number of the next connection.
+    next_connection: AtomicU64,
+}
+
+impl Transport {
+    fn new(
+        connector: GrpcConnector,
+        tuning: ChannelTuning,
+        connect_timeout: Option<Duration>,
+    ) -> Self {
+        let mut http2 = http2::Builder::new(TokioExecutor::new());
+        http2
+            .timer(TokioTimer::new())
+            .initial_stream_window_size(tuning.initial_stream_window_size)
+            .initial_connection_window_size(tuning.initial_connection_window_size)
+            .keep_alive_interval(tuning.keepalive_interval)
+            .keep_alive_timeout(tuning.keepalive_timeout);
+        Self {
+            shared: Arc::new(TransportShared {
+                connector,
+                http2,
+                connect_timeout,
+                live: Mutex::new(None),
+                dial_lock: tokio::sync::Mutex::new(()),
+                next_connection: AtomicU64::new(0),
+            }),
+        }
+    }
+
+    /// Sender of the live connection, or `None` when there is no
+    /// connection or it has closed.
+    fn live_sender(&self) -> Option<http2::SendRequest<tonic::body::Body>> {
+        lock(&self.shared.live)
+            .as_ref()
+            .filter(|(_, sender)| !sender.is_closed())
+            .map(|(_, sender)| sender.clone())
+    }
+
+    /// Dial a new connection, make it the live one and return its
+    /// sender.
+    ///
+    /// A dial that exceeds the connect timeout fails with an
+    /// `std::io::Error` of kind `TimedOut`, which the classifiers map to
+    /// the retryable [`ChannelError::ConnectionClosed`].
+    async fn dial(&self) -> Result<http2::SendRequest<tonic::body::Body>, BoxError> {
+        let shared = &self.shared;
+        let io = match shared.connect_timeout {
+            Some(limit) => tokio::time::timeout(limit, shared.connector.connect())
+                .await
+                .map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!("dial timed out after {limit:?}"),
+                    )
+                })??,
+            None => shared.connector.connect().await?,
+        };
+        let (sender, connection) = shared.http2.handshake(io).await?;
+        let id = shared.next_connection.fetch_add(1, Ordering::Relaxed);
+        *lock(&shared.live) = Some((id, sender.clone()));
+        let shared = Arc::downgrade(&self.shared);
+        tokio::spawn(async move {
+            // The connection future owns the request queue, so the queue
+            // is swept by the time this statement completes. Removing
+            // the stored sender afterwards drops the last sender, which
+            // fails any request that landed after the sweep.
+            let ended = connection.await;
+            if let Err(e) = ended {
+                tracing::debug!(error = %e, "gRPC connection ended with an error");
+            }
+            if let Some(shared) = shared.upgrade() {
+                let mut live = lock(&shared.live);
+                if live.as_ref().is_some_and(|(live_id, _)| *live_id == id) {
+                    *live = None;
+                }
+            }
+        });
+        Ok(sender)
+    }
+}
+
+impl tower_service::Service<http::Request<tonic::body::Body>> for Transport {
+    type Response = http::Response<hyper::body::Incoming>;
+    type Error = BoxError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, BoxError>> + Send>>;
+
+    /// Always ready: a missing or closed connection is redialled inside
+    /// [`Self::call`], so the dial error reaches the RPC that caused it.
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), BoxError>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, mut request: http::Request<tonic::body::Body>) -> Self::Future {
+        request
+            .headers_mut()
+            .insert(USER_AGENT, HeaderValue::from_static(USER_AGENT_VALUE));
+        let transport = self.clone();
+        Box::pin(async move {
+            // The sender clone is scoped to the enqueue: an RPC that held
+            // it while awaiting its response would keep the connection's
+            // queue alive and could strand its own request.
+            let response = {
+                let mut sender = match transport.live_sender() {
+                    Some(sender) => sender,
+                    None => {
+                        let _dialling = transport.shared.dial_lock.lock().await;
+                        match transport.live_sender() {
+                            Some(sender) => sender,
+                            None => transport.dial().await?,
+                        }
+                    }
+                };
+                sender.send_request(request)
+            };
+            Ok(response.await?)
+        })
+    }
+}
+
+/// Lock a mutex whose data stays consistent across a panic (a plain
+/// `Option` swap), so a poisoned lock is still usable.
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 // ─── Error classification ───────────────────────────────────────────
@@ -731,10 +861,6 @@ fn build_endpoint(
 /// around a transport fault; the chain is walked for the precise
 /// cause:
 ///
-/// - `tonic::TimeoutExpired` — the `grpc-timeout` enforcement fired;
-///   surfaces as [`ChannelError::DeadlineExceeded`].
-/// - `tonic::ConnectError` — the lazy reconnect path failed to dial;
-///   connection-level, surfaces as [`ChannelError::ConnectionClosed`].
 /// - [`h2::Error`] — scoped by HTTP/2 error semantics: `GOAWAY` / IO
 ///   failure / "inactive stream" are connection-level
 ///   ([`ChannelError::ConnectionClosed`]); per-stream `RST_STREAM`
@@ -742,10 +868,13 @@ fn build_endpoint(
 ///   are stream-level ([`ChannelError::H2Stream`]). HTTP/2 spec § 7
 ///   (Error Codes) is the canonical scope list.
 /// - [`std::io::Error`] — transport gone; connection-level.
+///   A failed or timed-out redial lands here too, since the
+///   connector's errors carry their IO cause.
 /// - An exhausted chain falls back to connection-level: an unknown
-///   local transport fault is treated as transient and retried on a
-///   fresh pick.
-pub(crate) fn classify_status(status: tonic::Status, deadline_ms: Option<u64>) -> ChannelError {
+///   local transport fault (a request the dead connection never sent,
+///   a dial refused for an invalid server name) is treated as transient
+///   and retried on a fresh pick.
+pub(crate) fn classify_status(status: tonic::Status) -> ChannelError {
     use std::error::Error as _;
     if status.source().is_none() {
         return ChannelError::Rpc {
@@ -754,14 +883,6 @@ pub(crate) fn classify_status(status: tonic::Status, deadline_ms: Option<u64>) -
     }
     let mut source = status.source();
     while let Some(err) = source {
-        if err.downcast_ref::<tonic::TimeoutExpired>().is_some() {
-            return ChannelError::DeadlineExceeded {
-                duration_ms: deadline_ms.unwrap_or(0),
-            };
-        }
-        if err.downcast_ref::<tonic::ConnectError>().is_some() {
-            return ChannelError::ConnectionClosed(err.to_string());
-        }
         if let Some(h2) = err.downcast_ref::<h2::Error>() {
             return classify_h2_error(h2);
         }
@@ -804,17 +925,6 @@ pub(crate) fn classify_poll_panic(payload: Box<dyn std::any::Any + Send>) -> Cha
     }
 }
 
-/// Classify a channel-level dispatch error (`ready()` failing before
-/// the RPC was even sent). The error type is the transport's opaque
-/// error; the source chain carries the precise cause.
-fn classify_dispatch_error(
-    err: &tonic::transport::Error,
-    deadline_ms: Option<u64>,
-) -> ChannelError {
-    let _ = deadline_ms;
-    classify_transport_error_chain(err)
-}
-
 /// Classify an [`h2::Error`] into the matching [`ChannelError`].
 ///
 /// Connection-level failures surface as
@@ -852,25 +962,26 @@ fn classify_h2_error(e: &h2::Error) -> ChannelError {
     ChannelError::H2Stream(msg)
 }
 
-/// Walk a transport error's source chain and classify the connect-time
-/// fault precisely. The custom connector's [`ConnectorError`] carries
-/// the TCP / TLS / server-name distinction; anything after a
-/// successful connector dial is the HTTP/2 session establishment.
+/// Walk a dial error's source chain and classify the connect-time fault
+/// precisely. The custom connector's [`ConnectorError`] carries the
+/// TCP / TLS / server-name distinction; anything after a successful
+/// connector dial is the HTTP/2 session establishment.
 ///
-/// A dial that exceeded the endpoint's connect timeout surfaces here as
-/// a bare `std::io::Error` with `ErrorKind::TimedOut` (the
-/// `hyper_timeout::TimeoutConnector` tonic wraps the connector in once a
-/// connect timeout is configured). A timed-out dial means the target was
-/// unreachable or black-holed, which is the same retryable transport
-/// fault as a dropped connection — so it is classified
-/// [`ChannelError::ConnectionClosed`] (Transient for the retry shell),
-/// not the terminal [`ChannelError::Tcp`] a concrete connect refusal
-/// would carry. This also keeps the eager open in lockstep with the
-/// reconnect path, where [`classify_transport_error_chain`] already maps
-/// a timed-out reconnect dial to `ConnectionClosed`.
-fn classify_connect_error(host: &str, port: u16, err: &tonic::transport::Error) -> ChannelError {
-    use std::error::Error as _;
-    let mut source: Option<&(dyn std::error::Error + 'static)> = err.source();
+/// A dial that exceeded the connect timeout surfaces here as a bare
+/// `std::io::Error` with `ErrorKind::TimedOut` (see [`Transport::dial`]).
+/// A timed-out dial means the target was unreachable or black-holed,
+/// which is the same retryable transport fault as a dropped connection,
+/// so it is classified [`ChannelError::ConnectionClosed`] (Transient for
+/// the retry shell), not the terminal [`ChannelError::Tcp`] a concrete
+/// connect refusal would carry. This keeps the eager open in lockstep
+/// with a redial inside an RPC, which [`classify_status`] maps to
+/// `ConnectionClosed` as well.
+fn classify_connect_error(
+    host: &str,
+    port: u16,
+    err: &(dyn std::error::Error + 'static),
+) -> ChannelError {
+    let mut source = Some(err);
     while let Some(inner) = source {
         if let Some(conn) = inner.downcast_ref::<ConnectorError>() {
             return conn.to_channel_error(host, port);
@@ -893,23 +1004,6 @@ fn classify_connect_error(host: &str, port: u16, err: &tonic::transport::Error) 
         source = inner.source();
     }
     ChannelError::H2Handshake(err.to_string())
-}
-
-/// Mid-dispatch variant of [`classify_connect_error`] without the
-/// connect-target context: a `ready()` failure means the channel's
-/// in-place reconnect could not produce a usable connection, which is
-/// connection-level for the retry shell regardless of the precise
-/// dial-phase cause.
-fn classify_transport_error_chain(err: &tonic::transport::Error) -> ChannelError {
-    use std::error::Error as _;
-    let mut source: Option<&(dyn std::error::Error + 'static)> = err.source();
-    while let Some(inner) = source {
-        if let Some(h2) = inner.downcast_ref::<h2::Error>() {
-            return classify_h2_error(h2);
-        }
-        source = inner.source();
-    }
-    ChannelError::ConnectionClosed(err.to_string())
 }
 
 // ─── In-flight accounting ───────────────────────────────────────────
@@ -951,10 +1045,10 @@ impl Drop for InFlightToken {
 
 // ─── Connector ──────────────────────────────────────────────────────
 
-/// TCP(+TLS) dial error produced by `GrpcConnector`. Wrapped into
-/// the transport stack's opaque connect error; [`classify_connect_error`]
-/// recovers it by downcasting the source chain so connect failures
-/// keep their precise [`ChannelError`] taxonomy.
+/// TCP(+TLS) dial error produced by `GrpcConnector`.
+/// [`classify_connect_error`] recovers it by downcasting the dial
+/// error's source chain so connect failures keep their precise
+/// [`ChannelError`] taxonomy.
 #[derive(Debug, Error)]
 enum ConnectorError {
     /// TCP connect failed.
@@ -999,14 +1093,11 @@ impl ConnectorError {
     }
 }
 
-/// Transport-stack connector: dials TCP and, when a rustls config is
-/// present, runs the TLS handshake with the crate's single-provider
-/// configuration (`ring` provider, webpki roots, `h2` ALPN — built by
-/// `crate::mdds::client`). Invoked once at eager connect and again by
-/// the underlying stack's lazy reconnect whenever the connection dies,
-/// so every reconnect lands a connection wire-equivalent to the
-/// original.
-#[derive(Clone)]
+/// Dials TCP and, when a rustls config is present, runs the TLS
+/// handshake with the crate's single-provider configuration (`ring`
+/// provider, webpki roots, `h2` ALPN, as built by `crate::mdds::client`).
+/// Invoked once at eager connect and again for every redial, so every
+/// connection is wire-equivalent to the original.
 struct GrpcConnector {
     host: Arc<str>,
     port: u16,
@@ -1014,51 +1105,32 @@ struct GrpcConnector {
     tls: Option<Arc<rustls::ClientConfig>>,
 }
 
-impl tower_service::Service<Uri> for GrpcConnector {
-    type Response = TokioIo<MaybeTlsStream>;
-    type Error = ConnectorError;
-    type Future =
-        Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, _dst: Uri) -> Self::Future {
-        // The endpoint URI always matches the captured target (one
-        // endpoint per channel); the captured host/port are
-        // authoritative so the TLS server name never drifts from the
-        // certificate verification target.
-        let host = Arc::clone(&self.host);
-        let port = self.port;
-        let tls = self.tls.clone();
-        Box::pin(async move {
-            let stream = TcpStream::connect((&*host, port))
-                .await
-                .map_err(|source| ConnectorError::Tcp { source })?;
-            let _ = stream.set_nodelay(true);
-            match tls {
-                None => Ok(TokioIo::new(MaybeTlsStream::Plain(stream))),
-                Some(config) => {
-                    let server_name = rustls::pki_types::ServerName::try_from(host.to_string())
-                        .map_err(|_| ConnectorError::InvalidServerName {
-                            host: host.to_string(),
-                        })?;
-                    let connector = TlsConnector::from(config);
-                    let tls_stream = connector
-                        .connect(server_name, stream)
-                        .await
-                        .map_err(|source| ConnectorError::Tls { source })?;
-                    Ok(TokioIo::new(MaybeTlsStream::Tls(Box::new(tls_stream))))
+impl GrpcConnector {
+    async fn connect(&self) -> Result<TokioIo<MaybeTlsStream>, ConnectorError> {
+        let stream = TcpStream::connect((&*self.host, self.port))
+            .await
+            .map_err(|source| ConnectorError::Tcp { source })?;
+        let _ = stream.set_nodelay(true);
+        let Some(config) = &self.tls else {
+            return Ok(TokioIo::new(MaybeTlsStream::Plain(stream)));
+        };
+        let server_name =
+            rustls::pki_types::ServerName::try_from(self.host.to_string()).map_err(|_| {
+                ConnectorError::InvalidServerName {
+                    host: self.host.to_string(),
                 }
-            }
-        })
+            })?;
+        let tls_stream = TlsConnector::from(Arc::clone(config))
+            .connect(server_name, stream)
+            .await
+            .map_err(|source| ConnectorError::Tls { source })?;
+        Ok(TokioIo::new(MaybeTlsStream::Tls(Box::new(tls_stream))))
     }
 }
 
 /// Transport IO: plaintext TCP or client-side TLS over TCP. One
-/// concrete type so the connector's `Service::Response` is nameable;
-/// both arms forward the async IO traits verbatim.
+/// concrete type so the connector's output is nameable; both arms
+/// forward the async IO traits verbatim.
 enum MaybeTlsStream {
     /// Plaintext h2c.
     Plain(TcpStream),
@@ -1136,7 +1208,7 @@ mod tests {
         let goaway: h2::Error = h2::Reason::NO_ERROR.into();
         // A bare Reason (no GOAWAY / IO scope) is stream-level.
         let status = tonic::Status::from_error(Box::new(goaway));
-        match classify_status(status, None) {
+        match classify_status(status) {
             ChannelError::H2Stream(_) => {}
             other => panic!("bare h2 Reason must classify stream-level, got {other:?}"),
         }
@@ -1147,7 +1219,7 @@ mod tests {
     #[test]
     fn sourceless_status_classifies_as_rpc() {
         let status = tonic::Status::new(tonic::Code::PermissionDenied, "tier insufficient");
-        match classify_status(status, None) {
+        match classify_status(status) {
             ChannelError::Rpc { status } => {
                 assert_eq!(status.code(), 7);
                 assert_eq!(status.message(), "tier insufficient");
@@ -1156,24 +1228,12 @@ mod tests {
         }
     }
 
-    /// `TimeoutExpired` anywhere in the chain is the `grpc-timeout`
-    /// enforcement firing — must classify as `DeadlineExceeded` with
-    /// the caller's deadline value.
-    #[test]
-    fn timeout_expired_classifies_as_deadline() {
-        let status = tonic::Status::from_error(Box::new(tonic::TimeoutExpired(())));
-        match classify_status(status, Some(250)) {
-            ChannelError::DeadlineExceeded { duration_ms } => assert_eq!(duration_ms, 250),
-            other => panic!("expected DeadlineExceeded, got {other:?}"),
-        }
-    }
-
     /// An `io::Error` in the chain is connection-level.
     #[test]
     fn io_error_classifies_as_connection_closed() {
         let io = std::io::Error::new(std::io::ErrorKind::ConnectionReset, "peer reset");
         let status = tonic::Status::from_error(Box::new(io));
-        match classify_status(status, None) {
+        match classify_status(status) {
             ChannelError::ConnectionClosed(_) => {}
             other => panic!("expected ConnectionClosed, got {other:?}"),
         }
@@ -1221,44 +1281,59 @@ mod tests {
     fn refused_stream_through_status_chain_is_retry_safe() {
         let refused: h2::Error = h2::Reason::REFUSED_STREAM.into();
         let status = tonic::Status::from_error(Box::new(refused));
-        match classify_status(status, None) {
+        match classify_status(status) {
             ChannelError::H2StreamRefused(_) => {}
             other => panic!("expected H2StreamRefused from the status chain, got {other:?}"),
         }
     }
 
-    /// The endpoint the production constructors build must carry the
-    /// configured connect timeout. `connect_with_connector` lifts the
-    /// endpoint's connect timeout onto the connector that drives both
-    /// the eager open AND every lazy in-place reconnect, so a reconnect
-    /// dial to a black-holed peer fails fast as a retryable transport
-    /// fault instead of hanging the connection task. Asserting on the
-    /// endpoint (rather than a live dial) pins the wiring directly and
-    /// hermetically.
-    #[test]
-    fn endpoint_carries_connect_timeout_for_reconnect_dials() {
-        let dial_timeout = Duration::from_secs(7);
-        let endpoint = build_endpoint(
-            "http://127.0.0.1:1",
+    /// A connection's request sender must be released the moment the
+    /// connection ends, not when the next RPC finds it closed. A request
+    /// enqueued at the instant the connection task exits can miss that
+    /// task's final sweep of its queue, and is then failed only when the
+    /// last sender is dropped; a sender kept until the next RPC leaves
+    /// that request waiting for as long as the channel stays idle. The
+    /// race itself spans a few instructions inside the runtime's channel
+    /// and cannot be forced from here, so this pins the property that
+    /// resolves it: with no RPC issued, the server's close alone empties
+    /// the live slot.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn connection_end_releases_its_request_sender() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let port = listener.local_addr().expect("local addr").port();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.expect("accept");
+            h2::server::handshake(socket)
+                .await
+                .expect("server handshake")
+        });
+        let channel = Channel::connect(
+            "127.0.0.1",
+            port,
+            None,
+            4 * 1024 * 1024,
             ChannelTuning::default(),
-            Some(dial_timeout),
+            None,
         )
-        .expect("endpoint builds for a well-formed URI");
-        assert_eq!(
-            endpoint.get_connect_timeout(),
-            Some(dial_timeout),
-            "the dial timeout must ride on the Endpoint so it bounds reconnect dials, \
-             not just the initial open"
+        .await
+        .expect("h2c connect");
+        assert!(
+            lock(&channel.transport.shared.live).is_some(),
+            "a freshly opened connection is live"
         );
-    }
 
-    /// Companion: with no connect timeout the endpoint carries none, so
-    /// the test-helper constructors keep their prior unbounded-dial
-    /// behaviour and only the production `_tuned` path arms the bound.
-    #[test]
-    fn endpoint_without_connect_timeout_is_unbounded() {
-        let endpoint = build_endpoint("http://127.0.0.1:1", ChannelTuning::default(), None)
-            .expect("endpoint builds for a well-formed URI");
-        assert_eq!(endpoint.get_connect_timeout(), None);
+        // Close the server side of the connection.
+        drop(server.await.expect("server task"));
+
+        let released = async {
+            while lock(&channel.transport.shared.live).is_some() {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), released)
+            .await
+            .expect("the ended connection's request sender must be released without another RPC");
     }
 }

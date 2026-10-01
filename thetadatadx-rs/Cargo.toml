@@ -94,19 +94,23 @@ prost = "=0.14.4"
 # the same version as `prost` so the derive paths resolve.
 prost-types = "=0.14.4"
 
-# Market-data-channel gRPC transport. `channel` is the client-side
-# transport only — no server, router, codegen, or TLS features (TLS
-# rides through the custom rustls connector in `src/grpc/channel.rs`
-# so the dependency graph keeps the single `ring` CryptoProvider).
-tonic = { version = "0.14", default-features = false, features = ["channel"] } # VOCAB-OK: dep crate name
-# Codec bridge pairing the transport with the workspace's pinned
+# Market-data-channel gRPC client: request framing, codec and status
+# handling only. No transport, server, router, codegen, or TLS features:
+# the HTTP/2 connection is owned by `src/grpc/channel.rs` (so its request
+# sender never outlives the connection), and TLS rides through the custom
+# rustls connector there so the dependency graph keeps the single `ring`
+# CryptoProvider.
+tonic = { version = "0.14", default-features = false } # VOCAB-OK: dep crate name
+# Codec bridge pairing the gRPC client with the workspace's pinned
 # `prost` message types.
 tonic-prost = "0.14" # VOCAB-OK: dep crate name
-# `TokioIo` adapter wrapping the custom TCP/TLS connector's streams
-# into the transport's IO traits. Already in the dependency graph
-# transitively; declared directly for the one adapter type.
+# HTTP/2 client connection beneath the gRPC client.
+hyper = { version = "1", default-features = false, features = ["client", "http2"] }
+# Runtime glue for that connection: the executor for its tasks, the
+# keepalive timer, and the `TokioIo` adapter wrapping the custom TCP/TLS
+# connector's streams into its IO traits.
 hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
-# `Service<Uri>` impl for the custom connector.
+# `Service` impl the gRPC client dispatches through.
 tower-service = "0.3"
 # Error-source downcasting in `src/grpc/channel.rs`: connection-level
 # faults (GOAWAY, IO death) classify distinctly from per-stream resets

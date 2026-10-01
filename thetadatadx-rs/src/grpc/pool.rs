@@ -18,8 +18,8 @@
 //! # Reconnect, in place
 //!
 //! When an RPC dispatched through a pool channel observes
-//! [`super::ChannelError::ConnectionClosed`], the underlying stack
-//! lazily replaces the dead HTTP/2 connection on the next dispatch.
+//! [`super::ChannelError::ConnectionClosed`], the channel replaces the
+//! dead HTTP/2 connection on the next dispatch.
 //! The pool slot does NOT get marked dead, replaced, or skipped — the
 //! same `Arc<Channel>` handle the picker returned remains valid.
 
