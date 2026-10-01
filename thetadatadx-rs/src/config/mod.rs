@@ -1524,9 +1524,9 @@ mod tests {
         assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
         assert_eq!(config.market_data.port, 443);
         assert!(config.market_data.tls);
-        // Streaming stays on PRODUCTION — there is no streaming staging cluster,
-        // and the channels are independent. The staging :20100 hosts must NOT
-        // appear.
+        // Streaming stays on PRODUCTION: the channels are independent and
+        // streaming staging is only ever selected explicitly. The staging
+        // :20100 hosts must NOT appear.
         assert_eq!(config.streaming_environment, StreamingEnvironment::Prod);
         assert_eq!(
             config.streaming.hosts,
@@ -1538,7 +1538,7 @@ mod tests {
                 .hosts
                 .iter()
                 .any(|(_, port)| *port == 20100),
-            "no streaming staging (:20100) path: {:?}",
+            "streaming stays off the staging (:20100) hosts: {:?}",
             config.streaming.hosts
         );
     }
@@ -2098,8 +2098,8 @@ mod tests {
             // When the TOML omits `[streaming] hosts` and `[market_data] host`,
             // no override is recorded, so a later market-data environment switch
             // re-points the market-data host to the staging cluster. Streaming
-            // stays on production — there is no streaming staging cluster, and
-            // the channels are independent.
+            // stays on production: the channels are independent, and streaming
+            // staging is only ever selected explicitly.
             let toml = r#"
                 [streaming]
                 ring_size = 65536
@@ -2589,7 +2589,7 @@ mod tests {
         let config = DirectConfig::production();
         // THETADATA_MARKET_DATA_TYPE=STAGE yields the market-data staging cluster +
         // Stage marker, identical to the `stage()` preset. Streaming stays on
-        // production (no streaming staging cluster).
+        // production (the market-data selector does not move streaming).
         let staged = DirectConfig::stage();
         assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(config.streaming_environment, StreamingEnvironment::Prod);
@@ -2740,7 +2740,7 @@ mod tests {
         // Finding 2(a): an explicit `THETADATA_MARKET_DATA_HOST` must survive
         // the `stage()` preset. `stage()` selects the market-data staging cluster
         // for the marker, but the explicit host wins for the market-data channel.
-        // Streaming stays on production — there is no streaming staging cluster.
+        // Streaming stays on production; the preset moves only market data.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
@@ -2756,7 +2756,7 @@ mod tests {
         assert_eq!(
             config.streaming.hosts,
             StreamingConfig::production_defaults().hosts,
-            "streaming stays on production; stage has no streaming cluster"
+            "the stage preset leaves streaming on production"
         );
         clear_env_matrix();
     }
@@ -2950,7 +2950,7 @@ mod tests {
         // Guard that the provenance model is invisible on the common paths: a
         // plain market-data switch with no recorded override must yield the
         // selected environment's market-data host verbatim while leaving
-        // streaming on production (stage has no streaming cluster).
+        // streaming on production (the stage preset moves only market data).
         let _guard = env_test_guard();
         clear_env_matrix();
         let prod_stream = StreamingConfig::production_defaults().hosts;
@@ -3017,7 +3017,7 @@ mod tests {
         // helpers) so this stays a hard regression guard: the override-model
         // rework must leave every no-override preset byte-identical to today.
         // Production streaming cluster, reused below: stage leaves streaming
-        // here since there is no streaming staging cluster.
+        // here because the preset moves only the market-data channel.
         let prod_stream = vec![
             ("nj-a.thetadata.us".to_string(), 20000),
             ("nj-a.thetadata.us".to_string(), 20001),
@@ -3033,7 +3033,7 @@ mod tests {
 
         let stage = DirectConfig::stage();
         // Stage flips only the market-data channel; streaming stays on the
-        // production cluster (no streaming staging).
+        // production cluster (streaming staging is selected explicitly).
         assert_eq!(stage.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(stage.streaming_environment, StreamingEnvironment::Prod);
         assert_eq!(stage.market_data.host, "mdds-stage.thetadata.us");
@@ -3690,7 +3690,7 @@ mod tests {
         // staging AND supplies a staging Nexus URL. Auth must follow the
         // market-data cluster: the market-data channel goes to the staging host
         // and auth POSTs to the staging Nexus. Streaming stays on production
-        // (no streaming staging cluster).
+        // (the market-data selector does not move streaming).
         let staging_nexus = "https://nexus-stage.thetadata.us/identity/terminal/auth_user";
         let path = write_temp_dotenv(
             "nexus-stage.env",

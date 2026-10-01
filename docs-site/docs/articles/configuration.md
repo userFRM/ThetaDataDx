@@ -12,9 +12,9 @@ The configuration object (`DirectConfig` in Rust, `Config` elsewhere) ships sens
 The SDK has two independent clients, and each has its own environment:
 
 - The market-data client runs in **production** or **staging**. The market-data environment also sets the authentication marker, so staging authenticates against the staging cluster.
-- The streaming client runs in **production** or **dev**. The dev environment replays a past trading day in a loop at full speed, so you can develop while markets are closed.
+- The streaming client runs in **production**, **staging** or **dev**. Staging runs the server build bound for production on the live feed and is restarted often, so it is for validating against pre-release changes. The dev environment replays a past trading day in a loop at full speed, so you can develop while markets are closed.
 
-The two are chosen independently. There is no streaming staging cluster and no market-data dev cluster, so a config can be market-data-staging with streaming-production, market-data-production with streaming-dev, and so on.
+The two are chosen independently, and there is no market-data dev cluster, so a config can be market-data-staging with streaming-production, market-data-production with streaming-dev, and so on. The staging preset moves only the market-data channel; streaming staging is selected explicitly.
 
 | Preset | Market data | Streaming |
 |---|---|---|
