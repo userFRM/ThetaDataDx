@@ -17,7 +17,7 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
 - **Typed all the way down** — every tick is a typed object with attribute access and IDE completion, not a dict.
@@ -237,11 +237,11 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+64 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Stock | 15 | EOD, OHLC, trades, quotes, snapshots, at-time |
 | Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |

@@ -16,7 +16,7 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
 - **Three access modes** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
 - **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
@@ -225,11 +225,11 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+64 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Stock | 15 | EOD, OHLC, trades, quotes, snapshots, at-time |
 | Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |

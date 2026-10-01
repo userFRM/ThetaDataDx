@@ -17,7 +17,7 @@ The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Fully typed** — every endpoint, tick, and streaming event ships with hand-checked `.d.ts` declarations.
 - **Greeks on demand** — five tiers of Black-Scholes Greeks and implied volatility, served straight from the option endpoints.
@@ -232,11 +232,11 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+64 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Stock | 15 | EOD, OHLC, trades, quotes, snapshots, at-time |
 | Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |
