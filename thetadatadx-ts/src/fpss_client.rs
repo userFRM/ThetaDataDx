@@ -60,13 +60,16 @@ use crate::{
 /// Grace window a teardown gives the dispatcher to exit on its own — by
 /// observing the ring shutdown — before the wake hook is fired.
 ///
-/// A dispatcher that is NOT blocked off the event ring returns from
-/// `for_each_scoped` within microseconds of `client.shutdown()`, so it is
-/// observed finished almost immediately and the wake hook never runs. A
-/// dispatcher blocked inside a full bounded callback queue's `Blocking` `call`
-/// never finishes on its own (the joining thread cannot drain the queue), so it
-/// is still running when this window elapses and the wake hook aborts the
-/// threadsafe function to release it.
+/// `client.shutdown()` only signals: the dispatcher keeps delivering every
+/// event already in the ring and returns from `for_each_scoped` once the ring
+/// is drained. With a small backlog that is well inside this window and the
+/// wake hook never runs. A dispatcher blocked inside a full bounded callback
+/// queue's `Blocking` `call` while the Node main thread is the one joining it
+/// never finishes on its own, so it is still running when this window elapses
+/// and the wake hook aborts the threadsafe function to release it. A join on
+/// any other thread leaves the main thread free to drain the queue, so the
+/// hook leaves the function alone there however long the backlog takes (see
+/// [`abort_hook_expect_closing`]).
 ///
 /// Why fire the hook only as a fallback rather than unconditionally: the wake
 /// hook for the `ThreadsafeFunction` path ([`abort_hook`]) ABORTS the function,
@@ -74,8 +77,8 @@ use crate::{
 /// forever. `reconnect()` re-registers the SAME function on the fresh session,
 /// so aborting it on every stop would leave a reconnected session unable to
 /// deliver events. Firing the abort only when the dispatcher is genuinely stuck
-/// keeps the function alive across the common (not-backed-up) reconnect while
-/// still breaking the deadlock when it actually occurs.
+/// keeps the function alive across a reconnect while still breaking the
+/// deadlock when it actually occurs.
 const DISPATCHER_TEARDOWN_WAKE_GRACE: Duration = Duration::from_millis(250);
 
 /// Poll cadence for the grace window above.
@@ -212,13 +215,14 @@ pub(crate) fn abort_waking_before_marking(
 ///
 /// # When it runs
 ///
-/// Teardown installs this as the session's `on_teardown` and runs it through
-/// [`join_dispatcher_with_wake`], which fires it only as a FALLBACK — after the
-/// dispatcher fails to exit on its own within the grace window. The abort is
-/// permanent (a later `call` returns `Closing` forever) and `reconnect` re-uses
-/// the same function, so firing it on every stop would break a reconnected
-/// session; gating it behind the grace fires it only when it is the sole way to
-/// break a real deadlock.
+/// Teardown installs this, through [`abort_hook_expect_closing`], as the
+/// session's `on_teardown` and runs it through [`join_dispatcher_with_wake`],
+/// which fires it only as a FALLBACK, after the dispatcher fails to exit on its
+/// own within the grace window. The abort is permanent (a later `call` returns
+/// `Closing` forever) and `reconnect` re-uses the same function, so firing it on
+/// every stop would break a reconnected session. The grace and the thread check
+/// in [`abort_hook_expect_closing`] together fire it only when it is the sole
+/// way to break a real deadlock.
 pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Send> {
     // Clone the SHARED handle (an `Arc<ThreadsafeFunctionHandle>`). Every clone
     // of the threadsafe function — including the one the blocked consumer holds
@@ -269,12 +273,26 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
     })
 }
 
+/// Wrap [`abort_hook`] so it aborts only when the teardown joins on
+/// `js_thread`, the Node main thread that drains `callback`'s queue, and marks
+/// the `Closing` statuses that abort produces as expected.
+///
+/// Only a join on that thread can keep the queue from draining. A join on any
+/// other thread, such as the blocking worker `reconnect()` tears the old
+/// session down on, leaves the main thread delivering the backlog, so the
+/// dispatcher drains the ring and exits however long that takes. Aborting
+/// there would discard every event still queued and leave `reconnect()` with a
+/// closed callback it cannot re-register.
 pub(crate) fn abort_hook_expect_closing(
     callback: &Arc<TsfnCallback>,
     closing_expected: Arc<AtomicBool>,
+    js_thread: std::thread::ThreadId,
 ) -> Box<dyn FnOnce() + Send> {
     let hook = abort_hook(callback);
     Box::new(move || {
+        if std::thread::current().id() != js_thread {
+            return;
+        }
         closing_expected.store(true, Ordering::Release);
         hook();
     })
@@ -420,6 +438,9 @@ pub struct StreamingClient {
     /// Faults and drops accrued by sessions this handle has already retired.
     /// See [`RetiredFaults`].
     retired: RetiredCounts,
+    /// The Node main thread this handle was created on, which drains the
+    /// callback queue. See [`abort_hook_expect_closing`].
+    js_thread: std::thread::ThreadId,
 }
 
 #[derive(Clone)]
@@ -622,15 +643,16 @@ impl StreamingClient {
             {
                 if handle.thread().id() != std::thread::current().id() {
                     // Signal-grace-wake-join. `client.shutdown()` above signals
-                    // the ring; a dispatcher parked there exits on its own and
-                    // is joined without ever firing the hook. Only if it is
-                    // still blocked off the ring after the grace window — parked
-                    // inside the `Blocking` tsfn `call` because the bounded
-                    // callback queue is full — does the hook abort the function.
-                    // That abort makes the dispatcher resume, see the shutdown,
-                    // and let the join return. Avoiding the hook on the normal
-                    // path keeps the function reusable across the common
-                    // `reconnect()` (see the constant docs above).
+                    // the ring; the dispatcher drains it, exits on its own and
+                    // is joined without ever firing the hook. The hook aborts
+                    // the function only if the dispatcher is still running after
+                    // the grace window and this join runs on the Node main
+                    // thread, which then cannot drain a full bounded callback
+                    // queue the dispatcher's `Blocking` tsfn `call` is parked
+                    // in. That abort makes the dispatcher resume, see the
+                    // shutdown, and let the join return. `reconnect()` joins on
+                    // a blocking worker, so the hook never fires there and the
+                    // function stays reusable (see the constant docs above).
                     if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
                         let reason = panic_reason(payload.as_ref());
                         let mut guard = dispatcher
@@ -746,8 +768,11 @@ impl StreamingClient {
         // (see `abort_hook`). The dispatcher would otherwise park forever
         // waiting for the Node main thread — which is itself inside the join —
         // to drain the queue.
-        let on_teardown: Box<dyn FnOnce() + Send> =
-            abort_hook_expect_closing(&callback, Arc::clone(&callback_closing_expected));
+        let on_teardown: Box<dyn FnOnce() + Send> = abort_hook_expect_closing(
+            &callback,
+            Arc::clone(&callback_closing_expected),
+            self.js_thread,
+        );
 
         // Publish the client and dispatcher under the callback lock held
         // across the whole transition so a concurrent `stopStreaming` + newer
@@ -1337,7 +1362,8 @@ impl StreamingClient {
 
 impl StreamingClient {
     /// Assemble an idle handle from a parameter snapshot. The streaming TLS
-    /// connection is not opened until `startStreaming`.
+    /// connection is not opened until `startStreaming`. Called from the
+    /// factories, which run on the Node main thread.
     fn from_params(params: FpssParams) -> Self {
         Self {
             params,
@@ -1347,6 +1373,7 @@ impl StreamingClient {
             prev_drained: Arc::new(Mutex::new(Vec::new())),
             dispatcher: Arc::new(Mutex::new(DispatcherSession::Idle)),
             retired: RetiredCounts::default(),
+            js_thread: std::thread::current().id(),
         }
     }
 }

@@ -80,6 +80,7 @@ impl StreamView {
         let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
             &callback_arc,
             Arc::clone(&callback_closing_expected),
+            self.js_thread,
         );
 
         // The FPSS connect and authentication handshake are network-bound
@@ -275,6 +276,7 @@ impl StreamView {
         let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
             &callback_arc,
             Arc::clone(&callback_closing_expected),
+            self.js_thread,
         );
 
         // The reconnect re-runs the FPSS connect and authentication

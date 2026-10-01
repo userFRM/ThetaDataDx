@@ -921,6 +921,9 @@ impl MarketDataView {
 pub struct StreamView {
     client: Arc<thetadatadx::Client>,
     callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
+    /// The Node main thread the `stream` getter ran on, which drains the
+    /// callback queue. See `fpss_client::abort_hook_expect_closing`.
+    js_thread: std::thread::ThreadId,
 }
 
 #[napi]
@@ -947,6 +950,7 @@ impl Client {
         Ok(StreamView {
             client: self.client_handle()?,
             callback: Arc::clone(&self.callback),
+            js_thread: std::thread::current().id(),
         })
     }
 

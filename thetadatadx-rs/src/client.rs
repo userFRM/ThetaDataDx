@@ -2907,21 +2907,23 @@ fn record_dispatcher_failed_if_current(
 /// Grace window a teardown gives the dispatcher to exit on its own — by
 /// observing the ring shutdown — before the wake hook is fired.
 ///
-/// A dispatcher whose consumer loop is not parked off the event ring returns
-/// from its body within microseconds of `client.shutdown()`, so it is observed
-/// finished almost immediately and the wake hook never runs. A dispatcher
-/// parked off the ring — the columnar pull dispatcher in its bounded-queue
-/// `flush` wait, or a binding's per-event handler blocked in a full bounded
-/// callback queue — does not finish on its own, so it is still running when this
-/// window elapses and the wake hook is fired to release it.
+/// `client.shutdown()` only signals: a dispatcher whose consumer loop is not
+/// parked off the event ring delivers what is left in the ring and then returns
+/// from its body, which with a small backlog is well inside this window, so the
+/// wake hook never runs. A dispatcher parked off the ring (the columnar pull
+/// dispatcher in its bounded-queue `flush` wait, or a binding's per-event
+/// handler blocked in a full bounded callback queue) does not finish on its
+/// own, so it is still running when this window elapses and the wake hook is
+/// fired to release it.
 ///
 /// Firing the hook only as a fallback (rather than unconditionally) is required
 /// because some wakes are destructive and the woken resource may be re-used: the
 /// TypeScript `ThreadsafeFunction` abort permanently makes the function reject
 /// calls, yet `reconnect` re-registers that same function, so aborting it on
-/// every stop would leave a reconnected session unable to deliver events. A
-/// dispatcher that exits cleanly is joined before the grace elapses, so the
-/// destructive wake runs only when it is the sole way to break a real deadlock.
+/// every stop would leave a reconnected session unable to deliver events. That
+/// hook also declines to abort unless the join runs on the Node main thread,
+/// the only join that can keep the queue from draining, so a long backlog
+/// drained during a `reconnect` is delivered rather than discarded.
 const DISPATCHER_TEARDOWN_WAKE_GRACE: Duration = Duration::from_millis(250);
 
 /// Poll cadence for [`DISPATCHER_TEARDOWN_WAKE_GRACE`].
