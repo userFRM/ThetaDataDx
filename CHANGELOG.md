@@ -201,6 +201,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The README and reference examples run as written.** The first-order Greeks quick starts read a `gamma` column the endpoint does not return, the root full-trade example used `SecType` without importing it, the Python handler raised on every stock event, examples used dates on which nothing expires, the C++ tab on every reference page included a header path the SDK does not ship, the symbology page gave the server's WebSocket strike in dollars, and the READMEs counted 65 endpoints where the SDK ships 64.
 
+- **The Windows downloads run without the Visual C++ runtime.** The server, the MCP server package, the TypeScript addon and the C ABI DLL linked the MSVC C runtime dynamically, so each needed VCRUNTIME140.dll from the Visual C++ redistributable. On a clean Windows install the server and `npx -y thetadatadx-mcp-server` failed to start with a missing-DLL error, and `require('thetadatadx-ts')` could not load the addon. They now link the runtime statically, so nothing else needs installing, as the documentation already said.
+
+- **The TypeScript addon loads on Linux distributions older than the build machine.** The linux-x64-gnu addon required glibc 2.34, while npm installs it on any glibc host Node runs on. On RHEL 8, Debian 11 or Ubuntu 20.04 the install succeeded and the first `require` failed with "GLIBC_2.34 not found". It is now linked against glibc 2.17.
+
+- **The free-threaded Python wheel installs on glibc 2.28 and newer.** The cp314t wheel required glibc 2.34, so CPython 3.14t on RHEL 8, Debian 11 or Ubuntu 20.04 found no wheel and pip fell back to building from source, which needs a Rust toolchain and protoc. It is now built for manylinux_2_28.
+
+- **The Windows C ABI libraries ship under the names their import libraries expect.** The release page renamed the DLLs, but the import libraries beside them still name `thetadatadx_ffi.dll`, so a program linked against them failed to start until the DLL was renamed back. Each toolchain now ships as one archive, `thetadatadx_ffi-windows-msvc-x86_64.zip` or `thetadatadx_ffi-windows-gnu-x86_64.zip`, holding the DLL and its libraries under their original names, which are also the names the C++ CMake target looks for.
+
+- **The documented MCP setup works for a final release.** The docs-site page ran `thetadatadx-mcp-server@next`, a tag a final release never publishes, so npx failed with a 404. It now runs the latest release.
+
 ## [0.4.0] - 2026-08-08
 
 ### Removed
