@@ -202,7 +202,7 @@ def cmake_project_version(path: Path) -> str | None:
         return None
     text = path.read_text()
     match = re.search(
-        r"project\s*\(\s*[\w\-]+\s+VERSION\s+(\d+\.\d+\.\d+)",
+        r"project\s*\(\s*[\w\-]+\s+VERSION\s+(\d+\.\d+\.\d+)(?=[\s)])",
         text,
         re.IGNORECASE,
     )
@@ -611,7 +611,7 @@ def main() -> int:
     # carries the numeric base (`9.9.9`); compare against that base, not
     # the full pre-release string. A normal release has no suffix, so the
     # base equals the canonical version.
-    canonical_base = canonical.split("-", 1)[0]
+    canonical_base = re.split(r"[-+]", canonical, maxsplit=1)[0]
     cmake_version = cmake_project_version(CMAKE_LISTS)
     if cmake_version is None:
         failures.append(
