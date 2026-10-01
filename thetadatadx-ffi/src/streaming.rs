@@ -1612,17 +1612,28 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
         // SAFETY: config is a non-null pointer returned by thetadatadx_direct_config_new and not yet freed.
         let config = unsafe { &*config };
 
+        // Validate here, as the unified client's connect does, so an
+        // out-of-range value is refused naming its field instead of reaching
+        // the reconnect driver.
+        let validated = match config.inner.clone().validate() {
+            Ok(validated) => validated,
+            Err(e) => {
+                set_error_from(&e);
+                return ptr::null_mut();
+            }
+        };
+
         // Seed the process-global async runtime from this client's config so
         // `worker_threads` is honored when a standalone FPSS client is the
         // first client created in the process; the worker pool is built once.
-        crate::runtime_from_config(&config.inner.runtime);
+        crate::runtime_from_config(&validated.runtime);
 
         Box::into_raw(Box::new(ThetaDataDxStreamHandle {
             inner: Arc::new(Mutex::new(None)),
             connect_params: StreamingConnectParams {
                 creds: creds.inner.clone(),
-                streaming: config.inner.streaming.clone(),
-                reconnect: config.inner.reconnect.clone(),
+                streaming: validated.streaming,
+                reconnect: validated.reconnect,
             },
             callback: Mutex::new(None),
             state: AtomicU8::new(STREAM_STATE_FRESH),
@@ -3760,5 +3771,39 @@ mod health_on_outer_panic_tests {
             0,
             "an io-thread fault must flip FFI is_streaming to 0 via the dispatcher loop",
         );
+    }
+}
+
+#[cfg(test)]
+mod standalone_connect_tests {
+    /// The standalone handle validates its configuration when it is built, as
+    /// the unified client's connect does, so an out-of-range reconnect budget
+    /// is refused naming its field instead of reaching the reconnect driver.
+    #[test]
+    fn standalone_connect_refuses_an_out_of_range_config() {
+        let cfg = crate::auth::thetadatadx_config_production();
+        // SAFETY: `cfg` was just returned by thetadatadx_config_production, the
+        // two C-string literals live for the whole call, and every handle this
+        // test creates is freed exactly once at its end.
+        unsafe {
+            crate::auth::thetadatadx_config_set_reconnect_max_attempts(cfg, 0);
+            let creds = crate::auth::thetadatadx_credentials_from_email(
+                c"user@example.com".as_ptr(),
+                c"pw".as_ptr(),
+            );
+            assert!(!creds.is_null());
+            let handle = super::thetadatadx_streaming_connect(creds, cfg);
+            assert!(handle.is_null(), "an out-of-range budget must be refused");
+            assert_eq!(
+                crate::error::thetadatadx_last_error_code(),
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER
+            );
+            let message = std::ffi::CStr::from_ptr(crate::error::thetadatadx_last_error())
+                .to_string_lossy()
+                .into_owned();
+            assert!(message.contains("reconnect.max_attempts"), "{message}");
+            crate::auth::thetadatadx_credentials_free(creds);
+            crate::auth::thetadatadx_config_free(cfg);
+        }
     }
 }

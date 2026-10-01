@@ -335,6 +335,10 @@ impl StreamingClient {
             let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
             guard.clone()
         };
+        // Validate here, as the unified client's connect does, so an
+        // out-of-range value is refused naming its field instead of reaching
+        // the reconnect driver.
+        let direct = direct.validate().map_err(to_py_err)?;
         // Seed the process-global runtime from this client's runtime config
         // so `worker_threads` is honoured when this is the first client in
         // the process, even though the streaming TLS connection itself is
