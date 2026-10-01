@@ -1126,11 +1126,17 @@ jobs:
           stage artifacts/linux/libthetadatadx_ffi.a   libthetadatadx_ffi-linux-x86_64.a
           stage artifacts/macos/libthetadatadx_ffi.dylib libthetadatadx_ffi.dylib
           stage artifacts/macos/libthetadatadx_ffi.a     libthetadatadx_ffi-macos.a
-          stage artifacts/windows-msvc/thetadatadx_ffi.dll     thetadatadx_ffi-windows-msvc.dll
-          stage artifacts/windows-msvc/thetadatadx_ffi.dll.lib thetadatadx_ffi-windows-msvc.dll.lib
-          stage artifacts/windows-gnu/thetadatadx_ffi.dll      thetadatadx_ffi-windows-gnu.dll
-          stage artifacts/windows-gnu/libthetadatadx_ffi.dll.a libthetadatadx_ffi-windows-gnu.dll.a
-          stage artifacts/windows-gnu/libthetadatadx_ffi.a     libthetadatadx_ffi-windows-gnu.a
+
+          # A Windows import library records the name of the DLL it was made
+          # for, `thetadatadx_ffi.dll`, and a program linked against it asks
+          # the loader for exactly that name, so the DLL cannot be renamed to
+          # tell the MSVC and MinGW builds apart. Each toolchain's DLL and
+          # libraries ship in one archive under their original names, which
+          # are also the names thetadatadx-cpp/CMakeLists.txt looks for.
+          ( cd artifacts/windows-msvc && zip -q -MM "$RUNNER_TEMP/msvc.zip" thetadatadx_ffi.dll thetadatadx_ffi.dll.lib )
+          stage "$RUNNER_TEMP/msvc.zip" thetadatadx_ffi-windows-msvc-x86_64.zip
+          ( cd artifacts/windows-gnu && zip -q -MM "$RUNNER_TEMP/gnu.zip" thetadatadx_ffi.dll libthetadatadx_ffi.dll.a libthetadatadx_ffi.a )
+          stage "$RUNNER_TEMP/gnu.zip" thetadatadx_ffi-windows-gnu-x86_64.zip
 
           server_count=0
           while IFS= read -r archive; do
