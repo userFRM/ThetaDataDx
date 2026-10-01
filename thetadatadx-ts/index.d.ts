@@ -700,7 +700,7 @@ export declare class ContractRef {
   /**
    * Construct an option contract. The expiration / strike / right
    * travel in a single `OptionLeg` object with named keys —
-   * `Contract.option("SPY", { expiration: "20260620", strike: "550",
+   * `Contract.option("SPY", { expiration: "20261218", strike: "550",
    * right: "C" })` — rather than as adjacent positional strings, so a
    * swapped expiration/strike/right pair cannot pass silently. `right`
    * accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
@@ -735,7 +735,7 @@ export declare class ContractRef {
   get right(): string | null
   /**
    * String rendering for `console.log` / template literals, e.g.
-   * `"SPY OPTION 20260620 C 550"` or `"AAPL STOCK"`. The strike reads
+   * `"SPY OPTION 20261218 C 550"` or `"AAPL STOCK"`. The strike reads
    * in dollars, matching the `strike` getter. Delegates to
    * the same core rendering the Python `Contract` `__str__` uses, so
    * the two bindings print a contract identically. Without it a
@@ -3206,7 +3206,7 @@ export declare class Subscription {
   get secType(): SecType | null
   /**
    * String rendering for `console.log` / template literals, e.g.
-   * `"Subscription(Trade, SPY OPTION 20260620 C 550)"` or
+   * `"Subscription(Trade, SPY OPTION 20261218 C 550)"` or
    * `"Subscription(full Trades, OPTION)"`. Mirrors the Python
    * `Subscription` `__repr__`. Without it a `Subscription` prints as
    * an opaque `Subscription {}` because its getters do not surface on
@@ -5752,7 +5752,7 @@ export interface OptionHistoryTradeQuoteOptions {
  * positional string arguments could.
  */
 export interface OptionLeg {
-  /** Expiration date as `YYYYMMDD` (e.g. `"20260620"`). */
+  /** Expiration date as `YYYYMMDD` (e.g. `"20261218"`). */
   expiration: string
   /**
    * Strike price in dollars, as a number or string (`550`, `550.5`,

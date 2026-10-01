@@ -3031,7 +3031,7 @@ inline ClientBuilder Client::builder() { return ClientBuilder(); }
 // The fluent contract-first surface mirrored across every binding:
 //
 //     auto stock  = thetadatadx::Contract::stock("AAPL");
-//     auto option = thetadatadx::Contract::option("SPY", "20260620", "550", "C");
+//     auto option = thetadatadx::Contract::option("SPY", "20261218", "550", "C");
 //     client.subscribe(stock.quote());
 //     client.subscribe(option.trade());
 //     client.subscribe(thetadatadx::SecType::option().full_trades());
@@ -3162,10 +3162,10 @@ private:
 /// All three are strings, so a positional `(expiration, strike, right)`
 /// argument list lets a transposed pair compile silently. Passing them as
 /// named members — ideally via designated initialisers,
-/// `thetadatadx::OptionLeg{.expiration = "20260620", .strike = "550", .right =
+/// `thetadatadx::OptionLeg{.expiration = "20261218", .strike = "550", .right =
 /// "C"}` — makes the contract identity non-transposable.
 struct OptionLeg {
-    /// Expiration date as `YYYYMMDD` (e.g. `"20260620"`).
+    /// Expiration date as `YYYYMMDD` (e.g. `"20261218"`).
     std::string expiration;
     /// Strike price in dollars (e.g. `"550"` or `"550.50"`).
     std::string strike;
@@ -3190,7 +3190,7 @@ public:
     }
     /// Construct an option contract. Expiration / strike / right travel in
     /// one `OptionLeg`, members in that order, so a swapped pair cannot pass
-    /// silently: `Contract::option("SPY", {"20260620", "550", "C"})`.
+    /// silently: `Contract::option("SPY", {"20261218", "550", "C"})`.
     /// `right` accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive).
     static FluentContract option(std::string symbol, OptionLeg leg) {
         return FluentContract{std::move(symbol), "OPTION", true, std::move(leg.expiration),

@@ -184,7 +184,7 @@ impl FullSubscriptionKind {
 /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
 /// # use thetadatadx::SecType;
 /// let stock_quote   = Contract::stock("AAPL").quote();
-/// let opt_trade     = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" }).unwrap().trade();
+/// let opt_trade     = Contract::option("SPY", OptionLeg { expiration: "20261218", strike: "550", right: "C" }).unwrap().trade();
 /// let full_opt_oi   = SecType::Option.full_open_interest();
 /// let _all = vec![stock_quote, opt_trade, full_opt_oi];
 /// ```

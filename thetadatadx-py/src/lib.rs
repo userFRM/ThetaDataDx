@@ -1414,7 +1414,7 @@ impl StreamView {
     ///
     /// ```python
     /// stock  = Contract.stock("AAPL")
-    /// option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+    /// option = Contract.option("SPY", expiration="20261218", strike="550", right="C")
     /// client.stream.subscribe(stock.quote())
     /// client.stream.subscribe(option.trade())
     /// client.stream.subscribe(SecType.OPTION.full_trades())

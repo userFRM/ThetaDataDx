@@ -723,7 +723,7 @@ pub const THETADATADX_SUB_KIND_MARKET_VALUE: i32 = 3;
 /// - Per-contract stock: `scope = CONTRACT`, `symbol = "AAPL"`, all
 ///   option fields NULL.
 /// - Per-contract option: `scope = CONTRACT`, `symbol = "SPY"`,
-///   `expiration = "20260620"`, `strike = "550"`, `right = "C"`.
+///   `expiration = "20261218"`, `strike = "550"`, `right = "C"`.
 /// - Full-stream: `scope = FULL`, `sec_type = "OPTION"`, all
 ///   per-contract fields NULL.
 #[repr(C)]

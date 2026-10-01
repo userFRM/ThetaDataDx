@@ -565,7 +565,7 @@ pub mod mimalloc {
 /// let creds  = Credentials::from_file("creds.txt")?;
 /// let client = Client::connect(&creds, DirectConfig::production()).await?;
 /// let stock  = Contract::stock("AAPL");
-/// let option = Contract::option("SPX", OptionLeg { expiration: "20260620", strike: "5400", right: "C" })?;
+/// let option = Contract::option("SPX", OptionLeg { expiration: "20261218", strike: "5400", right: "C" })?;
 /// client.stream().subscribe(stock.quote())?;
 /// client.stream().subscribe(option.trade())?;
 /// client.stream().subscribe(SecType::Option.full_trades())?;

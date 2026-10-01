@@ -1504,7 +1504,7 @@ impl Client {
     /// # use thetadatadx::SecType;
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// let stock  = Contract::stock("AAPL");
-    /// let option = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?;
+    /// let option = Contract::option("SPY", OptionLeg { expiration: "20261218", strike: "550", right: "C" })?;
     /// client.stream().subscribe(stock.quote())?;
     /// client.stream().subscribe(option.trade())?;
     /// client.stream().subscribe(SecType::Option.full_trades())?;
