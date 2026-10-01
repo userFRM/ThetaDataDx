@@ -137,7 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A throttled streaming login raises the rate-limit error.** When the server answered the initial streaming login with TOO_MANY_REQUESTS, the connect failed with a generic disconnected error, which every binding reports as a network error. The documented `RateLimitError` (`THETADATADX_ERR_RATE_LIMIT` in C) could never come from a streaming connect, and a caller retrying network errors redialled straight into the throttle.
 
-- **A full-stream open-interest subscription is refused for anything other than options.** Open interest counts option contracts outstanding. The full-stream subscribe accepted a stock or index request, tracked it and replayed it on every reconnect, but the server never sends a tick for it. It is now refused with an error saying open interest is published only for options.
+- **A full-stream open-interest subscription is refused for anything other than options.** Open interest counts option contracts outstanding. The full-stream subscribe accepted a stock request, tracked it and replayed it on every reconnect, but the server never sends a tick for it. It is now refused with an error saying open interest is published only for options.
 
 - **TypeScript `reconnect()` keeps the events still waiting for the callback.** The teardown aborted the callback after 250 ms even when the Node main thread was free and still delivering, so a session with a large backlog lost the queued events without counting them in `droppedEventCount()`, and the reconnect then failed with "streaming callback is closed" without restoring its subscriptions. The callback is now aborted only when the stop runs on the main thread, where the queue cannot drain.
 
@@ -167,7 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The C, C++ and TypeScript streaming ring-size setters reject a size above 2^24.** Each setter applied only part of the rule a connect applies, so a power of two such as 2^25 was accepted by a setter documented to reject invalid values, and then failed at connect.
 
-- **`timeout_ms` on the Python and TypeScript list endpoints means what it means everywhere else.** On the symbol, date, expiration and strike lists, `0` ran under the configured 300-second request timeout instead of disabling the deadline, and a larger value was still cut off by that timeout. Unset now means the configured timeout, `0` means none, and any other value is the deadline.
+- **`timeout_ms` on the Python and TypeScript list endpoints means what it means everywhere else.** On the symbol, date, expiration and strike lists, `0` ran under the configured 300-second request timeout instead of disabling the deadline (TypeScript's `optionListDates` already treated it as no deadline), and a larger value was still cut off by that timeout. Unset now means the configured timeout, `0` means none, and any other value is the deadline.
 
 - **TypeScript rejects a value its target cannot hold instead of rewriting it.** A hand-built tick row passed to a `<tick>ToArrowIpc` export with a field outside its 32-bit column (for example `msOfDay: 2 ** 32 + 50_040_000`, `1.5` or `NaN`) was wrapped or truncated into the Arrow output, and `client.stream.batches({ batchSize, lingerMs, capacity })` turned `NaN` and `Infinity` into 0. Both now raise `InvalidParameterError`, as Python does.
 
