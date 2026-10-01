@@ -497,23 +497,22 @@ describe('Config u32 setter input-validation parity (native)', () => {
   // intent. The `Config` u32 knobs take the argument as `number` and
   // validate at the napi boundary, rejecting a negative / fractional /
   // over-u32 value as `InvalidParameterError` (the same class Python's
-  // `ValueError` maps to for the identical input), and the burst-size /
-  // attempt-budget knobs additionally reject `0`. These setters are
+  // `ValueError` maps to for the identical input). These setters are
   // reachable without a connection.
-
-  // Knobs where `0` is NOT a legal value (a degenerate burst / budget
-  // the core rejects at connect): `0` must also throw.
-  const minOneSetters = [
-    'setReconnectReplayBurstSize',
-    'setRetryMaxAttempts',
-    'setFlatfilesMaxAttempts',
-    'setReconnectMaxAttempts',
-    'setReconnectMaxRateLimitedAttempts',
-    'setReconnectMaxServerRestartAttempts',
-  ];
-  // Knobs where `0` is a legal value (iteration counts / keepalive
-  // retries): `0` must be accepted; only the hostile shapes throw.
-  const zeroOkSetters = ['setStreamingKeepaliveRetries'];
+  //
+  // A knob's own range is not the setter's to enforce: as on every other
+  // binding, the setter accepts any u32 and `DirectConfig::validate`
+  // refuses an out-of-range value at connect, naming the field, before
+  // any network round-trip. Each knob below is out of range at `0`.
+  const zeroRefusedAtConnect = {
+    setReconnectReplayBurstSize: 'reconnect.replay_burst_size',
+    setRetryMaxAttempts: 'retry.max_attempts',
+    setFlatfilesMaxAttempts: 'flatfiles.max_attempts',
+    setReconnectMaxAttempts: 'reconnect.max_attempts',
+    setReconnectMaxRateLimitedAttempts: 'reconnect.max_rate_limited_attempts',
+    setReconnectMaxServerRestartAttempts: 'reconnect.max_server_restart_attempts',
+    setStreamingKeepaliveRetries: 'streaming.keepalive_retries',
+  };
 
   const hostile = [
     ['negative', -1],
@@ -523,7 +522,7 @@ describe('Config u32 setter input-validation parity (native)', () => {
     ['Infinity', Number.POSITIVE_INFINITY],
   ];
 
-  for (const setter of [...minOneSetters, ...zeroOkSetters]) {
+  for (const [setter, field] of Object.entries(zeroRefusedAtConnect)) {
     for (const [label, value] of hostile) {
       it(`${setter} rejects ${label} as InvalidParameterError`, async () => {
         const mod = await loadWrapped();
@@ -543,27 +542,17 @@ describe('Config u32 setter input-validation parity (native)', () => {
       const cfg = mod.Config.production();
       assert.doesNotThrow(() => cfg[setter](7), `a valid ${setter} value must be accepted`);
     });
-  }
 
-  for (const setter of minOneSetters) {
-    it(`${setter} rejects 0 as InvalidParameterError`, async () => {
+    it(`${setter} accepts 0 and connect refuses it naming ${field}`, async () => {
       const mod = await loadWrapped();
       if (!mod) return;
       const cfg = mod.Config.production();
-      assert.throws(
-        () => cfg[setter](0),
-        (err) => err instanceof mod.InvalidParameterError,
-        `${setter} requires >= 1, so 0 must reject`,
+      assert.doesNotThrow(() => cfg[setter](0), `${setter} leaves the range to connect`);
+      await assert.rejects(
+        mod.Client.connect(mod.Credentials.fromApiKey('td1_example'), cfg),
+        (err) => err instanceof mod.InvalidParameterError && err.message.includes(field),
+        `connect must refuse ${field} = 0 before any network round-trip`,
       );
-    });
-  }
-
-  for (const setter of zeroOkSetters) {
-    it(`${setter} accepts 0`, async () => {
-      const mod = await loadWrapped();
-      if (!mod) return;
-      const cfg = mod.Config.production();
-      assert.doesNotThrow(() => cfg[setter](0), `${setter} permits 0`);
     });
   }
 });
