@@ -93,6 +93,18 @@ def main() -> int:
                 f"subscriptions drifted across reconnect: expected {expected_subs!r}, got {after!r}"
             )
 
+        # The queue still holds events delivered before the reconnect. Confirm
+        # the retired session has drained (the documented drain barrier), then
+        # discard everything queued so far, so only data from the restored
+        # session can satisfy the drain.
+        if not client.stream.await_drain(5_000):
+            raise RuntimeError("the session retired by reconnect did not drain within 5s")
+        while True:
+            try:
+                events.get_nowait()
+            except queue.Empty:
+                break
+
         symbol, second_kind = _drain_data_kind(events, timeout_secs=20.0)
         if not symbol:
             raise RuntimeError(

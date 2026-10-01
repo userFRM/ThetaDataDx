@@ -101,32 +101,6 @@ pub enum ChunkError {
     },
 }
 
-/// Validate a decomposed Gregorian date against the actual calendar.
-///
-/// Rejects impossible combinations — month 0, month > 12, day 0, day > the
-/// month's length, and Feb 29 in non-leap years — returning `false` for any
-/// such input. The leap-year rule is the proleptic Gregorian: divisible by 4,
-/// except centuries, except quadricentennials.
-fn is_valid_ymd(year: i32, month: u32, day: u32) -> bool {
-    if !(1..=12).contains(&month) || day < 1 {
-        return false;
-    }
-    let days_in_month = match month {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 => {
-            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-            if leap {
-                29
-            } else {
-                28
-            }
-        }
-        _ => unreachable!(),
-    };
-    day <= days_in_month
-}
-
 /// A single (inclusive) day.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Ymd {
@@ -152,16 +126,10 @@ impl Ymd {
         let day = s[6..8]
             .parse::<u32>()
             .map_err(|e| ChunkError::InvalidDate(s.to_string(), format!("day: {e}")))?;
-        if !(0..=9999).contains(&year) {
+        if !crate::tdbe::time::is_valid_gregorian_date(year, month, day) {
             return Err(ChunkError::InvalidDate(
                 s.to_string(),
-                format!("year {year} out of YYYY range"),
-            ));
-        }
-        if !is_valid_ymd(year, month, day) {
-            return Err(ChunkError::InvalidDate(
-                s.to_string(),
-                format!("{year:04}-{month:02}-{day:02} is not a valid Gregorian date"),
+                format!("{year:04}-{month:02}-{day:02} is not a valid Gregorian date in 1900-2100"),
             ));
         }
         Ok(Ymd {
@@ -175,23 +143,9 @@ impl Ymd {
         format!("{:04}{:02}{:02}", self.year, self.month, self.day)
     }
 
-    /// Days from 0001-01-01 (Gregorian). Simple proleptic calculation —
-    /// accurate for any reasonable market-data range (the server only
-    /// has post-1990 data anyway).
+    /// Days since 1970-01-01 (proleptic Gregorian).
     fn to_ord(self) -> i64 {
-        // Rata Die ordinal from Howard Hinnant's date algorithms.
-        let y = if self.month <= 2 {
-            i64::from(self.year) - 1
-        } else {
-            i64::from(self.year)
-        };
-        let era = if y >= 0 { y } else { y - 399 } / 400;
-        let yoe = (y - era * 400) as u64;
-        let m = i64::from(self.month);
-        let d = i64::from(self.day);
-        let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
-        let doe = (yoe as i64) * 365 + (yoe as i64) / 4 - (yoe as i64) / 100 + doy;
-        era * 146_097 + doe - 719_468
+        crate::tdbe::time::civil_to_epoch_days(self.year as i32, self.month, self.day)
     }
 
     fn from_ord(z: i64) -> Self {
@@ -3195,6 +3149,7 @@ mod tests {
             kind: GrpcStatusKind::NotFound,
             message: "No data found for your request".into(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -3271,6 +3226,7 @@ mod tests {
                         kind: GrpcStatusKind::PermissionDenied,
                         message: String::new(),
                         retry_after: None,
+                        http_status_code: None,
                     }),
                 )
             }),
@@ -3461,6 +3417,7 @@ mod tests {
                 kind: GrpcStatusKind::PermissionDenied,
                 message: String::new(),
                 retry_after: None,
+                http_status_code: None,
             }),
         ];
         let err = join_streaming_shards(&bands, shards).await.unwrap_err();
@@ -3489,6 +3446,7 @@ mod tests {
                 kind: GrpcStatusKind::PermissionDenied,
                 message: String::new(),
                 retry_after: None,
+                http_status_code: None,
             }),
         ];
         let err = join_streaming_shards(&bands, shards).await.unwrap_err();
@@ -3518,6 +3476,7 @@ mod tests {
                     kind: GrpcStatusKind::Unavailable,
                     message: String::new(),
                     retry_after: None,
+                    http_status_code: None,
                 },
                 true,
             ),
@@ -3540,6 +3499,7 @@ mod tests {
             kind: GrpcStatusKind::Unavailable,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         };
         let shards = vec![
             failing_band(unavailable()),

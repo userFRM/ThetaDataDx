@@ -340,7 +340,11 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         .iter()
         .filter_map(|param| direct_date_arg_name(param))
     {
-        writeln!(out, "        validate_date_required(&{arg})?;").unwrap();
+        writeln!(
+            out,
+            "        crate::mdds::validate::validate_date(&{arg}, {arg:?})?;"
+        )
+        .unwrap();
     }
     let endpoint_name_literal = format!("{:?}", endpoint.name);
     // Resolve the effective deadline once, exactly like the
@@ -628,10 +632,21 @@ pub(super) fn mdds_query_field_expr(
                 // Optional builder symbol stored as `Option<String>`: an
                 // unset filter sends an empty repeated field (proto3 omits
                 // it), which the server reads as "list the full universe".
-                // A set filter sends the single supplied symbol.
-                format!("{arg_name}.iter().cloned().collect()")
+                // A set filter sends each symbol of its comma-separated list.
+                format!(
+                    "{arg_name}.as_deref().map(split_symbol_list).transpose()?.unwrap_or_default()"
+                )
             } else if list_context {
-                format!("vec![{arg_name}.to_string()]")
+                // A date list answers several symbols with the union of
+                // their dates. Any other plain list (expirations, strikes)
+                // answers with each value tagged by its symbol, which the
+                // returned `Vec<String>` cannot carry, so it takes one.
+                let split = if endpoint.list_column.as_deref() == Some("date") {
+                    "split_symbol_list"
+                } else {
+                    "split_single_symbol"
+                };
+                format!("{split}({arg_name})?")
             } else {
                 format!("vec![{arg_name}.clone()]")
             }

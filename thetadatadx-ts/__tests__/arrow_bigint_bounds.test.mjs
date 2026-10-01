@@ -1,5 +1,7 @@
 // Arrow-IPC reconstruct rejects a `bigint` `volume` / `count` outside the
-// `i64` destination instead of silently truncating its wrapped low bits.
+// `i64` destination instead of silently truncating its wrapped low bits, and
+// a `number` that is not a whole number within an `i32` destination instead
+// of wrapping or truncating it.
 //
 // The `<tick>ToArrowIpc(rows)` terminal copies the JS object back into the
 // columnar `tick::T`, where `volume` / `count` are `i64`. A JS `bigint`
@@ -73,4 +75,26 @@ describe('Arrow IPC reconstruct rejects out-of-i64 bigint volume/count', () => {
       assert.ok(looksLikeArrowIpcStream(buf), 'an i64-range row must serialise to an Arrow IPC stream');
     });
   }
+});
+
+describe('Arrow IPC reconstruct rejects a number outside an i32 column', () => {
+  const base = {
+    msOfDay: 0, sequence: 1, size: 100, price: 1.5, conditionFlags: 0, priceFlags: 0,
+    volumeType: 0, recordsBack: 0, date: 20260115, isCancelled: false,
+  };
+
+  for (const value of [2 ** 32 + 50_040_000, 2 ** 31, 1.5, NaN, Infinity]) {
+    it(`tradeTickToArrowIpc rejects msOfDay ${value} with InvalidParameterError`, () => {
+      assert.throws(
+        () => mod.tradeTickToArrowIpc([{ ...base, msOfDay: value }]),
+        (err) => err instanceof InvalidParameterError && /ms_of_day/.test(err.message),
+        'a value outside i32 must reject, not wrap or truncate',
+      );
+    });
+  }
+
+  it('tradeTickToArrowIpc accepts the i32 bounds', () => {
+    const buf = mod.tradeTickToArrowIpc([{ ...base, msOfDay: 2 ** 31 - 1, sequence: -(2 ** 31) }]);
+    assert.ok(looksLikeArrowIpcStream(buf), 'an i32-range row must serialise to an Arrow IPC stream');
+  });
 });

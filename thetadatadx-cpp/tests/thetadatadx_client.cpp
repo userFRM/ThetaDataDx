@@ -115,13 +115,15 @@ TEST_CASE("ClientBuilder is single-use: connect() consumes the builder",
 
 TEST_CASE("ClientBuilder environment and from_dotenv setters stay offline",
           "[unified][offline]") {
-    // The explicit market-data-environment selector uses the C++ binding's
-    // string representation (`PROD` / `STAGE`, case-insensitive) and
-    // validates locally, before any network round-trip.
+    // The explicit environment selectors use the C++ binding's string
+    // representation (`PROD` / `STAGE` for market data, `PROD` / `STAGE` /
+    // `DEV` for streaming, case-insensitive) and validate locally, before
+    // any network round-trip.
     REQUIRE_NOTHROW(thetadatadx::Client::builder().market_data_environment("stage"));
     REQUIRE_NOTHROW(thetadatadx::Client::builder().market_data_environment(" PROD "));
     REQUIRE_THROWS_AS(thetadatadx::Client::builder().market_data_environment("qa"),
                       thetadatadx::ConfigError);
+    REQUIRE_NOTHROW(thetadatadx::Client::builder().streaming_environment("stage"));
 
     // `from_dotenv` is fluent on both lvalues and rvalues; the setter
     // itself does not read the file until `connect()`.

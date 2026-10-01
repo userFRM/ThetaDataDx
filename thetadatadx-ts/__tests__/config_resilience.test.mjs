@@ -81,15 +81,14 @@ test("streaming transport defaults and round-trip", () => {
   assert.equal(cfg.streamingKeepaliveIdleSecs, 10n);
 });
 
-test("streaming ring size round-trips via BigInt and rejects non-power-of-two", () => {
+test("streaming ring size round-trips via BigInt and rejects out-of-range sizes", () => {
   const cfg = Config.production();
   cfg.setStreamingRingSize(8_192n);
   assert.equal(cfg.streamingRingSize, 8_192n);
-  // A slot count beyond the legacy 32-bit width round-trips losslessly.
-  cfg.setStreamingRingSize(4_294_967_296n);
-  assert.equal(cfg.streamingRingSize, 4_294_967_296n);
   assert.throws(() => cfg.setStreamingRingSize(5_000n), /power of two/);
-  assert.equal(cfg.streamingRingSize, 4_294_967_296n, "rejected value leaves config unchanged");
+  // 2^25 is a power of two but above the 2^24 ceiling a connect enforces.
+  assert.throws(() => cfg.setStreamingRingSize(33_554_432n), /maximum/);
+  assert.equal(cfg.streamingRingSize, 8_192n, "rejected values leave config unchanged");
 });
 
 test("retry envelope defaults and round-trip", () => {

@@ -40,6 +40,7 @@ use crate::flatfiles::types::{
     disconnect_reason_code, flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType,
 };
 use crate::flatfiles::ScratchGuard;
+use crate::util::random_id::random_id_hex;
 
 /// Process-wide monotonic id generator. The server treats id as opaque; we
 /// use an `AtomicI64` so concurrent `flatfile_request_raw` calls cannot
@@ -298,10 +299,11 @@ async fn run_one_attempt(
     // never truncated up front, so an all-attempts-fail run leaves it intact,
     // and a mid-stream failure leaves the partial under the temp name, not the
     // final one. The guard reaps the temp on every failing exit (a `?` return
-    // or a cancelled future); `disarm` after a successful rename.
+    // or a cancelled future); `disarm` after a successful rename. The per-call
+    // id keeps a concurrent download to the same path from truncating this one.
     let tmp_path = {
         let mut p = output_path.as_os_str().to_owned();
-        p.push(".tmp");
+        p.push(format!(".{}.tmp", random_id_hex()));
         PathBuf::from(p)
     };
     let mut tmp_guard = ScratchGuard::new(&tmp_path);

@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -31,9 +32,6 @@ TEST_CASE("ThetaDataDxInterestRateTick has the 2-field shape", "[interest_rate][
 
 TEST_CASE("InterestRateTick wrapper alias resolves to the C ABI struct", "[interest_rate][schema][offline]") {
     // The C++ wrapper exposes the schema name verbatim via a `using`
-    // alias on top of the C type — both must be the same layout.
-    STATIC_REQUIRE(sizeof(thetadatadx::InterestRateTick) == sizeof(ThetaDataDxInterestRateTick));
-    STATIC_REQUIRE(alignof(thetadatadx::InterestRateTick) == alignof(ThetaDataDxInterestRateTick));
-    STATIC_REQUIRE(offsetof(thetadatadx::InterestRateTick, date) == offsetof(ThetaDataDxInterestRateTick, date));
-    STATIC_REQUIRE(offsetof(thetadatadx::InterestRateTick, rate) == offsetof(ThetaDataDxInterestRateTick, rate));
+    // alias on top of the C type, so the layout pinned above is its layout.
+    STATIC_REQUIRE(std::is_same_v<thetadatadx::InterestRateTick, ThetaDataDxInterestRateTick>);
 }

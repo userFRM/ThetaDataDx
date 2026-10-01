@@ -30,6 +30,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::OnceCell;
 use zeroize::Zeroizing;
 
+use thetadatadx::columns::{Ticks, WireColumns};
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
     param_type_to_json_type, Client, Credentials, DirectConfig, EndpointMeta, ParamMeta, WaitMode,
@@ -683,483 +684,450 @@ fn insert_contract_id_fields(row: &mut Value, expiration: i32, strike: f64, righ
     object.insert("right", option_right_value(right));
 }
 
-fn serialize_eod_ticks(ticks: &[thetadatadx::EodTick]) -> Value {
+/// A condition or exchange cell: its code when the response carried one,
+/// JSON `null` when the upstream left the cell empty. Zero is itself a code
+/// (a regular quote, the composite exchange), so the decoder's zero fill
+/// cannot stand in for "not sent".
+fn code_or_null(code: i32, present: bool) -> Value {
+    if present {
+        Value::from(code)
+    } else {
+        Value::new_null()
+    }
+}
+
+/// The most rows one tool call returns.
+///
+/// A tool result is one JSON-RPC message that the server builds in memory and
+/// the client reads into a model's context. Serialized, a row is a few hundred
+/// bytes, and each row is held several times over while the message is built,
+/// so this bounds a response at tens of megabytes. The rows are fetched before
+/// they are counted, so the limit bounds what is serialized and sent, not what
+/// is downloaded.
+const MAX_TOOL_ROWS: usize = 50_000;
+
+/// Refuse a result larger than [`MAX_TOOL_ROWS`], naming its size and the ways
+/// to narrow the request, rather than serializing it.
+fn check_row_count(rows: usize) -> Result<(), ToolError> {
+    if rows <= MAX_TOOL_ROWS {
+        return Ok(());
+    }
+    Err(ToolError::InvalidParams(format!(
+        "the result has {rows} rows; one tool call returns at most {MAX_TOOL_ROWS}. \
+         Narrow the request: a symbol, a single strike and right, a strike_range or max_dte, a \
+         coarser interval, a start_time/end_time window, or a shorter date range. Pull larger \
+         results with the SDK's streaming history builders."
+    )))
+}
+
+/// Serialize decoded rows as `{key: [...], "count": n}`.
+///
+/// `row` renders every field of one tick. The tick struct is a superset of
+/// every endpoint's columns, so each row then keeps only the schema columns
+/// the response actually carried: a column the vendor did not send is left
+/// out rather than published as the decoder's zero seed. Keys that are not
+/// schema column names (EOD's `created` / `last_trade`) are kept as rendered.
+/// Each row is labelled with the symbol the response attributed it to, so a
+/// multi-symbol snapshot, whose rows come back in the vendor's order and omit
+/// symbols with no data, can be read row by row.
+fn tick_rows<T: WireColumns>(
+    key: &str,
+    ticks: &Ticks<T>,
+    row: impl Fn(&T) -> Value,
+) -> Result<Value, ToolError> {
+    check_row_count(ticks.len())?;
+    let columns = ticks.columns();
+    let schema = T::all_columns();
+    let unsent: Vec<&str> = schema
+        .present_names()
+        .filter(|name| !columns.contains(name))
+        .collect();
     let rows: Vec<Value> = ticks
         .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date,
-                "created": t.created_ms_of_day,
-                "last_trade": t.last_trade_ms_of_day,
-                "open": t.open,
-                "high": t.high,
-                "low": t.low,
-                "close": t.close,
-                "volume": t.volume,
-                "count": t.count,
-                "bid_exchange": t.bid_exchange,
-                "bid": t.bid,
-                "bid_condition": t.bid_condition,
-                "ask_exchange": t.ask_exchange,
-                "ask": t.ask,
-                "ask_condition": t.ask_condition,
-                "bid_size": t.bid_size,
-                "ask_size": t.ask_size,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
+        .enumerate()
+        .map(|(i, tick)| {
+            let mut value = row(tick);
+            let object = value
+                .as_object_mut()
+                .expect("serialized tick rows must always be JSON objects");
+            object.retain(|name, _| !unsent.contains(&name));
+            let symbol = columns
+                .symbols()
+                .and_then(|symbols| symbols.get(i))
+                .map(|symbol| &**symbol)
+                .or_else(|| columns.symbol());
+            if let Some(symbol) = symbol {
+                object.insert("symbol", Value::from(symbol));
+            }
+            value
         })
         .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+    Ok(json!({ key: rows, "count": rows.len() }))
 }
 
-fn serialize_ohlc_ticks(ticks: &[thetadatadx::OhlcTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date,
-                "ms_of_day": t.ms_of_day,
-                "open": t.open,
-                "high": t.high,
-                "low": t.low,
-                "close": t.close,
-                "volume": t.volume,
-                "count": t.count,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn eod_row(t: &thetadatadx::EodTick) -> Value {
+    let mut row = json!({
+        "date": t.date,
+        "created": t.created_ms_of_day,
+        "last_trade": t.last_trade_ms_of_day,
+        "open": t.open,
+        "high": t.high,
+        "low": t.low,
+        "close": t.close,
+        "volume": t.volume,
+        "count": t.count,
+        "bid_exchange": code_or_null(t.bid_exchange, t.has_bid_exchange),
+        "bid": t.bid,
+        "bid_condition": code_or_null(t.bid_condition, t.has_bid_condition),
+        "ask_exchange": code_or_null(t.ask_exchange, t.has_ask_exchange),
+        "ask": t.ask,
+        "ask_condition": code_or_null(t.ask_condition, t.has_ask_condition),
+        "bid_size": t.bid_size,
+        "ask_size": t.ask_size,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_trade_ticks(ticks: &[thetadatadx::TradeTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date,
-                "ms_of_day": t.ms_of_day,
-                "price": t.price,
-                "size": t.size,
-                "exchange": t.exchange,
-                "condition": t.condition,
-                "sequence": t.sequence,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn ohlc_row(t: &thetadatadx::OhlcTick) -> Value {
+    let mut row = json!({
+        "date": t.date,
+        "ms_of_day": t.ms_of_day,
+        "open": t.open,
+        "high": t.high,
+        "low": t.low,
+        "close": t.close,
+        "volume": t.volume,
+        "count": t.count,
+        "vwap": t.vwap,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_quote_ticks(ticks: &[thetadatadx::QuoteTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date,
-                "ms_of_day": t.ms_of_day,
-                "bid": t.bid,
-                "bid_size": t.bid_size,
-                "bid_exchange": t.bid_exchange,
-                "bid_condition": t.bid_condition,
-                "ask": t.ask,
-                "ask_size": t.ask_size,
-                "ask_exchange": t.ask_exchange,
-                "ask_condition": t.ask_condition,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn trade_row(t: &thetadatadx::TradeTick) -> Value {
+    let mut row = json!({
+        "date": t.date,
+        "ms_of_day": t.ms_of_day,
+        "price": t.price,
+        "size": t.size,
+        "exchange": code_or_null(t.exchange, t.has_exchange),
+        "condition": code_or_null(t.condition, t.has_condition),
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1),
+        "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3),
+        "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition_flags": t.condition_flags,
+        "price_flags": t.price_flags,
+        "volume_type": t.volume_type,
+        "records_back": t.records_back,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_trade_quote_ticks(ticks: &[thetadatadx::TradeQuoteTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date,
-                "ms_of_day": t.ms_of_day,
-                "price": t.price,
-                "size": t.size,
-                "exchange": t.exchange,
-                "condition": t.condition,
-                "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition_flags": t.condition_flags,
-                "price_flags": t.price_flags,
-                "volume_type": t.volume_type,
-                "records_back": t.records_back,
-                "quote_ms_of_day": t.quote_ms_of_day,
-                "bid": t.bid,
-                "bid_size": t.bid_size,
-                "bid_exchange": t.bid_exchange,
-                "bid_condition": t.bid_condition,
-                "ask": t.ask,
-                "ask_size": t.ask_size,
-                "ask_exchange": t.ask_exchange,
-                "ask_condition": t.ask_condition,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn quote_row(t: &thetadatadx::QuoteTick) -> Value {
+    let mut row = json!({
+        "date": t.date,
+        "ms_of_day": t.ms_of_day,
+        "bid": t.bid,
+        "bid_size": t.bid_size,
+        "bid_exchange": code_or_null(t.bid_exchange, t.has_bid_exchange),
+        "bid_condition": code_or_null(t.bid_condition, t.has_bid_condition),
+        "ask": t.ask,
+        "ask_size": t.ask_size,
+        "ask_exchange": code_or_null(t.ask_exchange, t.has_ask_exchange),
+        "ask_condition": code_or_null(t.ask_condition, t.has_ask_condition),
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_open_interest_ticks(ticks: &[thetadatadx::OpenInterestTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row =
-                json!({"date": t.date, "ms_of_day": t.ms_of_day, "open_interest": t.open_interest});
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn trade_quote_row(t: &thetadatadx::TradeQuoteTick) -> Value {
+    let mut row = json!({
+        "date": t.date,
+        "ms_of_day": t.ms_of_day,
+        "price": t.price,
+        "size": t.size,
+        "exchange": code_or_null(t.exchange, t.has_exchange),
+        "condition": code_or_null(t.condition, t.has_condition),
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1),
+        "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3),
+        "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition_flags": t.condition_flags,
+        "price_flags": t.price_flags,
+        "volume_type": t.volume_type,
+        "records_back": t.records_back,
+        "quote_ms_of_day": t.quote_ms_of_day,
+        "bid": t.bid,
+        "bid_size": t.bid_size,
+        "bid_exchange": code_or_null(t.bid_exchange, t.has_bid_exchange),
+        "bid_condition": code_or_null(t.bid_condition, t.has_bid_condition),
+        "ask": t.ask,
+        "ask_size": t.ask_size,
+        "ask_exchange": code_or_null(t.ask_exchange, t.has_ask_exchange),
+        "ask_condition": code_or_null(t.ask_condition, t.has_ask_condition),
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_market_value_ticks(ticks: &[thetadatadx::MarketValueTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "market_bid": t.market_bid, "market_ask": t.market_ask,
-                "market_price": t.market_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn open_interest_row(t: &thetadatadx::OpenInterestTick) -> Value {
+    let mut row =
+        json!({"date": t.date, "ms_of_day": t.ms_of_day, "open_interest": t.open_interest});
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_greeks_all_ticks(ticks: &[thetadatadx::GreeksAllTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "bid": t.bid, "ask": t.ask,
-                "implied_volatility": t.implied_volatility,
-                "delta": t.delta, "gamma": t.gamma, "theta": t.theta,
-                "vega": t.vega, "rho": t.rho, "iv_error": t.iv_error,
-                "vanna": t.vanna, "charm": t.charm, "vomma": t.vomma,
-                "veta": t.veta, "speed": t.speed, "zomma": t.zomma,
-                "color": t.color, "ultima": t.ultima,
-                "d1": t.d1, "d2": t.d2,
-                "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
-                "epsilon": t.epsilon, "lambda": t.lambda, "vera": t.vera,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn market_value_row(t: &thetadatadx::MarketValueTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "market_bid": t.market_bid, "market_ask": t.market_ask,
+        "market_price": t.market_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_greeks_eod_ticks(ticks: &[thetadatadx::GreeksEodTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "open": t.open, "high": t.high, "low": t.low, "close": t.close,
-                "volume": t.volume, "count": t.count,
-                "bid_size": t.bid_size, "bid_exchange": t.bid_exchange,
-                "bid": t.bid, "bid_condition": t.bid_condition,
-                "ask_size": t.ask_size, "ask_exchange": t.ask_exchange,
-                "ask": t.ask, "ask_condition": t.ask_condition,
-                "delta": t.delta, "theta": t.theta, "vega": t.vega, "rho": t.rho,
-                "epsilon": t.epsilon, "lambda": t.lambda,
-                "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
-                "vomma": t.vomma, "veta": t.veta, "vera": t.vera,
-                "speed": t.speed, "zomma": t.zomma, "color": t.color, "ultima": t.ultima,
-                "d1": t.d1, "d2": t.d2,
-                "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
-                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn greeks_all_row(t: &thetadatadx::GreeksAllTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "bid": t.bid, "ask": t.ask,
+        "implied_volatility": t.implied_volatility,
+        "delta": t.delta, "gamma": t.gamma, "theta": t.theta,
+        "vega": t.vega, "rho": t.rho, "iv_error": t.iv_error,
+        "vanna": t.vanna, "charm": t.charm, "vomma": t.vomma,
+        "veta": t.veta, "speed": t.speed, "zomma": t.zomma,
+        "color": t.color, "ultima": t.ultima,
+        "d1": t.d1, "d2": t.d2,
+        "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
+        "epsilon": t.epsilon, "lambda": t.lambda, "vera": t.vera,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_greeks_first_order_ticks(ticks: &[thetadatadx::GreeksFirstOrderTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "bid": t.bid, "ask": t.ask,
-                "delta": t.delta, "theta": t.theta, "vega": t.vega,
-                "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
-                "implied_volatility": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn greeks_eod_row(t: &thetadatadx::GreeksEodTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "open": t.open, "high": t.high, "low": t.low, "close": t.close,
+        "volume": t.volume, "count": t.count,
+        "bid_size": t.bid_size, "bid_exchange": code_or_null(t.bid_exchange, t.has_bid_exchange),
+        "bid": t.bid, "bid_condition": code_or_null(t.bid_condition, t.has_bid_condition),
+        "ask_size": t.ask_size, "ask_exchange": code_or_null(t.ask_exchange, t.has_ask_exchange),
+        "ask": t.ask, "ask_condition": code_or_null(t.ask_condition, t.has_ask_condition),
+        "delta": t.delta, "theta": t.theta, "vega": t.vega, "rho": t.rho,
+        "epsilon": t.epsilon, "lambda": t.lambda,
+        "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
+        "vomma": t.vomma, "veta": t.veta, "vera": t.vera,
+        "speed": t.speed, "zomma": t.zomma, "color": t.color, "ultima": t.ultima,
+        "d1": t.d1, "d2": t.d2,
+        "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
+        "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_greeks_second_order_ticks(ticks: &[thetadatadx::GreeksSecondOrderTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "bid": t.bid, "ask": t.ask,
-                "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
-                "vomma": t.vomma, "veta": t.veta,
-                "implied_volatility": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn greeks_first_order_row(t: &thetadatadx::GreeksFirstOrderTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "bid": t.bid, "ask": t.ask,
+        "delta": t.delta, "theta": t.theta, "vega": t.vega,
+        "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
+        "implied_volatility": t.implied_volatility,
+        "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_greeks_third_order_ticks(ticks: &[thetadatadx::GreeksThirdOrderTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "bid": t.bid, "ask": t.ask,
-                "speed": t.speed, "zomma": t.zomma, "color": t.color,
-                "ultima": t.ultima,
-                "implied_volatility": t.implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn greeks_second_order_row(t: &thetadatadx::GreeksSecondOrderTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "bid": t.bid, "ask": t.ask,
+        "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
+        "vomma": t.vomma, "veta": t.veta,
+        "implied_volatility": t.implied_volatility,
+        "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_trade_greeks_all_ticks(ticks: &[thetadatadx::TradeGreeksAllTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
-                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
-                "delta": t.delta, "gamma": t.gamma, "theta": t.theta,
-                "vega": t.vega, "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
-                "vanna": t.vanna, "charm": t.charm, "vomma": t.vomma,
-                "veta": t.veta, "vera": t.vera,
-                "speed": t.speed, "zomma": t.zomma, "color": t.color, "ultima": t.ultima,
-                "d1": t.d1, "d2": t.d2,
-                "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
-                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn greeks_third_order_row(t: &thetadatadx::GreeksThirdOrderTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "bid": t.bid, "ask": t.ask,
+        "speed": t.speed, "zomma": t.zomma, "color": t.color,
+        "ultima": t.ultima,
+        "implied_volatility": t.implied_volatility,
+        "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_trade_greeks_first_order_ticks(
-    ticks: &[thetadatadx::TradeGreeksFirstOrderTick],
-) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
-                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
-                "delta": t.delta, "theta": t.theta, "vega": t.vega,
-                "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
-                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn trade_greeks_all_row(t: &thetadatadx::TradeGreeksAllTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1), "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3), "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition": code_or_null(t.condition, t.has_condition), "size": t.size, "exchange": code_or_null(t.exchange, t.has_exchange), "price": t.price,
+        "delta": t.delta, "gamma": t.gamma, "theta": t.theta,
+        "vega": t.vega, "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
+        "vanna": t.vanna, "charm": t.charm, "vomma": t.vomma,
+        "veta": t.veta, "vera": t.vera,
+        "speed": t.speed, "zomma": t.zomma, "color": t.color, "ultima": t.ultima,
+        "d1": t.d1, "d2": t.d2,
+        "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
+        "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_trade_greeks_second_order_ticks(
-    ticks: &[thetadatadx::TradeGreeksSecondOrderTick],
-) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
-                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
-                "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
-                "vomma": t.vomma, "veta": t.veta,
-                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn trade_greeks_first_order_row(t: &thetadatadx::TradeGreeksFirstOrderTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1), "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3), "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition": code_or_null(t.condition, t.has_condition), "size": t.size, "exchange": code_or_null(t.exchange, t.has_exchange), "price": t.price,
+        "delta": t.delta, "theta": t.theta, "vega": t.vega,
+        "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
+        "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_trade_greeks_third_order_ticks(
-    ticks: &[thetadatadx::TradeGreeksThirdOrderTick],
-) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
-                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
-                "speed": t.speed, "zomma": t.zomma, "color": t.color,
-                "ultima": t.ultima,
-                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn trade_greeks_second_order_row(t: &thetadatadx::TradeGreeksSecondOrderTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1), "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3), "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition": code_or_null(t.condition, t.has_condition), "size": t.size, "exchange": code_or_null(t.exchange, t.has_exchange), "price": t.price,
+        "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
+        "vomma": t.vomma, "veta": t.veta,
+        "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_trade_greeks_implied_volatility_ticks(
-    ticks: &[thetadatadx::TradeGreeksImpliedVolatilityTick],
-) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1, "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3, "ext_condition4": t.ext_condition4,
-                "condition": t.condition, "size": t.size, "exchange": t.exchange, "price": t.price,
-                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn trade_greeks_third_order_row(t: &thetadatadx::TradeGreeksThirdOrderTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1), "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3), "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition": code_or_null(t.condition, t.has_condition), "size": t.size, "exchange": code_or_null(t.exchange, t.has_exchange), "price": t.price,
+        "speed": t.speed, "zomma": t.zomma, "color": t.color,
+        "ultima": t.ultima,
+        "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_iv_ticks(ticks: &[thetadatadx::IvTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            let mut row = json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-            });
-            insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
-            row
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn trade_greeks_implied_volatility_row(t: &thetadatadx::TradeGreeksImpliedVolatilityTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1), "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3), "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition": code_or_null(t.condition, t.has_condition), "size": t.size, "exchange": code_or_null(t.exchange, t.has_exchange), "price": t.price,
+        "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_price_ticks(ticks: &[thetadatadx::PriceTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "price": t.price,
-            })
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn iv_row(t: &thetadatadx::IvTick) -> Value {
+    let mut row = json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "bid": t.bid, "bid_implied_volatility": t.bid_implied_volatility,
+        "midpoint": t.midpoint, "implied_volatility": t.implied_volatility,
+        "ask": t.ask, "ask_implied_volatility": t.ask_implied_volatility,
+        "iv_error": t.iv_error,
+        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_price": t.underlying_price,
+    });
+    insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
+    row
 }
 
-fn serialize_index_price_at_time_ticks(ticks: &[thetadatadx::IndexPriceAtTimeTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| {
-            json!({
-                "date": t.date, "ms_of_day": t.ms_of_day,
-                "sequence": t.sequence,
-                "ext_condition1": t.ext_condition1,
-                "ext_condition2": t.ext_condition2,
-                "ext_condition3": t.ext_condition3,
-                "ext_condition4": t.ext_condition4,
-                "condition": t.condition,
-                "size": t.size,
-                "exchange": t.exchange,
-                "price": t.price,
-            })
-        })
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn price_row(t: &thetadatadx::PriceTick) -> Value {
+    json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "price": t.price,
+    })
 }
 
-fn serialize_calendar_days(days: &[thetadatadx::CalendarDay]) -> Value {
-    let rows: Vec<Value> = days
-        .iter()
-        .map(|d| {
-            json!({
-                "date": d.date,
-                "open_time": d.open_time, "close_time": d.close_time,
-                "status": d.status.as_str(),
-            })
-        })
-        .collect();
-    json!({ "days": rows, "count": rows.len() })
+fn index_price_at_time_row(t: &thetadatadx::IndexPriceAtTimeTick) -> Value {
+    json!({
+        "date": t.date, "ms_of_day": t.ms_of_day,
+        "sequence": t.sequence,
+        "ext_condition1": code_or_null(t.ext_condition1, t.has_ext_condition1),
+        "ext_condition2": code_or_null(t.ext_condition2, t.has_ext_condition2),
+        "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3),
+        "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
+        "condition": code_or_null(t.condition, t.has_condition),
+        "size": t.size,
+        "exchange": code_or_null(t.exchange, t.has_exchange),
+        "price": t.price,
+    })
 }
 
-fn serialize_interest_rate_ticks(ticks: &[thetadatadx::InterestRateTick]) -> Value {
-    let rows: Vec<Value> = ticks
-        .iter()
-        .map(|t| json!({"date": t.date, "rate": t.rate}))
-        .collect();
-    json!({ "ticks": rows, "count": rows.len() })
+fn calendar_day_row(d: &thetadatadx::CalendarDay) -> Value {
+    // A day with no session carries no open or close time; the vendor leaves
+    // the cells empty, which the decoder reads as midnight.
+    let (open_time, close_time) = if d.status.is_open() {
+        (Value::from(d.open_time), Value::from(d.close_time))
+    } else {
+        (Value::new_null(), Value::new_null())
+    };
+    json!({
+        "date": d.date,
+        "open_time": open_time, "close_time": close_time,
+        "status": d.status.as_str(),
+    })
 }
 
-fn serialize_option_contracts(contracts: &[thetadatadx::OptionContract]) -> Value {
+fn interest_rate_row(t: &thetadatadx::InterestRateTick) -> Value {
+    json!({"date": t.date, "rate": t.rate})
+}
+
+fn serialize_option_contracts(
+    contracts: &[thetadatadx::OptionContract],
+) -> Result<Value, ToolError> {
+    check_row_count(contracts.len())?;
     let rows: Vec<Value> = contracts
         .iter()
         .map(|c| {
@@ -1169,10 +1137,11 @@ fn serialize_option_contracts(contracts: &[thetadatadx::OptionContract]) -> Valu
             })
         })
         .collect();
-    json!({ "contracts": rows, "count": rows.len() })
+    Ok(json!({ "contracts": rows, "count": rows.len() }))
 }
 
-fn serialize_string_list(name: &str, values: &[String]) -> Value {
+fn serialize_string_list(name: &str, values: &[String]) -> Result<Value, ToolError> {
+    check_row_count(values.len())?;
     let key = if name.ends_with("_symbols") {
         "symbols"
     } else if name.ends_with("_dates") {
@@ -1184,42 +1153,52 @@ fn serialize_string_list(name: &str, values: &[String]) -> Value {
     } else {
         "values"
     };
-    json!({ key: values, "count": values.len() })
+    Ok(json!({ key: values, "count": values.len() }))
 }
 
-fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
+fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Result<Value, ToolError> {
     match output {
         EndpointOutput::StringList(values) => serialize_string_list(name, values),
-        EndpointOutput::EodTicks(ticks) => serialize_eod_ticks(ticks),
-        EndpointOutput::OhlcTicks(ticks) => serialize_ohlc_ticks(ticks),
-        EndpointOutput::TradeTicks(ticks) => serialize_trade_ticks(ticks),
-        EndpointOutput::QuoteTicks(ticks) => serialize_quote_ticks(ticks),
-        EndpointOutput::TradeQuoteTicks(ticks) => serialize_trade_quote_ticks(ticks),
-        EndpointOutput::OpenInterestTicks(ticks) => serialize_open_interest_ticks(ticks),
-        EndpointOutput::MarketValueTicks(ticks) => serialize_market_value_ticks(ticks),
-        EndpointOutput::GreeksAllTicks(ticks) => serialize_greeks_all_ticks(ticks),
-        EndpointOutput::GreeksEodTicks(ticks) => serialize_greeks_eod_ticks(ticks),
-        EndpointOutput::GreeksFirstOrderTicks(ticks) => serialize_greeks_first_order_ticks(ticks),
-        EndpointOutput::GreeksSecondOrderTicks(ticks) => serialize_greeks_second_order_ticks(ticks),
-        EndpointOutput::GreeksThirdOrderTicks(ticks) => serialize_greeks_third_order_ticks(ticks),
-        EndpointOutput::TradeGreeksAllTicks(ticks) => serialize_trade_greeks_all_ticks(ticks),
+        EndpointOutput::EodTicks(ticks) => tick_rows("ticks", ticks, eod_row),
+        EndpointOutput::OhlcTicks(ticks) => tick_rows("ticks", ticks, ohlc_row),
+        EndpointOutput::TradeTicks(ticks) => tick_rows("ticks", ticks, trade_row),
+        EndpointOutput::QuoteTicks(ticks) => tick_rows("ticks", ticks, quote_row),
+        EndpointOutput::TradeQuoteTicks(ticks) => tick_rows("ticks", ticks, trade_quote_row),
+        EndpointOutput::OpenInterestTicks(ticks) => tick_rows("ticks", ticks, open_interest_row),
+        EndpointOutput::MarketValueTicks(ticks) => tick_rows("ticks", ticks, market_value_row),
+        EndpointOutput::GreeksAllTicks(ticks) => tick_rows("ticks", ticks, greeks_all_row),
+        EndpointOutput::GreeksEodTicks(ticks) => tick_rows("ticks", ticks, greeks_eod_row),
+        EndpointOutput::GreeksFirstOrderTicks(ticks) => {
+            tick_rows("ticks", ticks, greeks_first_order_row)
+        }
+        EndpointOutput::GreeksSecondOrderTicks(ticks) => {
+            tick_rows("ticks", ticks, greeks_second_order_row)
+        }
+        EndpointOutput::GreeksThirdOrderTicks(ticks) => {
+            tick_rows("ticks", ticks, greeks_third_order_row)
+        }
+        EndpointOutput::TradeGreeksAllTicks(ticks) => {
+            tick_rows("ticks", ticks, trade_greeks_all_row)
+        }
         EndpointOutput::TradeGreeksFirstOrderTicks(ticks) => {
-            serialize_trade_greeks_first_order_ticks(ticks)
+            tick_rows("ticks", ticks, trade_greeks_first_order_row)
         }
         EndpointOutput::TradeGreeksSecondOrderTicks(ticks) => {
-            serialize_trade_greeks_second_order_ticks(ticks)
+            tick_rows("ticks", ticks, trade_greeks_second_order_row)
         }
         EndpointOutput::TradeGreeksThirdOrderTicks(ticks) => {
-            serialize_trade_greeks_third_order_ticks(ticks)
+            tick_rows("ticks", ticks, trade_greeks_third_order_row)
         }
         EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => {
-            serialize_trade_greeks_implied_volatility_ticks(ticks)
+            tick_rows("ticks", ticks, trade_greeks_implied_volatility_row)
         }
-        EndpointOutput::IvTicks(ticks) => serialize_iv_ticks(ticks),
-        EndpointOutput::PriceTicks(ticks) => serialize_price_ticks(ticks),
-        EndpointOutput::IndexPriceAtTimeTicks(ticks) => serialize_index_price_at_time_ticks(ticks),
-        EndpointOutput::CalendarDays(days) => serialize_calendar_days(days),
-        EndpointOutput::InterestRateTicks(ticks) => serialize_interest_rate_ticks(ticks),
+        EndpointOutput::IvTicks(ticks) => tick_rows("ticks", ticks, iv_row),
+        EndpointOutput::PriceTicks(ticks) => tick_rows("ticks", ticks, price_row),
+        EndpointOutput::IndexPriceAtTimeTicks(ticks) => {
+            tick_rows("ticks", ticks, index_price_at_time_row)
+        }
+        EndpointOutput::CalendarDays(days) => tick_rows("days", days, calendar_day_row),
+        EndpointOutput::InterestRateTicks(ticks) => tick_rows("ticks", ticks, interest_rate_row),
         EndpointOutput::OptionContracts(contracts) => serialize_option_contracts(contracts),
     }
 }
@@ -1294,6 +1273,22 @@ async fn execute_tool(
         return result;
     }
 
+    // The tool schema advertises exactly the endpoint's parameters. A key
+    // outside it, such as a misspelled filter, would be dropped and the call
+    // answered as a wider request, so it is refused by name.
+    if let (Some(ep), Some(obj)) = (thetadatadx::find(name), args.as_object()) {
+        if let Some((key, _)) = obj
+            .iter()
+            .find(|(key, _)| !ep.params.iter().any(|p| p.name == *key))
+        {
+            let accepted: Vec<&str> = ep.params.iter().map(|p| p.name).collect();
+            return Err(ToolError::InvalidParams(format!(
+                "unknown argument '{key}' for {name}; accepted: {}",
+                accepted.join(", ")
+            )));
+        }
+    }
+
     // ── Online tools (require connected client) ─────────────────────
     let client = client.ok_or_else(|| {
         ToolError::ServerError(
@@ -1312,11 +1307,11 @@ async fn execute_tool(
             return Err(ToolError::InvalidParams(format!("unknown tool: {name}")));
         }
         Err(EndpointError::Server(error)) => {
-            return Err(ToolError::ServerError(sanitize_error(&error.to_string())));
+            return Err(flatfile_tools::classify_core_error(&error))
         }
     };
 
-    Ok(serialize_endpoint_output(name, &output))
+    serialize_endpoint_output(name, &output)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1328,7 +1323,7 @@ async fn execute_tool(
 ///
 /// Returns `None` when there are no credentials, when the connect failed, or
 /// when it has not settled inside `bound`. All three are the same answer to
-/// the caller: there is no connection to advertise a tool set from.
+/// the caller: there is no connection to list or call tools against.
 async fn wait_for_connect<'a>(
     client: &'a Arc<OnceCell<Client>>,
     connect_settled: &tokio::sync::watch::Receiver<bool>,
@@ -1350,12 +1345,9 @@ async fn handle_request(
     connect_settled: &tokio::sync::watch::Receiver<bool>,
     start_time: std::time::Instant,
 ) -> JsonRpcResponse {
-    // OnceCell::get is lock-free; no guard is held across the awaits below.
-    // This snapshot is taken before the background connect may have landed,
-    // so `tools/list` re-reads the cell through `wait_for_connect` rather
-    // than answering from it.
-    let client_cell = client;
-    let client = client_cell.get();
+    // The background connect may not have landed yet, so the arms that need
+    // the client read it through `wait_for_connect` when they run rather than
+    // from a snapshot taken here.
     let id = req.id.clone().unwrap_or(Value::new_null());
 
     // `2026-07-28` moved version negotiation onto every request, so the check
@@ -1425,7 +1417,7 @@ async fn handle_request(
             // otherwise just the offline tools.
             // Wait for the connect so a client that lists once at startup
             // does not cache the offline set.
-            let access = wait_for_connect(client_cell, connect_settled, CONNECT_SETTLE_WAIT)
+            let access = wait_for_connect(client, connect_settled, CONNECT_SETTLE_WAIT)
                 .await
                 .map(SubscriptionAccess::from_client);
             let tools = tool_definitions_for(access);
@@ -1449,8 +1441,13 @@ async fn handle_request(
                 .unwrap_or("");
             let arguments = req.params.get("arguments").cloned().unwrap_or(json!({}));
 
+            // A call that arrives while the connect is still in flight, for
+            // example from a client reusing a cached tool list across a
+            // restart, waits for it rather than being told the credentials
+            // are missing.
+            let client = wait_for_connect(client, connect_settled, CONNECT_SETTLE_WAIT).await;
             match execute_tool(client, tool_name, &arguments, start_time).await {
-                Ok(mut result) => build_tool_call_response(id, &mut result),
+                Ok(result) => build_tool_call_response(id, &result),
                 Err(ToolError::InvalidParams(msg)) => {
                     JsonRpcResponse::error(id, -32602, format!("Invalid params: {msg}"))
                 }
@@ -1466,14 +1463,14 @@ async fn handle_request(
 
 /// Build the JSON-RPC response for a successful `tools/call` invocation.
 ///
-/// Canonicalises non-finite f64 leaves to JSON `null` (cross-language SDK
-/// agreement, see `json_canon`) and surfaces any residual serialisation
-/// failure as a JSON-RPC `-32603` Internal Error so the LLM client never
-/// receives a successful but empty `tools/call` result. Kept separate from the
-/// `tools/call` arm so a test can exercise the canonicalisation path without
-/// spinning up a live `Client` client.
-fn build_tool_call_response(id: Value, result: &mut Value) -> JsonRpcResponse {
-    match thetadatadx::json_canon::canonicalize_and_serialize(result) {
+/// Surfaces any serialisation failure as a JSON-RPC `-32603` Internal Error
+/// so the LLM client never receives a successful but empty `tools/call`
+/// result. A non-finite f64 cannot reach the tree (see `json_canon`), so it
+/// serialises as JSON `null`. Kept separate from the `tools/call` arm so a
+/// test can exercise the serialisation path without spinning up a live
+/// `Client` client.
+fn build_tool_call_response(id: Value, result: &Value) -> JsonRpcResponse {
+    match sonic_rs::to_string(result) {
         Ok(text) => JsonRpcResponse::success(
             id,
             json!({
@@ -1806,7 +1803,8 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use thetadatadx::{EodTick, GreeksAllTick, QuoteTick, TradeQuoteTick};
+    use thetadatadx::columns::ColumnPresence;
+    use thetadatadx::{EodTick, GreeksAllTick, QuoteTick, TradeQuoteTick, TradeTick};
 
     fn sample_eod_tick(expiration: i32, strike: f64, right: char) -> EodTick {
         EodTick {
@@ -1920,6 +1918,27 @@ mod tests {
             declared_protocol_version(&json!({ "_meta": { "unrelated": "x" } })),
             None
         );
+    }
+
+    /// A key the tool does not declare, such as a misspelled filter, is
+    /// refused by name instead of being dropped and the call answered as a
+    /// wider request.
+    #[tokio::test]
+    async fn an_undeclared_tool_argument_is_refused_by_name() {
+        let args = json!({ "symbol": "AAPL", "date": "20260315", "start_tim": "09:30:00" });
+        match execute_tool(
+            None,
+            "stock_history_quote",
+            &args,
+            std::time::Instant::now(),
+        )
+        .await
+        {
+            Err(ToolError::InvalidParams(message)) => {
+                assert!(message.contains("'start_tim'"), "{message}");
+            }
+            other => panic!("expected the misspelled key to be refused, got {other:?}"),
+        }
     }
 
     #[tokio::test]
@@ -2059,8 +2078,8 @@ mod tests {
 
     #[test]
     fn tool_call_results_are_typed_and_carry_identity() {
-        let mut payload = json!({ "rows": [] });
-        let response = build_tool_call_response(Value::from(3), &mut payload);
+        let payload = json!({ "rows": [] });
+        let response = build_tool_call_response(Value::from(3), &payload);
         let result = response.result.expect("tools/call result");
         assert_eq!(
             result.get("resultType").and_then(|v: &Value| v.as_str()),
@@ -2424,12 +2443,7 @@ mod tests {
 
     #[test]
     fn serialize_option_history_eod_preserves_bulk_contract_identifiers() {
-        let payload = serialize_eod_ticks(&[sample_eod_tick(20230120, 385.0, 'C')]);
-        let tick = payload
-            .get("ticks")
-            .and_then(|value: &Value| value.as_array())
-            .and_then(|rows| rows.first())
-            .expect("serialized tick row should exist");
+        let tick = eod_row(&sample_eod_tick(20230120, 385.0, 'C'));
 
         assert_eq!(
             tick.get("expiration")
@@ -2448,12 +2462,7 @@ mod tests {
 
     #[test]
     fn serialize_eod_ticks_preserves_full_eod_fields() {
-        let payload = serialize_eod_ticks(&[sample_eod_tick(0, 0.0, '\0')]);
-        let tick = payload
-            .get("ticks")
-            .and_then(|value: &Value| value.as_array())
-            .and_then(|rows| rows.first())
-            .expect("serialized tick row should exist");
+        let tick = eod_row(&sample_eod_tick(0, 0.0, '\0'));
 
         assert_eq!(
             tick.get("created").and_then(|value: &Value| value.as_i64()),
@@ -2488,12 +2497,7 @@ mod tests {
 
     #[test]
     fn serialize_option_history_greeks_eod_omits_contract_identifiers_for_single_contract_rows() {
-        let payload = serialize_greeks_all_ticks(&[sample_greeks_tick(0, 0.0, '\0')]);
-        let tick = payload
-            .get("ticks")
-            .and_then(|value: &Value| value.as_array())
-            .and_then(|rows| rows.first())
-            .expect("serialized tick row should exist");
+        let tick = greeks_all_row(&sample_greeks_tick(0, 0.0, '\0'));
 
         assert!(
             tick.get("expiration").is_none(),
@@ -2534,8 +2538,7 @@ mod tests {
             strike: 0.0,
             right: '\0',
         };
-        let payload = serialize_quote_ticks(&[tick]);
-        let row = payload["ticks"].as_array().unwrap().first().unwrap();
+        let row = quote_row(&tick);
         for key in [
             "bid_condition",
             "ask_condition",
@@ -2543,6 +2546,122 @@ mod tests {
             "ask_exchange",
         ] {
             assert!(row.get(key).is_some(), "missing key: {key}");
+        }
+    }
+
+    /// A market-data row carries what the response carried and nothing else:
+    /// each row names the symbol the response attributed it to, a condition
+    /// the vendor left empty is `null` rather than code 0, and a column the
+    /// response did not send is absent rather than filled with the decoder's
+    /// zero seed.
+    #[test]
+    fn endpoint_rows_follow_the_response_columns() {
+        let quote = QuoteTick {
+            ms_of_day: 34_200_000,
+            bid_size: 100,
+            bid_exchange: 11,
+            has_bid_exchange: true,
+            bid: 150.0,
+            bid_condition: 0,
+            has_bid_condition: false,
+            ask_size: 200,
+            ask_exchange: 12,
+            has_ask_exchange: true,
+            ask: 151.0,
+            ask_condition: 2,
+            has_ask_condition: true,
+            date: 20260410,
+            expiration: 0,
+            strike: 0.0,
+            right: '\0',
+        };
+        let quotes = EndpointOutput::QuoteTicks(Ticks::new(
+            vec![
+                quote,
+                QuoteTick {
+                    bid_condition: 1,
+                    has_bid_condition: true,
+                    ..quote
+                },
+            ],
+            QuoteTick::all_columns().with_symbols(["MSFT", "AAPL"]),
+        ));
+        let payload = serialize_endpoint_output("stock_snapshot_quote", &quotes).unwrap();
+        let rows = payload["ticks"].as_array().unwrap();
+        assert_eq!(rows[0]["symbol"].as_str(), Some("MSFT"));
+        assert_eq!(rows[1]["symbol"].as_str(), Some("AAPL"));
+        assert!(rows[0]["bid_condition"].is_null(), "{:?}", rows[0]);
+        assert_eq!(rows[1]["bid_condition"].as_i64(), Some(1));
+
+        // The stock trade snapshot sends no exchange, extended-condition or
+        // flag columns.
+        let trade = TradeTick {
+            ms_of_day: 34_200_000,
+            sequence: 7,
+            ext_condition1: 0,
+            has_ext_condition1: false,
+            ext_condition2: 0,
+            has_ext_condition2: false,
+            ext_condition3: 0,
+            has_ext_condition3: false,
+            ext_condition4: 0,
+            has_ext_condition4: false,
+            condition: 0,
+            has_condition: true,
+            size: 100,
+            exchange: 0,
+            has_exchange: false,
+            price: 150.5,
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            date: 20260410,
+            expiration: 0,
+            strike: 0.0,
+            right: '\0',
+        };
+        let trades = EndpointOutput::TradeTicks(Ticks::new(
+            vec![trade],
+            ColumnPresence::from_names([
+                "ms_of_day",
+                "sequence",
+                "condition",
+                "size",
+                "price",
+                "date",
+            ])
+            .with_symbol("AAPL"),
+        ));
+        let payload = serialize_endpoint_output("stock_snapshot_trade", &trades).unwrap();
+        let row = &payload["ticks"][0];
+        assert_eq!(row["symbol"].as_str(), Some("AAPL"));
+        assert_eq!(row["condition"].as_i64(), Some(0));
+        for absent in [
+            "exchange",
+            "ext_condition1",
+            "condition_flags",
+            "records_back",
+        ] {
+            assert!(row.get(absent).is_none(), "unsent column {absent}: {row:?}");
+        }
+    }
+
+    /// A result past the row limit is refused, naming its size and the limit,
+    /// instead of being serialized into one oversized message.
+    #[test]
+    fn an_oversized_result_is_refused_with_its_size() {
+        let rows = vec![sample_eod_tick(0, 0.0, '\0'); MAX_TOOL_ROWS + 1];
+        let output = EndpointOutput::EodTicks(Ticks::from(rows));
+        match serialize_endpoint_output("stock_history_eod", &output) {
+            Err(ToolError::InvalidParams(message)) => {
+                assert!(
+                    message.contains(&(MAX_TOOL_ROWS + 1).to_string())
+                        && message.contains(&MAX_TOOL_ROWS.to_string()),
+                    "{message}"
+                );
+            }
+            other => panic!("an oversized result must be refused; got {other:?}"),
         }
     }
 
@@ -2587,8 +2706,7 @@ mod tests {
             strike: 0.0,
             right: '\0',
         };
-        let payload = serialize_trade_quote_ticks(&[tick]);
-        let row = payload["ticks"].as_array().unwrap().first().unwrap();
+        let row = trade_quote_row(&tick);
         for key in [
             "quote_ms_of_day",
             "bid_exchange",
@@ -2611,8 +2729,7 @@ mod tests {
     #[test]
     fn serialize_greeks_ticks_includes_all_22_greeks() {
         let tick = sample_greeks_tick(0, 0.0, '\0');
-        let payload = serialize_greeks_all_ticks(&[tick]);
-        let row = payload["ticks"].as_array().unwrap().first().unwrap();
+        let row = greeks_all_row(&tick);
         for key in [
             "implied_volatility",
             "delta",
@@ -2667,7 +2784,7 @@ mod tests {
         }
 
         let id = sonic_rs::json!(42);
-        let resp = build_tool_call_response(id, &mut tool_result);
+        let resp = build_tool_call_response(id, &tool_result);
 
         // Success path — `result` must be Some, `error` must be None.
         assert!(
@@ -2717,9 +2834,8 @@ mod tests {
         let original = sonic_rs::json!({
             "ticks": [{ "symbol": "AAPL", "delta": 0.5_f64 }]
         });
-        let mut tool_result = original.clone();
         let id = sonic_rs::json!("call-1");
-        let resp = build_tool_call_response(id, &mut tool_result);
+        let resp = build_tool_call_response(id, &original);
         assert!(resp.error.is_none());
         let text = resp
             .result

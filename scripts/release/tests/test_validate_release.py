@@ -31,7 +31,6 @@ class ValidateReleaseTests(unittest.TestCase):
         python_stub: str,
         cpp_stub: str,
         cmake_stub: str = OK_STUB,
-        node_stub: str = OK_STUB,
         stale_artifacts: tuple[str, ...] = (),
         on_result=None,
     ) -> subprocess.CompletedProcess[str]:
@@ -65,7 +64,6 @@ class ValidateReleaseTests(unittest.TestCase):
             # PATH too and the tested path is the one that ships.
             write_executable(bin_dir / "cargo", OK_STUB)
             write_executable(bin_dir / "cmake", cmake_stub)
-            write_executable(bin_dir / "node", node_stub)
 
             env = os.environ.copy()
             env["PATH"] = f"{bin_dir}:{env['PATH']}"
@@ -124,6 +122,29 @@ exit 0
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("agreement failed", proc.stdout)
         self.assertIn("RELEASE BLOCKED", proc.stdout)
+
+    def test_entitlement_skips_block_release(self) -> None:
+        # An entitlement lapsed to the free tier: the free cells pass and every
+        # paid cell skips, so neither validator's all-skip guard fires and both
+        # exit 0. The matrix was mostly not measured, so the release is blocked.
+        proc = self.run_release(
+            python_stub="""#!/usr/bin/env bash
+case "$1" in
+  -c) exit 0 ;;
+  */check_python.py) printf 'COUNTS:19:346:0\\n'; exit 0 ;;
+  */check_agreement.py) printf 'agreement ok\\n'; exit 0 ;;
+esac
+exit 64
+""",
+            cpp_stub="""#!/usr/bin/env bash
+printf 'COUNTS:19:346:0\\n'
+exit 0
+""",
+        )
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertNotIn("RELEASE OK", proc.stdout)
+        self.assertIn("692 cell(s) refused for entitlement", proc.stdout)
 
     def test_missing_python_counts_blocks_release(self) -> None:
         proc = self.run_release(
@@ -224,34 +245,6 @@ exit 1
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("C++ validator build failed", proc.stdout)
         self.assertNotIn("COUNTS:3:0:0", proc.stdout)
-        self.assertIn("RELEASE BLOCKED", proc.stdout)
-
-    def test_typescript_manifest_emit_failure_blocks_release(self) -> None:
-        # The TS shape manifest is one of the three artifacts
-        # `--require-all-sdks` demands. If it is not emitted the agreement step
-        # has nothing to compare the TS surface against, so the emit failing
-        # has to be a release failure and not a silent gap.
-        proc = self.run_release(
-            python_stub="""#!/usr/bin/env bash
-case "$1" in
-  -c) exit 0 ;;
-  */check_python.py) printf 'COUNTS:2:0:0\\n'; exit 0 ;;
-  */check_agreement.py) printf 'agreement ok\\n'; exit 0 ;;
-esac
-exit 64
-""",
-            cpp_stub="""#!/usr/bin/env bash
-printf 'COUNTS:3:0:0\\n'
-exit 0
-""",
-            node_stub="""#!/usr/bin/env bash
-echo "SyntaxError: unexpected token" >&2
-exit 1
-""",
-        )
-
-        self.assertEqual(proc.returncode, 1, proc.stdout)
-        self.assertIn("TypeScript shape manifest emit failed", proc.stdout)
         self.assertIn("RELEASE BLOCKED", proc.stdout)
 
 

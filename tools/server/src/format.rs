@@ -319,10 +319,11 @@ fn list_rows(ep: &EndpointMeta, symbol: Option<&str>, items: &[String]) -> Vec<R
     let is_date = key == "date" || key == "expiration";
     let is_strike = key == "strike";
     // The symbol-scoped lists (`option_list_expirations` / `_strikes`) pair
-    // each value with the requested `symbol`; the bare symbol / date lists
-    // do not.
+    // each value with the requested symbol; the bare symbol / date lists do
+    // not. The SDK refuses more than one distinct symbol on these lists, so
+    // the first named in the request's comma-separated `symbol` is the one.
     let pair_symbol = symbol
-        .filter(|s| !s.is_empty())
+        .and_then(|s| s.split(',').map(str::trim).find(|s| !s.is_empty()))
         .filter(|_| key == "expiration" || key == "strike");
 
     items
@@ -2293,8 +2294,7 @@ pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<S
 }
 
 /// The plain-text form of a cell value, before HTML-escaping. Strings render
-/// verbatim, null renders empty, and numbers / booleans serialise (collapsing
-/// any non-finite leaf first, mirroring [`render_csv_value`]).
+/// verbatim, null renders empty, and numbers / booleans serialise.
 fn html_cell_text(value: &sonic_rs::Value) -> String {
     if let Some(s) = value.as_str() {
         return s.to_owned();
@@ -2302,9 +2302,7 @@ fn html_cell_text(value: &sonic_rs::Value) -> String {
     if value.is_null() {
         return String::new();
     }
-    let mut owned = value.clone();
-    thetadatadx::json_canon::canonicalize(&mut owned);
-    sonic_rs::to_string(&owned).unwrap_or_default()
+    sonic_rs::to_string(value).unwrap_or_default()
 }
 
 /// HTML-escape `&`, `<`, `>`, `"` so an attacker-controlled cell (a symbol or
@@ -2330,18 +2328,11 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     if value.is_null() {
         return String::new();
     }
-    // Canonicalise into an owned tree before serialising. The non-finite f64
-    // collapse already happened upstream in the JSON envelope, but a CSV
-    // cell that was constructed independently (e.g. from a hand-built
-    // `sonic_rs::Value`) might still carry a non-finite leaf — collapse it
-    // here so the encoder cannot fail. If serialisation still errors, emit
-    // an explicit sentinel string so the CSV column is observable rather
-    // than silently empty.
-    let mut owned = value.clone();
-    thetadatadx::json_canon::canonicalize(&mut owned);
-    match sonic_rs::to_string(&owned) {
+    // If serialisation errors, emit an explicit sentinel string so the CSV
+    // column is observable rather than silently empty.
+    match sonic_rs::to_string(value) {
         // Serialized numbers and booleans never contain an RFC-4180 special.
-        Ok(rendered) if owned.is_number() || owned.is_boolean() => rendered,
+        Ok(rendered) if value.is_number() || value.is_boolean() => rendered,
         Ok(rendered) => escape_csv_field(&rendered),
         Err(err) => {
             tracing::warn!(error = %err, "csv cell serialisation failed; emitting sentinel");
@@ -3160,11 +3151,12 @@ mod tests {
             Some("2012-06-01")
         );
 
-        // Option strikes: symbol-paired, strike numeric.
+        // Option strikes: paired with the symbol the request named, not the
+        // raw parameter, strike numeric.
         let ep = thetadatadx::find("option_list_strikes").expect("endpoint exists");
         let rows = response_rows(
             ep,
-            Some("AAPL"),
+            Some(" AAPL,AAPL"),
             &EndpointOutput::StringList(vec!["80.000".into()]),
         );
         assert_eq!(

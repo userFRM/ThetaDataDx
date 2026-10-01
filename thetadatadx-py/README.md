@@ -17,7 +17,7 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
 - **Typed all the way down** — every tick is a typed object with attribute access and IDE completion, not a dict.
@@ -47,11 +47,11 @@ from thetadatadx import Client
 # Pass your API key directly. Use market_data_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
-# First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.market_data.option_history_greeks_first_order("SPY", "20260619", date="20240315")
+# First-order Greeks for every strike on SPY's 2026-06-18 expiry, as of 2024-03-15
+greeks = client.market_data.option_history_greeks_first_order("SPY", "20260618", date="20240315")
 
 df = greeks.to_polars()
-print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
+print(df.select(["strike", "right", "delta", "theta", "vega"]).head())
 ```
 
 Other ways to construct the client:
@@ -114,7 +114,7 @@ def on_chunk(ticks):
     for t in ticks:
         ...   # write to Parquet, push to a bus, accumulate stats
 
-(client.market_data.option_history_quote_builder("QQQ", "20260516").date("20260516")
+(client.market_data.option_history_quote_builder("QQQ", "20260515").date("20260515")
     .interval("tick")
     .strike_range(5)
     .stream(on_chunk))
@@ -132,17 +132,17 @@ def on_event(event):
     match event:
         case Trade(price=px, size=sz, exchange=ex, ms_of_day=ms, sequence=seq, condition=cond, contract=c):
             print(
-                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} trade price={px:.2f} size={sz} "
+                f"{c.symbol} {c.expiration} {c.strike} {c.right} trade price={px:.2f} size={sz} "
                 f"exchange={ex} ms_of_day={ms} sequence={seq} condition={cond}"
             )
         case Quote(bid=b, ask=a, bid_size=bs, ask_size=asz, bid_exchange=bx, ask_exchange=ax, ms_of_day=ms, contract=c):
             print(
-                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} quote bid={b:.2f} ask={a:.2f} "
+                f"{c.symbol} {c.expiration} {c.strike} {c.right} quote bid={b:.2f} ask={a:.2f} "
                 f"bid_size={bs} ask_size={asz} bid_exchange={bx} "
                 f"ask_exchange={ax} ms_of_day={ms}"
             )
 
-spy_call = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+spy_call = Contract.option("SPY", expiration="20261218", strike="550", right="C")
 
 with client.streaming(on_event) as session:
     session.subscribe_many([spy_call.quote(), spy_call.trade()])
@@ -155,7 +155,7 @@ Build subscriptions with the fluent `Contract` API and pass them — one at a ti
 from thetadatadx import Contract, SecType
 
 stock  = Contract.stock("AAPL")
-option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+option = Contract.option("SPY", expiration="20261218", strike="550", right="C")
 
 with client.streaming(on_event) as session:
     session.subscribe(stock.quote())
@@ -237,11 +237,11 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+64 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Stock | 15 | EOD, OHLC, trades, quotes, snapshots, at-time |
 | Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |

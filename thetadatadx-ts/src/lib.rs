@@ -131,10 +131,34 @@ pub(crate) fn project_full_subscriptions(
             };
             Some(serde_json::json!({
                 "kind": kind_str,
-                "contract": format!("{sec_type:?}"),
+                "contract": sec_type.as_str(),
             }))
         })
         .collect::<Vec<_>>())
+}
+
+#[cfg(test)]
+mod full_subscription_projection_tests {
+    use super::project_full_subscriptions;
+    use thetadatadx::fpss::protocol::SubscriptionKind;
+    use thetadatadx::SecType;
+
+    /// `contract` carries the upper-case wire name `SecType.name` reports, so
+    /// a caller can compare the two directly.
+    #[test]
+    fn contract_is_the_wire_security_type_name() {
+        let projected = project_full_subscriptions(vec![
+            (SubscriptionKind::Trade, SecType::Option),
+            (SubscriptionKind::OpenInterest, SecType::Stock),
+        ]);
+        assert_eq!(
+            projected,
+            serde_json::json!([
+                {"kind": "full_trades", "contract": "OPTION"},
+                {"kind": "full_open_interest", "contract": "STOCK"},
+            ])
+        );
+    }
 }
 
 // ── Credentials ──
@@ -263,15 +287,25 @@ pub(crate) async fn connect_market_data_from_file_core(
     Ok(Arc::new(client))
 }
 
+/// The production defaults with the environment overrides applied.
+///
+/// An unrecognised `THETADATA_*_TYPE` selector or an out-of-range override is
+/// returned as a typed error. The panicking `DirectConfig::production()` must
+/// not be called from a napi entry point: a panic cannot unwind out of the
+/// native callback, so it aborts the whole Node process.
+pub(crate) fn production_config() -> napi::Result<config::DirectConfig> {
+    config::DirectConfig::try_production().map_err(to_napi_err)
+}
+
 /// Snapshot an optional [`Config`] handle into an owned [`DirectConfig`],
 /// falling back to the production default when none is supplied. The
 /// snapshot decouples the client from later mutations of the `Config`
 /// handle, matching the connect-time snapshot semantics every binding
 /// shares.
-pub(crate) fn config_or_production(config: Option<&Config>) -> config::DirectConfig {
+pub(crate) fn config_or_production(config: Option<&Config>) -> napi::Result<config::DirectConfig> {
     match config {
-        Some(c) => c.snapshot(),
-        None => config::DirectConfig::production(),
+        Some(c) => Ok(c.snapshot()),
+        None => production_config(),
     }
 }
 
@@ -391,7 +425,7 @@ impl ClientConnectOptions {
         // independently on top of the production defaults; either absent
         // keeps that channel on production. An unrecognized value is a
         // config error naming the valid set, never a silent fallback.
-        let mut cfg = config::DirectConfig::production();
+        let mut cfg = production_config()?;
         if let Some(raw) = market_data_type.as_deref() {
             let environment = config::MarketDataEnvironment::parse(raw).ok_or_else(|| {
                 config_option_err(format!(
@@ -403,7 +437,7 @@ impl ClientConnectOptions {
         if let Some(raw) = streaming_type.as_deref() {
             let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
                 config_option_err(format!(
-                    "streamingType must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+                    "streamingType must be \"PROD\", \"STAGE\" or \"DEV\" (case-insensitive); got {raw:?}"
                 ))
             })?;
             cfg = cfg.with_streaming_environment(environment);
@@ -627,7 +661,6 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
             GrpcStatusKind::Unavailable => "UnavailableError",
             _ => "ThetaDataError",
         },
-        thetadatadx::Error::NoData => "NotFoundError",
         thetadatadx::Error::Timeout { .. } => "DeadlineExceededError",
         thetadatadx::Error::Transport { .. }
         | thetadatadx::Error::Tls(_)
@@ -888,6 +921,9 @@ impl MarketDataView {
 pub struct StreamView {
     client: Arc<thetadatadx::Client>,
     callback: Arc<Mutex<Option<Arc<TsfnCallback>>>>,
+    /// The Node main thread the `stream` getter ran on, which drains the
+    /// callback queue. See `fpss_client::abort_hook_expect_closing`.
+    js_thread: std::thread::ThreadId,
 }
 
 #[napi]
@@ -914,6 +950,7 @@ impl Client {
         Ok(StreamView {
             client: self.client_handle()?,
             callback: Arc::clone(&self.callback),
+            js_thread: std::thread::current().id(),
         })
     }
 
@@ -964,7 +1001,7 @@ impl Client {
     /// must return its instance synchronously.
     #[napi]
     pub async fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<Client> {
-        let cfg = config_or_production(config);
+        let cfg = config_or_production(config)?;
         // Seed the process-global runtime from this client's config before
         // spawning onto it, then run the connect handshake off the libuv
         // thread. The credentials are cloned so the spawned future owns
@@ -992,7 +1029,8 @@ impl Client {
     /// method returns a `Promise<Client>`.
     #[napi(js_name = "connectFromFile")]
     pub async fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
-        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
+        let client =
+            connect_market_data_from_file_core(path, config_or_production(config)?).await?;
         Ok(Client {
             client: Mutex::new(Some(client)),
             callback: Arc::new(Mutex::new(None)),
@@ -1286,7 +1324,7 @@ impl MarketDataClient {
         creds: &Credentials,
         config: Option<&Config>,
     ) -> napi::Result<MarketDataClient> {
-        let cfg = config_or_production(config);
+        let cfg = config_or_production(config)?;
         let rt = runtime_from_config(&cfg.runtime)?;
         let creds = creds.inner.clone();
         let client = rt
@@ -1310,7 +1348,8 @@ impl MarketDataClient {
         path: String,
         config: Option<&Config>,
     ) -> napi::Result<MarketDataClient> {
-        let client = connect_market_data_from_file_core(path, config_or_production(config)).await?;
+        let client =
+            connect_market_data_from_file_core(path, config_or_production(config)?).await?;
         Ok(MarketDataClient {
             client: Mutex::new(Some(client)),
         })

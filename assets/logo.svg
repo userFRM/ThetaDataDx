@@ -46,7 +46,7 @@
       <g font-family="'JetBrains Mono', Consolas, Courier, monospace" font-size="10" opacity="0.45">
 
         <!-- [OPTIONS] Local Black-Scholes greeks for a near-ATM SPY call -->
-        <text x="90" y="22" fill="#00D4FF">SPY 20260619 C 550   Δ 0.531  Γ 0.013  Θ -0.19  ν 0.44</text>
+        <text x="90" y="22" fill="#00D4FF">SPY 20260618 C 550   Δ 0.531  Γ 0.013  Θ -0.19  ν 0.44</text>
 
         <!-- [STOCKS] Full-tick NBBO quote -->
         <text x="40" y="66" fill="#1074FF" font-weight="700">NBBO  bid 4.85 ×120   ask 4.90 ×88</text>

@@ -858,41 +858,81 @@ mod tests {
         }
     }
 
-    #[test]
-    fn malformed_200_body_maps_to_fixed_message_without_body_content() {
-        // Exercise the exact mapping the 200 path applies: a malformed body
-        // that EMBEDS a session token fails to decode into `AuthResponse`, and
-        // the `map_err` must collapse it to the fixed body-free message — never
-        // the `serde_json` error text, which can quote the offending body.
-        let token = "11111111-2222-3333-4444-555555555555";
-        // Valid JSON shape-wise but wrong type for `session_id` (number, not
-        // string), so the decoder error references the token-bearing field.
-        let body = format!(r#"{{"sessionId": 12345, "leaked_token": "{token}"}}"#);
-        let parse_result: Result<AuthResponse, _> = serde_json::from_str(&body);
-        let raw_decoder_text = parse_result
-            .as_ref()
-            .err()
-            .map(std::string::ToString::to_string)
-            .unwrap_or_default();
-        let err = parse_result.map_err(|_| Error::Auth {
-            kind: crate::error::AuthErrorKind::ServerError,
-            message: malformed_success_body_message().to_string(),
+    #[tokio::test]
+    async fn malformed_200_body_surfaces_fixed_message_without_body_content() {
+        // A 200 whose body fails to decode must surface the fixed message,
+        // never decoder text: serde quotes the offending value, and this body
+        // carries a session token. A string where `user` expects an object
+        // makes the decoder error quote the token verbatim.
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        const TOKEN: &str = "11111111-2222-3333-4444-555555555555";
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("accept");
+            // Read the whole request (headers plus Content-Length body) so
+            // the client never sees a reset before our reply.
+            let mut req = Vec::new();
+            let mut buf = [0u8; 4096];
+            loop {
+                let n = stream.read(&mut buf).await.expect("read request");
+                assert!(n > 0, "client closed before sending the request");
+                req.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&req).to_ascii_lowercase();
+                if let Some(end) = text.find("\r\n\r\n") {
+                    let len: usize = text[..end]
+                        .lines()
+                        .find_map(|l| l.strip_prefix("content-length:"))
+                        .map_or(0, |v| v.trim().parse().expect("content-length"));
+                    if req.len() >= end + 4 + len {
+                        break;
+                    }
+                }
+            }
+            let body = format!(r#"{{"sessionId":"{TOKEN}","user":"{TOKEN}"}}"#);
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream
+                .write_all(reply.as_bytes())
+                .await
+                .expect("write reply");
+            stream.shutdown().await.expect("shutdown");
         });
-        let surfaced = err.expect_err("a malformed 200 body must fail to decode");
-        let surfaced_msg = surfaced.to_string();
+
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let err = authenticate_at(
+            &format!("http://{addr}/auth"),
+            &creds,
+            MarketDataEnvironment::Prod,
+        )
+        .await
+        .expect_err("a malformed 200 body must fail to decode");
+        server.await.expect("mock server task");
+
         assert!(
-            surfaced_msg.contains("authentication response was malformed"),
-            "surfaced error must carry the fixed message: {surfaced_msg}"
+            matches!(
+                err,
+                Error::Auth {
+                    kind: crate::error::AuthErrorKind::ServerError,
+                    ..
+                }
+            ),
+            "unexpected error: {err:?}"
+        );
+        let display = err.to_string();
+        let debug = format!("{err:?}");
+        assert!(
+            display.contains(malformed_success_body_message()),
+            "surfaced error must carry the fixed message: {display}"
         );
         assert!(
-            !surfaced_msg.contains(token),
-            "surfaced error must not reflect the body token: {surfaced_msg}"
+            !display.contains(TOKEN) && !debug.contains(TOKEN),
+            "surfaced error must not reflect the body token: {debug}"
         );
-        // Sanity: the discarded raw decoder text COULD have carried body
-        // material, which is exactly why the fixed message is used. (Skip the
-        // assertion if a given serde version happens not to quote the field —
-        // the load-bearing guarantee is the surfaced message above.)
-        let _ = raw_decoder_text;
     }
 
     #[test]

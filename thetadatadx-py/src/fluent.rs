@@ -6,7 +6,7 @@
 //! from thetadatadx import Contract, SecType
 //!
 //! stock  = Contract.stock("AAPL")
-//! option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+//! option = Contract.option("SPY", expiration="20261218", strike="550", right="C")
 //!
 //! with client.streaming(on_event) as session:
 //!     session.subscribe(stock.quote())
@@ -108,7 +108,7 @@ impl PySecType {
 ///
 /// ```python
 /// stock  = Contract.stock("AAPL")
-/// option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+/// option = Contract.option("SPY", expiration="20261218", strike="550", right="C")
 /// ```
 #[pyclass(module = "thetadatadx", name = "Contract", frozen, skip_from_py_object)]
 #[derive(Clone, Debug)]

@@ -1018,6 +1018,9 @@ typedef struct ThetaDataDxRecordBatchStream ThetaDataDxRecordBatchStream;
 /** Open a pull-based Arrow RecordBatch reader over the unified client's
  *  stream — a sibling to thetadatadx_client_set_callback. Open first — this
  *  starts the streaming session — then subscribe on the same surface.
+ *  Opening a reader drops the callback registration a stopped callback
+ *  session saved, so thetadatadx_client_reconnect cannot revive it over the
+ *  reader.
  *  @param handle Client from thetadatadx_client_connect.
  *  @param batch_size Rows per batch (0 clamped to 1).
  *  @param linger_ms Partial-batch flush deadline in ms (quiet-stream flush).
@@ -1218,13 +1221,13 @@ ThetaDataDxConfig* thetadatadx_config_stage(void);
 int32_t thetadatadx_config_with_market_data_environment(ThetaDataDxConfig* config, int32_t kind);
 
 /** Select the streaming environment on a config handle in place:
- *  kind 0 = production, kind 1 = dev. The streaming and market-data
- *  channels are selected independently, so this leaves the market-data
- *  channel and the auth marker untouched.
+ *  kind 0 = production, kind 1 = dev, kind 2 = staging. The streaming and
+ *  market-data channels are selected independently, so this leaves the
+ *  market-data channel and the auth marker untouched.
  *  @param config Config handle to mutate.
- *  @param kind 0 for PROD, 1 for DEV.
+ *  @param kind 0 for PROD, 1 for DEV, 2 for STAGE.
  *  @return 0 on success, or -1 on error (config is null, or kind is
- *          outside {0, 1}); check thetadatadx_last_error(). */
+ *          outside {0, 1, 2}); check thetadatadx_last_error(). */
 int32_t thetadatadx_config_with_streaming_environment(ThetaDataDxConfig* config, int32_t kind);
 
 /** Source a config from a .env-format file. Starts from the production
@@ -1491,7 +1494,7 @@ int32_t thetadatadx_config_get_reconnect_replay_pace_ms(const ThetaDataDxConfig*
 
 /**
  * Reconnect-decision callback for thetadatadx_config_set_reconnect_callback.
- * Invoked on the streaming I/O thread after each retriable involuntary
+ * Invoked on an SDK streaming thread after each retriable involuntary
  * disconnect.
  * @param reason The disconnect-reason discriminant.
  * @param attempt The 1-based consecutive-reconnect counter.
@@ -1515,7 +1518,7 @@ typedef int64_t (*ThetaDataDxReconnectCallback)(int32_t reason, uint32_t attempt
  *           policy.
  * @param user_data Opaque pointer passed back to cb unchanged.
  * @return 0 on success, -1 if config is null.
- * @note cb runs on the streaming I/O thread: cb and user_data must be safe
+ * @note cb runs on an SDK streaming thread: cb and user_data must be safe
  *       to use from another thread for as long as any client built from
  *       this config is alive.
  */
@@ -1639,10 +1642,10 @@ int32_t thetadatadx_config_get_streaming_keepalive_retries(const ThetaDataDxConf
 
 /**
  * Set the streaming event ring buffer size (slots). Must be a power of two
- * >= 64; invalid values are rejected at the setter (thetadatadx_last_error).
- * Default 131_072.
+ * from 64 to 2^24; invalid values are rejected at the setter
+ * (thetadatadx_last_error). Default 131_072.
  * @param config Config handle to mutate; no-op when NULL.
- * @param n Ring buffer size in slots (power of two, >= 64).
+ * @param n Ring buffer size in slots (power of two, 64 to 2^24).
  */
 void thetadatadx_config_set_streaming_ring_size(ThetaDataDxConfig* config, size_t n);
 
@@ -1971,10 +1974,11 @@ char* thetadatadx_config_get_market_data_environment(const ThetaDataDxConfig* co
 
 /**
  * Read the streaming environment carried by the config: "PROD" for
- * the production cluster or "DEV" for the dev cluster. The streaming and
- * market-data environments are selected independently; the production /
- * stage / dev presets (and the THETADATA_STREAMING_TYPE dotenv key) set the
- * streaming channel, and this is the readback of that selection.
+ * the production cluster, "STAGE" for staging or "DEV" for the dev
+ * cluster. The streaming and market-data environments are selected
+ * independently; the production / stage / dev presets (and the
+ * THETADATA_STREAMING_TYPE dotenv key) set the streaming channel, and this
+ * is the readback of that selection.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null.
@@ -2518,11 +2522,16 @@ typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, v
 int thetadatadx_streaming_set_callback(const ThetaDataDxStreamHandle* h, ThetaDataDxStreamCallback callback, void* ctx);
 
 /** Reconnect the streaming session using the previously-registered
- *  callback.
+ *  callback. A retry after a failed reconnect replays the subscriptions
+ *  the failed attempt saved.
  *  @param h The streaming handle.
  *  @return 0 on success, -1 on error; -1 with "streaming handle has already
  *          been shut down -- this is terminal" if the handle is past
- *          thetadatadx_streaming_shutdown. */
+ *          thetadatadx_streaming_shutdown; -1 with THETADATADX_ERR_STREAM if
+ *          the session reconnected but some subscriptions failed to restore
+ *          (the stream stays live and
+ *          thetadatadx_streaming_active_subscriptions lists what was
+ *          restored). */
 int thetadatadx_streaming_reconnect(const ThetaDataDxStreamHandle* h);
 
 /** Cumulative count of streaming events that could not be published into
@@ -2735,7 +2744,11 @@ int thetadatadx_streaming_unsubscribe(const ThetaDataDxStreamHandle* h, const Th
 
 /** Reconnect unified streaming, re-subscribing all previous subscriptions.
  *  @param handle The unified handle.
- *  @return 0 on success, -1 on error (check thetadatadx_last_error()). */
+ *  @return 0 on success, -1 on error (check thetadatadx_last_error()); -1
+ *          with THETADATADX_ERR_STREAM if the session reconnected but some
+ *          subscriptions failed to restore (the stream stays live and
+ *          thetadatadx_client_active_subscriptions lists what was
+ *          restored). */
 int thetadatadx_client_reconnect(const ThetaDataDxClient* handle);
 
 /** Report whether streaming is active on the unified client.

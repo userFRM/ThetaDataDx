@@ -17,7 +17,7 @@ The [MCP server](/mcp) exposes every market-data endpoint to any Model Context P
 
 ## OpenAPI specification
 
-[`/thetadatadx.yaml`](/thetadatadx.yaml) describes the [local server](/server/)'s HTTP surface — every route, parameter, and response schema — in OpenAPI 3. Feed it to schema-aware tooling or code generators.
+[`/thetadatadx.yaml`](/thetadatadx.yaml) describes the [local server](/server/)'s HTTP surface in OpenAPI 3: every route and parameter, and the response envelope. The columns of each route's rows are listed on its [reference page](/reference/).
 
 ::: warning
 LLM output varies run to run. Treat generated queries and generated analysis as drafts: check parameters against the [reference pages](/reference/) and validate results before acting on them.

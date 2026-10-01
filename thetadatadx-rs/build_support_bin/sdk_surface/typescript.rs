@@ -53,7 +53,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  \n\
                  Backpressure: a slow callback first fills a bounded\n\
                  delivery queue and then the event ring behind it, at\n\
-                 which point the oldest events are dropped and counted by\n\
+                 which point the newest incoming events are dropped and counted by\n\
                  `droppedEventCount()` while `ringOccupancy()` reports the\n\
                  in-flight depth. Watch those two signals to detect a\n\
                  callback that cannot keep up. The receive path is never\n\

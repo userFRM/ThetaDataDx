@@ -104,10 +104,6 @@ _CALL_LEAD_KEYWORDS = re.compile(r"\b(return|sizeof|case)\s*$")
 HEADER_DECL_RE = re.compile(
     r"(?P<lead>" + _DECL_PREFIX + r")(?P<name>thetadatadx_\w+)\s*\("
 )
-# Retained for the diagnostic-only fallback path and documentation: the
-# bare `name(` shape with no decl-position guard. Not used by the
-# declaration collector, which requires decl position via HEADER_DECL_RE.
-HEADER_NAME_RE = re.compile(r"\b(thetadatadx_\w+)\s*\(")
 # C / C++ comment AND string-literal strippers. Run before the
 # declaration scan so a function name surviving only inside a comment OR a
 # string literal cannot read as declared. A bare mention in a comment

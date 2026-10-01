@@ -22,7 +22,7 @@ An option contract is always the four-tuple **(symbol, expiration, strike, right
 
 Strikes are **human dollars everywhere on the SDK surface** — never scaled integers. Endpoints that take an optional `strike` / `right` treat omission as a wildcard: all strikes, both rights. Wildcard responses identify each row's contract via the `expiration`, `strike`, and `right` response fields.
 
-Strikes are dollars across every surface, including the bundled server's [WebSocket subscribe envelope](/server/websocket) (`570` = $570.00). The scaled-integer form only exists on the raw upstream wire, which the SDK and the server both hide.
+The one exception is the bundled server's [WebSocket subscribe envelope](/server/websocket), which by default takes the terminal's 1/10-cent integer strike so existing terminal clients work unchanged (the WebSocket page shows an example). Start the server with `--strike-format dollars` to send dollars (`570`) there too. The server's HTTP routes take dollars either way.
 
 ## Dates and times in
 

@@ -93,7 +93,7 @@ jobs:
         # Runs against a hand-built blob in the repo; no live wire. This
         # is the always-on regression gate for the FIT decoder + CSV
         # writer. Fast and deterministic.
-        run: cargo test --test flatfiles_synthetic_golden -- --nocapture
+        run: cargo test --features __test-helpers --test flatfiles_synthetic_golden -- --nocapture
       - name: FLATFILES byte-match (vendor reference)
         run: |
           # Single env var gates the whole byte-match contract:
@@ -110,7 +110,7 @@ jobs:
           #
           # env:
           #   THETADATADX_FLATFILE_FIXTURES_PATH: ${{ runner.temp }}/thetadatadx-fixtures
-          cargo test --features live-tests --test flatfiles_byte_match -- --nocapture
+          cargo test --features live-tests,__test-helpers --test flatfiles_byte_match -- --nocapture
   endpoint-validation:
     name: Full Endpoint Validation (${{ matrix.os }})
     needs: [preflight, smoke]

@@ -9,9 +9,9 @@ use napi::bindgen_prelude::BigInt;
 #[napi(object)]
 #[derive(Clone)]
 pub struct CalendarDay {
-    pub date: i32,
-    pub open_time: i32,
-    pub close_time: i32,
+    pub date: f64,
+    pub open_time: f64,
+    pub close_time: f64,
     pub status: String,
 }
 
@@ -20,24 +20,24 @@ pub struct CalendarDay {
 #[napi(object)]
 #[derive(Clone)]
 pub struct EodTick {
-    pub created_ms_of_day: i32,
-    pub last_trade_ms_of_day: i32,
+    pub created_ms_of_day: f64,
+    pub last_trade_ms_of_day: f64,
     pub open: f64,
     pub high: f64,
     pub low: f64,
     pub close: f64,
     pub volume: BigInt,
     pub count: BigInt,
-    pub bid_size: i32,
-    pub bid_exchange: Option<i32>,
+    pub bid_size: f64,
+    pub bid_exchange: Option<f64>,
     pub bid: f64,
-    pub bid_condition: Option<i32>,
-    pub ask_size: i32,
-    pub ask_exchange: Option<i32>,
+    pub bid_condition: Option<f64>,
+    pub ask_size: f64,
+    pub ask_exchange: Option<f64>,
     pub ask: f64,
-    pub ask_condition: Option<i32>,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub ask_condition: Option<f64>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -55,7 +55,7 @@ pub struct EodTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct GreeksAllTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub bid: f64,
     pub ask: f64,
     pub implied_volatility: f64,
@@ -80,10 +80,10 @@ pub struct GreeksAllTick {
     pub epsilon: f64,
     pub lambda: f64,
     pub vera: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -101,21 +101,21 @@ pub struct GreeksAllTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct GreeksEodTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub open: f64,
     pub high: f64,
     pub low: f64,
     pub close: f64,
     pub volume: BigInt,
     pub count: BigInt,
-    pub bid_size: i32,
-    pub bid_exchange: Option<i32>,
+    pub bid_size: f64,
+    pub bid_exchange: Option<f64>,
     pub bid: f64,
-    pub bid_condition: Option<i32>,
-    pub ask_size: i32,
-    pub ask_exchange: Option<i32>,
+    pub bid_condition: Option<f64>,
+    pub ask_size: f64,
+    pub ask_exchange: Option<f64>,
     pub ask: f64,
-    pub ask_condition: Option<i32>,
+    pub ask_condition: Option<f64>,
     pub delta: f64,
     pub theta: f64,
     pub vega: f64,
@@ -138,10 +138,10 @@ pub struct GreeksEodTick {
     pub dual_gamma: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -159,7 +159,7 @@ pub struct GreeksEodTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct GreeksFirstOrderTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub bid: f64,
     pub ask: f64,
     pub delta: f64,
@@ -170,10 +170,10 @@ pub struct GreeksFirstOrderTick {
     pub lambda: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -191,7 +191,7 @@ pub struct GreeksFirstOrderTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct GreeksSecondOrderTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub bid: f64,
     pub ask: f64,
     pub gamma: f64,
@@ -201,10 +201,10 @@ pub struct GreeksSecondOrderTick {
     pub veta: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -222,7 +222,7 @@ pub struct GreeksSecondOrderTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct GreeksThirdOrderTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub bid: f64,
     pub ask: f64,
     pub speed: f64,
@@ -231,10 +231,10 @@ pub struct GreeksThirdOrderTick {
     pub ultima: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -252,17 +252,17 @@ pub struct GreeksThirdOrderTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct IndexPriceAtTimeTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
-    pub date: i32,
+    pub date: f64,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
@@ -274,7 +274,7 @@ pub struct IndexPriceAtTimeTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct InterestRateTick {
-    pub date: i32,
+    pub date: f64,
     pub rate: f64,
 }
 
@@ -283,7 +283,7 @@ pub struct InterestRateTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct IvTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub bid: f64,
     pub bid_implied_volatility: f64,
     pub midpoint: f64,
@@ -291,10 +291,10 @@ pub struct IvTick {
     pub ask: f64,
     pub ask_implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -312,12 +312,12 @@ pub struct IvTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct MarketValueTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub market_bid: f64,
     pub market_ask: f64,
     pub market_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -331,7 +331,7 @@ pub struct MarketValueTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct OhlcTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub open: f64,
     pub high: f64,
     pub low: f64,
@@ -339,8 +339,8 @@ pub struct OhlcTick {
     pub volume: BigInt,
     pub count: BigInt,
     pub vwap: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -354,10 +354,10 @@ pub struct OhlcTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct OpenInterestTick {
-    pub ms_of_day: i32,
-    pub open_interest: i32,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub ms_of_day: f64,
+    pub open_interest: f64,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -372,7 +372,7 @@ pub struct OpenInterestTick {
 #[derive(Clone)]
 pub struct OptionContract {
     pub symbol: String,
-    pub expiration: i32,
+    pub expiration: f64,
     pub strike: f64,
     pub right: String,
 }
@@ -382,9 +382,9 @@ pub struct OptionContract {
 #[napi(object)]
 #[derive(Clone)]
 pub struct PriceTick {
-    pub ms_of_day: i32,
+    pub ms_of_day: f64,
     pub price: f64,
-    pub date: i32,
+    pub date: f64,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
     /// `ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
     /// `date` is absent (`0`).
@@ -396,17 +396,17 @@ pub struct PriceTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct QuoteTick {
-    pub ms_of_day: i32,
-    pub bid_size: i32,
-    pub bid_exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub bid_size: f64,
+    pub bid_exchange: Option<f64>,
     pub bid: f64,
-    pub bid_condition: Option<i32>,
-    pub ask_size: i32,
-    pub ask_exchange: Option<i32>,
+    pub bid_condition: Option<f64>,
+    pub ask_size: f64,
+    pub ask_exchange: Option<f64>,
     pub ask: f64,
-    pub ask_condition: Option<i32>,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub ask_condition: Option<f64>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -420,15 +420,15 @@ pub struct QuoteTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeGreeksAllTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
     pub delta: f64,
     pub theta: f64,
@@ -452,10 +452,10 @@ pub struct TradeGreeksAllTick {
     pub dual_gamma: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -473,15 +473,15 @@ pub struct TradeGreeksAllTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeGreeksFirstOrderTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
     pub delta: f64,
     pub theta: f64,
@@ -491,10 +491,10 @@ pub struct TradeGreeksFirstOrderTick {
     pub lambda: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -512,22 +512,22 @@ pub struct TradeGreeksFirstOrderTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeGreeksImpliedVolatilityTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -545,15 +545,15 @@ pub struct TradeGreeksImpliedVolatilityTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeGreeksSecondOrderTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
     pub gamma: f64,
     pub vanna: f64,
@@ -562,10 +562,10 @@ pub struct TradeGreeksSecondOrderTick {
     pub veta: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -583,15 +583,15 @@ pub struct TradeGreeksSecondOrderTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeGreeksThirdOrderTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
     pub speed: f64,
     pub zomma: f64,
@@ -599,10 +599,10 @@ pub struct TradeGreeksThirdOrderTick {
     pub ultima: f64,
     pub implied_volatility: f64,
     pub iv_error: f64,
-    pub underlying_ms_of_day: i32,
+    pub underlying_ms_of_day: f64,
     pub underlying_price: f64,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -620,31 +620,31 @@ pub struct TradeGreeksThirdOrderTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeQuoteTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
-    pub condition_flags: i32,
-    pub price_flags: i32,
-    pub volume_type: i32,
-    pub records_back: i32,
-    pub quote_ms_of_day: i32,
-    pub bid_size: i32,
-    pub bid_exchange: Option<i32>,
+    pub condition_flags: f64,
+    pub price_flags: f64,
+    pub volume_type: f64,
+    pub records_back: f64,
+    pub quote_ms_of_day: f64,
+    pub bid_size: f64,
+    pub bid_exchange: Option<f64>,
     pub bid: f64,
-    pub bid_condition: Option<i32>,
-    pub ask_size: i32,
-    pub ask_exchange: Option<i32>,
+    pub bid_condition: Option<f64>,
+    pub ask_size: f64,
+    pub ask_exchange: Option<f64>,
     pub ask: f64,
-    pub ask_condition: Option<i32>,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub ask_condition: Option<f64>,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// Unix epoch milliseconds (UTC, DST-aware) combining `date` with
@@ -662,22 +662,22 @@ pub struct TradeQuoteTick {
 #[napi(object)]
 #[derive(Clone)]
 pub struct TradeTick {
-    pub ms_of_day: i32,
-    pub sequence: i32,
-    pub ext_condition1: Option<i32>,
-    pub ext_condition2: Option<i32>,
-    pub ext_condition3: Option<i32>,
-    pub ext_condition4: Option<i32>,
-    pub condition: Option<i32>,
-    pub size: i32,
-    pub exchange: Option<i32>,
+    pub ms_of_day: f64,
+    pub sequence: f64,
+    pub ext_condition1: Option<f64>,
+    pub ext_condition2: Option<f64>,
+    pub ext_condition3: Option<f64>,
+    pub ext_condition4: Option<f64>,
+    pub condition: Option<f64>,
+    pub size: f64,
+    pub exchange: Option<f64>,
     pub price: f64,
-    pub condition_flags: i32,
-    pub price_flags: i32,
-    pub volume_type: i32,
-    pub records_back: i32,
-    pub date: i32,
-    pub expiration: Option<i32>,
+    pub condition_flags: f64,
+    pub price_flags: f64,
+    pub volume_type: f64,
+    pub records_back: f64,
+    pub date: f64,
+    pub expiration: Option<f64>,
     pub strike: Option<f64>,
     pub right: Option<String>,
     /// True when the trade carries a cancelled-trade condition (codes 40-44).
@@ -693,9 +693,9 @@ fn calendar_days_to_class_vec(ticks: &[tick::CalendarDay]) -> Vec<CalendarDay> {
         .iter()
         .map(|t| {
             CalendarDay {
-                date: t.date,
-                open_time: t.open_time,
-                close_time: t.close_time,
+                date: f64::from(t.date),
+                open_time: f64::from(t.open_time),
+                close_time: f64::from(t.close_time),
                 status: t.status.as_str().to_string(),
             }
         })
@@ -707,24 +707,24 @@ fn eod_ticks_to_class_vec(ticks: &[tick::EodTick]) -> Vec<EodTick> {
         .iter()
         .map(|t| {
             EodTick {
-                created_ms_of_day: t.created_ms_of_day,
-                last_trade_ms_of_day: t.last_trade_ms_of_day,
+                created_ms_of_day: f64::from(t.created_ms_of_day),
+                last_trade_ms_of_day: f64::from(t.last_trade_ms_of_day),
                 open: t.open,
                 high: t.high,
                 low: t.low,
                 close: t.close,
                 volume: BigInt::from(t.volume),
                 count: BigInt::from(t.count),
-                bid_size: t.bid_size,
-                bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                bid_size: f64::from(t.bid_size),
+                bid_exchange: if t.has_bid_exchange { Some(f64::from(t.bid_exchange)) } else { None },
                 bid: t.bid,
-                bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
-                ask_size: t.ask_size,
-                ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                bid_condition: if t.has_bid_condition { Some(f64::from(t.bid_condition)) } else { None },
+                ask_size: f64::from(t.ask_size),
+                ask_exchange: if t.has_ask_exchange { Some(f64::from(t.ask_exchange)) } else { None },
                 ask: t.ask,
-                ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                ask_condition: if t.has_ask_condition { Some(f64::from(t.ask_condition)) } else { None },
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 created_timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.created_ms_of_day).map(BigInt::from),
@@ -739,7 +739,7 @@ fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAll
         .iter()
         .map(|t| {
             GreeksAllTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 bid: t.bid,
                 ask: t.ask,
                 implied_volatility: t.implied_volatility,
@@ -764,10 +764,10 @@ fn greeks_all_ticks_to_class_vec(ticks: &[tick::GreeksAllTick]) -> Vec<GreeksAll
                 epsilon: t.epsilon,
                 lambda: t.lambda,
                 vera: t.vera,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -782,21 +782,21 @@ fn greeks_eod_ticks_to_class_vec(ticks: &[tick::GreeksEodTick]) -> Vec<GreeksEod
         .iter()
         .map(|t| {
             GreeksEodTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 open: t.open,
                 high: t.high,
                 low: t.low,
                 close: t.close,
                 volume: BigInt::from(t.volume),
                 count: BigInt::from(t.count),
-                bid_size: t.bid_size,
-                bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                bid_size: f64::from(t.bid_size),
+                bid_exchange: if t.has_bid_exchange { Some(f64::from(t.bid_exchange)) } else { None },
                 bid: t.bid,
-                bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
-                ask_size: t.ask_size,
-                ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                bid_condition: if t.has_bid_condition { Some(f64::from(t.bid_condition)) } else { None },
+                ask_size: f64::from(t.ask_size),
+                ask_exchange: if t.has_ask_exchange { Some(f64::from(t.ask_exchange)) } else { None },
                 ask: t.ask,
-                ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
+                ask_condition: if t.has_ask_condition { Some(f64::from(t.ask_condition)) } else { None },
                 delta: t.delta,
                 theta: t.theta,
                 vega: t.vega,
@@ -819,10 +819,10 @@ fn greeks_eod_ticks_to_class_vec(ticks: &[tick::GreeksEodTick]) -> Vec<GreeksEod
                 dual_gamma: t.dual_gamma,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -837,7 +837,7 @@ fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -
         .iter()
         .map(|t| {
             GreeksFirstOrderTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 bid: t.bid,
                 ask: t.ask,
                 delta: t.delta,
@@ -848,10 +848,10 @@ fn greeks_first_order_ticks_to_class_vec(ticks: &[tick::GreeksFirstOrderTick]) -
                 lambda: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -866,7 +866,7 @@ fn greeks_second_order_ticks_to_class_vec(ticks: &[tick::GreeksSecondOrderTick])
         .iter()
         .map(|t| {
             GreeksSecondOrderTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 bid: t.bid,
                 ask: t.ask,
                 gamma: t.gamma,
@@ -876,10 +876,10 @@ fn greeks_second_order_ticks_to_class_vec(ticks: &[tick::GreeksSecondOrderTick])
                 veta: t.veta,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -894,7 +894,7 @@ fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -
         .iter()
         .map(|t| {
             GreeksThirdOrderTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 bid: t.bid,
                 ask: t.ask,
                 speed: t.speed,
@@ -903,10 +903,10 @@ fn greeks_third_order_ticks_to_class_vec(ticks: &[tick::GreeksThirdOrderTick]) -
                 ultima: t.ultima,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -921,17 +921,17 @@ fn index_price_at_time_ticks_to_class_vec(ticks: &[tick::IndexPriceAtTimeTick]) 
         .iter()
         .map(|t| {
             IndexPriceAtTimeTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
-                date: t.date,
+                date: f64::from(t.date),
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
@@ -943,7 +943,7 @@ fn interest_rate_ticks_to_class_vec(ticks: &[tick::InterestRateTick]) -> Vec<Int
         .iter()
         .map(|t| {
             InterestRateTick {
-                date: t.date,
+                date: f64::from(t.date),
                 rate: t.rate,
             }
         })
@@ -955,7 +955,7 @@ fn iv_ticks_to_class_vec(ticks: &[tick::IvTick]) -> Vec<IvTick> {
         .iter()
         .map(|t| {
             IvTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 bid: t.bid,
                 bid_implied_volatility: t.bid_implied_volatility,
                 midpoint: t.midpoint,
@@ -963,10 +963,10 @@ fn iv_ticks_to_class_vec(ticks: &[tick::IvTick]) -> Vec<IvTick> {
                 ask: t.ask,
                 ask_implied_volatility: t.ask_implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -981,12 +981,12 @@ fn market_value_ticks_to_class_vec(ticks: &[tick::MarketValueTick]) -> Vec<Marke
         .iter()
         .map(|t| {
             MarketValueTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 market_bid: t.market_bid,
                 market_ask: t.market_ask,
                 market_price: t.market_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1000,7 +1000,7 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
         .iter()
         .map(|t| {
             OhlcTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 open: t.open,
                 high: t.high,
                 low: t.low,
@@ -1008,8 +1008,8 @@ fn ohlc_ticks_to_class_vec(ticks: &[tick::OhlcTick]) -> Vec<OhlcTick> {
                 volume: BigInt::from(t.volume),
                 count: BigInt::from(t.count),
                 vwap: t.vwap,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1023,10 +1023,10 @@ fn open_interest_ticks_to_class_vec(ticks: &[tick::OpenInterestTick]) -> Vec<Ope
         .iter()
         .map(|t| {
             OpenInterestTick {
-                ms_of_day: t.ms_of_day,
-                open_interest: t.open_interest,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                ms_of_day: f64::from(t.ms_of_day),
+                open_interest: f64::from(t.open_interest),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1041,7 +1041,7 @@ fn option_contracts_to_class_vec(ticks: &[tick::OptionContract]) -> Vec<OptionCo
         .map(|t| {
             OptionContract {
                 symbol: t.symbol.clone(),
-                expiration: t.expiration,
+                expiration: f64::from(t.expiration),
                 strike: t.strike,
                 right: if t.right == '\0' { String::new() } else { t.right.to_string() },
             }
@@ -1054,9 +1054,9 @@ fn price_ticks_to_class_vec(ticks: &[tick::PriceTick]) -> Vec<PriceTick> {
         .iter()
         .map(|t| {
             PriceTick {
-                ms_of_day: t.ms_of_day,
+                ms_of_day: f64::from(t.ms_of_day),
                 price: t.price,
-                date: t.date,
+                date: f64::from(t.date),
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
             }
         })
@@ -1068,17 +1068,17 @@ fn quote_ticks_to_class_vec(ticks: &[tick::QuoteTick]) -> Vec<QuoteTick> {
         .iter()
         .map(|t| {
             QuoteTick {
-                ms_of_day: t.ms_of_day,
-                bid_size: t.bid_size,
-                bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                bid_size: f64::from(t.bid_size),
+                bid_exchange: if t.has_bid_exchange { Some(f64::from(t.bid_exchange)) } else { None },
                 bid: t.bid,
-                bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
-                ask_size: t.ask_size,
-                ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                bid_condition: if t.has_bid_condition { Some(f64::from(t.bid_condition)) } else { None },
+                ask_size: f64::from(t.ask_size),
+                ask_exchange: if t.has_ask_exchange { Some(f64::from(t.ask_exchange)) } else { None },
                 ask: t.ask,
-                ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                ask_condition: if t.has_ask_condition { Some(f64::from(t.ask_condition)) } else { None },
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1092,15 +1092,15 @@ fn trade_greeks_all_ticks_to_class_vec(ticks: &[tick::TradeGreeksAllTick]) -> Ve
         .iter()
         .map(|t| {
             TradeGreeksAllTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
                 delta: t.delta,
                 theta: t.theta,
@@ -1124,10 +1124,10 @@ fn trade_greeks_all_ticks_to_class_vec(ticks: &[tick::TradeGreeksAllTick]) -> Ve
                 dual_gamma: t.dual_gamma,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1142,15 +1142,15 @@ fn trade_greeks_first_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksFirstOr
         .iter()
         .map(|t| {
             TradeGreeksFirstOrderTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
                 delta: t.delta,
                 theta: t.theta,
@@ -1160,10 +1160,10 @@ fn trade_greeks_first_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksFirstOr
                 lambda: t.lambda,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1178,22 +1178,22 @@ fn trade_greeks_implied_volatility_ticks_to_class_vec(ticks: &[tick::TradeGreeks
         .iter()
         .map(|t| {
             TradeGreeksImpliedVolatilityTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1208,15 +1208,15 @@ fn trade_greeks_second_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksSecond
         .iter()
         .map(|t| {
             TradeGreeksSecondOrderTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
                 gamma: t.gamma,
                 vanna: t.vanna,
@@ -1225,10 +1225,10 @@ fn trade_greeks_second_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksSecond
                 veta: t.veta,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1243,15 +1243,15 @@ fn trade_greeks_third_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksThirdOr
         .iter()
         .map(|t| {
             TradeGreeksThirdOrderTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
                 speed: t.speed,
                 zomma: t.zomma,
@@ -1259,10 +1259,10 @@ fn trade_greeks_third_order_ticks_to_class_vec(ticks: &[tick::TradeGreeksThirdOr
                 ultima: t.ultima,
                 implied_volatility: t.implied_volatility,
                 iv_error: t.iv_error,
-                underlying_ms_of_day: t.underlying_ms_of_day,
+                underlying_ms_of_day: f64::from(t.underlying_ms_of_day),
                 underlying_price: t.underlying_price,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1277,31 +1277,31 @@ fn trade_quote_ticks_to_class_vec(ticks: &[tick::TradeQuoteTick]) -> Vec<TradeQu
         .iter()
         .map(|t| {
             TradeQuoteTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
-                condition_flags: t.condition_flags,
-                price_flags: t.price_flags,
-                volume_type: t.volume_type,
-                records_back: t.records_back,
-                quote_ms_of_day: t.quote_ms_of_day,
-                bid_size: t.bid_size,
-                bid_exchange: if t.has_bid_exchange { Some(t.bid_exchange) } else { None },
+                condition_flags: f64::from(t.condition_flags),
+                price_flags: f64::from(t.price_flags),
+                volume_type: f64::from(t.volume_type),
+                records_back: f64::from(t.records_back),
+                quote_ms_of_day: f64::from(t.quote_ms_of_day),
+                bid_size: f64::from(t.bid_size),
+                bid_exchange: if t.has_bid_exchange { Some(f64::from(t.bid_exchange)) } else { None },
                 bid: t.bid,
-                bid_condition: if t.has_bid_condition { Some(t.bid_condition) } else { None },
-                ask_size: t.ask_size,
-                ask_exchange: if t.has_ask_exchange { Some(t.ask_exchange) } else { None },
+                bid_condition: if t.has_bid_condition { Some(f64::from(t.bid_condition)) } else { None },
+                ask_size: f64::from(t.ask_size),
+                ask_exchange: if t.has_ask_exchange { Some(f64::from(t.ask_exchange)) } else { None },
                 ask: t.ask,
-                ask_condition: if t.has_ask_condition { Some(t.ask_condition) } else { None },
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                ask_condition: if t.has_ask_condition { Some(f64::from(t.ask_condition)) } else { None },
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 timestamp_ms: thetadatadx::time::date_ms_to_epoch_ms(t.date, t.ms_of_day).map(BigInt::from),
@@ -1316,22 +1316,22 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
         .iter()
         .map(|t| {
             TradeTick {
-                ms_of_day: t.ms_of_day,
-                sequence: t.sequence,
-                ext_condition1: if t.has_ext_condition1 { Some(t.ext_condition1) } else { None },
-                ext_condition2: if t.has_ext_condition2 { Some(t.ext_condition2) } else { None },
-                ext_condition3: if t.has_ext_condition3 { Some(t.ext_condition3) } else { None },
-                ext_condition4: if t.has_ext_condition4 { Some(t.ext_condition4) } else { None },
-                condition: if t.has_condition { Some(t.condition) } else { None },
-                size: t.size,
-                exchange: if t.has_exchange { Some(t.exchange) } else { None },
+                ms_of_day: f64::from(t.ms_of_day),
+                sequence: f64::from(t.sequence),
+                ext_condition1: if t.has_ext_condition1 { Some(f64::from(t.ext_condition1)) } else { None },
+                ext_condition2: if t.has_ext_condition2 { Some(f64::from(t.ext_condition2)) } else { None },
+                ext_condition3: if t.has_ext_condition3 { Some(f64::from(t.ext_condition3)) } else { None },
+                ext_condition4: if t.has_ext_condition4 { Some(f64::from(t.ext_condition4)) } else { None },
+                condition: if t.has_condition { Some(f64::from(t.condition)) } else { None },
+                size: f64::from(t.size),
+                exchange: if t.has_exchange { Some(f64::from(t.exchange)) } else { None },
                 price: t.price,
-                condition_flags: t.condition_flags,
-                price_flags: t.price_flags,
-                volume_type: t.volume_type,
-                records_back: t.records_back,
-                date: t.date,
-                expiration: t.has_contract_id().then_some(t.expiration),
+                condition_flags: f64::from(t.condition_flags),
+                price_flags: f64::from(t.price_flags),
+                volume_type: f64::from(t.volume_type),
+                records_back: f64::from(t.records_back),
+                date: f64::from(t.date),
+                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),
                 strike: t.has_contract_id().then_some(t.strike),
                 right: if t.right == '\0' { None } else { Some(t.right.to_string()) },
                 is_cancelled: (40..=44).contains(&t.condition),
@@ -1350,6 +1350,18 @@ fn bigint_to_i64(name: &str, v: &BigInt) -> napi::Result<i64> {
     } else {
         Err(crate::invalid_parameter_err(format!(
             "{name}: BigInt magnitude must fit in i64"
+        )))
+    }
+}
+
+/// Decode an `i32` from a JS `number` Arrow column, rejecting a value that is
+/// not a whole number within `i32` rather than wrapping or truncating it.
+fn number_to_i32(name: &str, v: f64) -> napi::Result<i32> {
+    if v.fract() == 0.0 && v >= f64::from(i32::MIN) && v <= f64::from(i32::MAX) {
+        Ok(v as i32)
+    } else {
+        Err(crate::invalid_parameter_err(format!(
+            "{name}: must be a whole number within i32, got {v}"
         )))
     }
 }
@@ -1385,9 +1397,9 @@ fn calendar_day_reconstruct_rows(rows: Vec<CalendarDay>) -> napi::Result<Vec<tic
         .into_iter()
         .map(|r| -> napi::Result<tick::CalendarDay> {
             Ok(tick::CalendarDay {
-                date: r.date,
-                open_time: r.open_time,
-                close_time: r.close_time,
+                date: number_to_i32("date", r.date)?,
+                open_time: number_to_i32("open_time", r.open_time)?,
+                close_time: number_to_i32("close_time", r.close_time)?,
                 status: match thetadatadx::CalendarStatus::from_wire_text(&r.status) { Some(status) => status, None => return Err(napi::Error::from_reason(format!("[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {:?}", r.status))) },
             })
         })
@@ -1461,28 +1473,28 @@ fn eod_tick_reconstruct_rows(rows: Vec<EodTick>) -> napi::Result<Vec<tick::EodTi
         .into_iter()
         .map(|r| -> napi::Result<tick::EodTick> {
             Ok(tick::EodTick {
-                created_ms_of_day: r.created_ms_of_day,
-                last_trade_ms_of_day: r.last_trade_ms_of_day,
+                created_ms_of_day: number_to_i32("created_ms_of_day", r.created_ms_of_day)?,
+                last_trade_ms_of_day: number_to_i32("last_trade_ms_of_day", r.last_trade_ms_of_day)?,
                 open: r.open,
                 high: r.high,
                 low: r.low,
                 close: r.close,
                 volume: bigint_to_i64("volume", &r.volume)?,
                 count: bigint_to_i64("count", &r.count)?,
-                bid_size: r.bid_size,
-                bid_exchange: r.bid_exchange.unwrap_or(0),
+                bid_size: number_to_i32("bid_size", r.bid_size)?,
+                bid_exchange: match r.bid_exchange { Some(v) => number_to_i32("bid_exchange", v)?, None => 0 },
                 has_bid_exchange: r.bid_exchange.is_some(),
                 bid: r.bid,
-                bid_condition: r.bid_condition.unwrap_or(0),
+                bid_condition: match r.bid_condition { Some(v) => number_to_i32("bid_condition", v)?, None => 0 },
                 has_bid_condition: r.bid_condition.is_some(),
-                ask_size: r.ask_size,
-                ask_exchange: r.ask_exchange.unwrap_or(0),
+                ask_size: number_to_i32("ask_size", r.ask_size)?,
+                ask_exchange: match r.ask_exchange { Some(v) => number_to_i32("ask_exchange", v)?, None => 0 },
                 has_ask_exchange: r.ask_exchange.is_some(),
                 ask: r.ask,
-                ask_condition: r.ask_condition.unwrap_or(0),
+                ask_condition: match r.ask_condition { Some(v) => number_to_i32("ask_condition", v)?, None => 0 },
                 has_ask_condition: r.ask_condition.is_some(),
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -1557,7 +1569,7 @@ fn greeks_all_tick_reconstruct_rows(rows: Vec<GreeksAllTick>) -> napi::Result<Ve
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksAllTick> {
             Ok(tick::GreeksAllTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 bid: r.bid,
                 ask: r.ask,
                 implied_volatility: r.implied_volatility,
@@ -1582,10 +1594,10 @@ fn greeks_all_tick_reconstruct_rows(rows: Vec<GreeksAllTick>) -> napi::Result<Ve
                 epsilon: r.epsilon,
                 lambda: r.lambda,
                 vera: r.vera,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -1660,24 +1672,24 @@ fn greeks_eod_tick_reconstruct_rows(rows: Vec<GreeksEodTick>) -> napi::Result<Ve
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksEodTick> {
             Ok(tick::GreeksEodTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 open: r.open,
                 high: r.high,
                 low: r.low,
                 close: r.close,
                 volume: bigint_to_i64("volume", &r.volume)?,
                 count: bigint_to_i64("count", &r.count)?,
-                bid_size: r.bid_size,
-                bid_exchange: r.bid_exchange.unwrap_or(0),
+                bid_size: number_to_i32("bid_size", r.bid_size)?,
+                bid_exchange: match r.bid_exchange { Some(v) => number_to_i32("bid_exchange", v)?, None => 0 },
                 has_bid_exchange: r.bid_exchange.is_some(),
                 bid: r.bid,
-                bid_condition: r.bid_condition.unwrap_or(0),
+                bid_condition: match r.bid_condition { Some(v) => number_to_i32("bid_condition", v)?, None => 0 },
                 has_bid_condition: r.bid_condition.is_some(),
-                ask_size: r.ask_size,
-                ask_exchange: r.ask_exchange.unwrap_or(0),
+                ask_size: number_to_i32("ask_size", r.ask_size)?,
+                ask_exchange: match r.ask_exchange { Some(v) => number_to_i32("ask_exchange", v)?, None => 0 },
                 has_ask_exchange: r.ask_exchange.is_some(),
                 ask: r.ask,
-                ask_condition: r.ask_condition.unwrap_or(0),
+                ask_condition: match r.ask_condition { Some(v) => number_to_i32("ask_condition", v)?, None => 0 },
                 has_ask_condition: r.ask_condition.is_some(),
                 delta: r.delta,
                 theta: r.theta,
@@ -1701,10 +1713,10 @@ fn greeks_eod_tick_reconstruct_rows(rows: Vec<GreeksEodTick>) -> napi::Result<Ve
                 dual_gamma: r.dual_gamma,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -1779,7 +1791,7 @@ fn greeks_first_order_tick_reconstruct_rows(rows: Vec<GreeksFirstOrderTick>) -> 
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksFirstOrderTick> {
             Ok(tick::GreeksFirstOrderTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 bid: r.bid,
                 ask: r.ask,
                 delta: r.delta,
@@ -1790,10 +1802,10 @@ fn greeks_first_order_tick_reconstruct_rows(rows: Vec<GreeksFirstOrderTick>) -> 
                 lambda: r.lambda,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -1868,7 +1880,7 @@ fn greeks_second_order_tick_reconstruct_rows(rows: Vec<GreeksSecondOrderTick>) -
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksSecondOrderTick> {
             Ok(tick::GreeksSecondOrderTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 bid: r.bid,
                 ask: r.ask,
                 gamma: r.gamma,
@@ -1878,10 +1890,10 @@ fn greeks_second_order_tick_reconstruct_rows(rows: Vec<GreeksSecondOrderTick>) -
                 veta: r.veta,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -1956,7 +1968,7 @@ fn greeks_third_order_tick_reconstruct_rows(rows: Vec<GreeksThirdOrderTick>) -> 
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksThirdOrderTick> {
             Ok(tick::GreeksThirdOrderTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 bid: r.bid,
                 ask: r.ask,
                 speed: r.speed,
@@ -1965,10 +1977,10 @@ fn greeks_third_order_tick_reconstruct_rows(rows: Vec<GreeksThirdOrderTick>) -> 
                 ultima: r.ultima,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2041,28 +2053,28 @@ pub fn greeks_third_order_tick_to_arrow_ipc_projected(
 fn index_price_at_time_tick_reconstruct_rows(rows: Vec<IndexPriceAtTimeTick>) -> napi::Result<Vec<tick::IndexPriceAtTimeTick>> {
     let owned: Vec<tick::IndexPriceAtTimeTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::IndexPriceAtTimeTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+        .map(|r| -> napi::Result<tick::IndexPriceAtTimeTick> {
+            Ok(tick::IndexPriceAtTimeTick {
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
-                date: r.date,
-            }
+                date: number_to_i32("date", r.date)?,
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::IndexPriceAtTimeTick>>>()?;
     Ok(owned)
 }
 
@@ -2130,13 +2142,13 @@ pub fn index_price_at_time_tick_to_arrow_ipc_projected(
 fn interest_rate_tick_reconstruct_rows(rows: Vec<InterestRateTick>) -> napi::Result<Vec<tick::InterestRateTick>> {
     let owned: Vec<tick::InterestRateTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::InterestRateTick {
-                date: r.date,
+        .map(|r| -> napi::Result<tick::InterestRateTick> {
+            Ok(tick::InterestRateTick {
+                date: number_to_i32("date", r.date)?,
                 rate: r.rate,
-            }
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::InterestRateTick>>>()?;
     Ok(owned)
 }
 
@@ -2206,7 +2218,7 @@ fn iv_tick_reconstruct_rows(rows: Vec<IvTick>) -> napi::Result<Vec<tick::IvTick>
         .into_iter()
         .map(|r| -> napi::Result<tick::IvTick> {
             Ok(tick::IvTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 bid: r.bid,
                 bid_implied_volatility: r.bid_implied_volatility,
                 midpoint: r.midpoint,
@@ -2214,10 +2226,10 @@ fn iv_tick_reconstruct_rows(rows: Vec<IvTick>) -> napi::Result<Vec<tick::IvTick>
                 ask: r.ask,
                 ask_implied_volatility: r.ask_implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2292,12 +2304,12 @@ fn market_value_tick_reconstruct_rows(rows: Vec<MarketValueTick>) -> napi::Resul
         .into_iter()
         .map(|r| -> napi::Result<tick::MarketValueTick> {
             Ok(tick::MarketValueTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 market_bid: r.market_bid,
                 market_ask: r.market_ask,
                 market_price: r.market_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2372,7 +2384,7 @@ fn ohlc_tick_reconstruct_rows(rows: Vec<OhlcTick>) -> napi::Result<Vec<tick::Ohl
         .into_iter()
         .map(|r| -> napi::Result<tick::OhlcTick> {
             Ok(tick::OhlcTick {
-                ms_of_day: r.ms_of_day,
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 open: r.open,
                 high: r.high,
                 low: r.low,
@@ -2380,8 +2392,8 @@ fn ohlc_tick_reconstruct_rows(rows: Vec<OhlcTick>) -> napi::Result<Vec<tick::Ohl
                 volume: bigint_to_i64("volume", &r.volume)?,
                 count: bigint_to_i64("count", &r.count)?,
                 vwap: r.vwap,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2456,10 +2468,10 @@ fn open_interest_tick_reconstruct_rows(rows: Vec<OpenInterestTick>) -> napi::Res
         .into_iter()
         .map(|r| -> napi::Result<tick::OpenInterestTick> {
             Ok(tick::OpenInterestTick {
-                ms_of_day: r.ms_of_day,
-                open_interest: r.open_interest,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                open_interest: number_to_i32("open_interest", r.open_interest)?,
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2535,7 +2547,7 @@ fn option_contract_reconstruct_rows(rows: Vec<OptionContract>) -> napi::Result<V
         .map(|r| -> napi::Result<tick::OptionContract> {
             Ok(tick::OptionContract {
                 symbol: r.symbol,
-                expiration: r.expiration,
+                expiration: number_to_i32("expiration", r.expiration)?,
                 strike: r.strike,
                 right: match r.right.as_str() { "C" => 'C', "P" => 'P', "" => '\0', other => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2608,14 +2620,14 @@ pub fn option_contract_to_arrow_ipc_projected(
 fn price_tick_reconstruct_rows(rows: Vec<PriceTick>) -> napi::Result<Vec<tick::PriceTick>> {
     let owned: Vec<tick::PriceTick> = rows
         .into_iter()
-        .map(|r| {
-            tick::PriceTick {
-                ms_of_day: r.ms_of_day,
+        .map(|r| -> napi::Result<tick::PriceTick> {
+            Ok(tick::PriceTick {
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
                 price: r.price,
-                date: r.date,
-            }
+                date: number_to_i32("date", r.date)?,
+            })
         })
-        .collect();
+        .collect::<napi::Result<Vec<tick::PriceTick>>>()?;
     Ok(owned)
 }
 
@@ -2685,21 +2697,21 @@ fn quote_tick_reconstruct_rows(rows: Vec<QuoteTick>) -> napi::Result<Vec<tick::Q
         .into_iter()
         .map(|r| -> napi::Result<tick::QuoteTick> {
             Ok(tick::QuoteTick {
-                ms_of_day: r.ms_of_day,
-                bid_size: r.bid_size,
-                bid_exchange: r.bid_exchange.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                bid_size: number_to_i32("bid_size", r.bid_size)?,
+                bid_exchange: match r.bid_exchange { Some(v) => number_to_i32("bid_exchange", v)?, None => 0 },
                 has_bid_exchange: r.bid_exchange.is_some(),
                 bid: r.bid,
-                bid_condition: r.bid_condition.unwrap_or(0),
+                bid_condition: match r.bid_condition { Some(v) => number_to_i32("bid_condition", v)?, None => 0 },
                 has_bid_condition: r.bid_condition.is_some(),
-                ask_size: r.ask_size,
-                ask_exchange: r.ask_exchange.unwrap_or(0),
+                ask_size: number_to_i32("ask_size", r.ask_size)?,
+                ask_exchange: match r.ask_exchange { Some(v) => number_to_i32("ask_exchange", v)?, None => 0 },
                 has_ask_exchange: r.ask_exchange.is_some(),
                 ask: r.ask,
-                ask_condition: r.ask_condition.unwrap_or(0),
+                ask_condition: match r.ask_condition { Some(v) => number_to_i32("ask_condition", v)?, None => 0 },
                 has_ask_condition: r.ask_condition.is_some(),
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2774,20 +2786,20 @@ fn trade_greeks_all_tick_reconstruct_rows(rows: Vec<TradeGreeksAllTick>) -> napi
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksAllTick> {
             Ok(tick::TradeGreeksAllTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
                 delta: r.delta,
@@ -2812,10 +2824,10 @@ fn trade_greeks_all_tick_reconstruct_rows(rows: Vec<TradeGreeksAllTick>) -> napi
                 dual_gamma: r.dual_gamma,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2890,20 +2902,20 @@ fn trade_greeks_first_order_tick_reconstruct_rows(rows: Vec<TradeGreeksFirstOrde
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksFirstOrderTick> {
             Ok(tick::TradeGreeksFirstOrderTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
                 delta: r.delta,
@@ -2914,10 +2926,10 @@ fn trade_greeks_first_order_tick_reconstruct_rows(rows: Vec<TradeGreeksFirstOrde
                 lambda: r.lambda,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -2992,28 +3004,28 @@ fn trade_greeks_implied_volatility_tick_reconstruct_rows(rows: Vec<TradeGreeksIm
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksImpliedVolatilityTick> {
             Ok(tick::TradeGreeksImpliedVolatilityTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -3088,20 +3100,20 @@ fn trade_greeks_second_order_tick_reconstruct_rows(rows: Vec<TradeGreeksSecondOr
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksSecondOrderTick> {
             Ok(tick::TradeGreeksSecondOrderTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
                 gamma: r.gamma,
@@ -3111,10 +3123,10 @@ fn trade_greeks_second_order_tick_reconstruct_rows(rows: Vec<TradeGreeksSecondOr
                 veta: r.veta,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -3189,20 +3201,20 @@ fn trade_greeks_third_order_tick_reconstruct_rows(rows: Vec<TradeGreeksThirdOrde
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksThirdOrderTick> {
             Ok(tick::TradeGreeksThirdOrderTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
                 speed: r.speed,
@@ -3211,10 +3223,10 @@ fn trade_greeks_third_order_tick_reconstruct_rows(rows: Vec<TradeGreeksThirdOrde
                 ultima: r.ultima,
                 implied_volatility: r.implied_volatility,
                 iv_error: r.iv_error,
-                underlying_ms_of_day: r.underlying_ms_of_day,
+                underlying_ms_of_day: number_to_i32("underlying_ms_of_day", r.underlying_ms_of_day)?,
                 underlying_price: r.underlying_price,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -3289,41 +3301,41 @@ fn trade_quote_tick_reconstruct_rows(rows: Vec<TradeQuoteTick>) -> napi::Result<
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeQuoteTick> {
             Ok(tick::TradeQuoteTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
-                condition_flags: r.condition_flags,
-                price_flags: r.price_flags,
-                volume_type: r.volume_type,
-                records_back: r.records_back,
-                quote_ms_of_day: r.quote_ms_of_day,
-                bid_size: r.bid_size,
-                bid_exchange: r.bid_exchange.unwrap_or(0),
+                condition_flags: number_to_i32("condition_flags", r.condition_flags)?,
+                price_flags: number_to_i32("price_flags", r.price_flags)?,
+                volume_type: number_to_i32("volume_type", r.volume_type)?,
+                records_back: number_to_i32("records_back", r.records_back)?,
+                quote_ms_of_day: number_to_i32("quote_ms_of_day", r.quote_ms_of_day)?,
+                bid_size: number_to_i32("bid_size", r.bid_size)?,
+                bid_exchange: match r.bid_exchange { Some(v) => number_to_i32("bid_exchange", v)?, None => 0 },
                 has_bid_exchange: r.bid_exchange.is_some(),
                 bid: r.bid,
-                bid_condition: r.bid_condition.unwrap_or(0),
+                bid_condition: match r.bid_condition { Some(v) => number_to_i32("bid_condition", v)?, None => 0 },
                 has_bid_condition: r.bid_condition.is_some(),
-                ask_size: r.ask_size,
-                ask_exchange: r.ask_exchange.unwrap_or(0),
+                ask_size: number_to_i32("ask_size", r.ask_size)?,
+                ask_exchange: match r.ask_exchange { Some(v) => number_to_i32("ask_exchange", v)?, None => 0 },
                 has_ask_exchange: r.ask_exchange.is_some(),
                 ask: r.ask,
-                ask_condition: r.ask_condition.unwrap_or(0),
+                ask_condition: match r.ask_condition { Some(v) => number_to_i32("ask_condition", v)?, None => 0 },
                 has_ask_condition: r.ask_condition.is_some(),
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })
@@ -3398,28 +3410,28 @@ fn trade_tick_reconstruct_rows(rows: Vec<TradeTick>) -> napi::Result<Vec<tick::T
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeTick> {
             Ok(tick::TradeTick {
-                ms_of_day: r.ms_of_day,
-                sequence: r.sequence,
-                ext_condition1: r.ext_condition1.unwrap_or(0),
+                ms_of_day: number_to_i32("ms_of_day", r.ms_of_day)?,
+                sequence: number_to_i32("sequence", r.sequence)?,
+                ext_condition1: match r.ext_condition1 { Some(v) => number_to_i32("ext_condition1", v)?, None => 0 },
                 has_ext_condition1: r.ext_condition1.is_some(),
-                ext_condition2: r.ext_condition2.unwrap_or(0),
+                ext_condition2: match r.ext_condition2 { Some(v) => number_to_i32("ext_condition2", v)?, None => 0 },
                 has_ext_condition2: r.ext_condition2.is_some(),
-                ext_condition3: r.ext_condition3.unwrap_or(0),
+                ext_condition3: match r.ext_condition3 { Some(v) => number_to_i32("ext_condition3", v)?, None => 0 },
                 has_ext_condition3: r.ext_condition3.is_some(),
-                ext_condition4: r.ext_condition4.unwrap_or(0),
+                ext_condition4: match r.ext_condition4 { Some(v) => number_to_i32("ext_condition4", v)?, None => 0 },
                 has_ext_condition4: r.ext_condition4.is_some(),
-                condition: r.condition.unwrap_or(0),
+                condition: match r.condition { Some(v) => number_to_i32("condition", v)?, None => 0 },
                 has_condition: r.condition.is_some(),
-                size: r.size,
-                exchange: r.exchange.unwrap_or(0),
+                size: number_to_i32("size", r.size)?,
+                exchange: match r.exchange { Some(v) => number_to_i32("exchange", v)?, None => 0 },
                 has_exchange: r.exchange.is_some(),
                 price: r.price,
-                condition_flags: r.condition_flags,
-                price_flags: r.price_flags,
-                volume_type: r.volume_type,
-                records_back: r.records_back,
-                date: r.date,
-                expiration: r.expiration.unwrap_or(0),
+                condition_flags: number_to_i32("condition_flags", r.condition_flags)?,
+                price_flags: number_to_i32("price_flags", r.price_flags)?,
+                volume_type: number_to_i32("volume_type", r.volume_type)?,
+                records_back: number_to_i32("records_back", r.records_back)?,
+                date: number_to_i32("date", r.date)?,
+                expiration: match r.expiration { Some(v) => number_to_i32("expiration", v)?, None => 0 },
                 strike: r.strike.unwrap_or(0.0),
                 right: match r.right.as_deref() { Some("C") => 'C', Some("P") => 'P', None | Some("") => '\0', Some(other) => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
             })

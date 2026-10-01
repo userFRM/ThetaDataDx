@@ -127,46 +127,6 @@ rejection_response_fn!(query_rejection_response, QueryRejection);
 // siblings return — the contract clients drive retry / backoff off.
 rejection_response_fn!(path_rejection_response, PathRejection);
 
-// ── Enum parsing ─────────────────────────────────────────────────────────
-
-fn parse_sec_type(s: &str) -> Result<SecType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "OPTION" => Ok(SecType::Option),
-        "STOCK" => Ok(SecType::Stock),
-        "INDEX" => Ok(SecType::Index),
-        other => Err(format!("unknown sec_type: {other}")),
-    }
-}
-
-fn parse_req_type(s: &str) -> Result<ReqType, String> {
-    match s.to_ascii_uppercase().as_str() {
-        "EOD" => Ok(ReqType::Eod),
-        "QUOTE" => Ok(ReqType::Quote),
-        "OPEN_INTEREST" | "OPENINTEREST" => Ok(ReqType::OpenInterest),
-        "OHLC" => Ok(ReqType::Ohlc),
-        "TRADE" => Ok(ReqType::Trade),
-        "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(format!("unknown req_type: {other}")),
-    }
-}
-
-fn parse_format(value: Option<&str>) -> Result<FlatFileFormat, String> {
-    match value.unwrap_or("csv").to_ascii_lowercase().as_str() {
-        "csv" => Ok(FlatFileFormat::Csv),
-        // `ndjson` and `jsonl` are the same line-delimited framing under two
-        // names; both stream as `application/x-ndjson`.
-        "ndjson" | "jsonl" => Ok(FlatFileFormat::Jsonl),
-        // `json` streams a single JSON array; `html` an HTML table. Both are
-        // written row-by-row by their `RowSink`, so neither buffers the whole
-        // daily blob.
-        "json" => Ok(FlatFileFormat::Json),
-        "html" => Ok(FlatFileFormat::Html),
-        other => Err(format!(
-            "unknown flat-file format: {other:?} (supported: csv, json, ndjson, jsonl, html)"
-        )),
-    }
-}
-
 /// Reject an `(sec_type, req_type)` pair the flat-file distribution does not
 /// serve, at the route boundary, before any temp-path or upstream work.
 ///
@@ -213,15 +173,19 @@ async fn handle_get(
         Ok(p) => p,
         Err(rej) => return path_rejection_response(&rej),
     };
-    let sec_type = match parse_sec_type(&sec_type_s) {
+    let sec_type = match sec_type_s.parse::<SecType>() {
         Ok(v) => v,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
-    let req_type = match parse_req_type(&req_type_s) {
+    let req_type = match req_type_s.parse::<ReqType>() {
         Ok(v) => v,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
-    let format = match parse_format(params.format.as_deref()) {
+    let format = match params
+        .format
+        .as_deref()
+        .map_or(Ok(FlatFileFormat::Csv), str::parse)
+    {
         Ok(f) => f,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
     };
@@ -334,22 +298,15 @@ async fn serve_flatfile(
     date: &str,
     format: FlatFileFormat,
 ) -> Response {
-    // Pull and decode into a per-request scratch path, then
-    // atomically rename onto the deterministic final path. The SDK
-    // writes bytes to disk during decode; we then stream the file
-    // back to the client via tokio_util's ReaderStream so even
-    // ~hundred-MB blobs don't pin server memory.
-    //
-    // The final path is named deterministically per (sec_type,
-    // req_type, date, format) so callers can recognise the artefact,
-    // but writes never target it directly. Two concurrent requests
-    // for the same slice each write a fresh `{final}.{uuid}.partial`
-    // scratch file and `rename` it into place on success. The rename
-    // is atomic on POSIX — a reader that has already opened the final
-    // path keeps streaming the old inode while a second writer
-    // installs a new one under the same path — so we never truncate
-    // bytes out from under an in-flight client.
-    let (scratch_path, final_path) = flatfile_paths(sec_type, req_type, date, format);
+    // Pull and decode into a per-request scratch file, open it, and
+    // unlink it before streaming it back through tokio_util's
+    // ReaderStream, so even multi-GB files never pin server memory. The
+    // open handle keeps the data readable until the body finishes or the
+    // client disconnects, and the OS reclaims the space then; nothing is
+    // left in the temp directory. The scratch name carries a per-request
+    // random suffix, so concurrent requests for the same slice never
+    // share or remove each other's file.
+    let (scratch_path, filename) = flatfile_paths(sec_type, req_type, date, format);
 
     let written_scratch = match state
         .client()
@@ -364,18 +321,10 @@ async fn serve_flatfile(
         }
     };
 
-    // The SDK may auto-append the format extension; honour whatever
-    // path it returned and atomic-rename it onto `final_path`.
-    if let Err(e) = tokio::fs::rename(&written_scratch, &final_path).await {
-        let _ = tokio::fs::remove_file(&written_scratch).await;
-        return error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "io_error",
-            &format!("failed to install flatfile artifact: {e}"),
-        );
-    }
-
-    let file = match tokio::fs::File::open(&final_path).await {
+    // Honour whatever path the SDK returned.
+    let opened = tokio::fs::File::open(&written_scratch).await;
+    let _ = tokio::fs::remove_file(&written_scratch).await;
+    let file = match opened {
         Ok(f) => f,
         Err(e) => {
             return error_response(
@@ -387,11 +336,6 @@ async fn serve_flatfile(
     };
     let stream = ReaderStream::new(file);
     let body = Body::from_stream(stream);
-
-    let filename = final_path
-        .file_name()
-        .and_then(std::ffi::OsStr::to_str)
-        .unwrap_or("flatfile");
 
     Response::builder()
         .status(StatusCode::OK)
@@ -422,34 +366,25 @@ pub(crate) fn add_flatfile_routes(router: Router<AppState>) -> Router<AppState> 
     router.route("/v3/{sec_type}/flat_file/{req_type}", get(handle_get))
 }
 
-/// Compute the `(scratch, final)` path pair for a flatfile request.
+/// Compute the `(scratch_path, filename)` pair for a flatfile request.
 ///
-/// `final_path` is deterministic per `(sec_type, req_type, date, format)`
-/// so callers can recognise the cached artefact. `scratch_path` is
-/// per-request unique via a UUID4 suffix so two concurrent identical
-/// requests can never share a write target — each writes its own
-/// scratch file, then an atomic `rename` installs it onto the final
-/// path. Exposed `pub(crate)` so the in-crate race-regression tests
-/// can exercise the rename-on-success contract without spinning up a
-/// live SDK.
-pub(crate) fn flatfile_paths(
+/// `filename` is the attachment name, deterministic per `(sec_type,
+/// req_type, date, format)`. `scratch_path` is unique per request via a
+/// random suffix, so a request only ever writes and unlinks its own file.
+fn flatfile_paths(
     sec_type: SecType,
     req_type: ReqType,
     date: &str,
     format: FlatFileFormat,
-) -> (PathBuf, PathBuf) {
-    let final_path = std::env::temp_dir().join(format!(
+) -> (PathBuf, String) {
+    let filename = format!(
         "thetadatadx_server_flatfile_{sec_type}_{}_{date}.{}",
         req_type as u32,
         format.extension(),
-    ));
-    let scratch_path = std::env::temp_dir().join(format!(
-        "thetadatadx_server_flatfile_{sec_type}_{}_{date}.{}.{}.partial",
-        req_type as u32,
-        format.extension(),
-        crate::random_hex_token(),
-    ));
-    (scratch_path, final_path)
+    );
+    let scratch_path =
+        std::env::temp_dir().join(format!("{filename}.{}.partial", crate::random_hex_token()));
+    (scratch_path, filename)
 }
 
 #[cfg(test)]
@@ -482,16 +417,16 @@ mod tests {
             ("html", FlatFileFormat::Html, "text/html; charset=utf-8"),
             ("HTML", FlatFileFormat::Html, "text/html; charset=utf-8"),
         ] {
-            let got = parse_format(Some(token)).expect("documented token must parse");
+            let got: FlatFileFormat = token.parse().expect("documented token must parse");
             assert_eq!(got, want, "token {token:?} must map to {want:?}");
             assert_eq!(content_type_for(got), ctype, "content type for {token:?}");
         }
-        // Absent `format` defaults to csv.
-        assert_eq!(parse_format(None).unwrap(), FlatFileFormat::Csv);
         // Unknown token is a 400 that names the supported set.
-        let err = parse_format(Some("parquet")).expect_err("unknown token must reject");
+        let err = "parquet"
+            .parse::<FlatFileFormat>()
+            .expect_err("unknown token must reject");
         assert!(
-            err.contains("csv, json, ndjson, jsonl, html"),
+            err.contains("csv, json, jsonl, ndjson or html"),
             "rejection must list the supported formats; got {err:?}"
         );
     }
@@ -885,148 +820,32 @@ mod tests {
         );
     }
 
-    // Regression: concurrent identical requests must never share a
-    // scratch path. Before the race fix two callers wrote into
-    // the same deterministic temp path, racing `File::create()`
-    // against each other while the first reader's open fd still
-    // pointed at the old inode's bytes. The fix attaches a UUID4
-    // suffix to the scratch leg so every caller writes its own file;
-    // the final path stays deterministic so the rename target is
-    // shared.
+    // Every request writes, and then unlinks, its own scratch file: two
+    // concurrent identical requests must never share one, or the first to
+    // finish would unlink the file the other is still writing.
     #[test]
     fn scratch_paths_are_unique_per_request() {
-        let (a_scratch, a_final) = flatfile_paths(
+        let (a_scratch, a_name) = flatfile_paths(
             SecType::Option,
             ReqType::Quote,
             "20260428",
             FlatFileFormat::Csv,
         );
-        let (b_scratch, b_final) = flatfile_paths(
+        let (b_scratch, b_name) = flatfile_paths(
             SecType::Option,
             ReqType::Quote,
             "20260428",
             FlatFileFormat::Csv,
         );
         assert_eq!(
-            a_final,
-            b_final,
-            "final path must be deterministic per (sec, req, date, format) — got `{}` vs `{}`",
-            a_final.display(),
-            b_final.display()
+            a_name, b_name,
+            "the attachment name is deterministic per (sec, req, date, format)"
         );
         assert_ne!(
             a_scratch,
             b_scratch,
-            "two concurrent identical requests share scratch path `{}` — race risk",
+            "two concurrent identical requests share scratch path `{}`",
             a_scratch.display()
         );
-        let a_str = a_scratch.to_string_lossy();
-        let b_str = b_scratch.to_string_lossy();
-        assert!(
-            a_str.ends_with(".partial"),
-            "scratch path must end in `.partial` so a crashed mid-write is recognisable; got `{a_str}`"
-        );
-        assert!(
-            b_str.ends_with(".partial"),
-            "scratch path must end in `.partial` so a crashed mid-write is recognisable; got `{b_str}`"
-        );
-    }
-
-    // Regression: concurrent renames of distinct scratch files onto a
-    // shared final path must each deliver complete bytes to whoever
-    // opened the final path first. `std::fs::rename` is atomic on
-    // POSIX — an in-flight reader's file handle continues serving the
-    // OLD inode's bytes while the new inode is installed under the
-    // same path. This test fires N concurrent writers + readers
-    // against the same final path, asserts every reader sees exactly
-    // one of the written payloads in full (no truncation, no
-    // zero-length, no mid-rename tear).
-    #[test]
-    fn atomic_rename_never_truncates_an_in_flight_reader() {
-        use std::io::{Read, Write};
-        use std::sync::Arc;
-        use std::thread;
-
-        const N: usize = 16;
-        const PAYLOAD_LEN: usize = 1 << 16;
-
-        let dir = std::env::temp_dir().join(format!("thetadatadx_server_flatfile_race_{}", {
-            let bytes: [u8; 16] = rand::random();
-            bytes.iter().fold(String::with_capacity(32), |mut s, b| {
-                use std::fmt::Write;
-                let _ = write!(s, "{b:02x}");
-                s
-            })
-        }));
-        std::fs::create_dir_all(&dir).unwrap();
-        let final_path = Arc::new(dir.join("artifact.csv"));
-
-        // Pre-stage an initial artifact so the first round of readers
-        // always has an inode to open even if the writers haven't
-        // landed yet. Writers race to replace it with their own
-        // per-thread payload.
-        {
-            let mut f = std::fs::File::create(&*final_path).unwrap();
-            f.write_all(&vec![0u8; PAYLOAD_LEN]).unwrap();
-        }
-
-        let mut writers = Vec::with_capacity(N);
-        for tid in 0..N {
-            let final_path = Arc::clone(&final_path);
-            writers.push(thread::spawn(move || {
-                // Each writer's payload is a distinct fixed-length
-                // byte pattern so a reader can spot a mid-rename tear
-                // (mixed bytes from two payloads in the same buffer).
-                let payload = vec![tid as u8 + 1; PAYLOAD_LEN];
-                let scratch = final_path
-                    .parent()
-                    .unwrap()
-                    .join(format!("artifact.csv.{tid}.partial"));
-                {
-                    let mut f = std::fs::File::create(&scratch).unwrap();
-                    f.write_all(&payload).unwrap();
-                    f.sync_all().unwrap();
-                }
-                std::fs::rename(&scratch, &*final_path).unwrap();
-            }));
-        }
-
-        let mut readers = Vec::with_capacity(N);
-        for _ in 0..N {
-            let final_path = Arc::clone(&final_path);
-            readers.push(thread::spawn(move || {
-                // Open + drain the file. The inode held by `f` is
-                // fixed at open time, so a concurrent `rename` over
-                // the path does not affect the bytes this reader
-                // sees.
-                let mut f = std::fs::File::open(&*final_path).unwrap();
-                let mut buf = Vec::with_capacity(PAYLOAD_LEN);
-                f.read_to_end(&mut buf).unwrap();
-                buf
-            }));
-        }
-
-        for w in writers {
-            w.join().expect("writer thread panicked");
-        }
-        for r in readers {
-            let bytes = r.join().expect("reader thread panicked");
-            assert_eq!(
-                bytes.len(),
-                PAYLOAD_LEN,
-                "reader observed truncated payload: got {} bytes, expected {}",
-                bytes.len(),
-                PAYLOAD_LEN
-            );
-            // Every byte must equal the first byte — proves no
-            // mid-rename tear (no mixed bytes from two payloads).
-            let first = bytes[0];
-            assert!(
-                bytes.iter().all(|&b| b == first),
-                "reader observed mid-rename byte tear (first byte = {first}, mismatch present)"
-            );
-        }
-
-        std::fs::remove_dir_all(&dir).ok();
     }
 }

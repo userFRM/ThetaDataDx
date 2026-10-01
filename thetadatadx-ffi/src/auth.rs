@@ -244,11 +244,11 @@ pub unsafe extern "C" fn thetadatadx_config_with_market_data_environment(
 
 /// Select the streaming environment on a config handle in place.
 ///
-/// `kind` is `0` for production or `1` for dev. The streaming and
-/// market-data channels are selected independently, so this leaves the
-/// market-data channel and the auth marker untouched. Returns `0` on
-/// success. Returns `-1` with `thetadatadx_last_error` set when `config`
-/// is null or when `kind` is outside the documented `{0, 1}` set.
+/// `kind` is `0` for production, `1` for dev or `2` for staging. The
+/// streaming and market-data channels are selected independently, so this
+/// leaves the market-data channel and the auth marker untouched. Returns `0`
+/// on success. Returns `-1` with `thetadatadx_last_error` set when `config`
+/// is null or when `kind` is outside the documented `{0, 1, 2}` set.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
     config: *mut ThetaDataDxConfig,
@@ -262,9 +262,10 @@ pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
         let environment = match kind {
             0 => thetadatadx::StreamingEnvironment::Prod,
             1 => thetadatadx::StreamingEnvironment::Dev,
+            2 => thetadatadx::StreamingEnvironment::Stage,
             other => {
                 set_error(&format!(
-                    "streaming environment selector must be 0 (PROD) or 1 (DEV); got {other}"
+                    "streaming environment selector must be 0 (PROD), 1 (DEV) or 2 (STAGE); got {other}"
                 ));
                 return -1;
             }
@@ -357,13 +358,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_market_data_environment(
 
 /// Read the streaming environment carried by the config.
 ///
-/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
-/// `"DEV"`) the caller MUST release with `thetadatadx_string_free`. The
-/// streaming and market-data environments are selected independently: the
-/// `production` / `stage` / `dev` presets (and the `THETADATA_STREAMING_TYPE`
-/// dotenv key) set the streaming channel, and this is the readback of that
-/// selection. Returns null if `config` is null (the diagnostic is written
-/// to `thetadatadx_last_error()`).
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"`,
+/// `"STAGE"` or `"DEV"`) the caller MUST release with
+/// `thetadatadx_string_free`. The streaming and market-data environments are
+/// selected independently: the `production` / `stage` / `dev` presets (and
+/// the `THETADATA_STREAMING_TYPE` dotenv key) set the streaming channel, and
+/// this is the readback of that selection. Returns null if `config` is null
+/// (the diagnostic is written to `thetadatadx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
     config: *const ThetaDataDxConfig,
@@ -545,8 +546,8 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
 
 /// Set the streaming event ring buffer size (slots).
 ///
-/// Must be a power of two `>= 64`. Invalid values are rejected at the
-/// setter boundary: the config is left unchanged and the failure
+/// Must be a power of two from `64` to `2^24`. Invalid values are rejected
+/// at the setter boundary: the config is left unchanged and the failure
 /// reason is written to thread-local storage retrievable via
 /// `thetadatadx_last_error()`. Default is `131_072`.
 #[no_mangle]
@@ -558,19 +559,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
         if config.is_null() {
             return;
         }
-        // Same validation as the Rust core's `check_ring_size` —
-        // surface the rejection here so the FFI caller sees it at the
-        // setter rather than at connect.
-        if n == 0 || !n.is_power_of_two() {
+        // The core's own rule, surfaced at the setter so the FFI caller
+        // sees a rejection here rather than at connect.
+        if let Err(e) = thetadatadx::check_ring_size(n) {
             crate::error::set_error_with_code(
-                &format!("streaming_ring_size must be a power of two >= 64; got {n}"),
-                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
-            );
-            return;
-        }
-        if n < 64 {
-            crate::error::set_error_with_code(
-                &format!("streaming_ring_size must be >= 64; got {n}"),
+                &format!("streaming_ring_size: {e}"),
                 crate::error::THETADATADX_ERR_INVALID_PARAMETER,
             );
             return;
@@ -586,7 +579,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
 /// Reconnect-decision callback type for
 /// `thetadatadx_config_set_reconnect_callback`.
 ///
-/// Invoked on the streaming I/O thread after each retriable
+/// Invoked on an SDK streaming thread after each retriable
 /// involuntary disconnect. `reason` is the `RemoveReason` discriminant
 /// as `i32`; `attempt` is the 1-based consecutive-reconnect counter.
 /// Return the reconnect delay in milliseconds, or any negative value
@@ -612,7 +605,7 @@ pub type ThetaDataDxReconnectCallback =
 ///
 /// # Thread-safety contract
 ///
-/// The callback runs on the SDK's streaming I/O thread, not on the
+/// The callback runs on an SDK streaming thread, not on the
 /// thread that registered it. `cb` and `user_data` must therefore be
 /// safe to use from another thread for as long as any client built
 /// from this config is alive. Passing `cb = NULL` restores the
@@ -651,7 +644,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
         unsafe impl Sync for CallbackCtx {}
         impl CallbackCtx {
             fn invoke(&self, reason: i32, attempt: u32) -> i64 {
-                // The decision callback runs on the streaming I/O thread,
+                // The decision callback runs on an SDK streaming thread,
                 // not on a `ffi_boundary!`-guarded entry point, so a Rust
                 // panic raised on this path would otherwise unwind across the
                 // C ABI on a foreign thread. Wrap the invocation in
@@ -1800,6 +1793,13 @@ mod auth_metrics_setter_tests {
             assert_eq!(got.as_deref(), Some("STAGE"));
             let got = take_owned(super::thetadatadx_config_get_streaming_environment(cfg));
             assert_eq!(got.as_deref(), Some("DEV"));
+            // Selector 2 is the streaming staging cluster.
+            assert_eq!(
+                super::thetadatadx_config_with_streaming_environment(cfg, 2),
+                0
+            );
+            let got = take_owned(super::thetadatadx_config_get_streaming_environment(cfg));
+            assert_eq!(got.as_deref(), Some("STAGE"));
             // An out-of-range selector is rejected and leaves the config unchanged.
             assert_eq!(
                 super::thetadatadx_config_with_market_data_environment(cfg, 2),
@@ -2137,13 +2137,16 @@ mod resilience_knob_tests {
                 0
             );
             assert_eq!(got_usize, 4_096);
-            // Non-power-of-two rejected at the setter; value unchanged.
-            super::thetadatadx_config_set_streaming_ring_size(cfg, 5_000);
-            assert_eq!(
-                super::thetadatadx_config_get_streaming_ring_size(cfg, &mut got_usize),
-                0
-            );
-            assert_eq!(got_usize, 4_096);
+            // A non-power-of-two, and a power of two above the 2^24 ceiling a
+            // connect enforces, are rejected at the setter; value unchanged.
+            for rejected in [5_000, 1 << 25] {
+                super::thetadatadx_config_set_streaming_ring_size(cfg, rejected);
+                assert_eq!(
+                    super::thetadatadx_config_get_streaming_ring_size(cfg, &mut got_usize),
+                    0
+                );
+                assert_eq!(got_usize, 4_096, "{rejected}");
+            }
 
             super::thetadatadx_config_free(cfg);
         }

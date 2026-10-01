@@ -5,6 +5,7 @@
 //! `thetadatadx`, and returns the JVM terminal JSON envelope (or CSV when
 //! `format=csv`).
 
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use axum::extract::{FromRequestParts, State};
@@ -14,7 +15,7 @@ use axum::response::{IntoResponse, Response};
 use sonic_rs::prelude::*;
 
 use thetadatadx::endpoint::{invoke_endpoint, EndpointArgs, EndpointError};
-use thetadatadx::EndpointMeta;
+use thetadatadx::{EndpointMeta, ParamType};
 
 use crate::format;
 use crate::state::AppState;
@@ -134,19 +135,18 @@ fn deprecated_v2_param_response(params: &HashMap<String, String>) -> Option<Resp
 /// `pub(crate)` so the rate-limit rejection path in `router` emits the
 /// same canonical envelope as every other error.
 pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
-    let mut body = format::error_envelope(error_type, msg);
-    let json_bytes =
-        thetadatadx::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
-            tracing::error!(
-                error = %err,
-                "error envelope failed to serialise; emitting minimal fallback"
-            );
-            format!(
-                "{{\"header\":{{\"error_type\":\"serialization_error\",\
+    let body = format::error_envelope(error_type, msg);
+    let json_bytes = sonic_rs::to_string(&body).unwrap_or_else(|err| {
+        tracing::error!(
+            error = %err,
+            "error envelope failed to serialise; emitting minimal fallback"
+        );
+        format!(
+            "{{\"header\":{{\"error_type\":\"serialization_error\",\
              \"error_msg\":\"failed to serialise error envelope: {err}\"}},\
              \"response\":[]}}"
-            )
-        });
+        )
+    });
     (
         status,
         [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
@@ -157,13 +157,12 @@ pub(crate) fn error_response(status: StatusCode, error_type: &str, msg: &str) ->
 
 /// Serialize a `sonic_rs::Value` to an axum JSON response body.
 ///
-/// The value tree is canonicalised in place (non-finite f64 -> JSON `null`)
-/// before serialisation so cross-language SDK agreement holds. If
-/// serialisation still fails — a logic bug, not a data bug — surface it as a
-/// structured `500` carrying the underlying error message rather than an
-/// empty `200 OK` body.
-fn json_response(val: &mut sonic_rs::Value) -> Response {
-    match thetadatadx::json_canon::canonicalize_and_serialize(val) {
+/// A non-finite f64 cannot reach the tree (see `json_canon`), so it already
+/// serialises as JSON `null`. If serialisation fails anyway (a logic bug, not
+/// a data bug), surface it as a structured `500` carrying the underlying error
+/// message rather than an empty `200 OK` body.
+fn json_response(val: &sonic_rs::Value) -> Response {
+    match sonic_rs::to_string(val) {
         Ok(json_bytes) => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, JSON_CONTENT_TYPE)],
@@ -192,10 +191,13 @@ pub(crate) const MAX_QUERY_PARAMS: usize = 32;
 //  BoundedQuery — count params BEFORE allocating the HashMap
 // ---------------------------------------------------------------------------
 
-/// Axum extractor that parses the raw URI query string into a
-/// `HashMap<String, String>` while enforcing [`MAX_QUERY_PARAMS`] **during**
-/// parsing — not after `serde_urlencoded` has already populated the full
-/// HashMap.
+/// Axum extractor that parses the raw URI query string into its
+/// `(key, value)` pairs while enforcing [`MAX_QUERY_PARAMS`] **during**
+/// parsing, not after `serde_urlencoded` has already allocated every pair.
+///
+/// The pairs keep every occurrence of a repeated key, in request order;
+/// [`fold_query_pairs`] resolves repeats against the endpoint's declared
+/// parameter types.
 ///
 /// # Why a custom extractor
 ///
@@ -211,12 +213,11 @@ pub(crate) const MAX_QUERY_PARAMS: usize = 32;
 /// pairs is rejected with 400 Bad Request the moment the 33rd `&` is
 /// counted — no per-key `String` allocation, no HashMap rehashing.
 ///
-/// Memory bound during parse: at most `MAX_QUERY_PARAMS` capacity on the
-/// HashMap, independent of how long the attacker's query string was. The
-/// body / URI limits stay in place via axum's `DefaultBodyLimit` and the
-/// URI length limit in `hyper`.
+/// Memory bound during parse: at most `MAX_QUERY_PARAMS` pairs, independent
+/// of how long the attacker's query string was. The body / URI limits stay in
+/// place via axum's `DefaultBodyLimit` and the URI length limit in `hyper`.
 #[derive(Debug)]
-pub(crate) struct BoundedQuery<const N: usize>(pub HashMap<String, String>);
+pub(crate) struct BoundedQuery<const N: usize>(pub Vec<(String, String)>);
 
 /// Error surfaced when a client sends more than `N` query parameters.
 ///
@@ -259,9 +260,8 @@ where
             }
         }
 
-        // Now it's safe to parse into a HashMap — the pair count is at
-        // most N, so the HashMap capacity is bounded by the cap.
-        let params: HashMap<String, String> =
+        // Now it's safe to parse: the pair count is at most N.
+        let params: Vec<(String, String)> =
             serde_urlencoded::from_str(query).map_err(|e| BoundedQueryError {
                 status: StatusCode::BAD_REQUEST,
                 message: format!("invalid query string: {e}"),
@@ -269,6 +269,37 @@ where
 
         Ok(BoundedQuery(params))
     }
+}
+
+/// Resolve the raw query pairs into one value per key, the way the vendor
+/// terminal reads a repeated key.
+///
+/// A list-typed parameter (`symbol` on the snapshot routes) collects every
+/// occurrence: `symbol=AAPL&symbol=MSFT` becomes the comma-separated
+/// `AAPL,MSFT` the list parser already accepts, which is also how an OpenAPI
+/// client serialises an array parameter by default. Any other parameter keeps
+/// its first occurrence. The list-typed set is the registry's own
+/// `ParamType::Symbols` declaration for this endpoint.
+fn fold_query_pairs(ep: &EndpointMeta, pairs: Vec<(String, String)>) -> HashMap<String, String> {
+    let mut params: HashMap<String, String> = HashMap::with_capacity(pairs.len());
+    for (key, value) in pairs {
+        match params.entry(key) {
+            Entry::Vacant(slot) => {
+                slot.insert(value);
+            }
+            Entry::Occupied(mut slot) => {
+                let is_list = ep.params.iter().any(|param| {
+                    param.name == slot.key() && param.param_type == ParamType::Symbols
+                });
+                if is_list {
+                    let joined = slot.get_mut();
+                    joined.push(',');
+                    joined.push_str(&value);
+                }
+            }
+        }
+    }
+    params
 }
 
 fn build_endpoint_args(
@@ -394,6 +425,14 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
         EndpointError::UnknownEndpoint(message) => {
             plain_error_response(StatusCode::NOT_FOUND, &message)
         }
+        // The SDK refused the request's own input before or after asking
+        // upstream (for example a list request naming several symbols on an
+        // endpoint whose plain list cannot attribute its rows): a bad
+        // request, not a server fault.
+        EndpointError::Server(thetadatadx::Error::Config {
+            kind: thetadatadx::ConfigErrorKind::InvalidValue { message, .. },
+            ..
+        }) => plain_error_response(StatusCode::BAD_REQUEST, &message),
         // Upstream capacity rejection that survived the SDK's retry
         // budget (`ResourceExhausted` is classified transient and
         // retried with backoff before it ever reaches this handler).
@@ -405,6 +444,7 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
             kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
             message,
             retry_after,
+            ..
         }) => {
             tracing::warn!(
                 endpoint = ep.name,
@@ -424,6 +464,27 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
                     .insert(axum::http::header::RETRY_AFTER, value);
             }
             resp
+        }
+        // Any other upstream status is answered the way the vendor terminal
+        // answers it: with the HTTP status the service attached in its
+        // `http_status_code` trailer (for example its no-data status for a
+        // query with no rows), falling back to 500 when there is none, and
+        // with the service's description as the body.
+        EndpointError::Server(thetadatadx::Error::Grpc {
+            kind,
+            message,
+            http_status_code,
+            ..
+        }) => {
+            let status = http_status_code
+                .and_then(|code| StatusCode::from_u16(code).ok())
+                .unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+            if status.is_server_error() {
+                tracing::warn!(endpoint = ep.name, %kind, %status, error = %message, "request failed");
+            } else {
+                tracing::debug!(endpoint = ep.name, %kind, %status, error = %message, "request rejected upstream");
+            }
+            plain_error_response(status, &message)
         }
         EndpointError::Server(error) => {
             tracing::warn!(endpoint = ep.name, error = %error, "request failed");
@@ -521,16 +582,12 @@ fn csv_attachment_filename(ep: &EndpointMeta, params: &HashMap<String, String>) 
     format!("{}.csv", ep.name)
 }
 
-/// Render the `response` rows of a canonicalised envelope as NDJSON.
+/// Render the `response` rows of an envelope as NDJSON.
 ///
 /// One JSON object per row, `\n`-delimited — the line-at-a-time framing
 /// Pandas / Polars / DuckDB ingest natively. An empty response renders
 /// as an empty body (zero lines), mirroring the CSV branch.
-fn ndjson_response(json_val: &mut sonic_rs::Value) -> Response {
-    // Collapse non-finite leaves once across the whole tree, then
-    // serialise row-by-row; per-row serialisation cannot reintroduce
-    // non-canonical cells.
-    thetadatadx::json_canon::canonicalize(json_val);
+fn ndjson_response(json_val: &sonic_rs::Value) -> Response {
     let rows = json_val
         .get("response")
         .and_then(|v: &sonic_rs::Value| v.as_array());
@@ -606,10 +663,11 @@ pub async fn generic(
 /// work that follows.
 pub async fn generic_with_overrides(
     State(state): State<AppState>,
-    BoundedQuery(mut params): BoundedQuery<MAX_QUERY_PARAMS>,
+    BoundedQuery(pairs): BoundedQuery<MAX_QUERY_PARAMS>,
     ep: &EndpointMeta,
     overrides: &[(&str, String)],
 ) -> Response {
+    let mut params = fold_query_pairs(ep, pairs);
     for (key, value) in overrides {
         params.insert((*key).to_string(), value.clone());
     }
@@ -648,20 +706,20 @@ pub async fn generic_with_overrides(
     let rows = format::response_rows(ep, params.get("symbol").map(String::as_str), &output);
     match response_format {
         ResponseFormat::Json => {
-            let mut json_val = format::json_envelope(ep, rows);
-            json_response(&mut json_val)
+            let json_val = format::json_envelope(ep, rows);
+            json_response(&json_val)
         }
         ResponseFormat::JsonLegacy => {
             // The legacy shape is columnar and carries no envelope: one array
             // per column, in the order the columns appear on the rows.
-            let mut json_val = format::json_legacy(ep, &rows);
-            json_response(&mut json_val)
+            let json_val = format::json_legacy(ep, &rows);
+            json_response(&json_val)
         }
         ResponseFormat::Ndjson => {
             // NDJSON stays flat (one contract-inline row per line) — only the
             // JSON envelope groups under `contract`.
-            let mut json_val = format::ok_envelope(rows);
-            ndjson_response(&mut json_val)
+            let json_val = format::ok_envelope(rows);
+            ndjson_response(&json_val)
         }
         ResponseFormat::Csv => {
             let disposition = format!(
@@ -1115,7 +1173,7 @@ mod tests {
 
     async fn run_bounded_query<const N: usize>(
         query: &str,
-    ) -> Result<HashMap<String, String>, BoundedQueryError> {
+    ) -> Result<Vec<(String, String)>, BoundedQueryError> {
         let uri = format!("http://example.test/v3/foo?{query}");
         let req = Request::builder()
             .uri(uri)
@@ -1187,19 +1245,38 @@ mod tests {
 
     #[tokio::test]
     async fn bounded_query_parses_normal_request() {
-        // Realistic 4-param request: must parse into the HashMap exactly.
+        // Realistic 4-param request: must parse into its pairs exactly.
         let params = run_bounded_query::<{ MAX_QUERY_PARAMS }>(
             "symbol=AAPL&start_date=20240101&end_date=20240201&format=json",
         )
         .await
         .expect("normal query must parse");
-        assert_eq!(params.get("symbol").map(String::as_str), Some("AAPL"));
-        assert_eq!(
-            params.get("start_date").map(String::as_str),
-            Some("20240101")
-        );
-        assert_eq!(params.get("end_date").map(String::as_str), Some("20240201"));
-        assert_eq!(params.get("format").map(String::as_str), Some("json"));
+        let expected = [
+            ("symbol", "AAPL"),
+            ("start_date", "20240101"),
+            ("end_date", "20240201"),
+            ("format", "json"),
+        ]
+        .map(|(k, v)| (k.to_string(), v.to_string()));
+        assert_eq!(params, expected);
+    }
+
+    /// A repeated key resolves the way the terminal reads it: the snapshot
+    /// routes' list-typed `symbol` collects every occurrence (the default
+    /// OpenAPI serialisation of an array parameter), and any other parameter
+    /// keeps its first occurrence. A last-wins map silently dropped `AAPL`.
+    #[tokio::test]
+    async fn repeated_query_keys_fold_like_the_terminal() {
+        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
+        let pairs = run_bounded_query::<{ MAX_QUERY_PARAMS }>(
+            "symbol=AAPL&venue=nqb&symbol=MSFT&format=json&venue=utp_cta&format=csv",
+        )
+        .await
+        .expect("repeated keys must parse");
+        let params = fold_query_pairs(ep, pairs);
+        assert_eq!(params["symbol"], "AAPL,MSFT");
+        assert_eq!(params["venue"], "nqb");
+        assert_eq!(params["format"], "json");
     }
 
     // -----------------------------------------------------------------------
@@ -1324,11 +1401,11 @@ mod tests {
 
     #[tokio::test]
     async fn ndjson_response_emits_one_object_per_row() {
-        let mut envelope = format::ok_envelope(vec![
+        let envelope = format::ok_envelope(vec![
             sonic_rs::json!({"symbol": "AAPL", "close": 200.5}),
             sonic_rs::json!({"symbol": "MSFT", "close": 470.0}),
         ]);
-        let resp = ndjson_response(&mut envelope);
+        let resp = ndjson_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers()
@@ -1356,8 +1433,8 @@ mod tests {
 
     #[tokio::test]
     async fn ndjson_response_renders_empty_response_as_empty_body() {
-        let mut envelope = format::ok_envelope(vec![]);
-        let resp = ndjson_response(&mut envelope);
+        let envelope = format::ok_envelope(vec![]);
+        let resp = ndjson_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
         let body = read_body(resp).await;
         assert!(body.is_empty(), "zero rows render zero lines, got {body:?}");
@@ -1369,8 +1446,8 @@ mod tests {
         if let Some(o) = row.as_object_mut() {
             o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
         }
-        let mut envelope = format::ok_envelope(vec![row]);
-        let resp = ndjson_response(&mut envelope);
+        let envelope = format::ok_envelope(vec![row]);
+        let resp = ndjson_response(&envelope);
         let body = read_body(resp).await;
         assert!(
             body.contains("\"vega\":null"),
@@ -1494,6 +1571,7 @@ mod tests {
                 kind: thetadatadx::GrpcStatusKind::ResourceExhausted,
                 message: "stream quota exceeded".to_string(),
                 retry_after: None,
+                http_status_code: None,
             }),
         );
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
@@ -1522,48 +1600,66 @@ mod tests {
         );
     }
 
-    /// Other gRPC faults keep the 500 server_error shape — only the
-    /// capacity condition is retry-hinted.
+    /// Every other gRPC status is answered with the HTTP status the service
+    /// attached in its `http_status_code` trailer, as the terminal does, and
+    /// with the service's description verbatim as the body. Without a usable
+    /// trailer the answer is 500. Only the capacity condition is
+    /// retry-hinted.
     #[tokio::test]
-    async fn other_grpc_faults_stay_500() {
-        let ep = any_endpoint();
-        let resp = endpoint_error_response(
-            ep,
-            EndpointError::Server(thetadatadx::Error::Grpc {
-                kind: thetadatadx::GrpcStatusKind::Internal,
-                message: "decode fault".to_string(),
-                retry_after: None,
-            }),
-        );
-        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert!(resp
-            .headers()
-            .get(axum::http::header::RETRY_AFTER)
-            .is_none());
+    async fn grpc_faults_answer_with_the_upstream_http_status() {
+        use thetadatadx::GrpcStatusKind;
+        for (kind, http_status_code, expected) in [
+            (GrpcStatusKind::NotFound, Some(472), 472),
+            (GrpcStatusKind::InvalidArgument, Some(400), 400),
+            (GrpcStatusKind::Internal, None, 500),
+            (GrpcStatusKind::PermissionDenied, Some(0), 500),
+        ] {
+            let resp = endpoint_error_response(
+                any_endpoint(),
+                EndpointError::Server(thetadatadx::Error::Grpc {
+                    kind,
+                    message: "upstream description".to_string(),
+                    retry_after: None,
+                    http_status_code,
+                }),
+            );
+            assert_eq!(resp.status().as_u16(), expected, "{kind:?}");
+            assert!(resp
+                .headers()
+                .get(axum::http::header::RETRY_AFTER)
+                .is_none());
+            assert_eq!(read_body(resp).await, "upstream description", "{kind:?}");
+        }
     }
 
     /// v3 registry / data errors are a plain-text body at the right status —
     /// no JSON envelope, `text/plain` content type, the message verbatim.
+    /// A request the SDK itself refuses is a 400 like one the registry
+    /// refuses, not a server fault.
     #[tokio::test]
     async fn endpoint_invalid_params_emits_plain_text_body() {
-        let ep = any_endpoint();
-        let resp = endpoint_error_response(
-            ep,
+        for error in [
             EndpointError::InvalidParams("missing required parameter: 'date'".to_string()),
-        );
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            resp.headers()
-                .get(axum::http::header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some("text/plain; charset=utf-8")
-        );
-        let body = read_body(resp).await;
-        assert_eq!(body, "missing required parameter: 'date'");
-        assert!(
-            !body.contains('{') && !body.contains("header"),
-            "v3 error body must not be a JSON envelope: {body}"
-        );
+            EndpointError::Server(thetadatadx::Error::config_invalid(
+                "endpoint.params",
+                "missing required parameter: 'date'",
+            )),
+        ] {
+            let resp = endpoint_error_response(any_endpoint(), error);
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+            assert_eq!(
+                resp.headers()
+                    .get(axum::http::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok()),
+                Some("text/plain; charset=utf-8")
+            );
+            let body = read_body(resp).await;
+            assert_eq!(body, "missing required parameter: 'date'");
+            assert!(
+                !body.contains('{') && !body.contains("header"),
+                "v3 error body must not be a JSON envelope: {body}"
+            );
+        }
     }
 
     /// An unknown endpoint maps to a 404 plain-text body.
@@ -1587,8 +1683,8 @@ mod tests {
 
     #[tokio::test]
     async fn json_response_uses_bare_json_content_type() {
-        let mut envelope = format::ok_envelope(vec![Value::from("AAPL")]);
-        let resp = json_response(&mut envelope);
+        let envelope = format::ok_envelope(vec![Value::from("AAPL")]);
+        let resp = json_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
         assert_eq!(
             resp.headers()
@@ -1608,16 +1704,16 @@ mod tests {
         let mut row = sonic_rs::json!({
             "symbol": "AAPL",
             "delta": 0.5_f64,
-            // `vega` slot is filled in below with a pre-collapsed NaN sentinel
-            // so the canonicaliser walk still has work to do on a real leaf.
+            // `vega` slot is filled in below from a NaN through the single
+            // conversion point.
             "vega": Value::new_null(),
         });
         if let Some(o) = row.as_object_mut() {
             o.insert(&"vega", thetadatadx::json_canon::finite_or_null(f64::NAN));
         }
-        let mut envelope = format::ok_envelope(vec![row]);
+        let envelope = format::ok_envelope(vec![row]);
 
-        let resp = json_response(&mut envelope);
+        let resp = json_response(&envelope);
         assert_eq!(resp.status(), StatusCode::OK);
 
         let body = read_body(resp).await;

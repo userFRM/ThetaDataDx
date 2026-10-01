@@ -16,7 +16,7 @@ async function main(): Promise<void> {
 
   // Fluent contract-first construction.
   const stock = Contract.stock("AAPL");
-  const option = Contract.option("SPY", { expiration: "20260620", strike: "550", right: "C" });
+  const option = Contract.option("SPY", { expiration: "20261218", strike: "550", right: "C" });
 
   // Register the per-event callback. The napi-rs binding hands every
   // streaming event to the JS callback on the Node main thread via a

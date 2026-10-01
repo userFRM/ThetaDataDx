@@ -65,27 +65,31 @@ pub struct Config {
 impl Config {
     /// Production config (`ThetaData` NJ datacenter).
     #[napi(factory)]
-    pub fn production() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(config::DirectConfig::production())),
-        }
+    pub fn production() -> napi::Result<Self> {
+        Ok(Self {
+            inner: Arc::new(Mutex::new(crate::production_config()?)),
+        })
     }
 
     /// Dev streaming config (port 20200, infinite historical replay).
     #[napi(factory)]
-    pub fn dev() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(config::DirectConfig::dev())),
-        }
+    pub fn dev() -> napi::Result<Self> {
+        let dev = crate::production_config()?
+            .with_streaming_environment(config::StreamingEnvironment::Dev);
+        Ok(Self {
+            inner: Arc::new(Mutex::new(dev)),
+        })
     }
 
     /// Market-data-staging config (market-data staging cluster + auth marker; streaming
     /// stays on production). Unstable testing servers.
     #[napi(factory)]
-    pub fn stage() -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(config::DirectConfig::stage())),
-        }
+    pub fn stage() -> napi::Result<Self> {
+        let stage = crate::production_config()?
+            .with_market_data_environment(config::MarketDataEnvironment::Stage);
+        Ok(Self {
+            inner: Arc::new(Mutex::new(stage)),
+        })
     }
 
     /// Source the target environment from a `.env`-format file.
@@ -165,8 +169,8 @@ impl Config {
     /// Install a custom reconnect policy driven by a JS callback.
     ///
     /// The callback is invoked with a single `{ reason, attempt }` object (a
-    /// [`ReconnectDecisionArgs`]) on the Node main thread, queued from the
-    /// streaming I/O thread, after each retriable involuntary disconnect.
+    /// [`ReconnectDecisionArgs`]) on the Node main thread, queued from an SDK
+    /// streaming thread, after each retriable involuntary disconnect.
     /// Read `args.reason` / `args.attempt` — the arguments are NOT positional.
     /// Return the reconnect
     /// delay in milliseconds, or `null` to stop reconnecting (the
@@ -248,7 +252,7 @@ impl Config {
     // ── streaming transport knobs — parity with Python / C++ / FFI ──────
 
     /// Set the streaming event ring buffer size (slots). Must be a power of
-    /// two `>= 64`; invalid values are rejected immediately. The slot count
+    /// two from `64` to `2^24`; invalid values are rejected immediately. The slot count
     /// is a pointer-width value in the core, so it marshals as a `BigInt`
     /// like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
     /// Default `131_072`.
@@ -260,16 +264,8 @@ impl Config {
                 "streaming_ring_size {value} exceeds the addressable range on this platform"
             ))
         })?;
-        if value == 0 || !value.is_power_of_two() {
-            return Err(crate::invalid_parameter_err(format!(
-                "streaming_ring_size must be a power of two >= 64; got {value}"
-            )));
-        }
-        if value < 64 {
-            return Err(crate::invalid_parameter_err(format!(
-                "streaming_ring_size must be >= 64; got {value}"
-            )));
-        }
+        thetadatadx::check_ring_size(value)
+            .map_err(|e| crate::invalid_parameter_err(format!("streaming_ring_size: {e}")))?;
         let mut guard = self
             .inner
             .lock()

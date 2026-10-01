@@ -12,7 +12,7 @@ resolver = "2"
 # `version = "..."`.
 [workspace.package]
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.94"
 authors = ["userFRM"]
 license = "Apache-2.0"
 homepage = "https://github.com/userFRM/ThetaDataDx"

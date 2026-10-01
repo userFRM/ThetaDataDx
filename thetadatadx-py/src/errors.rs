@@ -282,7 +282,6 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
             GrpcStatusKind::Unavailable => UnavailableError::new_err(e.to_string()),
             _ => ThetaDataError::new_err(e.to_string()),
         },
-        thetadatadx::Error::NoData => NotFoundError::new_err(e.to_string()),
         thetadatadx::Error::Timeout { .. } => DeadlineExceededError::new_err(e.to_string()),
         thetadatadx::Error::Transport { .. } => NetworkError::new_err(e.to_string()),
         thetadatadx::Error::Tls(_) => NetworkError::new_err(e.to_string()),
@@ -393,6 +392,7 @@ mod tests {
                 kind: GrpcStatusKind::PermissionDenied,
                 message: "tier insufficient".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "SubscriptionError");
         });
@@ -406,6 +406,7 @@ mod tests {
                 kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "RateLimitError");
         });
@@ -419,6 +420,7 @@ mod tests {
                 kind: GrpcStatusKind::NotFound,
                 message: "no rows".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "NotFoundError");
         });
@@ -432,17 +434,9 @@ mod tests {
                 kind: GrpcStatusKind::Unavailable,
                 message: "backend down".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "UnavailableError");
-        });
-    }
-
-    #[test]
-    fn nodata_error_maps_to_not_found() {
-        Python::initialize();
-        Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::NoData);
-            assert_exception_class(py, &err, "NotFoundError");
         });
     }
 
@@ -464,6 +458,7 @@ mod tests {
                 kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
                 retry_after: Some(std::time::Duration::from_millis(1500)),
+                http_status_code: None,
             });
             assert_exception_class(py, &err, "RateLimitError");
             let value = err.value(py);
@@ -479,6 +474,7 @@ mod tests {
                 kind: GrpcStatusKind::ResourceExhausted,
                 message: "429".into(),
                 retry_after: None,
+                http_status_code: None,
             });
             let secs_none: Option<f64> = err_none
                 .value(py)

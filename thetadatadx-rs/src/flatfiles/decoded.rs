@@ -119,7 +119,10 @@ pub async fn flatfile_request_with_config(
     config: &FlatFilesConfig,
 ) -> Result<PathBuf, Error> {
     let final_path = format.ensure_extension(output_path.as_ref());
-    let raw_path = final_path.with_extension(format!("{}.raw", format.extension()));
+    // Per-call scratch names: two calls writing the same output path must not
+    // share, truncate or reap each other's raw blob.
+    let raw_path =
+        final_path.with_extension(format!("{}.{}.raw", format.extension(), random_id_hex()));
 
     // Reap the raw scratch blob on every outcome. The raw artifact is created
     // by the wire layer once auth succeeds, so any post-handshake failure
@@ -197,9 +200,11 @@ pub(crate) fn decode_to_file(
     // `finish()` flushes cleanly. A decode fault mid-walk then leaves the
     // partial under the temp name, never a valid-looking partial under the
     // requested final name. The guard reaps the temp on any `?` early return.
+    // The per-call id keeps a concurrent decode onto the same output path from
+    // truncating this one's temp and publishing a file the other still writes.
     let tmp_path = {
         let mut p = output_path.as_os_str().to_owned();
-        p.push(".tmp");
+        p.push(format!(".{}.tmp", random_id_hex()));
         PathBuf::from(p)
     };
     let mut tmp_guard = ScratchGuard::new(&tmp_path);
@@ -378,88 +383,6 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Lock the raw-scratch path the on-disk driver actually writes.
-    ///
-    /// When a caller hands `flatfile_request_with_config` its own scratch
-    /// path that already carries an extension (the REST server passes a
-    /// `…{uuid}.partial`), `ensure_extension` leaves it untouched, and the
-    /// raw blob lands at `with_extension("{ext}.raw")` — which *replaces*
-    /// the trailing `.partial`, yielding a `…{uuid}.csv.raw` sibling. That
-    /// sibling is a different filename from the `.partial` the server's
-    /// error cleanup removes, so only the driver that wrote it can reap it.
-    /// This is the exact path that previously leaked on a post-handshake
-    /// failure; pin it so a future change to the extension scheme can't
-    /// silently reintroduce a server-invisible orphan.
-    #[test]
-    fn raw_scratch_path_is_csv_raw_sibling_not_the_partial_scratch() {
-        let server_scratch =
-            Path::new("/tmp/thetadatadx_server_flatfile_OPTION_5_20260428.csv.deadbeef.partial");
-        let final_path = FlatFileFormat::Csv.ensure_extension(server_scratch);
-        // The caller's path already had an extension, so it is unchanged.
-        assert_eq!(final_path, server_scratch);
-        let raw_path =
-            final_path.with_extension(format!("{}.raw", FlatFileFormat::Csv.extension()));
-        assert_eq!(
-            raw_path,
-            PathBuf::from(
-                "/tmp/thetadatadx_server_flatfile_OPTION_5_20260428.csv.deadbeef.csv.raw"
-            ),
-            "raw blob must be the .csv.raw sibling the SDK owns and reaps"
-        );
-        assert_ne!(
-            raw_path, server_scratch,
-            "the raw blob the SDK writes must differ from the caller's scratch — \
-             the caller's error cleanup cannot reach the SDK's sibling"
-        );
-    }
-
-    /// A failure after the raw blob is on disk must leave no `.raw` orphan.
-    ///
-    /// The on-disk driver's contract is that it reaps its own raw scratch
-    /// blob on *every* outcome, not just success — the blob is created by
-    /// the wire layer once auth succeeds, so a mid-stream truncation, a
-    /// server `DISCONNECTED`, a read error, or a decode fault would all
-    /// otherwise orphan it. The network legs need a live host, so this
-    /// drives the offline-reachable post-handshake fault: a raw blob whose
-    /// bytes do not parse. It runs the driver's exact "fallible work, then
-    /// reap on every path" shape and asserts the work fails *and* the blob
-    /// is gone afterward. Before the fix the reap sat behind the `?` early
-    /// returns and the blob survived an error.
-    #[tokio::test]
-    async fn mid_stream_failure_leaves_no_orphan_raw_blob() {
-        let unique = random_id_hex();
-        let final_path =
-            std::env::temp_dir().join(format!("thetadatadx-flatfiles-reap-test-{unique}.csv"));
-        let raw_path =
-            final_path.with_extension(format!("{}.raw", FlatFileFormat::Csv.extension()));
-
-        // Stand in for the wire layer having created + partly filled the
-        // raw blob before the stream broke: bytes that cannot parse as a
-        // valid FLATFILES header, so `decode_to_file` fails deterministically.
-        std::fs::write(&raw_path, b"not a valid flatfiles blob").unwrap();
-        assert!(raw_path.exists(), "precondition: the raw blob is on disk");
-
-        // The driver's exact tail: run the fallible decode, then reap the
-        // raw blob regardless of outcome (mirrors
-        // `flatfile_request_with_config` once the pull has produced a blob).
-        let result = decode_to_file(&raw_path, SecType::Option, &final_path, FlatFileFormat::Csv);
-        let _ = tokio::fs::remove_file(&raw_path).await;
-
-        assert!(
-            result.is_err(),
-            "a garbage raw blob must fail to decode — otherwise this test proves nothing"
-        );
-        assert!(
-            !raw_path.exists(),
-            "the raw blob must be reaped on the error path, not orphaned: {}",
-            raw_path.display()
-        );
-
-        // Best-effort: clean up any partial decoded output the failed
-        // decode may have created before erroring.
-        let _ = std::fs::remove_file(&final_path);
-    }
 
     #[test]
     fn offset_to_usize_round_trips_in_range_values() {

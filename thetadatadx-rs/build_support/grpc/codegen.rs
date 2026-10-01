@@ -173,16 +173,3 @@ fn scratch_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn snake_case_basic() {
-        assert_eq!(to_snake_case("BetaThetaTerminal"), "beta_theta_terminal");
-        assert_eq!(to_snake_case("HTTPServer"), "h_t_t_p_server");
-        assert_eq!(to_snake_case("simple"), "simple");
-        assert_eq!(to_snake_case(""), "");
-    }
-}

@@ -31,7 +31,7 @@ use crate::auth::Credentials;
 use crate::backoff::JitterMode;
 use crate::config::ReconnectPolicy;
 
-use super::pinning::PinnedVerifier;
+use super::pinning::{PinnedVerifier, ALLOWED_FPSS_HOSTS};
 
 /// Type alias for the TLS-wrapped TCP stream (blocking).
 pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
@@ -223,7 +223,7 @@ fn tls_client_config() -> Result<Arc<ClientConfig>, crate::error::Error> {
         ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
             .with_safe_default_protocol_versions()?
             .dangerous()
-            .with_custom_certificate_verifier(PinnedVerifier::new())
+            .with_custom_certificate_verifier(PinnedVerifier::new(ALLOWED_FPSS_HOSTS))
             .with_no_client_auth();
     Ok(Arc::new(config))
 }
@@ -267,7 +267,7 @@ fn arm_keepalive(tcp: &TcpStream, spec: TcpKeepaliveSpec) {
 /// 3. `SO_KEEPALIVE` per the configured schedule
 /// 4. `set_read_timeout`
 /// 5. `set_write_timeout`
-/// 6. Blocking TLS handshake via rustls `StreamOwned`
+/// 6. Blocking TLS handshake, completed before returning
 fn try_connect(
     host: &str,
     port: u16,
@@ -308,10 +308,10 @@ fn try_connect(
     // Read timeout.
     tcp.set_read_timeout(Some(read_timeout))?;
 
-    // Write timeout. The first write (CREDENTIALS) drives the lazy TLS
-    // handshake, and steady-state ping/subscribe writes can otherwise
-    // block indefinitely against a peer whose receive window has stalled
-    // (alive enough to ACK at the kernel but not draining the socket).
+    // Write timeout. Bounds the TLS handshake below, and steady-state
+    // ping/subscribe writes can otherwise block indefinitely against a peer
+    // whose receive window has stalled (alive enough to ACK at the kernel
+    // but not draining the socket).
     // `connect_timeout` only bounds the SYN/ACK, so an unbounded write
     // would wedge the I/O thread past that budget. The bound persists for
     // the life of the socket via `SO_SNDTIMEO`, so a write `TimedOut`
@@ -326,18 +326,29 @@ fn try_connect(
             message: format!("invalid TLS server name '{host}': {e}"),
         })?;
 
-    let tls_conn = ClientConnection::new(tls_client_config()?, server_name).map_err(|e| {
+    let mut tls_conn = ClientConnection::new(tls_client_config()?, server_name).map_err(|e| {
         crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: format!("TLS setup for {addr} failed: {e}"),
         }
     })?;
 
-    // StreamOwned performs the TLS handshake lazily on first read/write.
-    // The first write_frame (CREDENTIALS) will drive the handshake to completion.
-    let tls_stream = StreamOwned::new(tls_conn, tcp);
+    // Complete the handshake here rather than lazily on the first write, so a
+    // host that accepts TCP but cannot finish TLS (a hung server process
+    // still completes the TCP handshake from its listen backlog) fails this
+    // host's attempt and `connect_to_servers` moves on to the next host. The
+    // socket timeouts set above bound it.
+    let mut tcp = tcp;
+    while tls_conn.is_handshaking() {
+        tls_conn
+            .complete_io(&mut tcp)
+            .map_err(|e| crate::error::Error::Stream {
+                kind: crate::error::StreamErrorKind::ConnectionRefused,
+                message: format!("TLS handshake with {addr} failed: {e}"),
+            })?;
+    }
 
-    Ok(tls_stream)
+    Ok(StreamOwned::new(tls_conn, tcp))
 }
 
 #[cfg(test)]
@@ -352,10 +363,45 @@ mod tests {
         }
     }
 
+    /// A host that accepts TCP but fails the TLS handshake is a failed
+    /// attempt for that host, so the dial loop goes on to the next one
+    /// instead of returning a stream whose first write would fail.
     #[test]
-    fn rustls_crypto_provider_install_is_idempotent() {
-        ensure_rustls_crypto_provider();
-        ensure_rustls_crypto_provider();
+    fn connect_to_servers_fails_over_past_a_host_that_fails_tls() {
+        use std::io::Write as _;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let accepted: Vec<Arc<AtomicUsize>> = (0..2).map(|_| Arc::default()).collect();
+        let ports: Vec<u16> = accepted
+            .iter()
+            .map(|count| {
+                let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+                let port = listener.local_addr().expect("local addr").port();
+                let count = Arc::clone(count);
+                std::thread::spawn(move || {
+                    if let Ok((mut peer, _)) = listener.accept() {
+                        count.fetch_add(1, Ordering::SeqCst);
+                        let _ = peer.write_all(b"HTTP/1.1 400 Bad Request\r\n\r\n");
+                    }
+                });
+                port
+            })
+            .collect();
+
+        let res = connect_to_servers(
+            &[("127.0.0.1", ports[0]), ("127.0.0.1", ports[1])],
+            Duration::from_millis(1_000),
+            Duration::from_millis(1_000),
+            Duration::from_millis(1_000),
+            test_keepalive(),
+            &std::sync::atomic::AtomicBool::new(false),
+        );
+        assert!(res.is_err(), "neither host completes TLS");
+        assert_eq!(
+            accepted[1].load(Ordering::SeqCst),
+            1,
+            "the second host must be dialled after the first fails TLS"
+        );
     }
 
     #[test]

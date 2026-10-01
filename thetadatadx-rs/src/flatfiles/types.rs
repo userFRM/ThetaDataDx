@@ -6,6 +6,7 @@
 //! driver's retry-vs-surface decision.
 
 use std::fmt;
+use std::str::FromStr;
 
 use crate::tdbe::types::enums::RemoveReason;
 
@@ -34,6 +35,23 @@ impl SecType {
 impl fmt::Display for SecType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_wire())
+    }
+}
+
+/// Parses the security type case-insensitively (`OPTION`, `STOCK`, `INDEX`),
+/// the one vocabulary every surface accepts.
+impl FromStr for SecType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_uppercase().as_str() {
+            "OPTION" => Ok(Self::Option),
+            "STOCK" => Ok(Self::Stock),
+            "INDEX" => Ok(Self::Index),
+            _ => Err(format!(
+                "sec_type must be OPTION, STOCK or INDEX, got {s:?}"
+            )),
+        }
     }
 }
 
@@ -94,6 +112,27 @@ impl ReqType {
 impl fmt::Display for ReqType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+/// Parses the request type case-insensitively, accepting the underscored
+/// tokens [`ReqType::as_str`] emits and their unseparated spellings
+/// (`OPENINTEREST`, `TRADEQUOTE`).
+impl FromStr for ReqType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_uppercase().as_str() {
+            "EOD" => Ok(Self::Eod),
+            "QUOTE" => Ok(Self::Quote),
+            "OPEN_INTEREST" | "OPENINTEREST" => Ok(Self::OpenInterest),
+            "OHLC" => Ok(Self::Ohlc),
+            "TRADE" => Ok(Self::Trade),
+            "TRADE_QUOTE" | "TRADEQUOTE" => Ok(Self::TradeQuote),
+            _ => Err(format!(
+                "req_type must be EOD, QUOTE, OPEN_INTEREST, OHLC, TRADE or TRADE_QUOTE, got {s:?}"
+            )),
+        }
     }
 }
 

@@ -7,6 +7,11 @@ name: Security audit
 #     already-pinned versions (dependabot only reacts to new releases,
 #     not to new CVEs filed against versions already in Cargo.lock).
 #
+# Each lockfile is scanned on its own: the workspace and every crate
+# excluded from it (the Python wheel, the napi addon, the server and the
+# MCP binary) resolve their own Cargo.lock, and `cargo audit` reads only
+# the lockfile in its working directory.
+#
 # `cargo-deny` (license / bans / sources policy) runs from ci.yml; this
 # workflow is scoped to advisory scanning only.
 
@@ -43,11 +48,16 @@ concurrency:
 
 jobs:
   security-audit:
-    name: RustSec advisory scan
+    name: RustSec advisory scan (${{ matrix.dir }})
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [".", thetadatadx-py, thetadatadx-ts, tools/server, tools/mcp]
     steps:
       - uses: actions/checkout@v7
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: ${{ matrix.dir }}

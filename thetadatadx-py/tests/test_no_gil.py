@@ -32,12 +32,10 @@ import pytest
 # ── structural audit ────────────────────────────────────────────────
 
 
-# Comments + docstrings reference `block_on` for explanation; the
-# audit grep below only flags *call sites* in code. We exclude lines
-# that are pure comments (start with `//` after optional whitespace)
-# and doc-comments (`///`).
+# Comments reference `block_on` for explanation; the audit grep below
+# only flags *call sites* in code, after `_strip_comments` blanks out
+# `//` and `///` comments.
 _BLOCK_ON_CALL_SITE = re.compile(r"\.?block_on\s*\(")
-_COMMENT_LINE = re.compile(r"^\s*(///?|\*)")
 
 
 def _sdk_src_root() -> Path:
@@ -226,8 +224,8 @@ def test_record_batch_reader_releases_the_gil() -> None:
     The reader pulls market-data batches off a blocking ring queue. Two
     blocking paths must release the GIL so a sibling Python thread keeps
     running: the FPSS connect when the reader is opened, and the blocking
-    `__next__` pull. The async `__anext__` runs the blocking pull on a
-    tokio blocking-pool worker (no GIL held). This pins the structural
+    `__next__` pull. Both pulls await the core's non-blocking poll, which
+    holds no GIL while it waits. This pins the structural
     shape so a refactor cannot silently start holding the GIL across the
     ring wait.
     """
@@ -240,20 +238,20 @@ def test_record_batch_reader_releases_the_gil() -> None:
         "thread keeps running during the handshake"
     )
 
-    # The synchronous blocking pull (`__next__`) must release the GIL across
-    # the ring wait via `py.detach`, re-acquiring only to build the pyarrow
-    # object after a batch lands.
-    assert ".detach(|| inner.next_blocking())" in src, (
-        "RecordBatchStream.__next__ must wrap the blocking ring pull in "
-        "`py.detach` so other Python threads run while it waits for a batch"
+    # The synchronous pull (`__next__`) must wait through `run_blocking`,
+    # which releases the GIL across the wait and checks for signals, and
+    # re-acquires it only to build the pyarrow object after a batch lands.
+    assert "crate::run_blocking(py, next_batch(self))" in src, (
+        "RecordBatchStream.__next__ must wait through `run_blocking` so other "
+        "Python threads run, and Ctrl+C is honoured, while it waits for a batch"
     )
 
-    # The async pull must run on a blocking-pool worker (no GIL held during
-    # the wait), re-acquiring the GIL only inside `Python::attach` to build
-    # the pyarrow object.
-    assert "spawn_blocking(move || inner.next_blocking())" in src, (
-        "RecordBatchStream.__anext__ must run the blocking pull on a "
-        "blocking-pool worker so the async executor thread never holds the GIL"
+    # Both pulls must await the core's non-blocking poll: no thread is parked
+    # and no GIL is held during the wait, and a cancelled pull takes nothing
+    # off the queue.
+    assert "poll_fn(|cx| inner.poll_next_batch(cx))" in src, (
+        "RecordBatchStream pulls must await the core's non-blocking poll so a "
+        "cancelled pull loses no batch and no GIL is held during the wait"
     )
 
     # close() must signal shutdown OUTSIDE the GIL: the teardown shuts the

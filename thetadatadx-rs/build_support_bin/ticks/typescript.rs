@@ -43,6 +43,26 @@ fn bigint_to_i64(name: &str, v: &BigInt) -> napi::Result<i64> {
 }
 ";
 
+/// Emitted `number -> i32` decoder for the Arrow-IPC reconstruct path. The
+/// 32-bit integer columns cross from JS as `number` (`f64`) rather than as a
+/// napi `i32`, because napi reads an `i32` through V8's `ToInt32`, which wraps
+/// an out-of-range value to its low 32 bits and truncates a fraction instead of
+/// failing. This rejects anything that is not a whole number within `i32`,
+/// NaN and the infinities included, with the column name in the diagnostic.
+const NUMBER_TO_I32_HELPER: &str = "\
+/// Decode an `i32` from a JS `number` Arrow column, rejecting a value that is
+/// not a whole number within `i32` rather than wrapping or truncating it.
+fn number_to_i32(name: &str, v: f64) -> napi::Result<i32> {
+    if v.fract() == 0.0 && v >= f64::from(i32::MIN) && v <= f64::from(i32::MAX) {
+        Ok(v as i32)
+    } else {
+        Err(crate::invalid_parameter_err(format!(
+            \"{name}: must be a whole number within i32, got {v}\"
+        )))
+    }
+}
+";
+
 /// Emitted once: serialise an Arrow `RecordBatch` to an Arrow IPC stream
 /// buffer through a `StreamWriter`. Shared by the full `<tick>ToArrowIpc` and
 /// the decode-fed projected `<tick>ToArrowIpcProjected` terminals so the IPC
@@ -113,6 +133,16 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
             .any(|col| ts_column_needs_bigint(col.r#type.as_str()))
     }) {
         out.push_str(BIGINT_TO_I64_HELPER);
+        out.push('\n');
+    }
+    if schema.types.values().any(|def| {
+        def.contract_id
+            || def
+                .columns
+                .iter()
+                .any(|col| ts_column_is_i32(col.r#type.as_str()))
+    }) {
+        out.push_str(NUMBER_TO_I32_HELPER);
         out.push('\n');
     }
     // Arrow-IPC terminals per tick type: the full-schema
@@ -288,34 +318,31 @@ fn render_ts_arrow_reconstruct_rows(type_name: &str, def: &TickTypeDef) -> Strin
         "fn {snake}_reconstruct_rows(rows: Vec<{type_name}>) -> napi::Result<Vec<tick::{type_name}>> {{"
     )
     .unwrap();
-    // A reconstruct can fail on a too-wide `i64` `BigInt` (`bigint_to_i64`)
-    // or an out-of-vocabulary logical-enum string (`right` /
-    // `calendar_status`); when the type carries either, the closure is
-    // fallible and its results are collected into a `napi::Result<Vec<..>>`
-    // and `?`-propagated. Types with neither keep the infallible
-    // `.map(..).collect()` so a build that adds no validation pays no
-    // wrapping.
-    let fallible = ts_arrow_reconstruct_is_fallible(def);
+    // The closure is fallible: a 32-bit integer `number` can be out of range
+    // (`number_to_i32`), an `i64` `BigInt` too wide (`bigint_to_i64`), and a
+    // logical-enum string outside its vocabulary (`right` /
+    // `calendar_status`). Its results are collected into a
+    // `napi::Result<Vec<..>>` and `?`-propagated.
     writeln!(out, "    let owned: Vec<tick::{type_name}> = rows").unwrap();
     out.push_str("        .into_iter()\n");
-    if fallible {
-        writeln!(
-            out,
-            "        .map(|r| -> napi::Result<tick::{type_name}> {{"
-        )
-        .unwrap();
-        writeln!(out, "            Ok(tick::{type_name} {{").unwrap();
-    } else {
-        out.push_str("        .map(|r| {\n");
-        writeln!(out, "            tick::{type_name} {{").unwrap();
-    }
+    writeln!(
+        out,
+        "        .map(|r| -> napi::Result<tick::{type_name}> {{"
+    )
+    .unwrap();
+    writeln!(out, "            Ok(tick::{type_name} {{").unwrap();
     for column in &def.columns {
         let field = rust_field_ident(&column.field);
         if column.nullable {
             // Inverse of the factory: a JS `null` returns as the column's
             // zero beside a cleared presence flag, so the round trip carries
-            // "the wire did not send this" rather than minting a code.
-            writeln!(out, "                {field}: r.{field}.unwrap_or(0),").unwrap();
+            // "the wire did not send this" rather than minting a code. Only
+            // 32-bit integer columns are nullable.
+            writeln!(
+                out,
+                "                {field}: match r.{field} {{ Some(v) => number_to_i32(\"{field}\", v)?, None => 0 }},"
+            )
+            .unwrap();
             writeln!(out, "                has_{field}: r.{field}.is_some(),").unwrap();
             continue;
         }
@@ -328,25 +355,19 @@ fn render_ts_arrow_reconstruct_rows(type_name: &str, def: &TickTypeDef) -> Strin
         // documented zero / NUL fill. `right` validates its inbound string
         // the same way the standalone `right` column does, rejecting any
         // value outside `"C"` / `"P"` (absent / empty → NUL).
-        out.push_str("                expiration: r.expiration.unwrap_or(0),\n");
+        out.push_str("                expiration: match r.expiration { Some(v) => number_to_i32(\"expiration\", v)?, None => 0 },\n");
         out.push_str("                strike: r.strike.unwrap_or(0.0),\n");
         out.push_str(
             "                right: match r.right.as_deref() { Some(\"C\") => 'C', Some(\"P\") => 'P', None | Some(\"\") => '\\0', Some(other) => return Err(napi::Error::from_reason(format!(\"[InvalidParameterError] right must be \\\"C\\\" or \\\"P\\\", got {other:?}\"))) },\n",
         );
     }
-    if fallible {
-        out.push_str("            })\n");
-        out.push_str("        })\n");
-        writeln!(
-            out,
-            "        .collect::<napi::Result<Vec<tick::{type_name}>>>()?;"
-        )
-        .unwrap();
-    } else {
-        out.push_str("            }\n");
-        out.push_str("        })\n");
-        out.push_str("        .collect();\n");
-    }
+    out.push_str("            })\n");
+    out.push_str("        })\n");
+    writeln!(
+        out,
+        "        .collect::<napi::Result<Vec<tick::{type_name}>>>()?;"
+    )
+    .unwrap();
     out.push_str("    Ok(owned)\n");
     out.push_str("}\n");
     out
@@ -362,18 +383,21 @@ fn render_ts_arrow_reconstruct_rows(type_name: &str, def: &TickTypeDef) -> Strin
 /// Python `pyclass_to_tick_expr` reverse projection enforces, keeping the two
 /// bindings' rejection behaviour identical. The `napi::Error` carries the
 /// `[InvalidParameterError]` prefix so the wrapped free function re-throws it
-/// as the typed `InvalidParameterError` subclass. Because these arms emit
-/// `return Err(..)`, the surrounding reconstruct runs inside a fallible
-/// closure (see [`render_ts_tick_arrow_ipc`]).
+/// as the typed `InvalidParameterError` subclass. These arms emit `?` or
+/// `return Err(..)` inside the fallible reconstruct closure (see
+/// [`render_ts_arrow_reconstruct_rows`]).
 fn ts_arrow_reconstruct_expr(column_type: &str, field: &str) -> String {
     match column_type {
         // i64 columns cross from JS as `BigInt`. Reject a magnitude outside
         // `i64` (e.g. `2n ** 100n`) on the `lossless` flag rather than
         // silently truncating the wrapped low bits into the destination —
-        // the same guard the config setters apply via `bigint_to_u64`. Runs
-        // inside the fallible closure (`ts_arrow_reconstruct_is_fallible`
-        // returns `true` for any i64 column).
+        // the same guard the config setters apply via `bigint_to_u64`.
         "i64" | "eod_num64" => format!("bigint_to_i64(\"{field}\", &r.{field})?"),
+        // 32-bit integer columns cross from JS as `number`; reject anything
+        // that is not a whole number within `i32`.
+        col_type if ts_column_is_i32(col_type) => {
+            format!("number_to_i32(\"{field}\", r.{field})?")
+        }
         // The logical right char arrives as a one-character string; only
         // `"C"` / `"P"` (and empty → NUL) are accepted, matching Python.
         "right" => format!(
@@ -385,27 +409,9 @@ fn ts_arrow_reconstruct_expr(column_type: &str, field: &str) -> String {
         "calendar_status" => format!(
             "match thetadatadx::CalendarStatus::from_wire_text(&r.{field}) {{ Some(status) => status, None => return Err(napi::Error::from_reason(format!(\"[InvalidParameterError] status must be one of open, early_close, full_close, weekend; got {{:?}}\", r.{field}))) }}"
         ),
-        // Plain Copy primitives (i32 / f64 / bool) deref straight through.
+        // Plain Copy primitives (f64 / bool) deref straight through.
         _ => format!("r.{field}"),
     }
-}
-
-/// `true` when a tick type's Arrow-IPC reconstruction can fail and so emits
-/// `?` / `return Err(..)`: an `i64` / `eod_num64` column (rejects a `BigInt`
-/// magnitude outside `i64` via `bigint_to_i64`), a logical-enum column
-/// (`right` / `calendar_status`), or the appended contract-identity `right`
-/// (present whenever `def.contract_id`). Such a reconstruct must run inside a
-/// fallible closure; types without any fallible field keep the infallible
-/// `.map(..).collect()` form so a build that adds no validation pays no
-/// wrapping.
-fn ts_arrow_reconstruct_is_fallible(def: &TickTypeDef) -> bool {
-    def.contract_id
-        || def.columns.iter().any(|column| {
-            matches!(
-                column.r#type.as_str(),
-                "i64" | "eod_num64" | "right" | "calendar_status"
-            )
-        })
 }
 
 fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
@@ -445,7 +451,7 @@ fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
         // Contract identity is populated whenever the response carries
         // it; absent identity is undefined/null on the JS surface,
         // matching the streaming `Contract` payload convention.
-        out.push_str("    pub expiration: Option<i32>,\n");
+        out.push_str("    pub expiration: Option<f64>,\n");
         out.push_str("    pub strike: Option<f64>,\n");
         out.push_str("    pub right: Option<String>,\n");
     }
@@ -507,7 +513,7 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
             // zero when absent, and zero is a code the vendor assigns a
             // meaning.
             _ if column.nullable => format!(
-                "if t.has_{field} {{ Some(t.{field}) }} else {{ None }}",
+                "if t.has_{field} {{ Some(f64::from(t.{field})) }} else {{ None }}",
                 field = column.field
             ),
             "String" => format!("t.{field}.clone()", field = column.field),
@@ -521,6 +527,9 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
             col_type if ts_column_needs_bigint(col_type) => {
                 format!("BigInt::from(t.{field})", field = column.field)
             }
+            col_type if ts_column_is_i32(col_type) => {
+                format!("f64::from(t.{field})", field = column.field)
+            }
             _ => format!("t.{field}", field = column.field),
         };
         writeln!(
@@ -533,7 +542,9 @@ fn render_ts_tick_class_factory(schema: &Schema, type_name: &str, def: &TickType
     if def.contract_id {
         // Absent contract identity (single-contract queries) crosses
         // to JS as undefined/null — the documented absence convention.
-        out.push_str("                expiration: t.has_contract_id().then_some(t.expiration),\n");
+        out.push_str(
+            "                expiration: t.has_contract_id().then_some(f64::from(t.expiration)),\n",
+        );
         out.push_str("                strike: t.has_contract_id().then_some(t.strike),\n");
         out.push_str(
             "                right: if t.right == '\\0' { None } else { Some(t.right.to_string()) },\n",
@@ -575,7 +586,9 @@ fn ts_tick_class_factory_name<'a>(schema: &'a Schema, type_name: &str) -> &'a st
 
 fn ts_class_rust_type(column_type: &str, type_name: &str, field: &str) -> &'static str {
     match column_type {
-        "i32" | "eod_num" | "eod_date" => "i32",
+        // A `number`, not a napi `i32`, so the reverse projection can reject
+        // what `ToInt32` would wrap (see `NUMBER_TO_I32_HELPER`).
+        col_type if ts_column_is_i32(col_type) => "f64",
         "i64" | "eod_num64" => "BigInt",
         "f64" | "price" | "eod_price" => "f64",
         // Logical char surfaces as a JS one-character string
@@ -585,6 +598,10 @@ fn ts_class_rust_type(column_type: &str, type_name: &str, field: &str) -> &'stat
         "bool" => "bool",
         other => panic!("unsupported TS column type '{other}' in {type_name}.{field}"),
     }
+}
+
+fn ts_column_is_i32(column_type: &str) -> bool {
+    matches!(column_type, "i32" | "eod_num" | "eod_date")
 }
 
 fn ts_column_needs_bigint(column_type: &str) -> bool {

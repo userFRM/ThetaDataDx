@@ -230,30 +230,15 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("volume", err)
         self.assertIn("<missing>", err)
 
-    def test_soft_skip_missing_sdk_without_require(self) -> None:
-        # Two of the three surfaces reported; without --require-all-sdks
-        # the absent one is a warning, not a failure.
-        for lang in ("python", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("calendar_open_today", "basic", row_count=1)],
-            )
-        code, out, err = self._run()
-        self.assertEqual(code, 0)
-        self.assertIn("warning: no artifact for typescript", err)
-        self.assertIn("1 cells agree across", out)
-
-    def test_require_all_sdks_fails_on_missing(self) -> None:
-        for lang in ("python", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("calendar_open_today", "basic", row_count=1)],
-            )
-        code, _, err = self._run(["--require-all-sdks"])
+    def test_missing_sdk_artifact_fails(self) -> None:
+        _write_artifact(
+            self.artifacts,
+            "python",
+            [_base_record("calendar_open_today", "basic", row_count=1)],
+        )
+        code, _, err = self._run()
         self.assertEqual(code, 1)
-        self.assertIn("--require-all-sdks set", err)
+        self.assertIn("no artifact for cpp", err)
 
     def test_float_precision_tolerance(self) -> None:
         # 685.860000 == 685.8600004 after 6-decimal rounding. These
@@ -731,136 +716,12 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("contract", err)
 
 
-    # ------------------------------------------------------------------
-    # H9 -- TypeScript shape-only manifest participation. The TS SDK
-    # cannot run a per-cell live-traffic validator without duplicating
-    # the napi-rs surface, so it ships a public-surface shape manifest
-    # (`thetadatadx-ts/scripts/emit_validator_manifest.mjs`) that the
-    # agreement validator reads as a field-presence-only artifact:
-    # values are sentinels, only the field set is load-bearing. These
-    # tests pin down the contract.
-    # ------------------------------------------------------------------
-
-    def test_typescript_shape_matches_runtime_field_set_agrees(self) -> None:
-        # Runtime SDKs emit real values; TS manifest emits null for the
-        # same field SET. Field-presence agreement must hold; values
-        # do not contribute to the diff for shape-only langs.
-        runtime_row = {"bid": 685.86, "ask": 685.88, "bid_size": 100, "ask_size": 200}
-        for lang in ("python", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_snapshot_quote", "concrete", first_row=dict(runtime_row))],
-            )
-        ts_row = {"bid": None, "ask": None, "bid_size": None, "ask_size": None}
-        _write_artifact(
-            self.artifacts,
-            "typescript",
-            [_base_record("stock_snapshot_quote", "concrete", first_row=ts_row)],
-        )
-        code, out, _ = self._run()
-        self.assertEqual(code, 0, f"shape-only TS must not value-diff against runtime SDKs; out={out!r}")
-        self.assertIn("1 cells agree across", out)
-
-    def test_typescript_shape_drift_extra_field_disagrees(self) -> None:
-        # TS manifest advertises a field name no runtime SDK emits.
-        # That IS shape drift; the diff must surface it.
-        runtime_row = {"bid": 685.86, "ask": 685.88}
-        for lang in ("python", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_snapshot_quote", "concrete", first_row=dict(runtime_row))],
-            )
-        ts_row = {"bid": None, "ask": None, "ghost_field": None}
-        _write_artifact(
-            self.artifacts,
-            "typescript",
-            [_base_record("stock_snapshot_quote", "concrete", first_row=ts_row)],
-        )
-        code, _, err = self._run()
-        self.assertEqual(code, 1, "extra TS-only field is shape drift")
-        self.assertIn("ghost_field", err)
-
-    def test_typescript_shape_drift_missing_field_disagrees(self) -> None:
-        # Runtime SDKs emit a field the TS public surface does not
-        # advertise. Same shape-drift signal in the other direction.
-        runtime_row = {"bid": 685.86, "ask": 685.88, "novel_field": 42}
-        for lang in ("python", "cpp"):
-            _write_artifact(
-                self.artifacts,
-                lang,
-                [_base_record("stock_snapshot_quote", "concrete", first_row=dict(runtime_row))],
-            )
-        ts_row = {"bid": None, "ask": None}
-        _write_artifact(
-            self.artifacts,
-            "typescript",
-            [_base_record("stock_snapshot_quote", "concrete", first_row=ts_row)],
-        )
-        code, _, err = self._run()
-        self.assertEqual(code, 1, "field absent from TS surface but present in runtime is shape drift")
-        self.assertIn("novel_field", err)
-
-    def test_typescript_status_pass_does_not_falseflag_runtime_status_disagreement(self) -> None:
-        # Earlier versions of the TS manifest hardcoded
-        # `status: PASS`, which would have folded into the
-        # status-disagreement comparator alongside any runtime FAIL
-        # and masked the real Python-vs-cpp status diff. Shape-only
-        # langs must NOT participate in status comparison.
-        _write_artifact(
-            self.artifacts,
-            "python",
-            [_base_record("option_snapshot_trade", "concrete", status="PASS", row_count=1)],
-        )
-        _write_artifact(
-            self.artifacts,
-            "cpp",
-            [_base_record("option_snapshot_trade", "concrete", status="FAIL",
-                          row_count=0, detail="mock failure")],
-        )
-        _write_artifact(
-            self.artifacts,
-            "typescript",
-            [_base_record("option_snapshot_trade", "concrete", status="PASS", row_count=1,
-                          first_row={"price": None, "size": None})],
-        )
-        code, _, err = self._run()
-        self.assertEqual(code, 1, "runtime status disagreement must still surface")
-        self.assertIn("status disagreement", err)
-
-    def test_typescript_alone_with_one_runtime_pass_does_field_set_check(self) -> None:
-        # Only one runtime SDK reported the cell at all, alongside
-        # the TS manifest. Field-presence comparison still runs across
-        # the (1 runtime, 1 shape-only) pair so a TS-side surface drift
-        # surfaces even when the other runtime SDK simply didn't run
-        # the cell. Runtime FAIL / SKIP at the same cell takes
-        # precedence (status disagreement is reported first); this
-        # test pins the "no other runtime SDK reported" path.
-        _write_artifact(
-            self.artifacts,
-            "python",
-            [_base_record("stock_snapshot_quote", "concrete", first_row={"bid": 1.0, "ask": 2.0})],
-        )
-        # cpp simply does not include this cell in its artifact.
-        _write_artifact(self.artifacts, "cpp", [])
-        _write_artifact(
-            self.artifacts,
-            "typescript",
-            [_base_record("stock_snapshot_quote", "concrete",
-                          first_row={"bid": None, "ghost_field": None})],
-        )
-        code, _, err = self._run()
-        self.assertEqual(code, 1, "TS-vs-Python field-set disagreement must surface")
-        self.assertIn("ghost_field", err)
-
-
 class LangsAreProducibleTest(unittest.TestCase):
-    """`--require-all-sdks` must demand only artifacts something writes.
+    """The agreement check must demand only artifacts something writes.
 
     The check that was missing when the flag landed. `cli` stayed in LANGS
     after the CLI tool was dropped in #1011, so nothing wrote
-    `validator_cli.json` and every `--require-all-sdks` run failed on a file
+    `validator_cli.json` and every release run failed on a file
     no code in this repository produces -- a gate that could not pass. Scans
     the tree for the artifact names real producers write, rather than
     restating LANGS, so dropping a surface without dropping its language
@@ -900,7 +761,7 @@ class LangsAreProducibleTest(unittest.TestCase):
         self.assertEqual(
             orphaned, [],
             f"LANGS names {orphaned} but nothing in the tree writes validator_<lang>.json for "
-            f"them, so --require-all-sdks can never pass. Drop the language or add a producer.",
+            f"them, so the agreement check can never pass. Drop the language or add a producer.",
         )
         unlisted = sorted(produced.keys() - set(validate_agreement.LANGS))
         self.assertEqual(

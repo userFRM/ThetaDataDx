@@ -31,8 +31,9 @@ Add `format=` to any route:
 
 | `format` | Content type | Shape |
 |---|---|---|
-| `json` (default) | `application/json` | The envelope below. |
-| `csv` | `text/csv` | RFC 4180 with a header row. |
+| `csv` (default) | `text/csv` | RFC 4180 with a header row. |
+| `json` / `json_new` | `application/json` | The envelope below. |
+| `json_legacy` | `application/json` | One array per column, keyed by column name. |
 | `ndjson` / `jsonl` | `application/x-ndjson` | One JSON object per row, newline-delimited. |
 | `html` | `text/html` | A browser-viewable `<table>`, served inline. |
 
@@ -40,12 +41,26 @@ The JSON envelope:
 
 ```json
 {
-    "header": { "format": "json", "error_type": "null" },
     "response": [ ... ]
 }
 ```
 
-Failures use one envelope shape across every route — see the [error codes table](/articles/error-codes#server-error-envelope).
+Option market-data routes group the rows by contract, one block per contract in the order the contracts arrived:
+
+```json
+{
+    "response": [
+        {
+            "contract": { "symbol": "SPY", "expiration": "2025-03-21", "strike": 570.0, "right": "CALL" },
+            "data": [ ... ]
+        }
+    ]
+}
+```
+
+The CSV and NDJSON forms carry the contract columns inline on every row instead.
+
+A failed request is answered with an HTTP status and a plain-text description; see [server errors](/articles/error-codes#server-errors).
 
 ## Flat files
 

@@ -32,7 +32,7 @@ def test_request_timeout_secs_defaults_to_300():
 
 def test_request_timeout_secs_round_trips():
     """`request_timeout_secs = N` round-trips through the binding;
-    ``0`` disables the default deadline."""
+    ``0`` is stored verbatim and floored to 300 at request time."""
     mod = _import_module()
     cfg = mod.Config.production()
     for secs in (0, 1, 45, 120, 600):

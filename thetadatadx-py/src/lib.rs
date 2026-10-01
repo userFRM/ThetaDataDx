@@ -323,21 +323,31 @@ impl Config {
 impl Config {
     /// Production configuration (ThetaData NJ datacenter).
     #[staticmethod]
-    fn production() -> Self {
-        Self::from_direct(config::DirectConfig::production())
+    fn production() -> PyResult<Self> {
+        Ok(Self::from_direct(
+            config::DirectConfig::try_production().map_err(to_py_err)?,
+        ))
     }
 
     /// Dev streaming configuration (port 20200, infinite historical replay).
     #[staticmethod]
-    fn dev() -> Self {
-        Self::from_direct(config::DirectConfig::dev())
+    fn dev() -> PyResult<Self> {
+        Ok(Self::from_direct(
+            config::DirectConfig::try_production()
+                .map_err(to_py_err)?
+                .with_streaming_environment(config::StreamingEnvironment::Dev),
+        ))
     }
 
     /// Market-data-staging configuration (market-data staging cluster + auth marker;
     /// streaming stays on production). Testing, unstable.
     #[staticmethod]
-    fn stage() -> Self {
-        Self::from_direct(config::DirectConfig::stage())
+    fn stage() -> PyResult<Self> {
+        Ok(Self::from_direct(
+            config::DirectConfig::try_production()
+                .map_err(to_py_err)?
+                .with_market_data_environment(config::MarketDataEnvironment::Stage),
+        ))
     }
 
     /// Source the target environment from a ``.env``-format file.
@@ -399,8 +409,8 @@ impl Config {
 
     /// Install a custom reconnect policy driven by a Python callable.
     ///
-    /// ``callback(reason: int, attempt: int)`` is invoked on the
-    /// streaming I/O thread after each retriable involuntary
+    /// ``callback(reason: int, attempt: int)`` is invoked on an SDK
+    /// streaming thread after each retriable involuntary
     /// disconnect; return the reconnect delay in milliseconds, or
     /// ``None`` to stop reconnecting (the stream then emits the
     /// terminal ``ReconnectsExhausted`` event). Permanent disconnect
@@ -420,7 +430,7 @@ impl Config {
             return Ok(());
         };
         // Reject a non-callable up front: otherwise the stored policy fails at
-        // reconnect time on the I/O thread, where the error is unraisable.
+        // reconnect time on a streaming thread, where the error is unraisable.
         if !Python::attach(|py| callback.bind(py).is_callable()) {
             return Err(errors::invalid_parameter_err(
                 "reconnect_callback must be callable",
@@ -463,8 +473,8 @@ impl Config {
     // core validator at connect time.
 
     /// Set the streaming event ring buffer size (slots). Must be a power
-    /// of two ``>= 64`` (rejected at connect otherwise). Default
-    /// ``131_072``.
+    /// of two from ``64`` to ``2**24`` (rejected at connect otherwise).
+    /// Default ``131_072``.
     #[setter]
     fn set_streaming_ring_size(&self, n: usize) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -695,7 +705,7 @@ fn resolve_direct_config(
         return Ok(guard.clone());
     }
     apply_env_overrides(
-        config::DirectConfig::production(),
+        config::DirectConfig::try_production().map_err(to_py_err)?,
         market_data_type,
         streaming_type,
     )
@@ -720,7 +730,7 @@ fn apply_env_overrides(
     if let Some(raw) = streaming_type {
         let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
             config_err(format!(
-                "streaming_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+                "streaming_type must be \"PROD\", \"STAGE\" or \"DEV\" (case-insensitive); got {raw:?}"
             ))
         })?;
         direct = direct.with_streaming_environment(environment);
@@ -1404,7 +1414,7 @@ impl StreamView {
     ///
     /// ```python
     /// stock  = Contract.stock("AAPL")
-    /// option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
+    /// option = Contract.option("SPY", expiration="20261218", strike="550", right="C")
     /// client.stream.subscribe(stock.quote())
     /// client.stream.subscribe(option.trade())
     /// client.stream.subscribe(SecType.OPTION.full_trades())
@@ -1738,7 +1748,7 @@ impl AsyncClient {
         let cfg = match config {
             Some(c) => c,
             None => {
-                owned_default = Config::production();
+                owned_default = Config::production()?;
                 &owned_default
             }
         };
@@ -1776,10 +1786,14 @@ impl AsyncClient {
             if let Ok(method) = market_data.getattr(name) {
                 return Ok(method.unbind());
             }
-            // Flat-file async terminals (e.g. `flatfile_to_path_async`) live on
-            // the `flat_files` namespace, not `market_data`.
+            // The flat-file dataset terminals (`option_eod_async`, ...) live on
+            // the `flat_files` namespace; `flatfile_to_path_async` lives on
+            // `Client` itself.
             let flat_files = bound.getattr("flat_files")?;
-            return Ok(flat_files.getattr(name)?.unbind());
+            if let Ok(method) = flat_files.getattr(name) {
+                return Ok(method.unbind());
+            }
+            return Ok(bound.getattr(name)?.unbind());
         }
         if ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) && !DIRECT_ON_CLIENT.contains(&name) {
             let stream = bound.getattr("stream")?;

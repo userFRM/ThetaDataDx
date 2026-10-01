@@ -2,7 +2,7 @@
 name = "thetadatadx-py"
 version = "0.5.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "Python bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "Apache-2.0"
 homepage = "https://github.com/userFRM/ThetaDataDx"
@@ -65,7 +65,7 @@ disruptor = "4.2.0"
 arrow = { version = "60.0.0", features = ["ffi"] }
 
 # Async bridge: run tokio futures from sync Python
-tokio = { version = "1.52.1", features = ["rt-multi-thread"] }
+tokio = { version = "1.52.1", features = ["rt-multi-thread", "sync"] }
 
 # Error derivation for the 365-day auto-chunk date-math module. Matches
 # the workspace crate's pin so we never drift on the trait surface.

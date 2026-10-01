@@ -55,8 +55,8 @@ def parse_semver(value: str) -> tuple[int, int, int]:
     # `9.9.9-rc.1`) so a release candidate can be bumped with the same
     # tool. The numeric core is returned; the suffix rides through on the
     # version strings the bump writes. Cargo and npm take `-rc.1` as-is;
-    # maturin normalises it to the PEP 440 form, and CMake (operator-set)
-    # carries the numeric core.
+    # maturin normalises it to the PEP 440 form, and `bump_cmake` writes
+    # only the numeric core.
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.\-]+)?", value)
     if not match:
         sys.exit(f"not a semver MAJOR.MINOR.PATCH[-prerelease]: '{value}'")
@@ -126,7 +126,10 @@ def bump_napi_index_js(path: Path, current: str, target: str) -> None:
     regenerating would; `check_version_sync.py` verifies the result either way.
     """
     text = path.read_text()
-    found = set(re.findall(r"\b\d+\.\d+\.\d+\b", text))
+    # The same pattern `check_version_sync.py` reads the file with. Stopping at
+    # the patch digit reads a `0.5.1-rc.1` pin as `0.5.1`, so every bump away
+    # from a pre-release stopped here after the manifests were already written.
+    found = set(re.findall(r"\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", text))
     if found != {current}:
         sys.exit(
             f"{path.relative_to(ROOT)}: pins {sorted(found)}, expected only "
@@ -194,15 +197,22 @@ def bump_package_lock(path: Path, current: str, target: str, first_party_prefix:
 
 
 def bump_cmake(path: Path, current: str, target: str) -> None:
-    """Move the `project(... VERSION x.y.z ...)` pin in the C++ CMakeLists."""
+    """Move the `project(... VERSION x.y.z ...)` pin in the C++ CMakeLists.
+
+    CMake rejects anything but a numeric version at configure, so the pin
+    carries only the numeric core and a pre-release suffix is dropped on both
+    sides. Moving between candidates of one release leaves it unchanged.
+    """
     text = path.read_text()
-    needle = f"VERSION {current}"
+    needle = f"VERSION {re.split(r'[-+]', current, maxsplit=1)[0]}"
     if text.count(needle) != 1:
         sys.exit(
             f"{path.relative_to(ROOT)}: expected exactly one {needle!r}, "
             f"found {text.count(needle)}"
         )
-    path.write_text(text.replace(needle, f"VERSION {target}"))
+    path.write_text(
+        text.replace(needle, f"VERSION {re.split(r'[-+]', target, maxsplit=1)[0]}")
+    )
 
 
 def bump_openapi_yaml(path: Path, current: str, target: str) -> None:

@@ -400,6 +400,11 @@ pub enum Error {
         /// request permit for an unbounded sleep; `None` (the common
         /// case) leaves the client-side backoff schedule unchanged.
         retry_after: Option<std::time::Duration>,
+        /// HTTP status the service attached to the failure in its
+        /// `http_status_code` trailer, when present. The vendor terminal
+        /// answers a failed request with this status, so an HTTP front end
+        /// reproduces it rather than inferring one from `kind`.
+        http_status_code: Option<u16>,
     },
 
     /// Decompression failure (zstd, gzip, etc.).
@@ -427,10 +432,6 @@ pub enum Error {
         #[source]
         source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
     },
-
-    /// Query returned no data rows.
-    #[error("No data returned")]
-    NoData,
 
     /// Authentication error.
     #[error("Authentication error ({kind}): {message}")]
@@ -872,7 +873,7 @@ impl From<crate::grpc::Status> for Error {
     fn from(s: crate::grpc::Status) -> Self {
         // The transport carries the canonical `grpc-status` /
         // `grpc-message` pair plus the decoded `google.rpc.RetryInfo`
-        // hint. Every field of the source status is preserved
+        // hint and the `http_status_code` trailer. Every field of the source status is preserved
         // structurally — the numeric code maps to a typed
         // `GrpcStatusKind`, the message and the backoff hint carry over
         // verbatim — so nothing is flattened away and a source link
@@ -882,6 +883,7 @@ impl From<crate::grpc::Status> for Error {
             kind,
             message: s.message().to_string(),
             retry_after: s.retry_delay(),
+            http_status_code: s.http_status_code(),
         }
     }
 }
@@ -1197,6 +1199,7 @@ mod tests {
             kind: GrpcStatusKind::ResourceExhausted,
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(1500)),
+            http_status_code: None,
         };
         assert_eq!(
             with_hint.retry_after(),
@@ -1207,11 +1210,11 @@ mod tests {
             kind: GrpcStatusKind::ResourceExhausted,
             message: "429".into(),
             retry_after: None,
+            http_status_code: None,
         };
         assert_eq!(no_hint.retry_after(), None);
 
         // Non-gRPC variants never carry a retry hint.
-        assert_eq!(Error::NoData.retry_after(), None);
         assert_eq!(Error::Timeout { duration_ms: 500 }.retry_after(), None);
     }
 
@@ -1280,6 +1283,7 @@ mod tests {
                 kind,
                 message,
                 retry_after,
+                ..
             } => {
                 assert_eq!(kind, GrpcStatusKind::PermissionDenied);
                 assert!(message.contains("tier insufficient"));

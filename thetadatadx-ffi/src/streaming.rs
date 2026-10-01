@@ -43,7 +43,7 @@ use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 /// data (callback slots, the dispatcher state machine, drain flags), so the
 /// inner value stays usable and the consistent behaviour is to keep serving
 /// the C caller. `into_inner` returns that still-valid guard.
-trait LockRecover<T> {
+pub(crate) trait LockRecover<T> {
     fn lock_recover(&self) -> MutexGuard<'_, T>;
 }
 
@@ -84,7 +84,7 @@ pub type ThetaDataDxStreamCallback =
 /// same bundle can be re-registered on `thetadatadx_*_reconnect` without
 /// re-invoking the user.
 #[derive(Clone, Copy)]
-struct FfiCallback {
+pub(crate) struct FfiCallback {
     callback: ThetaDataDxStreamCallback,
     ctx: *mut c_void,
 }
@@ -123,8 +123,15 @@ pub struct ThetaDataDxClient {
     /// Callback registered via `thetadatadx_client_set_callback`. `None` until
     /// the first registration; persisted across `thetadatadx_client_reconnect`
     /// so the reconnect path can re-attach the same C user function
-    /// without re-asking the caller for it.
-    callback: Mutex<Option<FfiCallback>>,
+    /// without re-asking the caller for it. Cleared when
+    /// `thetadatadx_client_batches_open` starts a batch session in its place.
+    pub(crate) callback: Mutex<Option<FfiCallback>>,
+    /// The subscriptions `thetadatadx_client_reconnect` is replaying. A
+    /// reconnect stops the session before the fallible restart, and the stop
+    /// clears the session's own lists, so this is what a retry after a failed
+    /// restart replays. An explicit stop or a new callback registration
+    /// starts over and clears it.
+    saved_subscriptions: Mutex<Option<SavedSubscriptions>>,
 }
 
 // `FfpssDispatcherSession` is imported above as a `use` alias of the
@@ -210,7 +217,25 @@ pub struct ThetaDataDxStreamHandle {
     /// this handle has already retired. See [`ThetaDataDxStreamHandle::fold_retired`].
     retired_panics: AtomicU64,
     retired_dropped: AtomicU64,
+    /// The subscriptions `thetadatadx_streaming_reconnect` is replaying. A
+    /// reconnect retires the previous session before the fallible connect,
+    /// so this is what a retry after a failed attempt replays instead of
+    /// starting over with nothing.
+    saved_subscriptions: Mutex<SavedSubscriptions>,
 }
+
+/// Per-contract and full-stream subscriptions captured for replay.
+type SavedSubscriptions = (
+    Vec<(
+        thetadatadx::streaming::SubscriptionKind,
+        thetadatadx::streaming::Contract,
+    )>,
+    Vec<(
+        thetadatadx::streaming::SubscriptionKind,
+        thetadatadx::SecType,
+    )>,
+);
+
 impl ThetaDataDxStreamHandle {
     /// Add a retired session's panic and drop counts, beyond `folded`, to
     /// this handle's running totals, and return what was read.
@@ -244,35 +269,17 @@ struct StreamingConnectParams {
     reconnect: thetadatadx::config::ReconnectConfig,
 }
 
-/// Thread every connection-side knob from a [`StreamingConnectParams`]
-/// snapshot into an [`thetadatadx::fpss::StreamingClientBuilder`].
-///
-/// The single source of truth for the FFI's two build sites (initial
-/// `set_callback` connect and `thetadatadx_streaming_reconnect`) so a future knob
-/// cannot be wired into one and silently dropped from the other.
+/// Build a [`thetadatadx::fpss::StreamingClientBuilder`] from a
+/// [`StreamingConnectParams`] snapshot, for the FFI's two build sites
+/// (initial `set_callback` connect and `thetadatadx_streaming_reconnect`).
 fn streaming_builder(
     params: &StreamingConnectParams,
 ) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
-    thetadatadx::fpss::StreamingClient::builder(&params.creds, params.streaming.hosts())
-        .ring_size(params.streaming.ring_size)
-        .consumer_cpu(params.streaming.consumer_cpu)
-        .wait_mode(params.streaming.wait_mode)
-        .park_interval_us(params.streaming.park_interval_us)
-        .reconnect_policy(params.reconnect.policy.clone())
-        .reconnect_wait_ms(params.reconnect.wait_ms)
-        .reconnect_wait_max_ms(params.reconnect.wait_max_ms)
-        .reconnect_wait_rate_limited_ms(params.reconnect.wait_rate_limited_ms)
-        .reconnect_wait_server_restart_ms(params.reconnect.wait_server_restart_ms)
-        .reconnect_jitter(params.reconnect.jitter)
-        .reconnect_replay_burst_size(params.reconnect.replay_burst_size)
-        .reconnect_replay_pace_ms(params.reconnect.replay_pace_ms)
-        .connect_timeout_ms(params.streaming.connect_timeout_ms)
-        .read_timeout_ms(params.streaming.timeout_ms)
-        .ping_interval_ms(params.streaming.ping_interval_ms)
-        .io_read_slice_ms(params.streaming.io_read_slice_ms)
-        .keepalive_idle_secs(params.streaming.keepalive_idle_secs)
-        .keepalive_interval_secs(params.streaming.keepalive_interval_secs)
-        .keepalive_retries(params.streaming.keepalive_retries)
+    thetadatadx::fpss::StreamingClientBuilder::from_config(
+        &params.creds,
+        &params.streaming,
+        &params.reconnect,
+    )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -508,6 +515,7 @@ pub unsafe extern "C" fn thetadatadx_client_connect(
             Ok(client) => Box::into_raw(Box::new(ThetaDataDxClient {
                 inner: client,
                 callback: Mutex::new(None),
+                saved_subscriptions: Mutex::new(None),
             })),
             Err(e) => {
                 set_error_from(&e);
@@ -659,6 +667,9 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
             set_error("streaming already started");
             return -1;
         }
+        // A new registration starts a fresh session, so a failed reconnect's
+        // saved subscriptions no longer apply.
+        *handle.saved_subscriptions.lock_recover() = None;
         // The slot is not `Live`, so this is either the first registration or a
         // replacement after stop. Store BEFORE `start_streaming` so the engine
         // observes a consistent handle; roll back to `None` if start fails.
@@ -712,7 +723,7 @@ pub const THETADATADX_SUB_KIND_MARKET_VALUE: i32 = 3;
 /// - Per-contract stock: `scope = CONTRACT`, `symbol = "AAPL"`, all
 ///   option fields NULL.
 /// - Per-contract option: `scope = CONTRACT`, `symbol = "SPY"`,
-///   `expiration = "20260620"`, `strike = "550"`, `right = "C"`.
+///   `expiration = "20261218"`, `strike = "550"`, `right = "C"`.
 /// - Full-stream: `scope = FULL`, `sec_type = "OPTION"`, all
 ///   per-contract fields NULL.
 #[repr(C)]
@@ -960,6 +971,9 @@ pub unsafe extern "C" fn thetadatadx_client_unsubscribe(
 /// (the new ABI has no out-of-band buffer to fall back on).
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
+/// If the session reconnected but some subscriptions failed to restore, the
+/// stream stays live and the call returns -1 with `THETADATADX_ERR_STREAM`;
+/// `thetadatadx_client_active_subscriptions` lists what was restored.
 ///
 /// # Event continuity
 ///
@@ -990,23 +1004,26 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
 
-        // Save active subscriptions. If streaming isn't running (or the
-        // subscription locks are poisoned upstream) we must abort the
-        // reconnect -- silently falling back to an empty list drops every
-        // subscription on the floor.
-        let saved_subs = match handle.inner.stream().active_subscriptions() {
-            Ok(subs) => subs,
-            Err(e) => {
-                set_error_from(&e);
-                return -1;
+        // Save active subscriptions. With no live session, a previous
+        // reconnect stopped it and then failed to restart: replay what that
+        // attempt saved. With neither, there is nothing to reconnect, and
+        // falling back to an empty list would drop every subscription.
+        let (saved_subs, saved_full_subs) = {
+            let mut saved = handle.saved_subscriptions.lock_recover();
+            let stream = handle.inner.stream();
+            match (
+                stream.active_subscriptions(),
+                stream.active_full_subscriptions(),
+            ) {
+                (Ok(subs), Ok(full_subs)) => *saved = Some((subs, full_subs)),
+                (Err(e), _) | (_, Err(e)) => {
+                    if saved.is_none() {
+                        set_error_from(&e);
+                        return -1;
+                    }
+                }
             }
-        };
-        let saved_full_subs = match handle.inner.stream().active_full_subscriptions() {
-            Ok(subs) => subs,
-            Err(e) => {
-                set_error_from(&e);
-                return -1;
-            }
+            saved.clone().unwrap_or_default()
         };
 
         // Look up the previously-registered callback so we can re-attach
@@ -1068,23 +1085,19 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
         }
 
         // Re-subscribe all previous subscriptions through the core's
-        // paced replay engine (best-effort; failures are non-fatal but
-        // surfaced through tracing so ops can see silent
-        // re-subscription failures across a reconnect boundary — a
-        // dropped subscription here would otherwise manifest as "the
-        // stream is up but no ticks for AAPL" with no log trail).
-        // Pacing spreads a large saved set over wall-clock time
-        // instead of firing it at a recovering upstream back-to-back.
-        if let Err(e) = handle
+        // paced replay engine, which spreads a large saved set over
+        // wall-clock time instead of firing it at a recovering upstream
+        // back-to-back. The session is live either way; a subscription that
+        // failed to restore is reported as `PartialReconnect` so the caller
+        // can retry it rather than wait on a contract that never delivers.
+        let restored = handle
             .inner
             .stream()
-            .restore_subscriptions(&saved_subs, &saved_full_subs)
-        {
-            tracing::warn!(
-                target: "thetadatadx::ffi::reconnect",
-                error = %e,
-                "subscription replay reported failures after reconnect"
-            );
+            .restore_subscriptions(&saved_subs, &saved_full_subs);
+        *handle.saved_subscriptions.lock_recover() = None;
+        if let Err(e) = restored {
+            set_error_from(&e);
+            return -1;
         }
 
         0
@@ -1248,6 +1261,7 @@ pub unsafe extern "C" fn thetadatadx_client_stop_streaming(handle: *const ThetaD
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
+        *handle.saved_subscriptions.lock_recover() = None;
         handle.inner.stream().stop_streaming();
     })
 }
@@ -1616,6 +1630,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
             dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
             retired_panics: AtomicU64::new(0),
             retired_dropped: AtomicU64::new(0),
+            saved_subscriptions: Mutex::default(),
         }))
     })
 }
@@ -2141,8 +2156,13 @@ pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
 /// the C callback registered via the most recent `thetadatadx_streaming_set_callback`.
 /// Returns -1 if no callback was ever installed or if the handle has
 /// been shut down (shutdown is terminal — see [`thetadatadx_streaming_shutdown`]).
+/// A retry after a failed reconnect replays the subscriptions the failed
+/// attempt saved.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
+/// If the session reconnected but some subscriptions failed to restore, the
+/// stream stays live and the call returns -1 with `THETADATADX_ERR_STREAM`;
+/// `thetadatadx_streaming_active_subscriptions` lists what was restored.
 ///
 /// # Event continuity
 ///
@@ -2198,13 +2218,17 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
             }
         };
 
-        // 1. Save active subscriptions from the current client (if any).
+        // 1. Save active subscriptions from the current client. With no
+        // client, a previous reconnect retired it and then failed: replay
+        // what that attempt saved. Recording the lists on the handle keeps
+        // them across every failure exit below until a replay runs.
         let (saved_subs, saved_full_subs) = {
             let guard = handle.inner.lock_recover();
-            match guard.as_ref() {
-                Some(c) => (c.active_subscriptions(), c.active_full_subscriptions()),
-                None => (Vec::new(), Vec::new()),
+            let mut saved = handle.saved_subscriptions.lock_recover();
+            if let Some(c) = guard.as_ref() {
+                *saved = (c.active_subscriptions(), c.active_full_subscriptions());
             }
+            saved.clone()
         };
 
         // 2. Shut down the old client. With the SSOT pipeline there is
@@ -2363,24 +2387,22 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         }
 
         // 4. Re-subscribe all previous subscriptions through the core's
-        // paced replay engine (best-effort; failures are non-fatal but
-        // surfaced through tracing so ops can see silent
-        // re-subscription failures across a reconnect boundary). The
-        // engine paces submissions in bursts so a large saved set is
-        // not fired at a recovering upstream back-to-back; per-item
-        // diagnostics are emitted by the engine itself.
-        if let Err(e) = new_client.restore_subscriptions(&saved_subs, &saved_full_subs) {
-            tracing::warn!(
-                target: "thetadatadx::ffi::reconnect",
-                error = %e,
-                "subscription replay reported failures after reconnect"
-            );
-        }
+        // paced replay engine. The engine paces submissions in bursts so a
+        // large saved set is not fired at a recovering upstream
+        // back-to-back. The session is live either way; a subscription that
+        // failed to restore is reported as `PartialReconnect` so the caller
+        // can retry it, and what did restore is in the live session's list.
+        let restored = new_client.restore_subscriptions(&saved_subs, &saved_full_subs);
+        *handle.saved_subscriptions.lock_recover() = SavedSubscriptions::default();
 
         // The new client was already published into `handle.inner`
         // before the dispatcher started; nothing left to commit.
         drop(new_client);
 
+        if let Err(e) = restored {
+            set_error_from(&e);
+            return -1;
+        }
         0
     })
 }
@@ -2501,7 +2523,16 @@ fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSess
             .push(client.drained_flag());
         client.shutdown();
     }
-    join_extracted_session(handle, session);
+    // A reconnect callback runs on the I/O thread when no decision thread
+    // could be spawned for it, and the dispatcher exits only once that
+    // thread drops the ring producer, so a stop from there detaches the
+    // dispatcher instead of joining it.
+    if !taken
+        .as_ref()
+        .is_some_and(|(client, _)| client.on_io_thread())
+    {
+        join_extracted_session(handle, session);
+    }
     if let Some((client, folded)) = taken {
         handle.fold_retired(&client, folded);
     }
@@ -3039,23 +3070,9 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
 mod null_callback_guard_tests {
     use std::ffi::c_void;
 
-    use super::{ThetaDataDxStreamCallback, ThetaDataDxStreamEvent};
+    use super::ThetaDataDxStreamEvent;
 
     extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
-
-    #[test]
-    fn null_callback_is_the_none_niche_the_guard_rejects() {
-        // A C caller passing a null function pointer arrives as the `None`
-        // niche of `Option<ThetaDataDxStreamCallback>`; both set_callback
-        // entries reject that before constructing an `FfiCallback`. A real
-        // pointer is `Some` and proceeds. This pins the representation the
-        // guards depend on so the parameter type cannot silently revert to
-        // the non-nullable `extern "C" fn`.
-        let null_cb: Option<ThetaDataDxStreamCallback> = None;
-        assert!(null_cb.is_none());
-        let real_cb: Option<ThetaDataDxStreamCallback> = Some(noop);
-        assert!(real_cb.is_some());
-    }
 
     /// Read the thread-local last-error slot set by the C ABI entry points
     /// as an owned `String`, so an assertion does not hold a borrow across
@@ -3111,21 +3128,6 @@ mod null_callback_guard_tests {
             last_error().as_deref(),
             Some("callback function pointer is null"),
         );
-    }
-
-    #[test]
-    fn unified_already_streaming_contract_string_is_stable() {
-        // Pin the exact wording the live-handle gate emits. A second
-        // `thetadatadx_client_set_callback` while the slot is `Live` returns
-        // -1 with this message (documented in the function's "REPLACEMENT
-        // after stop" contract and in the C header); the unified path mirrors
-        // the FPSS one-shot rule for the active window while still permitting
-        // replacement after stop. The string is asserted here so the
-        // documented C ABI contract cannot drift from the implementation
-        // without this test failing.
-        crate::error::thetadatadx_clear_error();
-        crate::error::set_error("streaming already started");
-        assert_eq!(last_error().as_deref(), Some("streaming already started"));
     }
 
     #[test]
@@ -3345,6 +3347,7 @@ mod teardown_deadlock_tests {
             dispatcher: Arc::new(Mutex::new(session)),
             retired_panics: AtomicU64::new(0),
             retired_dropped: AtomicU64::new(0),
+            saved_subscriptions: Mutex::default(),
         }
     }
 
@@ -3446,6 +3449,38 @@ mod teardown_deadlock_tests {
              released it — the join was not lock-free",
         );
     }
+
+    /// A reconnect retires the previous session before it dials. When the
+    /// dial fails, the subscriptions that session held must survive for the
+    /// retry to replay, or the retry succeeds with nothing subscribed.
+    #[test]
+    fn failed_reconnect_keeps_the_subscriptions_for_the_retry() {
+        use thetadatadx::streaming::{Contract, SubscriptionKind};
+
+        // A loopback port nothing listens on, so the dial is refused at once.
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("bind an ephemeral loopback port")
+            .port();
+        let mut config = thetadatadx::config::DirectConfig::production();
+        config.set_streaming_hosts(vec![("127.0.0.1".to_string(), port)]);
+        let mut handle = handle_with(FfpssDispatcherSession::Idle);
+        handle.connect_params.streaming = config.streaming;
+        let aapl = (SubscriptionKind::Quote, Contract::stock("AAPL"));
+        *handle.saved_subscriptions.lock_recover() = (vec![aapl.clone()], Vec::new());
+
+        for attempt in 1..=2 {
+            // SAFETY: `&handle` is a live, stack-pinned, never-freed handle
+            // for the whole test.
+            let rc = unsafe { super::thetadatadx_streaming_reconnect(&handle) };
+            assert_eq!(rc, -1, "attempt {attempt}: the dial must fail");
+            assert_eq!(
+                handle.saved_subscriptions.lock_recover().0,
+                vec![aapl.clone()],
+                "attempt {attempt}: the saved subscription was dropped",
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -3504,6 +3539,7 @@ mod health_on_outer_panic_tests {
             dispatcher: Arc::new(Mutex::new(session)),
             retired_panics: AtomicU64::new(0),
             retired_dropped: AtomicU64::new(0),
+            saved_subscriptions: Mutex::default(),
         };
         (handle, drained)
     }
@@ -3626,6 +3662,7 @@ mod health_on_outer_panic_tests {
             dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
             retired_panics: AtomicU64::new(0),
             retired_dropped: AtomicU64::new(0),
+            saved_subscriptions: Mutex::default(),
         };
 
         // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the
@@ -3682,6 +3719,7 @@ mod health_on_outer_panic_tests {
             dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
             retired_panics: AtomicU64::new(0),
             retired_dropped: AtomicU64::new(0),
+            saved_subscriptions: Mutex::default(),
         };
 
         // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the

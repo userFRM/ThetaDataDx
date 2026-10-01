@@ -30,48 +30,11 @@ use pyo3::types::PyList;
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
 use crate::async_runtime::spawn_awaitable;
-use crate::errors::to_py_err;
+use crate::errors::{invalid_parameter_err, to_py_err};
 use crate::run_blocking;
 use crate::{pyarrow_table_to_pandas, pyarrow_table_to_polars, record_batch_to_pyarrow_table};
 
 // ── Helpers ────────────────────────────────────────────────────────────
-
-fn parse_flatfile_sec_type(sec: &str) -> PyResult<SecType> {
-    match sec.to_uppercase().as_str() {
-        "OPTION" => Ok(SecType::Option),
-        "STOCK" => Ok(SecType::Stock),
-        "INDEX" => Ok(SecType::Index),
-        other => Err(crate::errors::invalid_parameter_err(format!(
-            "unknown flat-file sec_type: {other:?} (expected OPTION, STOCK, or INDEX)"
-        ))),
-    }
-}
-
-fn parse_flatfile_req_type(req: &str) -> PyResult<ReqType> {
-    match req.to_uppercase().as_str() {
-        "EOD" => Ok(ReqType::Eod),
-        "QUOTE" => Ok(ReqType::Quote),
-        "OPEN_INTEREST" | "OPENINTEREST" => Ok(ReqType::OpenInterest),
-        "OHLC" => Ok(ReqType::Ohlc),
-        "TRADE" => Ok(ReqType::Trade),
-        "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(crate::errors::invalid_parameter_err(format!(
-            "unknown flat-file req_type: {other:?} (expected EOD, QUOTE, OPEN_INTEREST, OHLC, TRADE, TRADE_QUOTE)"
-        ))),
-    }
-}
-
-fn parse_flatfile_format(fmt: Option<&str>) -> PyResult<FlatFileFormat> {
-    match fmt.unwrap_or("csv").to_lowercase().as_str() {
-        "csv" => Ok(FlatFileFormat::Csv),
-        "json" => Ok(FlatFileFormat::Json),
-        "jsonl" | "ndjson" => Ok(FlatFileFormat::Jsonl),
-        "html" => Ok(FlatFileFormat::Html),
-        other => Err(crate::errors::invalid_parameter_err(format!(
-            "unknown flat-file format: {other:?} (expected csv, json, jsonl, ndjson, or html)"
-        ))),
-    }
-}
 
 fn rows_to_pyarrow_table(py: Python<'_>, rows: &[FlatFileRow]) -> PyResult<Py<PyAny>> {
     let batch = flatfiles::arrow::rows_to_arrow(rows).map_err(to_py_err)?;
@@ -238,8 +201,8 @@ impl FlatFilesNamespace {
         req_type: &str,
         date: &str,
     ) -> PyResult<FlatFileRowList> {
-        let sec = parse_flatfile_sec_type(sec_type)?;
-        let req = parse_flatfile_req_type(req_type)?;
+        let sec = sec_type.parse::<SecType>().map_err(invalid_parameter_err)?;
+        let req = req_type.parse::<ReqType>().map_err(invalid_parameter_err)?;
         self.pull_decoded(py, sec, req, date)
     }
 
@@ -303,8 +266,8 @@ impl FlatFilesNamespace {
         req_type: &str,
         date: &str,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let sec = parse_flatfile_sec_type(sec_type)?;
-        let req = parse_flatfile_req_type(req_type)?;
+        let sec = sec_type.parse::<SecType>().map_err(invalid_parameter_err)?;
+        let req = req_type.parse::<ReqType>().map_err(invalid_parameter_err)?;
         self.pull_decoded_async(py, sec, req, date)
     }
 }
@@ -351,9 +314,11 @@ impl crate::Client {
         path: &str,
         format: Option<&str>,
     ) -> PyResult<String> {
-        let sec = parse_flatfile_sec_type(sec_type)?;
-        let req = parse_flatfile_req_type(req_type)?;
-        let fmt = parse_flatfile_format(format)?;
+        let sec = sec_type.parse::<SecType>().map_err(invalid_parameter_err)?;
+        let req = req_type.parse::<ReqType>().map_err(invalid_parameter_err)?;
+        let fmt = format
+            .map_or(Ok(FlatFileFormat::Csv), str::parse)
+            .map_err(invalid_parameter_err)?;
         let client = self.client_arc()?;
         let date_owned = date.to_string();
         let path_owned = std::path::PathBuf::from(path);
@@ -381,9 +346,11 @@ impl crate::Client {
         path: &str,
         format: Option<&str>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let sec = parse_flatfile_sec_type(sec_type)?;
-        let req = parse_flatfile_req_type(req_type)?;
-        let fmt = parse_flatfile_format(format)?;
+        let sec = sec_type.parse::<SecType>().map_err(invalid_parameter_err)?;
+        let req = req_type.parse::<ReqType>().map_err(invalid_parameter_err)?;
+        let fmt = format
+            .map_or(Ok(FlatFileFormat::Csv), str::parse)
+            .map_err(invalid_parameter_err)?;
         let client = self.client_arc()?;
         let date_owned = date.to_string();
         let path_owned = std::path::PathBuf::from(path);

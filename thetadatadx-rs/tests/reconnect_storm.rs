@@ -86,22 +86,18 @@ fn reconnect_storm_preserves_framing_invariants() {
     let authenticated = AtomicBool::new(true);
     let shutdown = AtomicBool::new(false);
 
-    // The decoder state spans cycles in production: between
-    // reconnects the io_loop preserves the `DeltaState` cache (FIT
-    // delta sequences may resume after a transient disconnect, per
-    // JVM terminal). What MUST reset is the framing state and the
-    // contract cache (cleared on each session's MarketOpen / restart
-    // — and in a real reconnect, on the new login itself).
-    let mut delta = DeltaState::new();
-
     let mut cycle_logins = 0usize;
     let mut cycle_disconnects = 0usize;
     let mut cycle_contracts: Vec<(usize, String)> = Vec::new();
 
     for cycle in 0..STORM_CYCLES {
-        // Reset the contract cache the way a reconnect does — the
-        // server's new session re-issues every ContractAssigned
-        // frame, so the SDK must not carry stale ids forward.
+        // Reset the decode state the way a reconnect does: the io_loop
+        // clears both the delta cache and the contract cache once the new
+        // login succeeds. The server's new session re-issues every
+        // ContractAssigned frame and starts every delta sequence afresh,
+        // so the SDK must carry neither stale ids nor stale baselines
+        // forward.
+        let mut delta = DeltaState::new();
         let mut local: HashMap<i32, Arc<Contract>> = HashMap::new();
         let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
 

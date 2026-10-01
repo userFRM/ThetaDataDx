@@ -22,6 +22,7 @@ inputs:
       python.yml:Python verified
       typescript.yml:TypeScript verified
       perf-gate.yml:Perf gate
+      release-mcp-npm.yml:MCP verified
   timeout-minutes:
     description: How long to wait for all of them to conclude before failing.
     required: false
@@ -102,9 +103,9 @@ runs:
               pending=1
               continue
             fi
-            api_failures[$gate]=0
 
             if [ -z "$found" ]; then
+              api_failures[$gate]=0
               echo "  ${gate}: no run for this tag yet"
               pending=1
               continue
@@ -112,7 +113,22 @@ runs:
 
             run_id="${found%% *}"
             run_status="${found##* }"
-            state="$(job_state "$run_id" "$job")"
+            # A failed jobs read counts against the same per-gate limit as a
+            # failed runs read, and the count resets only once every read of
+            # the pass has succeeded, so an endpoint that always fails reaches
+            # the limit whatever the other one does. gh prints its own error;
+            # stderr stays out of `state`, which is parsed on success.
+            if ! state="$(job_state "$run_id" "$job")"; then
+              api_failures[$gate]=$(( ${api_failures[$gate]:-0} + 1 ))
+              if [ "${api_failures[$gate]}" -gt "$MAX_API_FAILURES" ]; then
+                echo "::error::refusing to publish: cannot read the jobs of ${workflow} run ${run_id} after ${api_failures[$gate]} attempts"
+                exit 1
+              fi
+              echo "  ${gate}: API read failed (${api_failures[$gate]}/${MAX_API_FAILURES}), retrying"
+              pending=1
+              continue
+            fi
+            api_failures[$gate]=0
 
             if [ -z "$state" ]; then
               # A finished run that never started the job is not something more

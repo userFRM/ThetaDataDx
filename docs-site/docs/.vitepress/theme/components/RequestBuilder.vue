@@ -386,7 +386,7 @@ for (const t of rows) {
         .map((o) => `.with_${o.key}(${fmtVal('cpp', o.type, vals.value[o.key])})`)
         .join('')
       const optArg = opt ? `,\n      thetadatadx::EndpointRequestOptions{}${opt}` : ''
-      return `#include <thetadatadx/thetadatadx.hpp>
+      return `#include "thetadatadx.hpp"
 #include <iostream>
 
 int main() {

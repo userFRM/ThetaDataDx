@@ -813,6 +813,10 @@ macro_rules! list_endpoint_impl_body {
         // by the macro body cannot reach the caller's `self`.
         let client: &MarketDataClient = $client;
         $crate::mdds::macros::run_with_optional_deadline($deadline, async move {
+            // Build the wire parameters once, before a permit is taken: an
+            // input the request builder refuses fails here without anything
+            // being sent, and every attempt sends the same bytes.
+            let params = &proto::$query { $($field : $val),* };
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
             let _metrics_start = std::time::Instant::now();
@@ -826,7 +830,7 @@ macro_rules! list_endpoint_impl_body {
                     let qi = client.build_query_info(snap.uuid.clone());
                     let request = proto::$req {
                         query_info: Some(qi),
-                        params: Some(proto::$query { $($field : $val),* }),
+                        params: Some(params.clone()),
                     };
                     // Bind the lease to a local so it lives across
                     // the await — the pre-dispatch reservation
@@ -1181,7 +1185,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1287,10 +1291,14 @@ macro_rules! parsed_endpoint {
                 }).await
             }
 
+            /// Binding terminal: stream presence-carrying chunks into
+            /// `handler`. A `Break` from the handler ends the whole call,
+            /// every band of a fan-out included, and the call returns
+            /// `Ok(())` without calling the handler again.
             #[doc(hidden)]
             pub async fn stream_ticks<F>(self, handler: F) -> Result<(), Error>
             where
-                F: FnMut($crate::columns::Ticks<$item>) + Send,
+                F: FnMut($crate::columns::Ticks<$item>) -> std::ops::ControlFlow<()> + Send,
             {
                 let $builder_name {
                     client,
@@ -1299,7 +1307,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1311,6 +1319,8 @@ macro_rules! parsed_endpoint {
                     let params = proto::$query { $($field : $val),* };
                     let handler_mutex = std::sync::Mutex::new(handler);
                     let handler_mutex = &handler_mutex;
+                    let stopped = std::sync::atomic::AtomicBool::new(false);
+                    let stopped = &stopped;
                     #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                     let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                     $(shard_read_field!(shard_query, params, $field);)*
@@ -1324,6 +1334,11 @@ macro_rules! parsed_endpoint {
                                 client, $name, plan, params,
                                 [ $($field),* ],
                                 |snap, banded, delivered| async move {
+                                    // The handler ended the call: a band still
+                                    // waiting to start opens no request.
+                                    if stopped.load(std::sync::atomic::Ordering::Relaxed) {
+                                        return Ok(());
+                                    }
                                     let request = proto::$req {
                                         query_info: Some(client.build_query_info(snap.uuid.clone())),
                                         params: Some(banded.clone()),
@@ -1335,7 +1350,7 @@ macro_rules! parsed_endpoint {
                                     )
                                     .await
                                     .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered).await
+                                    client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
                                 }
                             )?;
                         }
@@ -1364,7 +1379,7 @@ macro_rules! parsed_endpoint {
                                         )
                                         .await
                                         .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered).await
+                                        client.deliver_chunk_ticks(stream, $parser, handler_mutex, delivered, stopped).await
                                     }
                                 },
                             ).await?;
@@ -1420,7 +1435,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1504,11 +1519,12 @@ macro_rules! parsed_endpoint {
                 }).await
             }
 
+            /// Async twin of `stream_ticks`, with the same `Break` contract.
             #[doc(hidden)]
             pub async fn stream_ticks_async<F, HFut>(self, handler: F) -> Result<(), Error>
             where
                 F: FnMut($crate::columns::Ticks<$item>) -> HFut + Send,
-                HFut: std::future::Future<Output = ()> + Send,
+                HFut: std::future::Future<Output = std::ops::ControlFlow<()>> + Send,
             {
                 let $builder_name {
                     client,
@@ -1517,7 +1533,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1531,6 +1547,8 @@ macro_rules! parsed_endpoint {
                     // `stream_async` above.
                     let handler_mutex = tokio::sync::Mutex::new(handler);
                     let handler_mutex = &handler_mutex;
+                    let stopped = std::sync::atomic::AtomicBool::new(false);
+                    let stopped = &stopped;
                     #[allow(unused_mut)] // Reason: endpoints with no shardable fields expand no projection arm.
                     let mut shard_query = $crate::mdds::shard::ShardQuery::default();
                     $(shard_read_field!(shard_query, params, $field);)*
@@ -1544,6 +1562,11 @@ macro_rules! parsed_endpoint {
                                 client, $name, plan, params,
                                 [ $($field),* ],
                                 |snap, banded, delivered| async move {
+                                    // The handler ended the call: a band still
+                                    // waiting to start opens no request.
+                                    if stopped.load(std::sync::atomic::Ordering::Relaxed) {
+                                        return Ok(());
+                                    }
                                     let request = proto::$req {
                                         query_info: Some(client.build_query_info(snap.uuid.clone())),
                                         params: Some(banded.clone()),
@@ -1555,7 +1578,7 @@ macro_rules! parsed_endpoint {
                                     )
                                     .await
                                     .map_err(|e| -> Error { e.into() })?;
-                                    client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered).await
+                                    client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered, stopped).await
                                 }
                             )?;
                         }
@@ -1584,7 +1607,7 @@ macro_rules! parsed_endpoint {
                                         )
                                         .await
                                         .map_err(|e| -> Error { e.into() })?;
-                                        client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered).await
+                                        client.deliver_chunk_ticks_async(stream, $parser, handler_mutex, delivered, stopped).await
                                     }
                                 },
                             ).await?;
@@ -1611,7 +1634,7 @@ macro_rules! parsed_endpoint {
                         deadline,
                     } = self;
                     let _ = &client;
-                    $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                    $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                     let inner = async move {
                         tracing::debug!(endpoint = stringify!($name), "gRPC request");
                         metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
@@ -1951,6 +1974,7 @@ mod classify_error_tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -2190,6 +2214,7 @@ mod streaming_attempt_tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -2380,6 +2405,7 @@ mod refresh_retry_disabled_tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -2823,6 +2849,7 @@ mod retry_hint_clamp_tests {
             kind: GrpcStatusKind::Unavailable,
             message: "hostile hint".into(),
             retry_after: Some(Duration::from_secs(i64::MAX as u64)),
+            http_status_code: None,
         };
         let clamped = tokio::time::timeout(
             Duration::from_secs(5),

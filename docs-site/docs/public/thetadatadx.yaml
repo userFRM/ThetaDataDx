@@ -10,7 +10,9 @@ info:
     ThetaDataDx also ships native Rust, Python (PyO3), and C++
     bindings backed by the same Rust core.
 
-    All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
+    Date parameters take YYYYMMDD (ISO YYYY-MM-DD is also accepted) and
+    time-of-day parameters take Eastern Time HH:MM:SS. Responses render dates
+    as ISO YYYY-MM-DD and times as ISO local date-times in Eastern Time.
     Intervals are one of the presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     All prices are f64 (double) -- decoded during parsing.
   version: 0.5.0
@@ -98,8 +100,8 @@ x-anchors:
     required: true
     schema:
       type: string
-      pattern: '^\d{8}$'
-    description: Start date in YYYYMMDD format
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
+    description: Start date in YYYYMMDD or YYYY-MM-DD format
 
   end_date-param: &end_date-param
     name: end_date
@@ -107,8 +109,8 @@ x-anchors:
     required: true
     schema:
       type: string
-      pattern: '^\d{8}$'
-    description: End date in YYYYMMDD format
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
+    description: End date in YYYYMMDD or YYYY-MM-DD format
 
   date-param: &date-param
     name: date
@@ -116,8 +118,8 @@ x-anchors:
     required: true
     schema:
       type: string
-      pattern: '^\d{8}$'
-    description: Date in YYYYMMDD format
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
+    description: Date in YYYYMMDD or YYYY-MM-DD format
 
   date-optional-param: &date-optional-param
     name: date
@@ -125,8 +127,8 @@ x-anchors:
     required: false
     schema:
       type: string
-      pattern: '^\d{8}$'
-    description: Date in YYYYMMDD format (optional when using start_date/end_date)
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
+    description: Date in YYYYMMDD or YYYY-MM-DD format (optional when using start_date/end_date)
 
   start_date-optional-param: &start_date-optional-param
     name: start_date
@@ -134,8 +136,8 @@ x-anchors:
     required: false
     schema:
       type: string
-      pattern: '^\d{8}$'
-    description: Range start date in YYYYMMDD format (optional; pair with end_date instead of date)
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
+    description: Range start date in YYYYMMDD or YYYY-MM-DD format (optional; pair with end_date instead of date)
 
   end_date-optional-param: &end_date-optional-param
     name: end_date
@@ -143,8 +145,18 @@ x-anchors:
     required: false
     schema:
       type: string
-      pattern: '^\d{8}$'
-    description: Range end date in YYYYMMDD format (optional; pair with start_date instead of date)
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
+    description: Range end date in YYYYMMDD or YYYY-MM-DD format (optional; pair with start_date instead of date)
+
+  format-param: &format-param
+    name: format
+    in: query
+    required: false
+    schema:
+      type: string
+      enum: [csv, json, json_new, json_legacy, ndjson, jsonl, html]
+      default: csv
+    description: 'Response representation. Defaults to csv; `json_new` is an alias of `json`, and `jsonl` of `ndjson`.'
 
   interval-param: &interval-param
     name: interval
@@ -184,7 +196,7 @@ x-anchors:
     required: false
     schema:
       type: string
-    description: Start time in milliseconds from midnight ET
+    description: Start of the time-of-day window, Eastern Time HH:MM:SS (default 09:30:00)
 
   end_time-param: &end_time-param
     name: end_time
@@ -192,7 +204,7 @@ x-anchors:
     required: false
     schema:
       type: string
-    description: End time in milliseconds from midnight ET
+    description: End of the time-of-day window, Eastern Time HH:MM:SS (default 16:00:00)
 
   request_type-param: &request_type-param
     name: request_type
@@ -209,9 +221,9 @@ x-anchors:
     required: true
     schema:
       type: string
-      pattern: '^(\d{8}|\*)$'
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2}|\*)$'
     description: >-
-      Option expiration date in YYYYMMDD format. Pass `*` to select all
+      Option expiration date in YYYYMMDD or YYYY-MM-DD format. Pass `*` to select all
       expirations for the underlying (chain-wide; query one date at a time).
 
   expiration-no-star-param: &expiration-no-star-param
@@ -220,9 +232,9 @@ x-anchors:
     required: true
     schema:
       type: string
-      pattern: '^\d{8}$'
+      pattern: '^(\d{8}|\d{4}-\d{2}-\d{2})$'
     description: >-
-      Option expiration date in YYYYMMDD format. This endpoint resolves a
+      Option expiration date in YYYYMMDD or YYYY-MM-DD format. This endpoint resolves a
       single concrete expiration and rejects the `*` wildcard.
 
   strike-param: &strike-param
@@ -331,279 +343,78 @@ x-anchors:
       type: boolean
     description: Use NBBO midpoint for underlying price
 
-  # --- Common response schemas ---
-  ohlc-tick: &ohlc-tick
+  # --- Response shape ---
+  # Every registry route answers in the same envelope; only the columns of a
+  # row differ. Each route's reference page lists its columns in order, and a
+  # row carries only the columns the upstream response carried, so the columns
+  # are not modelled per route here.
+  row: &row
     type: object
-    properties:
-      ms_of_day:
-        type: integer
-        description: Milliseconds since midnight ET
-      open:
-        type: number
-        format: double
-        description: Opening price (f64)
-      high:
-        type: number
-        format: double
-        description: Highest price (f64)
-      low:
-        type: number
-        format: double
-        description: Lowest price (f64)
-      close:
-        type: number
-        format: double
-        description: Closing price (f64)
-      volume:
-        type: integer
-        format: int64
-        description: Number of shares/contracts traded
-      count:
-        type: integer
-        format: int64
-        description: Number of trades
-      date:
-        type: integer
-        description: Date as YYYYMMDD integer
+    description: |
+      One record, keyed by column name. The columns and their order are those
+      listed on the route's reference page. Times are ISO local date-times in
+      US Eastern time under `timestamp` (`2024-01-02T09:30:00.000`), dates are
+      ISO `YYYY-MM-DD` strings, an option right is `CALL` or `PUT`, and a
+      condition or exchange cell the upstream left empty is `null`.
+    additionalProperties: true
 
-  trade-tick: &trade-tick
-    type: object
-    properties:
-      ms_of_day:
-        type: integer
-        description: Milliseconds since midnight ET
-      sequence:
-        type: integer
-        description: Exchange sequence number
-      size:
-        type: integer
-        description: Trade size in shares
-      price:
-        type: number
-        format: double
-        description: Trade price (f64)
-      exchange:
-        type: integer
-        description: Exchange code
-      condition:
-        type: integer
-        description: Trade condition code
-      date:
-        type: integer
-        description: Date as YYYYMMDD integer
-
-  quote-tick: &quote-tick
-    type: object
-    properties:
-      ms_of_day:
-        type: integer
-        description: Milliseconds since midnight ET
-      bid:
-        type: number
-        format: double
-        description: Bid price (f64)
-      ask:
-        type: number
-        format: double
-        description: Ask price (f64)
-      bid_size:
-        type: integer
-        description: Bid size
-      ask_size:
-        type: integer
-        description: Ask size
-      date:
-        type: integer
-        description: Date as YYYYMMDD integer
-
-  eod-tick: &eod-tick
-    type: object
-    properties:
-      ms_of_day:
-        type: integer
-      open:
-        type: number
-        format: double
-      high:
-        type: number
-        format: double
-      low:
-        type: number
-        format: double
-      close:
-        type: number
-        format: double
-      volume:
-        type: integer
-        format: int64
-      count:
-        type: integer
-        format: int64
-      bid:
-        type: number
-        format: double
-      ask:
-        type: number
-        format: double
-      bid_size:
-        type: integer
-      ask_size:
-        type: integer
-      date:
-        type: integer
-        description: Date as YYYYMMDD integer
-
-  open-interest-tick: &open-interest-tick
-    type: object
-    properties:
-      ms_of_day:
-        type: integer
-      open_interest:
-        type: integer
-      date:
-        type: integer
-
-  trade-quote-tick: &trade-quote-tick
-    type: object
-    description: Combined trade + quote tick (25 fields)
-    properties:
-      ms_of_day:
-        type: integer
-      sequence:
-        type: integer
-      size:
-        type: integer
-      price:
-        type: number
-        format: double
-      exchange:
-        type: integer
-      condition:
-        type: integer
-      bid:
-        type: number
-        format: double
-      ask:
-        type: number
-        format: double
-      bid_size:
-        type: integer
-      ask_size:
-        type: integer
-      date:
-        type: integer
-
-  data-table: &data-table
-    type: object
-    description: Generic DataTable with string headers and typed cell values
-    properties:
-      headers:
-        type: array
-        items:
+  v3-response: &v3-response
+    description: |
+      Successful response, in the representation the `format` parameter
+      selects. Without `format` the body is CSV with a header row. With
+      `format=json` it is the envelope below: `response` holds the rows, except
+      on option market-data routes, where it holds one
+      `{"contract": {symbol, expiration, strike, right}, "data": [row, ...]}`
+      block per contract, in the order the contracts arrived. `ndjson` / `jsonl`
+      writes one row object per line with the contract columns inline, `html`
+      a table, and `json_legacy` one array per column, keyed by column name.
+    content:
+      text/csv:
+        schema:
           type: string
-      data_table:
-        type: array
-        items:
-          type: array
-          items:
-            oneOf:
-              - type: string
-              - type: integer
-              - type: number
-              - type: "null"
-
-  symbol-list: &symbol-list
-    type: array
-    items:
-      type: string
-
-  date-list: &date-list
-    type: array
-    items:
-      type: string
-      pattern: '^\d{8}$'
-
-  # --- Reusable response wrappers ---
-  ohlc-response: &ohlc-response
-    description: Successful response
-    content:
       application/json:
         schema:
-          type: array
-          items: *ohlc-tick
-
-  trade-response: &trade-response
-    description: Successful response
-    content:
-      application/json:
+          anyOf:
+            - description: '`format=json` / `json_new`: the rows inside the `response` envelope.'
+              type: object
+              required: [response]
+              properties:
+                response:
+                  type: array
+                  items:
+                    oneOf:
+                      - *row
+                      - type: object
+                        required: [contract, data]
+                        properties:
+                          contract:
+                            type: object
+                            properties:
+                              symbol:
+                                type: string
+                              expiration:
+                                type: string
+                                description: ISO `YYYY-MM-DD` date
+                              strike:
+                                type: number
+                                format: double
+                                description: Strike in dollars
+                              right:
+                                type: string
+                                enum: [CALL, PUT]
+                          data:
+                            type: array
+                            items: *row
+            - description: '`format=json_legacy`: no envelope; one array per column, keyed by column name, where index `i` of every array is row `i`.'
+              type: object
+              additionalProperties:
+                type: array
+      application/x-ndjson:
         schema:
-          type: array
-          items: *trade-tick
-
-  quote-response: &quote-response
-    description: Successful response
-    content:
-      application/json:
+          type: string
+      text/html:
         schema:
-          type: array
-          items: *quote-tick
-
-  eod-response: &eod-response
-    description: Successful response
-    content:
-      application/json:
-        schema:
-          type: array
-          items: *eod-tick
-
-  trade-quote-response: &trade-quote-response
-    description: Successful response
-    content:
-      application/json:
-        schema:
-          type: array
-          items: *trade-quote-tick
-
-  option-contract-response: &option-contract-response
-    description: Successful response
-    content:
-      application/json:
-        schema:
-          type: array
-          items:
-            type: object
-            properties:
-              root:
-                type: string
-              expiration:
-                type: string
-              strike:
-                type: string
-              right:
-                type: string
-                description: >-
-                  Option right as emitted by the drop-in REST/WS server.
-                  Currently `"C"` (call) or `"P"` (put); no enum constraint
-                  so future output formats (e.g. upstream `"CALL"`/`"PUT"`)
-                  remain backward-compatible.
-
-  data-table-response: &data-table-response
-    description: Successful response
-    content:
-      application/json:
-        schema: *data-table
-
-  symbol-list-response: &symbol-list-response
-    description: Successful response
-    content:
-      application/json:
-        schema: *symbol-list
-
-  date-list-response: &date-list-response
-    description: Successful response
-    content:
-      application/json:
-        schema: *date-list
+          type: string
 
 # ---------------------------------------------------------------------------
 # PATHS
@@ -623,9 +434,10 @@ paths:
         Returns all traded stock symbols. Updated overnight.
         gRPC: GetStockListSymbols
       tags: [Stock / List]
-      parameters: []
+      parameters:
+        - *format-param
       responses:
-        '200': *symbol-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -653,8 +465,9 @@ paths:
       parameters:
         - *request_type-param
         - *symbol-param
+        - *format-param
       responses:
-        '200': *date-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -689,8 +502,9 @@ paths:
             enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
           description: The type of data request (case-insensitive).
         - *symbol-param
+        - *format-param
       responses:
-        '200': *date-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -724,8 +538,9 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *ohlc-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -755,8 +570,9 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *trade-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -786,8 +602,9 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *quote-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -815,8 +632,9 @@ paths:
         - *symbols-param
         - *venue-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -848,8 +666,9 @@ paths:
         - *symbol-param
         - *start_date-param
         - *end_date-param
+        - *format-param
       responses:
-        '200': *eod-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -883,8 +702,9 @@ paths:
         - *start_time-param
         - *end_time-param
         - *venue-param
+        - *format-param
       responses:
-        '200': *ohlc-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -926,8 +746,9 @@ paths:
           schema:
             type: string
           description: End date for multi-day range (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *trade-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -947,7 +768,7 @@ paths:
       operationId: stockHistoryQuote
       summary: Stock quote history
       description: |
-        NBBO quotes at a given interval. Use "0" for every quote change.
+        NBBO quotes at a given interval. Use "tick" for every quote change.
         gRPC: GetStockHistoryQuote
       tags: [Stock / History]
       parameters:
@@ -969,8 +790,9 @@ paths:
           schema:
             type: string
           description: End date for multi-day range (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *quote-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1013,8 +835,9 @@ paths:
           schema:
             type: string
           description: End date for multi-day range (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *trade-quote-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1049,8 +872,9 @@ paths:
         - *end_date-param
         - *time_of_day-param
         - *venue-param
+        - *format-param
       responses:
-        '200': *trade-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1080,8 +904,9 @@ paths:
         - *end_date-param
         - *time_of_day-param
         - *venue-param
+        - *format-param
       responses:
-        '200': *quote-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1109,9 +934,10 @@ paths:
         Returns all option underlying symbols. Updated overnight.
         gRPC: GetOptionListSymbols
       tags: [Option / List]
-      parameters: []
+      parameters:
+        - *format-param
       responses:
-        '200': *symbol-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1141,8 +967,9 @@ paths:
         - *expiration-no-star-param
         - *strike-param
         - *right-param
+        - *format-param
       responses:
-        '200': *date-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1180,8 +1007,9 @@ paths:
         - *expiration-param
         - *strike-param
         - *right-param
+        - *format-param
       responses:
-        '200': *date-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1207,8 +1035,9 @@ paths:
       tags: [Option / List]
       parameters:
         - *symbol-param
+        - *format-param
       responses:
-        '200': *date-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1235,15 +1064,9 @@ paths:
       parameters:
         - *symbol-param
         - *expiration-no-star-param
+        - *format-param
       responses:
-        '200':
-          description: Successful response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: string
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1273,8 +1096,9 @@ paths:
         - *symbol-param
         - *date-param
         - *max_dte-param
+        - *format-param
       responses:
-        '200': *option-contract-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1312,8 +1136,9 @@ paths:
         - *symbol-param
         - *date-param
         - *max_dte-param
+        - *format-param
       responses:
-        '200': *option-contract-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1349,8 +1174,9 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *ohlc-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1381,8 +1207,9 @@ paths:
         - *right-param
         - *strike_range-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *trade-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1414,8 +1241,9 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *quote-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1447,8 +1275,9 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1480,8 +1309,9 @@ paths:
         - *max_dte-param
         - *strike_range-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1523,8 +1353,9 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1563,8 +1394,9 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1602,8 +1434,9 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1641,8 +1474,9 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1680,8 +1514,9 @@ paths:
         - *stock_price-param
         - *greeks_version-param
         - *use_market_value-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1718,8 +1553,9 @@ paths:
         - *end_date-param
         - *max_dte-param
         - *strike_range-param
+        - *format-param
       responses:
-        '200': *eod-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1766,8 +1602,9 @@ paths:
           schema:
             type: string
           description: End date for multi-day range (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *ohlc-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1813,8 +1650,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *trade-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1860,8 +1698,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *quote-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1907,8 +1746,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1952,8 +1792,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -1995,8 +1836,9 @@ paths:
         - *underlyer_use_nbbo-param
         - *max_dte-param
         - *strike_range-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2046,8 +1888,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2097,8 +1940,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2148,8 +1992,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2199,8 +2044,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2250,8 +2096,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2305,8 +2152,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2356,8 +2204,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2407,8 +2256,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2458,8 +2308,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2509,8 +2360,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2548,8 +2400,9 @@ paths:
         - *time_of_day-param
         - *max_dte-param
         - *strike_range-param
+        - *format-param
       responses:
-        '200': *trade-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2583,8 +2436,9 @@ paths:
         - *time_of_day-param
         - *max_dte-param
         - *strike_range-param
+        - *format-param
       responses:
-        '200': *quote-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2612,9 +2466,10 @@ paths:
         Returns all available index symbols. Updated overnight.
         gRPC: GetIndexListSymbols
       tags: [Index / List]
-      parameters: []
+      parameters:
+        - *format-param
       responses:
-        '200': *symbol-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2640,8 +2495,9 @@ paths:
       tags: [Index / List]
       parameters:
         - *symbol-param
+        - *format-param
       responses:
-        '200': *date-list-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2672,8 +2528,9 @@ paths:
       parameters:
         - *symbols-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *ohlc-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2700,8 +2557,9 @@ paths:
       parameters:
         - *symbols-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2728,8 +2586,9 @@ paths:
       parameters:
         - *symbols-param
         - *min_time-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2761,8 +2620,9 @@ paths:
         - *symbol-param
         - *start_date-param
         - *end_date-param
+        - *format-param
       responses:
-        '200': *eod-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2793,8 +2653,9 @@ paths:
         - *interval-param
         - *start_time-param
         - *end_time-param
+        - *format-param
       responses:
-        '200': *ohlc-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2836,8 +2697,9 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2870,8 +2732,9 @@ paths:
         - *start_date-param
         - *end_date-param
         - *time_of_day-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2899,9 +2762,10 @@ paths:
         Returns whether the market is open today.
         gRPC: GetCalendarOpenToday
       tags: [Calendar]
-      parameters: []
+      parameters:
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2927,8 +2791,9 @@ paths:
       tags: [Calendar]
       parameters:
         - *date-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2960,8 +2825,9 @@ paths:
             type: string
             pattern: '^\d{4}$'
           description: Four-digit year (e.g. "2024")
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -2986,9 +2852,10 @@ paths:
         open today. Same endpoint, same response; this is the `/v3` path name.
         gRPC: GetCalendarOpenToday
       tags: [Calendar]
-      parameters: []
+      parameters:
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -3022,8 +2889,9 @@ paths:
             type: string
             pattern: '^\d{4}$'
           description: Four-digit year (e.g. "2024")
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -3055,8 +2923,9 @@ paths:
         - *symbol-param
         - *start_date-param
         - *end_date-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -3086,8 +2955,9 @@ paths:
         - *symbol-param
         - *start_date-param
         - *end_date-param
+        - *format-param
       responses:
-        '200': *data-table-response
+        '200': *v3-response
       x-code-examples:
         - lang: rust
           label: Rust
@@ -3253,13 +3123,7 @@ paths:
 components:
 
   schemas:
-    OhlcTick: *ohlc-tick
-    TradeTick: *trade-tick
-    QuoteTick: *quote-tick
-    EodTick: *eod-tick
-    OpenInterestTick: *open-interest-tick
-    TradeQuoteTick: *trade-quote-tick
-    DataTable: *data-table
+    Row: *row
 
     ContractSpec:
       type: object
@@ -3271,7 +3135,7 @@ components:
           description: Underlying symbol (e.g. "SPY")
         expiration:
           type: string
-          description: Expiration date in YYYYMMDD format
+          description: Expiration date in YYYYMMDD or YYYY-MM-DD format
         strike:
           type: string
           description: Strike price in dollars as a string
@@ -3482,12 +3346,25 @@ components:
 
     Error:
       type: object
+      description: |
+        The JSON body of the failures the server answers with an envelope: a
+        query string it cannot accept, any failure on the flat-file routes, and
+        an internal fault while rendering a response. `error_type` is the
+        discriminator a client branches on; see the error codes page for the
+        values. Every other failed request is answered with an HTTP status and
+        a plain-text description.
+      required: [header, response]
       properties:
-        code:
-          type: string
-          enum: [Auth, Http, Grpc, NoData]
-        message:
-          type: string
+        header:
+          type: object
+          properties:
+            error_type:
+              type: string
+            error_msg:
+              type: string
+        response:
+          type: array
+          maxItems: 0
 
   parameters:
     symbol:

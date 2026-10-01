@@ -289,6 +289,7 @@ mod tests {
                                 kind: thetadatadx::error::GrpcStatusKind::ResourceExhausted,
                                 message: "429".into(),
                                 retry_after: Some(std::time::Duration::from_millis(1500)),
+                                http_status_code: None,
                             })
                         },
                         |_py: Python<'_>, _value: i64| -> PyResult<Py<PyAny>> {

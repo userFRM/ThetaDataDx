@@ -2,12 +2,14 @@
 name = "thetadatadx-napi"
 version = "0.5.0"
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.94"
 description = "TypeScript/Node.js bindings for thetadatadx — native ThetaData SDK powered by Rust"
 license = "Apache-2.0"
 homepage = "https://github.com/userFRM/ThetaDataDx"
 repository = "https://github.com/userFRM/ThetaDataDx"
 readme = "README.md"
+# npm package only; never publish this napi shim to crates.io.
+publish = false
 
 [workspace]
 

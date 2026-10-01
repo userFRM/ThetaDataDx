@@ -128,7 +128,7 @@ use std::time::Duration;
 
 use crate::auth::Credentials;
 use crate::backoff::JitterMode;
-use crate::config::{ReconnectPolicy, WaitMode};
+use crate::config::{ReconnectConfig, ReconnectPolicy, StreamingConfig, WaitMode};
 use crate::error::Error;
 use crate::tdbe::types::enums::{RemoveReason, SecType, StreamMsgType};
 
@@ -379,18 +379,28 @@ pub(in crate::fpss) fn wire_req_id(counter_value: i64) -> i32 {
     (counter_value & 0x7FFF_FFFF) as i32
 }
 
-/// Whether a security type has an upstream full-stream broadcast.
+/// Whether the feed broadcasts `kind` as a full stream for `sec_type`.
 ///
-/// Full-stream subscriptions are only broadcast for [`SecType::Stock`] and
-/// [`SecType::Option`]. The server accepts a full-stream subscribe frame for
-/// other security types and answers with a `Subscribed` response, but never
+/// Full-stream trades are broadcast only for [`SecType::Stock`] and
+/// [`SecType::Option`], and full-stream open interest only for
+/// [`SecType::Option`]: open interest counts option contracts outstanding and
+/// a stock does not have one. The server accepts a full-stream subscribe frame
+/// for any other pair and answers with a `Subscribed` response, but never
 /// streams a tick, so the subscribe boundary rejects them up front rather than
 /// leaving the caller waiting on a feed that will never arrive. Indices and
 /// rates are addressed per-contract instead
 /// (for example `Contract::index("VIX").trade()`).
 #[must_use]
-pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
-    matches!(sec_type, SecType::Stock | SecType::Option)
+pub(crate) fn full_stream_supported(
+    sec_type: SecType,
+    kind: protocol::FullSubscriptionKind,
+) -> bool {
+    match kind {
+        protocol::FullSubscriptionKind::Trades => {
+            matches!(sec_type, SecType::Stock | SecType::Option)
+        }
+        protocol::FullSubscriptionKind::OpenInterest => matches!(sec_type, SecType::Option),
+    }
 }
 
 /// Whether the feed publishes `kind` for `sec_type` per contract.
@@ -481,38 +491,89 @@ impl<'a> StreamingClientBuilder<'a> {
     /// defaults for the rest.
     #[must_use]
     pub fn new(creds: &'a Credentials, hosts: &'a [(String, u16)]) -> Self {
-        let reconnect = crate::config::ReconnectConfig::production_defaults();
-        let fpss = crate::config::StreamingConfig::production_defaults();
+        // The production ring size gives a direct-builder user production-
+        // grade headroom by default. ThetaData streams large shapes (10k-15k
+        // option contracts plus full trade streams); a small default ring
+        // overflows under real market bursts and drops the newest events.
+        // Callers that want a smaller footprint can set `.ring_size(..)`.
+        Self::with_hosts(
+            creds,
+            hosts,
+            &StreamingConfig::production_defaults(),
+            &ReconnectConfig::production_defaults(),
+        )
+    }
+
+    /// Construct a builder carrying every connection-side knob of a
+    /// [`StreamingConfig`] and a [`ReconnectConfig`], hosts included.
+    ///
+    /// This is how the unified client and every language binding connect,
+    /// so a knob added to either config reaches all of them at once.
+    #[must_use]
+    pub fn from_config(
+        creds: &'a Credentials,
+        streaming: &'a StreamingConfig,
+        reconnect: &ReconnectConfig,
+    ) -> Self {
+        Self::with_hosts(creds, &streaming.hosts, streaming, reconnect)
+    }
+
+    fn with_hosts(
+        creds: &'a Credentials,
+        hosts: &'a [(String, u16)],
+        streaming: &StreamingConfig,
+        reconnect: &ReconnectConfig,
+    ) -> Self {
+        // Destructured without `..`, so a field added to either config does
+        // not compile until it is carried into the builder here.
+        let StreamingConfig {
+            hosts: _,
+            timeout_ms,
+            ring_size,
+            ping_interval_ms,
+            connect_timeout_ms,
+            io_read_slice_ms,
+            keepalive_idle_secs,
+            keepalive_interval_secs,
+            keepalive_retries,
+            consumer_cpu,
+            wait_mode,
+            park_interval_us,
+        } = *streaming;
+        let ReconnectConfig {
+            wait_ms,
+            wait_max_ms,
+            wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
+            ref policy,
+        } = *reconnect;
         Self {
             creds,
             hosts,
-            // Match the production ring size so a direct-builder user gets
-            // production-grade headroom by default. ThetaData streams large
-            // shapes (10k-15k option contracts plus full trade streams); a
-            // small default ring overflows under real market bursts and drops
-            // the newest events. Callers that want a smaller footprint can set
-            // `.ring_size(..)` explicitly.
-            ring_size: fpss.ring_size,
-            policy: ReconnectPolicy::default(),
-            wait_ms: reconnect.wait_ms,
-            wait_max_ms: reconnect.wait_max_ms,
-            wait_rate_limited_ms: reconnect.wait_rate_limited_ms,
-            wait_server_restart_ms: reconnect.wait_server_restart_ms,
-            jitter: reconnect.jitter,
-            replay_burst_size: reconnect.replay_burst_size,
-            replay_pace_ms: reconnect.replay_pace_ms,
-            connect_timeout_ms: fpss.connect_timeout_ms,
-            read_timeout_ms: fpss.timeout_ms,
-            ping_interval_ms: fpss.ping_interval_ms,
-            io_read_slice_ms: fpss.io_read_slice_ms,
-            keepalive_idle_secs: fpss.keepalive_idle_secs,
-            keepalive_interval_secs: fpss.keepalive_interval_secs,
-            keepalive_retries: fpss.keepalive_retries,
+            ring_size,
+            policy: policy.clone(),
+            wait_ms,
+            wait_max_ms,
+            wait_rate_limited_ms,
+            wait_server_restart_ms,
+            jitter,
+            replay_burst_size,
+            replay_pace_ms,
+            connect_timeout_ms,
+            read_timeout_ms: timeout_ms,
+            ping_interval_ms,
+            io_read_slice_ms,
+            keepalive_idle_secs,
+            keepalive_interval_secs,
+            keepalive_retries,
             wait_strategy: ring::AdaptiveWaitStrategy::from_mode(
-                fpss.wait_mode,
-                Duration::from_micros(fpss.park_interval_us),
+                wait_mode,
+                Duration::from_micros(park_interval_us),
             ),
-            consumer_cpu: fpss.consumer_cpu,
+            consumer_cpu,
         }
     }
 
@@ -1157,8 +1218,8 @@ impl StreamingClient {
             .collect();
         let connect_timeout = Duration::from_millis(connect_timeout_ms);
         let read_timeout = Duration::from_millis(read_timeout_ms);
-        // The write deadline bounds the credentials write that drives the
-        // lazy TLS handshake and every steady-state ping/subscribe write.
+        // The write deadline bounds the TLS handshake, the credentials write
+        // and every steady-state ping/subscribe write.
         // It shares the read timeout's budget: both bound a single
         // unacknowledged transport operation during the connect window.
         let write_timeout = read_timeout;
@@ -1280,8 +1341,15 @@ impl StreamingClient {
                         message: format!("FPSS server rejected login: {reason:?}"),
                     });
                 }
+                // A throttled login is the documented rate-limit error, so a
+                // caller backs off instead of redialling into the throttle.
+                let kind = if reason == RemoveReason::TooManyRequests {
+                    crate::error::StreamErrorKind::TooManyRequests
+                } else {
+                    crate::error::StreamErrorKind::Disconnected
+                };
                 return Err(Error::Stream {
-                    kind: crate::error::StreamErrorKind::Disconnected,
+                    kind,
                     message: format!("server rejected login: {reason:?}"),
                 });
             }
@@ -2261,23 +2329,44 @@ impl StreamingClient {
         unsubscribe: bool,
     ) -> Result<(), Error> {
         self.check_connected()?;
-        // Reject security types with no upstream full-stream broadcast before
-        // allocating a req_id, emitting a frame, or tracking the subscription
-        // for reconnect replay. Stock and Option are the only security types
-        // with a full-stream broadcast; an index or rate full-stream subscribe
-        // is accepted on the wire and answered `Subscribed`, then never streams
-        // a tick — so it is rejected here at the subscribe boundary instead.
-        if !full_stream_sec_type_supported(sec_type) {
+        // Reject a subscribe to a pair with no upstream full-stream broadcast
+        // before allocating a req_id, emitting a frame, or tracking the
+        // subscription for reconnect replay. Such a subscribe is accepted on
+        // the wire and answered `Subscribed`, then never streams a tick, so it
+        // is rejected here at the subscribe boundary instead. An unsubscribe
+        // for a real security type is left alone, as on the per-contract
+        // path, so a full stream opened elsewhere on the account can be
+        // removed. `Unknown` is refused both ways: it is not a security type
+        // the feed addresses, so no full stream for it exists to remove.
+        let refusal = if sec_type == SecType::Unknown {
+            Some(format!(
+                "{sec_type:?} is not a security type the feed publishes, so there is no \
+                 full-stream {kind:?} broadcast to subscribe to or unsubscribe from."
+            ))
+        } else if !unsubscribe && !full_stream_supported(sec_type, kind) {
+            let remedy = match kind {
+                protocol::FullSubscriptionKind::Trades => {
+                    "Full-stream Trades is published for Stock and Option; subscribe \
+                     per-contract instead (for example Contract::index(\"VIX\").trade())."
+                }
+                protocol::FullSubscriptionKind::OpenInterest => {
+                    "Open interest is published only for options."
+                }
+            };
+            Some(format!(
+                "{sec_type:?} has no full-stream {kind:?} broadcast upstream; the server \
+                 accepts the subscribe and then never sends a tick. {remedy}"
+            ))
+        } else {
+            None
+        };
+        if let Some(message) = refusal {
             return Err(Error::Config {
                 kind: crate::error::ConfigErrorKind::InvalidValue {
                     field: "Subscription::full".to_string(),
-                    message: format!(
-                        "full-stream subscriptions are supported only for Stock and Option; \
-                         {sec_type:?} has no full broadcast upstream — subscribe per-contract \
-                         instead (for example Contract::index(\"VIX\").trade())"
-                    ),
+                    message,
                 },
-                message: "unsupported full-stream security type".to_string(),
+                message: "unsupported full-stream subscription".to_string(),
                 source: None,
             });
         }
@@ -2476,6 +2565,20 @@ impl StreamingClient {
     /// must start a new one. It never returns to `false`.
     pub fn reconnects_exhausted(&self) -> bool {
         self.reconnects_exhausted.load(Ordering::Acquire)
+    }
+
+    /// Whether the calling thread is this client's I/O thread, which runs a
+    /// custom reconnect policy's decision closure itself when no decision
+    /// thread could be spawned for it.
+    ///
+    /// A teardown called from there must not wait for the event dispatcher:
+    /// the dispatcher exits only once the I/O thread drops the ring producer,
+    /// which it cannot do while it is blocked in that wait.
+    #[must_use]
+    pub fn on_io_thread(&self) -> bool {
+        self.io_handle
+            .as_ref()
+            .is_some_and(|h| h.thread().id() == thread::current().id())
     }
 
     /// Get the server address the initial connect landed on.
@@ -3263,39 +3366,67 @@ mod builder_tests {
         assert!(err.to_string().contains("park_interval_us"), "{err}");
     }
 
-    /// The fluent builder is the only channel through which tuning
-    /// reaches the runtime. If a future refactor drops any setter, this
-    /// test fails to compile — the desired regression guard.
+    /// `from_config` is how the unified client and every binding connect,
+    /// so each config knob must land in its own connect argument. The
+    /// exhaustive destructure makes a new field a compile error; this
+    /// catches a field carried into the wrong slot or left at its default.
+    /// Every knob is set away from its default so neither can pass.
     #[test]
-    fn production_config_threads_timing_knobs_through_builder() {
-        let cfg = DirectConfig::production();
+    fn from_config_threads_every_knob_into_the_connect_args() {
+        let mut cfg = DirectConfig::production();
+        let s = &mut cfg.streaming;
+        s.hosts = vec![("stream.example.com".to_owned(), 12345)];
+        s.timeout_ms = 111_111;
+        s.ring_size = 1 << 20;
+        s.ping_interval_ms = 22_222;
+        s.connect_timeout_ms = 33_333;
+        s.io_read_slice_ms = 44;
+        s.keepalive_idle_secs = 66;
+        s.keepalive_interval_secs = 77;
+        s.keepalive_retries = 8;
+        s.consumer_cpu = Some(3);
+        s.wait_mode = WaitMode::Park;
+        s.park_interval_us = 999;
+        let r = &mut cfg.reconnect;
+        r.wait_ms = 1_010;
+        r.wait_max_ms = 2_020;
+        r.wait_rate_limited_ms = 3_030;
+        r.wait_server_restart_ms = 4_040;
+        r.jitter = JitterMode::None;
+        r.replay_burst_size = 51;
+        r.replay_pace_ms = 62;
+        r.policy = ReconnectPolicy::Manual;
+
         let creds = Credentials::new("user", "pw");
-        let args = StreamingClientBuilder::new(&creds, &cfg.streaming.hosts)
-            .ring_size(cfg.streaming.ring_size)
-            .reconnect_policy(cfg.reconnect.policy.clone())
-            .reconnect_wait_ms(cfg.reconnect.wait_ms)
-            .reconnect_wait_rate_limited_ms(cfg.reconnect.wait_rate_limited_ms)
-            .connect_timeout_ms(cfg.streaming.connect_timeout_ms)
-            .read_timeout_ms(cfg.streaming.timeout_ms)
-            .ping_interval_ms(cfg.streaming.ping_interval_ms)
-            .into_args();
-        assert_eq!(args.connect_timeout_ms, cfg.streaming.connect_timeout_ms);
-        assert_eq!(args.read_timeout_ms, cfg.streaming.timeout_ms);
-        assert_eq!(args.ping_interval_ms, cfg.streaming.ping_interval_ms);
-        assert_eq!(args.ring_size, cfg.streaming.ring_size);
-        assert_eq!(args.wait_ms, cfg.reconnect.wait_ms);
-        assert_eq!(
-            args.wait_rate_limited_ms,
-            cfg.reconnect.wait_rate_limited_ms
-        );
+        let args =
+            StreamingClientBuilder::from_config(&creds, &cfg.streaming, &cfg.reconnect).into_args();
+
+        assert_eq!(args.hosts, cfg.streaming.hosts.as_slice());
+        assert_eq!(args.read_timeout_ms, 111_111);
+        assert_eq!(args.ring_size, 1 << 20);
+        assert_eq!(args.ping_interval_ms, 22_222);
+        assert_eq!(args.connect_timeout_ms, 33_333);
+        assert_eq!(args.io_read_slice_ms, 44);
+        assert_eq!(args.keepalive_idle_secs, 66);
+        assert_eq!(args.keepalive_interval_secs, 77);
+        assert_eq!(args.keepalive_retries, 8);
+        assert_eq!(args.consumer_cpu, Some(3));
+        assert_eq!(args.wait_strategy.mode, WaitMode::Park);
+        assert_eq!(args.wait_strategy.park, Duration::from_micros(999));
+        assert_eq!(args.wait_ms, 1_010);
+        assert_eq!(args.wait_max_ms, 2_020);
+        assert_eq!(args.wait_rate_limited_ms, 3_030);
+        assert_eq!(args.wait_server_restart_ms, 4_040);
+        assert_eq!(args.jitter, JitterMode::None);
+        assert_eq!(args.replay_burst_size, 51);
+        assert_eq!(args.replay_pace_ms, 62);
+        assert!(matches!(args.policy, ReconnectPolicy::Manual));
     }
 }
 
 #[cfg(test)]
 mod full_stream_guard_tests {
-    use super::{
-        full_stream_sec_type_supported, HarnessPublishMode, StreamingClient, SubscriptionKind,
-    };
+    use super::{full_stream_supported, HarnessPublishMode, StreamingClient, SubscriptionKind};
     use crate::error::{ConfigErrorKind, Error};
     use crate::fpss::protocol::{Contract, SecTypeExt};
     use crate::tdbe::types::enums::SecType;
@@ -3309,18 +3440,32 @@ mod full_stream_guard_tests {
         }
     }
 
-    /// The full-stream broadcast is only delivered upstream for Stock and
-    /// Option. The subscribe boundary uses this predicate to reject any
-    /// other security type before emitting a frame or tracking the
-    /// subscription for reconnect replay, so a caller is told up front
-    /// rather than waiting on a feed that will never arrive.
+    /// The full-stream broadcasts that exist upstream: trades for Stock and
+    /// Option, open interest for Option only. The subscribe boundary uses
+    /// this predicate to reject any other pair before emitting a frame or
+    /// tracking the subscription for reconnect replay, so a caller is told
+    /// up front rather than waiting on a feed that will never arrive.
     #[test]
-    fn full_stream_supported_only_for_stock_and_option() {
-        assert!(full_stream_sec_type_supported(SecType::Stock));
-        assert!(full_stream_sec_type_supported(SecType::Option));
-        assert!(!full_stream_sec_type_supported(SecType::Index));
-        assert!(!full_stream_sec_type_supported(SecType::Rate));
-        assert!(!full_stream_sec_type_supported(SecType::Unknown));
+    fn full_stream_supported_matches_the_published_broadcasts() {
+        use crate::fpss::protocol::FullSubscriptionKind::{OpenInterest, Trades};
+        for (sec_type, kind, expected) in [
+            (SecType::Stock, Trades, true),
+            (SecType::Option, Trades, true),
+            (SecType::Index, Trades, false),
+            (SecType::Rate, Trades, false),
+            (SecType::Unknown, Trades, false),
+            (SecType::Stock, OpenInterest, false),
+            (SecType::Option, OpenInterest, true),
+            (SecType::Index, OpenInterest, false),
+            (SecType::Rate, OpenInterest, false),
+            (SecType::Unknown, OpenInterest, false),
+        ] {
+            assert_eq!(
+                full_stream_supported(sec_type, kind),
+                expected,
+                "full-stream {kind:?} for {sec_type:?}"
+            );
+        }
     }
 
     /// End-to-end: a full-stream subscription on an index is rejected at the
@@ -3356,6 +3501,36 @@ mod full_stream_guard_tests {
             client.active_full_subscriptions().is_empty(),
             "rejected full-stream subscription must not be tracked"
         );
+
+        client.shutdown();
+    }
+
+    /// A full-stream unsubscribe goes out for any real security type, so a
+    /// stream opened elsewhere on the account can be removed, but `Unknown`
+    /// names no stream at all and is refused on unsubscribe as on subscribe.
+    #[test]
+    fn full_unsubscribe_refuses_only_unknown() {
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        for (sec_type, refused) in [(SecType::Index, false), (SecType::Unknown, true)] {
+            match client.unsubscribe(sec_type.full_trades()) {
+                Ok(()) => assert!(
+                    !refused,
+                    "full-stream {sec_type:?} unsubscribe must be refused"
+                ),
+                Err(Error::Config {
+                    kind: ConfigErrorKind::InvalidValue { ref field, .. },
+                    ..
+                }) if refused => assert_eq!(field, "Subscription::full"),
+                Err(other) => panic!("full-stream {sec_type:?} unsubscribe: unexpected {other:?}"),
+            }
+        }
 
         client.shutdown();
     }
@@ -3830,29 +4005,6 @@ mod full_stream_guard_tests {
         );
 
         client.shutdown();
-    }
-
-    /// The command channel is bounded: once it is saturated, a further
-    /// `try_send` reports `Full` rather than growing without limit. This
-    /// pins the backpressure contract `send_cmd` relies on to surface a
-    /// typed queue-full error instead of silently dropping a command or
-    /// accumulating unbounded memory. A held receiver keeps the channel
-    /// alive so saturation (not hang-up) is the observed condition.
-    #[test]
-    fn command_channel_is_bounded() {
-        use std::sync::mpsc as std_mpsc;
-        let cap = super::CMD_CHANNEL_CAPACITY;
-        let (tx, _rx) = std_mpsc::sync_channel::<super::events::IoCommand>(cap);
-        // Fill to capacity: every send up to the bound must succeed.
-        for _ in 0..cap {
-            tx.try_send(super::events::IoCommand::Shutdown)
-                .expect("sends up to capacity must succeed");
-        }
-        // The next send must report a full channel — the bound holds.
-        match tx.try_send(super::events::IoCommand::Shutdown) {
-            Err(std_mpsc::TrySendError::Full(_)) => {}
-            other => panic!("expected TrySendError::Full once saturated, got {other:?}"),
-        }
     }
 }
 

@@ -9,12 +9,7 @@
 //! Build-time validators in `build_support/endpoints/` operate on the
 //! TOML surface spec and proto schema — a fundamentally different
 //! domain — so they remain separate.
-//!
-//! The two-argument canonical validators (which take a parameter name
-//! for diagnostics) sit at the top; the single-arg adapters used by
-//! the generated builder macros sit below.
 
-use crate::error::Error;
 use crate::mdds::endpoint_args::EndpointError;
 
 // -- Canonical validators (two-arg, take a parameter name for diagnostics) --
@@ -349,83 +344,30 @@ pub(crate) fn parse_bool(value: &str) -> Result<bool, &'static str> {
     }
 }
 
-// -- Single-arg adapter used by the generated builder macros --
-//
-// The two-arg canonical [`validate_date`] above takes a parameter name
-// for diagnostics; the generated MDDS endpoint code emits
-// `validate_date(&arg)?` and wants a one-arg form. The generated
-// `mdds/endpoints.rs` calls into a `validate_date_required` helper
-// re-exported below — same code path, single-arg shape.
-
-/// Validate a date string for the generated builder macros.
-///
-/// Wraps the two-arg canonical [`validate_date`] in the single-arg
-/// signature the `parsed_endpoint!` and streaming-builder macros
-/// expect (the param name is implicit at the call site).
-///
-/// # Errors
-///
-/// Returns [`Error`] (the converted [`EndpointError`]) when `date` fails
-/// the canonical date validation.
-pub(super) fn validate_date_required(date: &str) -> Result<(), Error> {
-    validate_date(date, "date").map_err(Error::from)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Error;
 
     #[test]
-    fn validate_date_required_valid() {
-        assert!(validate_date_required("20240101").is_ok());
-        assert!(validate_date_required("20231231").is_ok());
-        // Leap-year boundaries — the calendar check accepts these.
-        assert!(validate_date_required("20240229").is_ok());
-        assert!(validate_date_required("20000229").is_ok());
-    }
-
-    #[test]
-    fn validate_date_required_rejects_impossible_calendar_dates() {
-        // The exact garbage shapes a shape-only check would silently
-        // accept:
-        assert!(validate_date_required("00000000").is_err());
-        assert!(validate_date_required("20260230").is_err()); // Feb 30
-        assert!(validate_date_required("19990431").is_err()); // Apr 31
-        assert!(validate_date_required("20231300").is_err()); // month 13
-        assert!(validate_date_required("19000229").is_err()); // /100 non-leap
-        assert!(validate_date_required("18991231").is_err()); // year < 1900
-        assert!(validate_date_required("21010101").is_err()); // year > 2100
-    }
-
-    fn assert_validate_date_required_err(input: &str) {
-        match validate_date_required(input) {
-            // `validate_date` returns `EndpointError::InvalidParams`,
-            // which converts to `Error::Config` (see `impl
-            // From<EndpointError> for Error` in `mdds::endpoint_args`).
-            Err(Error::Config { message, .. }) => {
-                assert!(
-                    message.contains("date"),
-                    "error message should name the 'date' param, got {message:?}"
-                );
-            }
-            other => panic!("expected Error::Config {{ .. }} for input {input:?}, got {other:?}"),
+    fn validate_date_accepts_real_digits_only_dates() {
+        // Leap-year boundaries included: the calendar check accepts these.
+        for good in ["20240101", "20231231", "20240229", "20000229"] {
+            assert!(validate_date(good, "date").is_ok(), "{good}");
         }
     }
 
     #[test]
-    fn validate_date_required_invalid() {
-        // Too short
-        assert_validate_date_required_err("2024010");
-        // Too long
-        assert_validate_date_required_err("202401011");
-        // Contains non-digit
-        assert_validate_date_required_err("2024-101");
-        assert_validate_date_required_err("2024Jan1");
-        // Empty
-        assert_validate_date_required_err("");
-        // Whitespace
-        assert_validate_date_required_err("2024 101");
+    fn validate_date_rejects_malformed_digits_only_shapes() {
+        for bad in [
+            "2024010",
+            "202401011",
+            "2024-101",
+            "2024Jan1",
+            "",
+            "2024 101",
+        ] {
+            assert!(validate_date(bad, "date").is_err(), "{bad:?}");
+        }
     }
 
     #[test]

@@ -422,6 +422,16 @@ path = "tests/grpc_stock_list_symbols.rs"
 required-features = ["__test-helpers"]
 
 [[test]]
+name = "flatfiles_byte_match"
+path = "tests/flatfiles_byte_match.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
+name = "flatfiles_synthetic_golden"
+path = "tests/flatfiles_synthetic_golden.rs"
+required-features = ["__test-helpers"]
+
+[[test]]
 name = "test_pool_reconnect"
 path = "tests/test_pool_reconnect.rs"
 required-features = ["__test-helpers"]

@@ -184,8 +184,8 @@ export declare class Config {
    * Install a custom reconnect policy driven by a JS callback.
    *
    * The callback is invoked with a single `{ reason, attempt }` object (a
-   * [`ReconnectDecisionArgs`]) on the Node main thread, queued from the
-   * streaming I/O thread, after each retriable involuntary disconnect.
+   * [`ReconnectDecisionArgs`]) on the Node main thread, queued from an SDK
+   * streaming thread, after each retriable involuntary disconnect.
    * Read `args.reason` / `args.attempt` — the arguments are NOT positional.
    * Return the reconnect
    * delay in milliseconds, or `null` to stop reconnecting (the
@@ -202,7 +202,7 @@ export declare class Config {
   setReconnectCallback(callback?: (((arg: ReconnectDecisionArgs) => number | null)) | undefined | null): void
   /**
    * Set the streaming event ring buffer size (slots). Must be a power of
-   * two `>= 64`; invalid values are rejected immediately. The slot count
+   * two from `64` to `2^24`; invalid values are rejected immediately. The slot count
    * is a pointer-width value in the core, so it marshals as a `BigInt`
    * like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
    * Default `131_072`.
@@ -700,7 +700,7 @@ export declare class ContractRef {
   /**
    * Construct an option contract. The expiration / strike / right
    * travel in a single `OptionLeg` object with named keys —
-   * `Contract.option("SPY", { expiration: "20260620", strike: "550",
+   * `Contract.option("SPY", { expiration: "20261218", strike: "550",
    * right: "C" })` — rather than as adjacent positional strings, so a
    * swapped expiration/strike/right pair cannot pass silently. `right`
    * accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive);
@@ -735,7 +735,7 @@ export declare class ContractRef {
   get right(): string | null
   /**
    * String rendering for `console.log` / template literals, e.g.
-   * `"SPY OPTION 20260620 C 550"` or `"AAPL STOCK"`. The strike reads
+   * `"SPY OPTION 20261218 C 550"` or `"AAPL STOCK"`. The strike reads
    * in dollars, matching the `strike` getter. Delegates to
    * the same core rendering the Python `Contract` `__str__` uses, so
    * the two bindings print a contract identically. Without it a
@@ -825,6 +825,10 @@ export declare class FlatFileRowList {
    * Return a JSON array of objects, one per row. Useful for quick
    * inspection, structured logging, or wiring into JS-side
    * dataframes that don't read Arrow IPC.
+   *
+   * Keys keep the row's column order: `symbol`, `expiration`, `strike`,
+   * `right`, then the vendor's columns in file order, as Python's
+   * `to_list` does.
    */
   toJson(): string
 }
@@ -2834,8 +2838,8 @@ export declare class StreamingClient {
    * exception follows Node's normal exception handling.
    *
    * Backpressure: a slow callback first fills a bounded delivery queue
-   * and then the event ring behind it, at which point the oldest events
-   * are dropped and counted by `droppedEventCount()` while
+   * and then the event ring behind it, at which point the newest incoming
+   * events are dropped and counted by `droppedEventCount()` while
    * `ringOccupancy()` reports the in-flight depth. Watch those two
    * signals to detect a callback that cannot keep up. The receive path
    * is never blocked by a slow callback, so the upstream connection
@@ -3099,7 +3103,7 @@ export declare class StreamView {
    *
    * Backpressure: a slow callback first fills a bounded
    * delivery queue and then the event ring behind it, at
-   * which point the oldest events are dropped and counted by
+   * which point the newest incoming events are dropped and counted by
    * `droppedEventCount()` while `ringOccupancy()` reports the
    * in-flight depth. Watch those two signals to detect a
    * callback that cannot keep up. The receive path is never
@@ -3202,7 +3206,7 @@ export declare class Subscription {
   get secType(): SecType | null
   /**
    * String rendering for `console.log` / template literals, e.g.
-   * `"Subscription(Trade, SPY OPTION 20260620 C 550)"` or
+   * `"Subscription(Trade, SPY OPTION 20261218 C 550)"` or
    * `"Subscription(full Trades, OPTION)"`. Mirrors the Python
    * `Subscription` `__repr__`. Without it a `Subscription` prints as
    * an opaque `Subscription {}` because its getters do not surface on
@@ -5748,7 +5752,7 @@ export interface OptionHistoryTradeQuoteOptions {
  * positional string arguments could.
  */
 export interface OptionLeg {
-  /** Expiration date as `YYYYMMDD` (e.g. `"20260620"`). */
+  /** Expiration date as `YYYYMMDD` (e.g. `"20261218"`). */
   expiration: string
   /**
    * Strike price in dollars, as a number or string (`550`, `550.5`,
@@ -5769,7 +5773,7 @@ export interface OptionLeg {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListContractsOptions {
-  /** Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date. */
+  /** Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date. */
   symbol?: string
   /** Maximum days to expiration */
   maxDte?: number

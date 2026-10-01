@@ -93,17 +93,6 @@ pub fn is_valid_yyyymmdd(yyyymmdd: i32) -> bool {
     is_valid_gregorian_date(year, month as u32, day as u32)
 }
 
-/// Inclusive lower bound of the supported `epoch_ms` conversion window:
-/// `1900-01-01 00:00:00 UTC` as Unix epoch milliseconds.
-///
-/// The Eastern-Time conversion functions are documented to operate over
-/// the `1900..=2100` calendar range (see [`is_valid_gregorian_date`]).
-/// `epoch_ms` is `0` at the Unix epoch, so the lower bound is negative on
-/// the i64 timeline; clamped to `0` here because the wire carries an
-/// unsigned `u64`, and any pre-1970 instant is corrupt input on a
-/// market-data surface.
-pub const MIN_SUPPORTED_EPOCH_MS: u64 = 0;
-
 /// Inclusive upper bound of the supported `epoch_ms` conversion window:
 /// `2100-12-31 23:59:59.999 UTC` as Unix epoch milliseconds.
 ///
@@ -114,14 +103,15 @@ pub const MIN_SUPPORTED_EPOCH_MS: u64 = 0;
 pub const MAX_SUPPORTED_EPOCH_MS: u64 = 4_133_980_799_999;
 
 /// Floor of the offset-resolution window: 1900-01-01T00:00:00Z. Distinct from
-/// [`MIN_SUPPORTED_EPOCH_MS`], which is the decode boundary's unsigned floor
-/// for a wire `Timestamp`. The date validator accepts `1900..=2100`, so the
+/// the decode boundary's floor for a wire `Timestamp`, which is the unsigned
+/// Unix epoch. The date validator accepts `1900..=2100`, so the
 /// offset resolution has to answer for the whole of that range rather than for
 /// the half that happens to be non-negative.
 const MIN_OFFSET_EPOCH_MS: i64 = -2_208_988_800_000;
 
 /// Whether `epoch_ms` lies inside the supported Eastern-Time conversion
-/// window (`MIN_SUPPORTED_EPOCH_MS..=MAX_SUPPORTED_EPOCH_MS`).
+/// window (`0..=MAX_SUPPORTED_EPOCH_MS`; the wire value is unsigned, so the
+/// floor is the Unix epoch).
 ///
 /// The decode boundary uses this to reject a corrupt wire `Timestamp`
 /// (an unbounded `u64` from the proto) before it reaches the date
@@ -176,8 +166,7 @@ fn eastern_offset_ms_at(epoch_ms: i64) -> i64 {
         return -5 * 3_600 * 1_000;
     }
     // First, determine the UTC year/month/day to find DST boundaries.
-    let epoch_secs = epoch_ms / 1_000;
-    let days_since_epoch = epoch_secs / 86_400;
+    let days_since_epoch = epoch_ms.div_euclid(86_400_000);
 
     // Civil date from days since 1970-01-01 (Euclidean algorithm).
     let z = days_since_epoch + 719_468;
@@ -320,8 +309,9 @@ pub fn timestamp_to_ms_of_day(epoch_ms: u64) -> i32 {
 #[must_use]
 pub fn timestamp_to_date(epoch_ms: u64) -> i32 {
     let offset = eastern_offset_ms(epoch_ms);
-    let local_secs = (epoch_ms as i64 + offset) / 1_000;
-    let days = local_secs / 86400 + 719_468;
+    // Floor, not truncate: the first hours after the Unix epoch are still
+    // the previous day in Eastern Time, where the local time is negative.
+    let days = (epoch_ms as i64 + offset).div_euclid(86_400_000) + 719_468;
     let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
     let doe = (days - era * 146_097) as u32;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
@@ -400,9 +390,8 @@ pub fn date_ms_to_epoch_ms(date: i32, ms_of_day: i32) -> Option<i64> {
     // offset at the implied UTC instant. Converges for every instant
     // outside the 2 AM local transition window.
     let est_guess = local_ms + 5 * 3_600 * 1_000;
-    // `eastern_offset_ms` takes epoch ms as u64; market-data dates are
-    // bounded to 1900..=2100 by the validator, but pre-1970 dates would
-    // go negative — clamp through max(0) for the offset probe only.
+    // `eastern_offset_ms_at` takes signed epoch ms and answers for the
+    // whole 1900..=2100 validator range, so no clamp is needed.
     let offset = eastern_offset_ms_at(est_guess);
     let epoch = local_ms - offset;
     let offset = eastern_offset_ms_at(epoch);
@@ -639,8 +628,10 @@ mod tests {
 
     #[test]
     fn date_ms_to_epoch_ms_round_trips_edt_and_est() {
-        // 2026-04-01 09:30:00 ET (EDT) and 2026-01-15 09:30:00 ET (EST).
-        for epoch_ms in [1_775_050_200_000_u64, 1_768_487_400_000_u64] {
+        // 2026-04-01 09:30:00 ET (EDT), 2026-01-15 09:30:00 ET (EST), and
+        // 1969-12-31 20:00:00 ET, where the local time before the Unix epoch
+        // must land on the previous day.
+        for epoch_ms in [1_775_050_200_000_u64, 1_768_487_400_000_u64, 3_600_000_u64] {
             let date = timestamp_to_date(epoch_ms);
             let ms = timestamp_to_ms_of_day(epoch_ms);
             // Reason: market-data epochs fit i64.

@@ -43,8 +43,8 @@ pub const MAX_RING_SIZE: usize = 1 << 24;
 ///
 /// # Errors
 ///
-/// Returns an `Err` message when `n` is below [`MIN_RING_SIZE`], above
-/// [`MAX_RING_SIZE`], or not a power of two.
+/// Returns an `Err` message when `n` is below 64, above 2^24, or not a power
+/// of two.
 pub fn check_ring_size(n: usize) -> Result<usize, String> {
     if n < MIN_RING_SIZE {
         return Err(format!(

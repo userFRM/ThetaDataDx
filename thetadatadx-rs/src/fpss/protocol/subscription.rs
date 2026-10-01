@@ -184,7 +184,7 @@ impl FullSubscriptionKind {
 /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
 /// # use thetadatadx::SecType;
 /// let stock_quote   = Contract::stock("AAPL").quote();
-/// let opt_trade     = Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" }).unwrap().trade();
+/// let opt_trade     = Contract::option("SPY", OptionLeg { expiration: "20261218", strike: "550", right: "C" }).unwrap().trade();
 /// let full_opt_oi   = SecType::Option.full_open_interest();
 /// let _all = vec![stock_quote, opt_trade, full_opt_oi];
 /// ```
@@ -294,12 +294,12 @@ pub trait SecTypeExt: Copy {
     fn full_trades(self) -> Subscription;
     /// Full-stream OpenInterest subscription for this security type.
     ///
-    /// Constructing the value is infallible, but only [`SecType::Stock`] and
-    /// [`SecType::Option`] have an upstream full-stream broadcast: passing a
-    /// subscription for any other security type to
+    /// Constructing the value is infallible, but only [`SecType::Option`]
+    /// has an upstream full-stream open-interest broadcast: open interest
+    /// counts option contracts outstanding, and a stock does not have one.
+    /// Passing a subscription for any other security type to
     /// [`crate::StreamSurface::subscribe`] returns an [`Error::Config`]
-    /// at subscribe time. Subscribe to indices and rates per-contract
-    /// instead (for example `Contract::index("VIX").open_interest()`).
+    /// at subscribe time.
     ///
     /// [`Error::Config`]: crate::error::Error::Config
     fn full_open_interest(self) -> Subscription;
@@ -463,11 +463,11 @@ mod tests {
 
     #[test]
     fn sec_type_full_open_interest_returns_full_subscription() {
-        let sub = SecType::Stock.full_open_interest();
+        let sub = SecType::Option.full_open_interest();
         assert_eq!(
             sub,
             Subscription::Full {
-                sec_type: SecType::Stock,
+                sec_type: SecType::Option,
                 kind: FullSubscriptionKind::OpenInterest,
             }
         );

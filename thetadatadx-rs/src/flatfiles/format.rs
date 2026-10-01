@@ -20,6 +20,7 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// Selectable output format for any `flatfile_*` SDK call.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +63,24 @@ impl FlatFileFormat {
 impl fmt::Display for FlatFileFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.extension())
+    }
+}
+
+/// Parses the format case-insensitively: `csv`, `json` (one JSON array),
+/// `jsonl` or its alias `ndjson` (JSON Lines), and `html`.
+impl FromStr for FlatFileFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "csv" => Ok(Self::Csv),
+            "json" => Ok(Self::Json),
+            "jsonl" | "ndjson" => Ok(Self::Jsonl),
+            "html" => Ok(Self::Html),
+            _ => Err(format!(
+                "format must be csv, json, jsonl, ndjson or html, got {s:?}"
+            )),
+        }
     }
 }
 

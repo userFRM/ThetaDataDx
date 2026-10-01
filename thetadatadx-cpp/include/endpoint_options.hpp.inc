@@ -38,7 +38,7 @@ struct EndpointRequestOptions {
     std::optional<std::string> strike;
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     std::optional<std::string> right;
-    /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
+    /// Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date.
     std::optional<std::string> symbol;
     /// Maximum days to expiration
     std::optional<int32_t> max_dte;

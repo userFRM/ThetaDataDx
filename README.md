@@ -20,7 +20,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 [![docs.rs](https://img.shields.io/docsrs/thetadatadx-rs?logo=docsdotrs)](https://docs.rs/thetadatadx-rs)
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.88%2B-orange.svg?logo=rust)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.94%2B-orange.svg?logo=rust)](https://www.rust-lang.org)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org)
 [![Node](https://img.shields.io/badge/node-20%2B-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
 [![C++](https://img.shields.io/badge/C%2B%2B-17-00599C.svg?logo=cplusplus&logoColor=white)](https://isocpp.org)
@@ -32,7 +32,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 ## Features
 
-- **Complete coverage**: stocks, options, indices, and rates across 65 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
 - **Three access modes, one client**: point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in**: every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
 - **Greeks on demand**: first- through third-order Greeks and implied volatility, served straight from the option endpoints.
@@ -98,11 +98,11 @@ from thetadatadx import Client
 # Pass your API key directly. Use market_data_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
-# First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-greeks = client.market_data.option_history_greeks_first_order("SPY", "20260619", date="20240315")
+# First-order Greeks for every strike on SPY's 2026-06-18 expiry, as of 2024-03-15
+greeks = client.market_data.option_history_greeks_first_order("SPY", "20260618", date="20240315")
 
 df = greeks.to_polars()
-print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
+print(df.select(["strike", "right", "delta", "theta", "vega"]).head())
 ```
 
 Other ways to construct the client:
@@ -147,7 +147,7 @@ def on_event(event):
                 f"bid={mb:.2f} ask={ma:.2f} price={mp:.2f} ms_of_day={ms}"
             )
 
-spy_call = Contract.option("SPY", expiration="20260619", strike="550", right="C")
+spy_call = Contract.option("SPY", expiration="20261218", strike="550", right="C")
 
 with client.streaming(on_event) as session:
     session.subscribe_many([spy_call.quote(), spy_call.trade(), spy_call.market_value()])
@@ -180,7 +180,7 @@ async function main() {
     }
   });
 
-  const leg = { expiration: '20260619', strike: '550', right: 'C' };
+  const leg = { expiration: '20261218', strike: '550', right: 'C' };
   client.stream.subscribeMany([
     Contract.option('SPY', leg).quote(),
     Contract.option('SPY', leg).trade(),
@@ -218,10 +218,10 @@ int main() {
         .api_key("td1_...")
         .connect();
 
-    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
+    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260618", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
-        std::printf("K=%.2f %c delta=%+.4f gamma=%+.4f\n",
-                    t.strike, t.right, t.delta, t.gamma);
+        std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
+                    t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
     }
 }
 ```
@@ -242,7 +242,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
 
     let greeks = client
         .market_data()
-        .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
+        .option_history_greeks_eod("SPY", "20260618", "20240101", "20240331")
         .await?;
 
     for t in greeks.iter().take(5) {
@@ -279,7 +279,7 @@ sends a quote and an OHLC bar before each trade, so add an `Ohlcvc` case to the
 callback to handle the bars:
 
 ```python
-from thetadatadx import Ohlcvc
+from thetadatadx import Ohlcvc, SecType
 
 def on_full_trade(event):
     match event:
@@ -314,12 +314,12 @@ with client.streaming(on_full_trade) as session:
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and
+64 typed endpoints across stocks, options, indices, the market calendar, and
 interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Stock | 15 | EOD, OHLC, trades, quotes, snapshots, at-time |
 | Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |

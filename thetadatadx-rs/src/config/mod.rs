@@ -91,7 +91,7 @@ pub use crate::backoff::JitterMode;
 /// | Variable | Type | Effect |
 /// |---|---|---|
 /// | `THETADATA_MARKET_DATA_TYPE` | `PROD`/`STAGE` | selects the market-data environment + auth marker. Case-insensitive. |
-/// | `THETADATA_STREAMING_TYPE` | `PROD`/`DEV` | selects the streaming environment. Case-insensitive. |
+/// | `THETADATA_STREAMING_TYPE` | `PROD`/`STAGE`/`DEV` | selects the streaming environment. Case-insensitive. |
 /// | `THETADATA_MARKET_DATA_HOST` | host | overrides `market_data.host` |
 /// | `THETADATA_MARKET_DATA_PORT` | u16  | overrides `market_data.port` |
 /// | `THETADATA_NEXUS_URL` | url  | overrides the Nexus auth URL |
@@ -104,7 +104,7 @@ pub use crate::backoff::JitterMode;
 /// The market-data and streaming channels are selected
 /// independently: `THETADATA_MARKET_DATA_TYPE` chooses the market-data cluster and the
 /// auth marker (production or staging), `THETADATA_STREAMING_TYPE` chooses the
-/// streaming cluster (production or dev), and neither affects the other. The
+/// streaming cluster (production, staging or dev), and neither affects the other. The
 /// typed [`DirectConfig::with_market_data_environment`] /
 /// [`DirectConfig::with_streaming_environment`] are the programmatic
 /// equivalents.
@@ -182,7 +182,7 @@ pub struct DirectConfig {
     /// streaming channel is selected independently via
     /// [`Self::streaming_environment`].
     pub market_data_environment: MarketDataEnvironment,
-    /// Target streaming environment (production or dev). Defaults to
+    /// Target streaming environment (production, staging or dev). Defaults to
     /// [`StreamingEnvironment::Prod`]; [`DirectConfig::dev`] selects
     /// [`StreamingEnvironment::Dev`]. Selects the cluster the streaming
     /// channel dials and nothing else — it never affects auth, so a dev
@@ -207,8 +207,9 @@ pub struct DirectConfig {
     /// host, so a port-only override keeps the selected environment's host
     /// cluster and only re-points the primary port.
     streaming_primary_port_override: Option<u16>,
-    /// Explicit full streaming host list (the config-file `[streaming]
-    /// hosts` power-user list). When set, it wins outright in
+    /// Explicit full streaming host list, recorded by
+    /// [`Self::set_streaming_hosts`] (which the config-file `[streaming]
+    /// hosts` loader also uses). When set, it wins outright in
     /// [`Self::apply_streaming_environment`]: environment selection does not
     /// touch the streaming hosts at all.
     streaming_hosts_full_override: Option<Vec<(String, u16)>>,
@@ -457,20 +458,6 @@ impl DirectConfig {
         self.reapply_overrides_to_live_fields();
     }
 
-    /// Record an explicit market-data host override.
-    ///
-    /// The internal entry point the env-var / `.env` / config-file layers use;
-    /// [`Self::set_market_data_host`] is the public equivalent. Recording an
-    /// override makes the host survive a later
-    /// [`Self::apply_market_data_environment`], so an explicit host wins over the
-    /// environment's default — the precedence documented on the struct. The
-    /// override is mirrored onto the live field immediately so a getter reflects
-    /// it before the next switch.
-    pub(crate) fn set_market_data_host_override(&mut self, host: String) {
-        self.market_data_host_override = Some(host);
-        self.reapply_overrides_to_live_fields();
-    }
-
     /// Record an explicit primary streaming host override
     /// (`THETADATA_STREAMING_HOST` / `.env`).
     ///
@@ -496,22 +483,6 @@ impl DirectConfig {
     pub(crate) fn set_streaming_primary_port_override(&mut self, port: u16) {
         self.streaming_primary_port_override = Some(port);
         self.reapply_overrides_to_live_fields();
-    }
-
-    /// Record an explicit full streaming host list (the config-file
-    /// `[streaming] hosts` power-user list).
-    ///
-    /// The internal entry point the config-file loader uses;
-    /// [`Self::set_streaming_hosts`] is the public equivalent and carries the
-    /// shared recording logic. When recorded, the list wins outright in
-    /// [`Self::apply_streaming_environment`]: environment selection does not
-    /// touch the streaming hosts at all. Only the config-file loader supplies a
-    /// full host
-    /// list, so this setter is gated on that feature; the field stays `None`
-    /// (and the override is inert) without it.
-    #[cfg(feature = "config-file")]
-    pub(crate) fn set_streaming_hosts_full_override(&mut self, hosts: Vec<(String, u16)>) {
-        self.set_streaming_hosts(hosts);
     }
 
     /// Select the market-data environment, returning the updated config.
@@ -543,7 +514,7 @@ impl DirectConfig {
     /// Select the streaming environment, returning the updated config.
     ///
     /// The programmatic equivalent of the `THETADATA_STREAMING_TYPE`
-    /// (`PROD` / `DEV`) env var: it points the streaming hosts at the chosen
+    /// (`PROD` / `STAGE` / `DEV`) env var: it points the streaming hosts at the chosen
     /// environment and nothing else. Auth and the market-data channel are
     /// unaffected — a dev session authenticates byte-identically to a
     /// production one. Select the market-data channel independently with
@@ -574,7 +545,7 @@ impl DirectConfig {
     ///   the market-data host and the auth marker at the chosen cluster — the
     ///   file-sourced equivalent of the [`THETADATA_MARKET_DATA_TYPE`](Self::production)
     ///   env var and of [`Self::with_market_data_environment`].
-    /// - `THETADATA_STREAMING_TYPE` (`PROD` / `DEV`, case-insensitive) selects the
+    /// - `THETADATA_STREAMING_TYPE` (`PROD` / `STAGE` / `DEV`, case-insensitive) selects the
     ///   streaming environment via [`StreamingEnvironment::parse`], pointing the
     ///   streaming hosts at the chosen cluster — the file-sourced equivalent of
     ///   the [`THETADATA_STREAMING_TYPE`](Self::production) env var and of
@@ -965,16 +936,6 @@ impl DirectConfig {
                 ),
             ));
         }
-        // The streaming channel needs at least one host to dial. An empty list
-        // is reachable from a full override of `vec![]` (the public
-        // `set_streaming_hosts` setter), so reject it here — this check is the
-        // one every construction path (builder, env, config file) routes
-        // through, so it fails fast at build time with a clear field error
-        // rather than at the connect attempt with a generic "no servers
-        // configured".
-        if self.streaming.hosts.is_empty() {
-            return Err(Error::config_missing("streaming.hosts"));
-        }
         // Each streaming host must be a routable dial target. A blank host or a
         // zero port is accepted only by the raw `set_streaming_hosts` setter and
         // would otherwise fail late at dial with a generic transport error that
@@ -1154,7 +1115,7 @@ impl DirectConfig {
         self.market_data_environment
     }
 
-    /// Target streaming environment (production or dev).
+    /// Target streaming environment (production, staging or dev).
     #[must_use]
     pub fn streaming_environment(&self) -> StreamingEnvironment {
         self.streaming_environment
@@ -1216,8 +1177,9 @@ mod config_file {
         /// gRPC connect timeout (seconds). `validate` enforces the same
         /// range as the programmatic path.
         connect_timeout_secs: u64,
-        /// Per-request market-data deadline (seconds). `0` disables the
-        /// per-request deadline. Default `300`; not range-limited.
+        /// Per-request market-data deadline (seconds). Default `300`; not
+        /// range-limited. A `0` is stored verbatim and floored to `300` at
+        /// request time, so it does not disable the deadline.
         request_timeout_secs: u64,
         /// Buffered-response size (bytes) above which a warning is logged.
         /// Default `104_857_600` (100 MiB).
@@ -1469,7 +1431,7 @@ mod config_file {
             out.market_data.warn_on_buffered_threshold_bytes =
                 cf.market_data.warn_on_buffered_threshold_bytes;
             // `connect_timeout_secs` is range-checked by `out.validate()` below;
-            // `request_timeout_secs` (0 = disabled) and the warn threshold are
+            // `request_timeout_secs` and the warn threshold are
             // unbounded, matching the programmatic path.
 
             // An explicit `[streaming] hosts` list is the operator's full host
@@ -1481,7 +1443,7 @@ mod config_file {
             // production default host set in force and records no override, so
             // a later environment switch still re-points it.
             if let Some(hosts) = cf.streaming.hosts {
-                out.set_streaming_hosts_full_override(hosts.parse()?);
+                out.set_streaming_hosts(hosts.parse()?);
             }
             out.streaming.timeout_ms = cf.streaming.read_timeout;
             out.streaming.ring_size = cf.streaming.ring_size;
@@ -1562,9 +1524,9 @@ mod tests {
         assert_eq!(config.market_data.host, "mdds-stage.thetadata.us");
         assert_eq!(config.market_data.port, 443);
         assert!(config.market_data.tls);
-        // Streaming stays on PRODUCTION — there is no streaming staging cluster,
-        // and the channels are independent. The staging :20100 hosts must NOT
-        // appear.
+        // Streaming stays on PRODUCTION: the channels are independent and
+        // streaming staging is only ever selected explicitly. The staging
+        // :20100 hosts must NOT appear.
         assert_eq!(config.streaming_environment, StreamingEnvironment::Prod);
         assert_eq!(
             config.streaming.hosts,
@@ -1576,7 +1538,7 @@ mod tests {
                 .hosts
                 .iter()
                 .any(|(_, port)| *port == 20100),
-            "no streaming staging (:20100) path: {:?}",
+            "streaming stays off the staging (:20100) hosts: {:?}",
             config.streaming.hosts
         );
     }
@@ -1905,7 +1867,7 @@ mod tests {
             "#;
             let config = DirectConfig::from_toml_str(toml).unwrap();
             assert_eq!(config.market_data.connect_timeout_secs, 30);
-            // 0 is a valid "no per-request deadline" sentinel, not floored.
+            // 0 is stored verbatim; the floor is applied at request time.
             assert_eq!(config.market_data.request_timeout_secs, 0);
             assert_eq!(
                 config.market_data.warn_on_buffered_threshold_bytes,
@@ -2136,8 +2098,8 @@ mod tests {
             // When the TOML omits `[streaming] hosts` and `[market_data] host`,
             // no override is recorded, so a later market-data environment switch
             // re-points the market-data host to the staging cluster. Streaming
-            // stays on production — there is no streaming staging cluster, and
-            // the channels are independent.
+            // stays on production: the channels are independent, and streaming
+            // staging is only ever selected explicitly.
             let toml = r#"
                 [streaming]
                 ring_size = 65536
@@ -2627,7 +2589,7 @@ mod tests {
         let config = DirectConfig::production();
         // THETADATA_MARKET_DATA_TYPE=STAGE yields the market-data staging cluster +
         // Stage marker, identical to the `stage()` preset. Streaming stays on
-        // production (no streaming staging cluster).
+        // production (the market-data selector does not move streaming).
         let staged = DirectConfig::stage();
         assert_eq!(config.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(config.streaming_environment, StreamingEnvironment::Prod);
@@ -2778,7 +2740,7 @@ mod tests {
         // Finding 2(a): an explicit `THETADATA_MARKET_DATA_HOST` must survive
         // the `stage()` preset. `stage()` selects the market-data staging cluster
         // for the marker, but the explicit host wins for the market-data channel.
-        // Streaming stays on production — there is no streaming staging cluster.
+        // Streaming stays on production; the preset moves only market data.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
@@ -2794,7 +2756,7 @@ mod tests {
         assert_eq!(
             config.streaming.hosts,
             StreamingConfig::production_defaults().hosts,
-            "streaming stays on production; stage has no streaming cluster"
+            "the stage preset leaves streaming on production"
         );
         clear_env_matrix();
     }
@@ -2943,22 +2905,6 @@ mod tests {
     }
 
     #[test]
-    fn validate_rejects_empty_streaming_hosts() {
-        // `validate()` is the fail-fast backstop for every construction path:
-        // an empty streaming host list is rejected at build time rather than
-        // surfacing as a generic "no servers configured" at connect.
-        let _guard = env_test_guard();
-        clear_env_matrix();
-        let mut config = DirectConfig::production_defaults();
-        config.streaming.hosts = Vec::new();
-        let err = config.validate().unwrap_err();
-        assert!(
-            err.to_string().contains("streaming.hosts"),
-            "validate must name the empty streaming.hosts field, got: {err}"
-        );
-    }
-
-    #[test]
     fn set_streaming_hosts_full_list_survives_switch_even_when_equal_to_dev_hosts() {
         // A full list set via `set_streaming_hosts` is honoured by PROVENANCE,
         // not value: it must survive `with_market_data_environment` even when it
@@ -3004,7 +2950,7 @@ mod tests {
         // Guard that the provenance model is invisible on the common paths: a
         // plain market-data switch with no recorded override must yield the
         // selected environment's market-data host verbatim while leaving
-        // streaming on production (stage has no streaming cluster).
+        // streaming on production (the stage preset moves only market data).
         let _guard = env_test_guard();
         clear_env_matrix();
         let prod_stream = StreamingConfig::production_defaults().hosts;
@@ -3071,7 +3017,7 @@ mod tests {
         // helpers) so this stays a hard regression guard: the override-model
         // rework must leave every no-override preset byte-identical to today.
         // Production streaming cluster, reused below: stage leaves streaming
-        // here since there is no streaming staging cluster.
+        // here because the preset moves only the market-data channel.
         let prod_stream = vec![
             ("nj-a.thetadata.us".to_string(), 20000),
             ("nj-a.thetadata.us".to_string(), 20001),
@@ -3087,7 +3033,7 @@ mod tests {
 
         let stage = DirectConfig::stage();
         // Stage flips only the market-data channel; streaming stays on the
-        // production cluster (no streaming staging).
+        // production cluster (streaming staging is selected explicitly).
         assert_eq!(stage.market_data_environment, MarketDataEnvironment::Stage);
         assert_eq!(stage.streaming_environment, StreamingEnvironment::Prod);
         assert_eq!(stage.market_data.host, "mdds-stage.thetadata.us");
@@ -3137,9 +3083,8 @@ mod tests {
     fn streaming_port_only_override_keeps_environment_host_cluster() {
         // A port-only `THETADATA_STREAMING_PORT` (host NOT set) must patch
         // ONLY the primary port of the selected streaming environment; the host
-        // cluster stays the environment's. Exercised against the dev cluster (the
-        // only non-prod streaming environment). Previously a port-only override
-        // suppressed the host rebuild entirely.
+        // cluster stays the environment's. Exercised against the dev cluster.
+        // Previously a port-only override suppressed the host rebuild entirely.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: see `market_data_type_env_stage_selects_stage_cluster`.
@@ -3745,7 +3690,7 @@ mod tests {
         // staging AND supplies a staging Nexus URL. Auth must follow the
         // market-data cluster: the market-data channel goes to the staging host
         // and auth POSTs to the staging Nexus. Streaming stays on production
-        // (no streaming staging cluster).
+        // (the market-data selector does not move streaming).
         let staging_nexus = "https://nexus-stage.thetadata.us/identity/terminal/auth_user";
         let path = write_temp_dotenv(
             "nexus-stage.env",

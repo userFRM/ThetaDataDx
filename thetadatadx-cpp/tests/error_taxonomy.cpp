@@ -220,9 +220,8 @@ TEST_CASE("sequence converters reject out-of-wire-range inputs with InvalidParam
     // must throw `InvalidParameterError`, matching the Python
     // `ValueError` / TypeScript `InvalidParameterError`. In-range inputs
     // round-trip without throwing.
-    REQUIRE_NOTHROW(thetadatadx::util::sequence_signed_to_unsigned(0));
-    REQUIRE(thetadatadx::util::sequence_signed_to_unsigned(-1) ==
-            thetadatadx::util::sequence_signed_to_unsigned(-1));
+    REQUIRE(thetadatadx::util::sequence_signed_to_unsigned(0) == 0);
+    REQUIRE(thetadatadx::util::sequence_signed_to_unsigned(-1) == 4294967295ULL);
 
     // i32::MAX + 1 and i32::MIN - 1 are outside the signed wire range.
     REQUIRE_THROWS_AS(thetadatadx::util::sequence_signed_to_unsigned(2147483648LL),

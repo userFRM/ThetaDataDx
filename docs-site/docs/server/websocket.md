@@ -31,7 +31,7 @@ The server bridges [streaming](/streaming/) onto a local WebSocket at `ws://127.
 Option contracts carry the four-tuple. By default the `strike` is the terminal's 1/10-cent integer (a JSON integer, e.g. `570000` for a $570 strike); pass the server's `--strike-format dollars` flag to take a dollar value (`570`) instead:
 
 ```json
-{"symbol": "SPY", "expiration": 20250321, "strike": 570000, "right": "C"}
+{"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}
 ```
 
 `{"msg_type": "STOP", "id": 2}` removes every active stream at once. Each command is acknowledged with a stream-request verification value in the `response` field:
@@ -44,13 +44,13 @@ Option contracts carry the four-tuple. By default the `strike` is the terminal's
 
 ## Event messages
 
-Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, or `OHLC`, plus a `STATUS` heartbeat every second. `OHLC` bars arrive from upstream automatically — one per traded contract, ahead of that contract's trade; they are not derived from your subscriptions and are not subscribed to separately. An `OPEN_INTEREST` subscription is accepted, but open interest has no WebSocket frame: the data is delivered through the native SDK callbacks and the REST surface, not over this endpoint.
+Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, or `OHLC`, plus a `STATUS` heartbeat every second. `OHLC` bars ride the trade stream: the upstream sends one ahead of each trade on a contract you hold a trade subscription for. A contract has a single upstream trade subscription carrying both, so `req_type: OHLC` is another name for the contract's `TRADE` subscription rather than a separate one: `add: true` installs it, and `add: false` removes it, which also stops that contract's `TRADE` frames. An `OPEN_INTEREST` subscription is accepted, but open interest has no WebSocket frame: the data is delivered through the native SDK callbacks and the REST surface, not over this endpoint.
 
 ## Try it
 
 ```bash
 websocat ws://127.0.0.1:25520/v1/events
-{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "TRADE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20250321, "strike": 570000, "right": "C"}}
+{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "TRADE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20261218, "strike": 570000, "right": "C"}}
 ```
 
 ## Limits

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.0] - 2026-09-30
+## [0.5.0] - 2026-10-01
 
 ### Added
 
@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`0` is no longer a wildcard for `expiration` or `strike`.** The vendor defines `*` for every expiration and every strike, and the terminal refuses `expiration=0` with HTTP 400. The SDK translated `0` to `*` before sending, so it accepted a form the vendor does not define. Every surface, the local server and the MCP tools now refuse `0` in either parameter; use `*`.
 
 - **The server no longer rewrites a CSV text cell that starts with `=`, `+`, `-`, `@` or a tab.** It prefixed such a cell with `'`, so a reader decoded a different value than the one the vendor sent, and the terminal does not do it. Cells are written as sent, with RFC 4180 quoting.
+
+- **`Error::NoData` is gone.** It was documented as the error for a request that returned no rows, but nothing in the SDK raised it. A query with no rows arrives as `Error::Grpc` with kind `NotFound` (`NotFoundError` in every binding, with `NoDataFoundError` kept as its Python alias), and an empty stream returns an empty table, so a branch matching the variant could never run. This is a breaking change to the Rust API.
 
 ### Changed
 
@@ -67,7 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Arrow moves to 60 and polars to 0.55.** `TickColumns::to_arrow` returns an `arrow_array::RecordBatch` and `to_polars` a `polars::prelude::DataFrame`, so both crates are part of this SDK's public signature and a caller has to move with them. Recompiling against the previous major produces a type mismatch at those two call sites and nowhere else.
 
-- **A condition or exchange cell the vendor left empty is published as empty, not as code zero.** Zero is not a spare value on these columns: quote condition 0 is `REGULAR` and exchange 0 is the composite, so an empty cell used to read as a firm quote or a composite print the vendor never reported. The sixty-four condition and exchange columns are now `int | None` in Python, `number | null` in TypeScript, an Arrow null in every columnar reader, `null` in the server's JSON and an empty field in its CSV. In C and C++ each carries a `bool has_<column>` beside its value, which changes the size of several tick structs; rebuild against the new header.
+- **A condition or exchange cell the vendor left empty is published as empty, not as code zero.** Zero is not a spare value on these columns: quote condition 0 is `REGULAR` and exchange 0 is the composite, so an empty cell used to read as a firm quote or a composite print the vendor never reported. The sixty-four condition and exchange columns are now `int | None` in Python, `number | null` in TypeScript, an Arrow null in every columnar reader, `null` in the server's JSON and the MCP tools' rows, and an empty field in the server's CSV. In C and C++ each carries a `bool has_<column>` beside its value, which changes the size of several tick structs; rebuild against the new header.
 
 - **`panic_count()` and `dropped_event_count()` keep their count after the session ends.** Both are documented as cumulative and were read off the live session alone, so they answered zero from the moment `stop_streaming()` returned and a reconnect discarded whatever the previous session had recorded. They now count across every session the client has run, including faults and drops recorded while a stopping session drains.
 
@@ -76,6 +78,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Every server timestamp carries three fraction digits.** A whole second renders `.000` and trailing zeros stay, which is how the terminal formats it; the fraction used to be dropped or trimmed.
 
 - **Option contract blocks come back in the order the rows arrived.** The server sorted them by the rendered contract identity, which compares the strike as text, so strike 1000 came back ahead of strike 90.
+
+- **The minimum supported Rust is 1.94.** Every crate declared 1.88, but the `polars` and `frames` features have not compiled on anything older than 1.94, so a user on 1.88 to 1.93 who enabled either one, as the crate README shows, got a compile error from inside a dependency rather than a clear refusal. Every crate now declares 1.94, the lowest release on which the full feature set builds, and Cargo names the required toolchain up front. CI now builds with that toolchain, so the floor cannot drift again unnoticed.
+
+- **`Error::Grpc` carries the HTTP status the service attached to a failure.** The new `http_status_code` field holds the status from the service's `http_status_code` trailer, which is the status the terminal answers a failed request with, and the server now answers with it (see Fixed). This is a breaking change to the Rust API: code that builds `Error::Grpc` or destructures it without `..` must add the field.
+
+- **An MCP tool call returns at most 50,000 rows and refuses a larger result by name.** Nothing bounded a tool result before, so a default-argument call such as a same-day SPY quote history at every strike could return millions of rows, take gigabytes to serialise and stall every other request. The refusal states the row count and how to narrow the request, including a symbol filter for a contract list.
+
+- **`split_date_range` accepts the same years as every endpoint.** It used its own date validator and accepted years 0000 to 9999, while every request built from its chunks only accepts 1900 to 2100. It now applies the SDK's single calendar rule and refuses a year outside that range up front.
+
+- **The TypeScript `startStreaming` documentation says which events an overflow drops.** It said the oldest events are dropped once the delivery queue and the event ring fill. The incoming event is the one dropped and counted, so a consumer that falls behind drains the older backlog first and loses the most recent quotes and trades.
+
+- **The WebSocket guide says that `OHLC` and `TRADE` share one subscription.** It said OHLC bars are not subscribed to separately, yet `req_type: OHLC` installs the contract's trade subscription, so removing it with `add: false` also stops that contract's `TRADE` frames. There is one trade subscription per contract and it carries both.
 
 ### Fixed
 
@@ -110,6 +124,92 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The packaged crate builds with every feature on.** It listed the repository's maintenance binaries, which reach generator code the package does not carry, so `cargo build --all-features` against the published crate failed.
 
 - **The C++ streaming example compiles under C++17.** The README and the `Contract::option` doc used C++20 designated initializers and a missing include, against a project that requires C++17.
+
+- **A failed `reconnect()` can be retried without losing subscriptions.** A reconnect saved the live subscriptions, tore the old session down and started a new one. When the new session failed to start, for example while the network was still down, the saved set was dropped with the error, and the teardown had already cleared the old session's lists. The next `reconnect()` then succeeded on a session with no subscriptions: it reported itself as streaming while no market data arrived. A reconnect whose restart fails now keeps the subscriptions, and the next reconnect restores them. An explicit stop still drops them. The C and C++ reconnects now report subscriptions they could not restore with `THETADATADX_ERR_STREAM` (C++ `StreamError`) instead of returning success, as Python and TypeScript already did.
+
+- **A columnar batch stream ends with an error when the streaming session will not reconnect.** When the server ended the session for good, or the reconnect budget ran out, the batch stream closed exactly as it does after the caller's own close, so a `for batch in batches` loop exited without error on a dead feed. The stream now ends with a disconnected error, after every queued batch has been read.
+
+- **Streaming failover moves past a host that accepts the TCP connection but cannot complete TLS.** The dial loop chose the first host that accepted TCP and left the TLS handshake to the first write. A host whose server process was hung was therefore chosen every time, the handshake timed out, and reconnects spent their whole budget on that one host while the others were healthy. A cold connect failed outright the same way. The handshake now completes inside each host's attempt, so a TLS failure moves on to the next host.
+
+- **A reconnect callback can stop the stream.** The callback set through the reconnect policy runs on a streaming thread. When it stopped the stream or closed the client, the teardown waited on that same thread, so the call never returned, a core stayed busy for the life of the process and the connection leaked. In TypeScript, a stop issued while a decision was pending froze the Node event loop for 30 seconds. A stop from inside the callback now returns, a pending decision gives way to a stop within about 100 ms, and the session winds down without reconnecting.
+
+- **`ReconnectsExhausted` is the last event of a session in every case.** When the server ended a session mid-stream with a reason that is never retried, such as the account already being connected elsewhere, `ReconnectsExhausted` arrived before the `Disconnected` event that carried the reason. A consumer that stopped reading on the terminal event missed it.
+
+- **A throttled streaming login raises the rate-limit error.** When the server answered the initial streaming login with TOO_MANY_REQUESTS, the connect failed with a generic disconnected error, which every binding reports as a network error. The documented `RateLimitError` (`THETADATADX_ERR_RATE_LIMIT` in C) could never come from a streaming connect, and a caller retrying network errors redialled straight into the throttle.
+
+- **A full-stream open-interest subscription is refused for anything other than options.** Open interest counts option contracts outstanding. The full-stream subscribe accepted a stock request, tracked it and replayed it on every reconnect, but the server never sends a tick for it. It is now refused with an error saying open interest is published only for options.
+
+- **TypeScript `reconnect()` keeps the events still waiting for the callback.** The teardown aborted the callback after 250 ms even when the Node main thread was free and still delivering, so a session with a large backlog lost the queued events without counting them in `droppedEventCount()`, and the reconnect then failed with "streaming callback is closed" without restoring its subscriptions. The callback is now aborted only when the stop runs on the main thread, where the queue cannot drain.
+
+- **Two flat-file requests for the same output path no longer corrupt each other.** A request derived its raw download and temporary files from the output path alone, so two requests for the same path at overlapping times shared them, which is easy to reach through the MCP tool's fixed default path. The second request truncated the first one's temporary file mid-write, the first then published it with a zero-filled gap and reported success, and the second failed on its own rename. Each request now writes to scratch files of its own.
+
+- **A flat-file login moves on to the next host when one is restarting.** A host that answered the login with a restart or a login timeout stopped the attempt at that host, and every retry started again on the same host, so the whole retry budget could be spent on one host while the others were serving. Such a refusal now moves the login on to the next host. Refused credentials, a missing dataset and the account's request-rate limit still stop at once, the last waiting for the retry backoff because the limit applies on every host.
+
+- **A date rejected by a typed endpoint names the argument that was wrong.** Every date failure was reported against a parameter called `date`, so on a range endpoint such as `stock_history_eod` the message named a parameter the caller never passed and could not say which of the two dates failed.
+
+- **The config template says what `request_timeout_secs = 0` does.** It said 0 disables the per-request market-data deadline. The SDK treats 0 as the 300-second default, so that a silent server cannot hang a request, and a long pull configured that way still timed out at five minutes. The template now says so and points at `with_deadline(0)`, which lifts the deadline for a single request.
+
+- **C and C++ can select the streaming staging cluster.** `thetadatadx_config_with_streaming_environment` accepts selector `2` for STAGE, alongside the unchanged `0` (PROD) and `1` (DEV), and the C++ `Client::builder().streaming_environment("STAGE")` selects it. Before, the C ABI took only 0 and 1 and the C++ builder rejected "STAGE", so neither language could reach a cluster that Rust, Python and TypeScript accept. The Python stub types `Config.streaming_environment` as `Literal["PROD", "STAGE", "DEV"]`, and the `THETADATA_STREAMING_TYPE` documentation, which called STAGE an error, lists all three values.
+
+- **A C or C++ endpoint call always requests the symbol and dates passed as its arguments.** The options bag is shared by every endpoint, so it has `symbol`, `date`, `start_date` and `end_date` fields. When one of these was set on a bag reused from another call, it replaced the endpoint's own argument of the same name: `stock_history_eod("AAPL", ...)` with a bag carrying another symbol returned that symbol's bars, and nothing in the rows showed it. The positional arguments now take precedence.
+
+- **C++ `Stream::set_callback` throws `StreamError` on a live session instead of silently dropping its subscriptions.** Registering a callback starts a new session, so replacing a live one left the stream running with no subscriptions while the call returned normally. The C API, Python and TypeScript already refused this. Replacing the callback after `stop_streaming()` still works.
+
+- **Opening a C or C++ batch reader can no longer let a reconnect revive an old callback.** A stopped callback session kept its callback registered for reconnect, so reconnecting after a batch reader was opened replaced the reader with a callback session that called the old callback, which the caller was allowed to have freed once stop and drain returned. Opening a reader now drops that registration.
+
+- **An unknown flat-file security type, request type or format is reported the same way everywhere.** The C ABI used the generic error code, so C++ threw the base `ThetaDataError` and an `InvalidParameterError` handler missed it, and the MCP tools wrote JSON Lines for `json` where every other surface writes one JSON array. All surfaces now share one parser and one message naming the parameter and the tokens it accepts (csv, json, jsonl or ndjson, and html for the format).
+
+- **A bad `THETADATA_MARKET_DATA_TYPE` or `THETADATA_STREAMING_TYPE` raises an error you can catch.** The TypeScript `Config.production()`, `dev()` and `stage()` factories, and every connect that falls back to the production configuration, panicked on an unrecognised environment selector, and a panic cannot leave a native Node callback, so a typo such as `THETADATA_MARKET_DATA_TYPE=production` aborted the whole Node process. In Python the same presets raised a `PanicException`, which `except Exception` does not catch. Both now raise `InvalidParameterError` naming the variable, its value and the valid set.
+
+- **An exception raised by a history stream handler stops the stream.** The Python `.stream(handler)` documentation promised this, but the handler had no way to stop the download: the rest of the range was still fetched and decoded, holding a request slot until the range ended or the deadline fired, and the first Ctrl+C inside the handler did not stop it. Python's `stream_async` and TypeScript's `*Stream` methods drained the same way. The first handler error now ends the request, including every sub-request of a fanned-out pull, and is raised from the call.
+
+- **A timezone-aware `datetime` passed to a Python date or time argument asks for the instant it names.** These arguments were formatted with `strftime`, which ignores `tzinfo`, so `datetime(2024, 3, 15, 13, 30, tzinfo=timezone.utc)`, 09:30 in New York, asked for 13:30 Eastern. An aware `datetime` is now converted to the Eastern date and time of its instant, and an aware `time`, which cannot be placed in Eastern Time without a date, raises `ValueError`. Naive values are read as Eastern wall-clock time, as before.
+
+- **Cancelling a Python `await reader.__anext__()` no longer loses a batch, and Ctrl+C interrupts `for batch in reader`.** The async pull ran on a blocking thread that cannot be cancelled, so after an `asyncio.wait_for` timeout on a quiet stream that thread took the next batch for a result nobody read, and rows vanished without an error or a drop count. The sync pull did not check for signals, so Ctrl+C did nothing until a batch arrived.
+
+- **The C, C++ and TypeScript streaming ring-size setters reject a size above 2^24.** Each setter applied only part of the rule a connect applies, so a power of two such as 2^25 was accepted by a setter documented to reject invalid values, and then failed at connect.
+
+- **`timeout_ms` on the Python and TypeScript list endpoints means what it means everywhere else.** On the symbol, date, expiration and strike lists, `0` ran under the configured 300-second request timeout instead of disabling the deadline (TypeScript's `optionListDates` already treated it as no deadline), and a larger value was still cut off by that timeout. Unset now means the configured timeout, `0` means none, and any other value is the deadline.
+
+- **TypeScript rejects a value its target cannot hold instead of rewriting it.** A hand-built tick row passed to a `<tick>ToArrowIpc` export with a field outside its 32-bit column (for example `msOfDay: 2 ** 32 + 50_040_000`, `1.5` or `NaN`) was wrapped or truncated into the Arrow output, and `client.stream.batches({ batchSize, lingerMs, capacity })` turned `NaN` and `Infinity` into 0. Both now raise `InvalidParameterError`, as Python does.
+
+- **`AsyncClient.flatfile_to_path_async` resolves.** The async client looked the name up only on the flat-file namespace, where it does not live, and raised `AttributeError`.
+
+- **TypeScript reports values in the documented shape.** `FlatFileRowList.toJson()` sorted every row's keys alphabetically; it now lists `symbol`, `expiration`, `strike`, `right`, then the vendor's columns in file order, as Python's `to_list()` does. `activeFullSubscriptions()` returned `"Option"` and `"Stock"` instead of the declared `"OPTION"` and `"STOCK"`. A partial restore after the standalone `StreamingClient.reconnect()` rejected as a plain `Error` that neither `instanceof StreamError` nor `instanceof ThetaDataError` matched.
+
+- **Repeating `symbol` on a snapshot route returns every symbol you asked for.** `GET /v3/stock/snapshot/quote?symbol=AAPL&symbol=MSFT` answered with MSFT's row alone. That is how an OpenAPI client, or `requests` given a list, sends the `symbol` array these routes declare, so the caller silently lost part of its data. Like the terminal, the server now collects every value of a list parameter, and a repeated single-valued parameter such as `date` uses its first occurrence rather than its last.
+
+- **A comma-separated symbol list on a list endpoint is answered as the vendor answers it, or refused before it is sent.** The vendor documents `symbol=AAPL,SPY` on the contract, expiration, strike and date lists. The SDK sent the list as a single symbol, so the request came back as no data on every surface. Each symbol now goes on the wire as its own value. The contract list, and the stock and index date lists, return the union, as the terminal does. The expiration and strike lists return plain values that cannot say which symbol each belongs to, so a request naming more than one symbol there is refused before anything is sent, with an error that says why; request those one symbol at a time. A filter that names no symbol at all, such as `symbol=,`, is refused rather than sent as no filter, which on the contract list would have returned every contract for the date. The server answers these refusals, and any other input the SDK refuses, with 400 rather than 500, and the MCP tools answer them as invalid params rather than as a server error.
+
+- **The server answers an upstream rejection with the HTTP status the service attaches to it.** Every upstream failure other than capacity exhaustion came back as HTTP 500 with a body prefixed `gRPC status <kind>:`, so a query with no rows, an entitlement rejection and a bad argument all looked like a server crash, and clients that retry 5xx retried requests that could never succeed. Like the terminal, the server now answers with the status the service attaches (472 for a query with no rows) and the service's description as a plain-text body, and with 500 only when no status is attached.
+
+- **Flat-file downloads through the server no longer fill the temp directory.** Each download decoded the whole file into the OS temp directory and left it there, so every new dataset, date and format left another multi-gigabyte file behind until the disk ran out. The server now streams from a scratch file that the OS reclaims as soon as the response ends.
+
+- **`FULL_TRADES` and `FULL_OPEN_INTEREST` work over the WebSocket as documented, with no `contract`.** The server checked the contract symbol before it looked at the request type, so every documented full-stream command was answered `ERROR` with `'symbol' must be non-empty`. A full stream is now planned from `sec_type` alone.
+
+- **The WebSocket accepts every option expiration the REST routes accept.** A separate range check refused expirations from 2100-01-02 through 2100-12-31, which the REST validators accept, with a different error message.
+
+- **The MCP server's rows say which symbol each one belongs to.** A multi-symbol snapshot such as `stock_snapshot_quote` with `AAPL,MSFT` returned rows that named no symbol, in the vendor's order and without a row for a symbol with no data, so a model could not tell which quote belonged to which ticker and tended to match them by request order. Every row now carries the symbol the response attributed it to, as the server's rows do.
+
+- **The MCP server returns the columns the response carried, no more and no fewer.** Columns the vendor does not send were filled with zeros, such as `exchange: 0` on every `stock_snapshot_trade` row, a 0.0 bid and ask beside an index's market price, and `date: 0` on the single-day calendar tools, while columns it does send were dropped: the bid, ask, midpoint and underlying of the implied-volatility tools, `vwap` on OHLC history, and the extended trade conditions. Rows now follow the response's own column set, and a closed day's open and close are `null`.
+
+- **An MCP tool call with an argument the tool does not declare is refused by name.** A misspelled filter such as `start_tim` was dropped and the endpoint answered the wider request, for example a full day of quotes instead of the window asked for, with nothing to say a filter had been ignored. The refusal lists the arguments the tool accepts.
+
+- **MCP tool calls made while the server is still connecting wait for the connection.** `tools/list` already waited for the startup connect, but `tools/call` did not, so a call in that window was told to set credentials that were already set.
+
+- **The bundled OpenAPI file describes what the server accepts and returns.** It modelled every route as a bare array of integer `ms_of_day` and `date` rows, had no `format` parameter, rejected the ISO `YYYY-MM-DD` dates the server takes, and described one JSON error body for every failure. It now declares `format` on every route, the response envelope and its legacy columnar form, the ISO date form, and which failures carry a JSON body.
+
+- **The README and reference examples run as written.** The first-order Greeks quick starts read a `gamma` column the endpoint does not return, the root full-trade example used `SecType` without importing it, the Python handler raised on every stock event, examples used dates on which nothing expires, the C++ tab on every reference page included a header path the SDK does not ship, the symbology page gave the server's WebSocket strike in dollars, and the READMEs counted 65 endpoints where the SDK ships 64.
+
+- **The Windows downloads run without the Visual C++ runtime.** The server, the MCP server package, the TypeScript addon and the C ABI DLL linked the MSVC C runtime dynamically, so each needed VCRUNTIME140.dll from the Visual C++ redistributable. On a clean Windows install the server and `npx -y thetadatadx-mcp-server` failed to start with a missing-DLL error, and `require('thetadatadx-ts')` could not load the addon. They now link the runtime statically, so nothing else needs installing, as the documentation already said.
+
+- **The TypeScript addon loads on Linux distributions older than the build machine.** The linux-x64-gnu addon required glibc 2.34, while npm installs it on any glibc host Node runs on. On RHEL 8, Debian 11 or Ubuntu 20.04 the install succeeded and the first `require` failed because GLIBC_2.34 was not found. It is now linked against glibc 2.17.
+
+- **The free-threaded Python wheel installs on glibc 2.28 and newer.** The cp314t wheel required glibc 2.34, so CPython 3.14t on RHEL 8, Debian 11 or Ubuntu 20.04 found no wheel and pip fell back to building from source, which needs a Rust toolchain and protoc. It is now built for manylinux_2_28.
+
+- **The Windows C ABI libraries ship under the names their import libraries expect.** The release page renamed the DLLs, but the import libraries beside them still name `thetadatadx_ffi.dll`, so a program linked against them failed to start until the DLL was renamed back. Each toolchain now ships as one archive, `thetadatadx_ffi-windows-msvc-x86_64.zip` or `thetadatadx_ffi-windows-gnu-x86_64.zip`, holding the DLL and its libraries under their original names, which are also the names the C++ CMake target looks for.
+
+- **The documented MCP setup works for a final release.** The docs-site page ran `thetadatadx-mcp-server@next`, a tag a final release never publishes, so npx failed to find a matching version. It now runs the latest release.
 
 ## [0.4.0] - 2026-08-08
 

@@ -7,8 +7,8 @@
 //! [`flatfile_request_raw`] (raw INDEX + DATA blob). All three are
 //! also reachable via [`crate::Client`].
 //!
-//! Server identity is SPKI-pinned via the internal
-//! `mdds_spki::MddsSpkiVerifier`. On-disk blob layout is documented
+//! Server identity is SPKI-pinned with the same internal verifier the
+//! streaming client uses, restricted to the MDDS hosts. On-disk blob layout is documented
 //! at the module level in `crate::flatfiles::index` (private; see
 //! `cargo doc --document-private-items`).
 
@@ -83,7 +83,8 @@ pub use types::{flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType, 
 ///
 /// Test-facing helper used by the byte-match integration suite to share
 /// one live capture across CSV / JSONL smoke tests without hitting the
-/// wire twice. Hidden from `docs.rs`; not part of the stable public API.
+/// wire twice. Compiled only with the private `__test-helpers` feature.
+#[cfg(feature = "__test-helpers")]
 #[doc(hidden)]
 pub fn decoded_decode_to_file_for_test(
     raw_path: &std::path::Path,

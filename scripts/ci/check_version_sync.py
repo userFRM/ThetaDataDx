@@ -202,7 +202,7 @@ def cmake_project_version(path: Path) -> str | None:
         return None
     text = path.read_text()
     match = re.search(
-        r"project\s*\(\s*[\w\-]+\s+VERSION\s+(\d+\.\d+\.\d+)",
+        r"project\s*\(\s*[\w\-]+\s+VERSION\s+(\d+\.\d+\.\d+)(?=[\s)])",
         text,
         re.IGNORECASE,
     )
@@ -378,7 +378,32 @@ def main() -> int:
             f"{package_json_version(ts_root)}, expected {canonical}"
         )
 
-    for name, pinned in package_json_optional_deps(ts_root).items():
+    # The set the repository publishes, taken from the per-platform package
+    # directories rather than from package.json or the lockfile, so both are
+    # checked against something independent of themselves. Validating only the
+    # entries that happen to be present passes a manifest missing one entirely:
+    # a lockfile without it is rejected by npm at install with "Missing: <pkg>
+    # from lock file", and a package.json without it publishes a launcher that
+    # never installs the native binary on that platform. Both surface only
+    # after the release has published.
+    expected_platforms = {
+        json.loads(pkg.read_text())["name"]
+        for pkg in (ts_root.parent / "npm").glob("*/package.json")
+    }
+    if not expected_platforms:
+        failures.append(
+            "thetadatadx-ts/npm contains no platform package; the launcher pins "
+            "them through optionalDependencies, so an empty scan means the "
+            "layout or this check moved"
+        )
+
+    ts_optional = package_json_optional_deps(ts_root)
+    for missing in sorted(expected_platforms - set(ts_optional)):
+        failures.append(
+            f"{ts_root.relative_to(ROOT)} optionalDependencies is missing "
+            f"{missing}, which thetadatadx-ts/npm/ publishes"
+        )
+    for name, pinned in ts_optional.items():
         if pinned != canonical:
             failures.append(
                 f"{ts_root.relative_to(ROOT)} optionalDependencies['{name}'] "
@@ -463,28 +488,6 @@ def main() -> int:
             and isinstance(entry, dict)
         }
 
-        # The set the repository publishes, taken from the per-platform package
-        # directories rather than from the lockfile, so the lockfile is checked
-        # against something independent of itself. Validating only the entries
-        # that happen to be present passes a lockfile missing one entirely,
-        # which npm then rejects at install with "Missing: <pkg> from lock file"
-        # -- after the release has already published.
-        expected_platforms = {
-            d.name
-            for d in (ts_root.parent / "npm").iterdir()
-            if d.is_dir() and (d / "package.json").is_file()
-        }
-        expected_platforms = {
-            json.loads((ts_root.parent / "npm" / name / "package.json").read_text())["name"]
-            for name in expected_platforms
-        }
-        if not expected_platforms:
-            failures.append(
-                "thetadatadx-ts/npm contains no platform package; the launcher pins "
-                "them through optionalDependencies, so an empty scan means the "
-                "layout or this check moved"
-            )
-
         locked_names = {n.rsplit("/", 1)[-1] for n in platform_entries}
         for missing in sorted(expected_platforms - locked_names):
             failures.append(
@@ -559,6 +562,28 @@ def main() -> int:
                     f"['{name}'] is {pinned}, expected {canonical}"
                 )
 
+    # The loop above reads only the pins the launcher declares. A platform
+    # package it does not declare is never installed, and `npx` on that
+    # platform finds no binary, so the declared set is checked against the
+    # platform directories as for the TypeScript launcher.
+    mcp_launcher = ROOT / "tools" / "mcp" / "npm" / "thetadatadx-mcp-server" / "package.json"
+    mcp_platforms = {
+        json.loads(pkg.read_text())["name"]
+        for pkg in mcp_launcher.parents[1].glob("*/package.json")
+        if pkg != mcp_launcher
+    }
+    if not mcp_platforms:
+        failures.append(
+            "tools/mcp/npm contains no platform package; the launcher pins them "
+            "through optionalDependencies, so an empty scan means the layout or "
+            "this check moved"
+        )
+    for missing in sorted(mcp_platforms - set(package_json_optional_deps(mcp_launcher))):
+        failures.append(
+            f"{mcp_launcher.relative_to(ROOT)} optionalDependencies is missing "
+            f"{missing}, which tools/mcp/npm/ publishes"
+        )
+
     # Published Python wheel version. `thetadatadx-py/pyproject.toml` is
     # `dynamic = ["version"]` + maturin, so the wheel version is taken
     # from `thetadatadx-py/Cargo.toml` `[package].version` at build time, not
@@ -586,7 +611,7 @@ def main() -> int:
     # carries the numeric base (`9.9.9`); compare against that base, not
     # the full pre-release string. A normal release has no suffix, so the
     # base equals the canonical version.
-    canonical_base = canonical.split("-", 1)[0]
+    canonical_base = re.split(r"[-+]", canonical, maxsplit=1)[0]
     cmake_version = cmake_project_version(CMAKE_LISTS)
     if cmake_version is None:
         failures.append(

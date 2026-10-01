@@ -28,10 +28,10 @@ const { Config } = mod;
 describe('Config.setReconnectPolicy', () => {
   it('accepts "auto" and "manual" (case-insensitive)', () => {
     const cfg = Config.production();
-    cfg.setReconnectPolicy('auto');
-    cfg.setReconnectPolicy('AUTO');
-    cfg.setReconnectPolicy('manual');
-    cfg.setReconnectPolicy('Manual');
+    for (const value of ['auto', 'AUTO', 'manual', 'Manual']) {
+      cfg.setReconnectPolicy(value);
+      assert.equal(cfg.reconnectPolicy, value.toLowerCase());
+    }
   });
 
   it('rejects unknown policy strings', () => {
@@ -47,12 +47,12 @@ describe('Config.setReconnectPolicy', () => {
 describe('Config.setReconnectMaxAttempts', () => {
   it('is silently a no-op when policy is manual', () => {
     // Matches the Python contract: setter has no effect when the
-    // reconnect policy is not the Auto(limits) variant. We assert
-    // the setter does not throw — there is no getter on this knob
-    // (FFI / Python / C++ are all write-only here).
+    // reconnect policy is not the Auto(limits) variant. It must
+    // not switch the policy to Auto.
     const cfg = Config.production();
     cfg.setReconnectPolicy('manual');
     cfg.setReconnectMaxAttempts(5);
+    assert.equal(cfg.reconnectPolicy, 'manual');
   });
 });
 
@@ -83,11 +83,9 @@ describe('Config.setReconnectStableWindowSecs', () => {
 
 describe('Pool-sizing setter state survives interleaved reconnect setter calls', () => {
   it('reconnect setters do not interfere with market-data tuning getters', () => {
-    // The reconnect setters expose no getters, so the contract
-    // we can verify is: after interleaving reconnect setter
-    // calls with market-data tuning setter calls, the market-data
-    // tuning getters still observe the values that were last
-    // written.
+    // After interleaving reconnect setter calls with market-data
+    // tuning setter calls, every value written under Auto reads
+    // back and the tuning getter still sees its own value.
     const cfg = Config.production();
     cfg.setReconnectPolicy('auto');
     cfg.setReconnectMaxAttempts(7);
@@ -95,6 +93,10 @@ describe('Pool-sizing setter state survives interleaved reconnect setter calls',
     cfg.setReconnectStableWindowSecs(120n);
     cfg.setWarnOnBufferedThresholdBytes(8n * 1024n * 1024n);
     assert.equal(cfg.warnOnBufferedThresholdBytes, 8n * 1024n * 1024n);
+    assert.equal(cfg.reconnectPolicy, 'auto');
+    assert.equal(cfg.reconnectMaxAttempts, 7);
+    assert.equal(cfg.reconnectMaxRateLimitedAttempts, 77);
+    assert.equal(cfg.reconnectStableWindowSecs, 120n);
   });
 });
 

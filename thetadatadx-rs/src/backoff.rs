@@ -79,26 +79,6 @@ impl JitterMode {
     }
 }
 
-/// Deterministic exponential-ladder bounds for a retry burst.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct BackoffSchedule {
-    /// First-attempt delay; doubles per attempt.
-    pub(crate) initial: Duration,
-    /// Upper bound on the deterministic ladder.
-    pub(crate) cap: Duration,
-}
-
-impl BackoffSchedule {
-    pub(crate) fn new(initial: Duration, cap: Duration) -> Self {
-        Self { initial, cap }
-    }
-
-    /// Deterministic capped delay for a 1-based `attempt` number.
-    pub(crate) fn deterministic(&self, attempt: u32) -> Duration {
-        capped_exponential(self.initial, self.cap, attempt)
-    }
-}
-
 /// Deterministic capped exponential ladder shared by every retry
 /// surface: `min(cap, initial * 2^(attempt - 1))`.
 ///

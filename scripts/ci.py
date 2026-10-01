@@ -99,7 +99,13 @@ GATES: dict[str, list[list[str]]] = {
     # which is how declaration drift has repeatedly reached CI from a green
     # local run.
     "napi_drift": _dev("check_napi_drift"),
-    "agreement": _test("test_check_agreement"),
+    # The release validator runs the agreement check; its fail-closed tests
+    # ride in the same gate so a change that lets it report success after a
+    # validator crash cannot merge green.
+    "agreement": (
+        _test("test_check_agreement")
+        + [[sys.executable, str(REPO_ROOT / "scripts" / "release" / "tests" / "test_validate_release.py")]]
+    ),
 }
 
 

@@ -55,7 +55,7 @@ def main() -> None:
     # gymnastics.
     stock = Contract.stock("AAPL")
     option = Contract.option(
-        "SPY", expiration="20260620", strike="550", right="C"
+        "SPY", expiration="20261218", strike="550", right="C"
     )
 
     with client.streaming(on_event) as session:

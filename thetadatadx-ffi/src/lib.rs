@@ -67,14 +67,6 @@ pub(crate) fn runtime_from_config(
     })
 }
 
-/// Build the process-global runtime from `cfg` and report its worker
-/// count. Test-only hook proving `thetadatadx_config_set_worker_threads` reaches
-/// the tokio builder; not part of the C ABI.
-#[doc(hidden)]
-pub fn __test_runtime_worker_count(cfg: &thetadatadx::RuntimeConfig) -> usize {
-    runtime_from_config(cfg).metrics().num_workers()
-}
-
 /// Return the process-global async runtime, building it with tokio
 /// default sizing if no client has seeded it yet.
 ///

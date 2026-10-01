@@ -210,18 +210,15 @@ pub fn parse_calendar_days_v3(
         .collect();
 
     let date_idx = h.iter().position(|&s| s == "date");
-    let type_idx = match h.iter().position(|&s| s == "type") {
-        Some(i) => Some(i),
-        None => {
-            if table.data_table.is_empty() {
-                return Ok(vec![]);
-            }
-            return Err(DecodeError::MissingRequiredHeader {
-                header: "type",
-                rows: table.data_table.len(),
-                available: h.join(","),
-            });
+    let Some(type_idx) = h.iter().position(|&s| s == "type") else {
+        if table.data_table.is_empty() {
+            return Ok(vec![]);
         }
+        return Err(DecodeError::MissingRequiredHeader {
+            header: "type",
+            rows: table.data_table.len(),
+            available: h.join(","),
+        });
     };
     let open_idx = h.iter().position(|&s| s == "open");
     let close_idx = h.iter().position(|&s| s == "close");
@@ -247,34 +244,29 @@ pub fn parse_calendar_days_v3(
             // Reject it as a typed decode error rather than coalescing to
             // a conservative closed-day fill, matching the strict policy
             // `row_calendar_status` applies on every other typed column.
-            // The column itself is required (guard above), so the `None`
-            // (Unset) arm is unreachable but kept total.
-            let status = match type_idx {
-                Some(i) => match cell_type(row, i)? {
-                    Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
-                    Some(proto::data_value::DataType::NullValue(_)) => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Text",
-                            observed: "Null",
-                        });
-                    }
-                    None => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Text",
-                            observed: "Unset",
-                        });
-                    }
-                    other => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Text",
-                            observed: observed_name(other),
-                        });
-                    }
-                },
-                None => crate::tdbe::CalendarStatus::FullClose,
+            let status = match cell_type(row, type_idx)? {
+                Some(proto::data_value::DataType::Text(s)) => calendar_type_text(s)?,
+                Some(proto::data_value::DataType::NullValue(_)) => {
+                    return Err(DecodeError::TypeMismatch {
+                        column: type_idx,
+                        expected: "Text",
+                        observed: "Null",
+                    });
+                }
+                None => {
+                    return Err(DecodeError::TypeMismatch {
+                        column: type_idx,
+                        expected: "Text",
+                        observed: "Unset",
+                    });
+                }
+                other => {
+                    return Err(DecodeError::TypeMismatch {
+                        column: type_idx,
+                        expected: "Text",
+                        observed: observed_name(other),
+                    });
+                }
             };
 
             let open_time = decode_calendar_time(row, open_idx)?;

@@ -159,7 +159,6 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
             GrpcStatusKind::Unavailable => THETADATADX_ERR_UNAVAILABLE,
             _ => THETADATADX_ERR_OTHER,
         },
-        Error::NoData => THETADATADX_ERR_NOT_FOUND,
         Error::Timeout { .. } => THETADATADX_ERR_DEADLINE_EXCEEDED,
         Error::Transport { .. } | Error::Tls(_) | Error::Io(_) | Error::Http(_) => {
             THETADATADX_ERR_NETWORK
@@ -362,6 +361,7 @@ mod tests {
             kind,
             message: String::new(),
             retry_after: None,
+            http_status_code: None,
         }
     }
 
@@ -430,10 +430,6 @@ mod tests {
     #[test]
     fn umbrella_variants_route_to_expected_codes() {
         assert_eq!(
-            error_code_for(&thetadatadx::Error::NoData),
-            THETADATADX_ERR_NOT_FOUND
-        );
-        assert_eq!(
             error_code_for(&thetadatadx::Error::Timeout { duration_ms: 500 }),
             THETADATADX_ERR_DEADLINE_EXCEEDED
         );
@@ -497,6 +493,7 @@ mod tests {
             kind: GrpcStatusKind::ResourceExhausted,
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(1500)),
+            http_status_code: None,
         });
         assert_eq!(thetadatadx_last_error_code(), THETADATADX_ERR_RATE_LIMIT);
         assert_eq!(thetadatadx_last_error_retry_after_ms(), 1500);
@@ -514,6 +511,7 @@ mod tests {
             kind: GrpcStatusKind::ResourceExhausted,
             message: "429".into(),
             retry_after: Some(std::time::Duration::from_millis(2000)),
+            http_status_code: None,
         });
         assert_eq!(thetadatadx_last_error_retry_after_ms(), 2000);
         set_error("unrelated failure");

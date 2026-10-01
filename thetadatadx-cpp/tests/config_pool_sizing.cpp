@@ -23,7 +23,7 @@ TEST_CASE("Config market-data request_timeout_secs setter + getter round-trip",
     REQUIRE(cfg.get_request_timeout_secs() == 45u);
     cfg.set_request_timeout_secs(600);
     REQUIRE(cfg.get_request_timeout_secs() == 600u);
-    // 0 disables the default deadline.
+    // 0 is stored verbatim (floored to 300 at request time).
     cfg.set_request_timeout_secs(0);
     REQUIRE(cfg.get_request_timeout_secs() == 0u);
 }

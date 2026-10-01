@@ -1,8 +1,9 @@
-//! SPKI certificate pinning for FPSS TLS connections.
+//! SPKI certificate pinning for FPSS and MDDS legacy TLS connections.
 //!
 //! `rustls` `ServerCertVerifier` impl that pins the SHA-256 of the
 //! leaf's `SubjectPublicKeyInfo` against [`FPSS_SPKI_SHA256`] and
-//! restricts SNI to [`ALLOWED_FPSS_HOSTS`]. TLS 1.2 / 1.3 signature
+//! restricts SNI to a per-transport host allowlist ([`ALLOWED_FPSS_HOSTS`]
+//! for streaming, the MDDS list for flat files). TLS 1.2 / 1.3 signature
 //! verification still runs via the rustls / webpki built-ins —
 //! we skip only the trust-anchor chain (FPSS leaf certs are
 //! expired). Keypair rotation breaks the pin on purpose; re-capture
@@ -81,7 +82,7 @@ pub(crate) const ALLOWED_FPSS_HOSTS: &[&str] = &[
     "test-server.thetadata.us",
 ];
 
-/// `rustls` server-cert verifier that enforces the FPSS SPKI pin.
+/// `rustls` server-cert verifier that enforces the `ThetaData` SPKI pin.
 ///
 /// See the module-level docs for the verification strategy.
 #[derive(Debug)]
@@ -90,19 +91,23 @@ pub(crate) struct PinnedVerifier {
     /// crypto provider. Used to verify the TLS 1.2 / 1.3 handshake
     /// signature after the SPKI pin matches.
     supported_algs: WebPkiSupportedAlgorithms,
+    /// Hostnames this transport may connect to.
+    hosts: &'static [&'static str],
 }
 
 impl PinnedVerifier {
-    /// Build a verifier pinned to the FPSS public key, using the
-    /// signature algorithms from the `ring` crypto provider.
+    /// Build a verifier pinned to the `ThetaData` public key that accepts
+    /// only `hosts`, using the signature algorithms from the `ring` crypto
+    /// provider.
     ///
     /// `ring` is the provider installed by [`super::connection::ensure_rustls_crypto_provider`],
     /// so the algorithms here will match what `rustls` actually uses on the
     /// wire during the handshake.
-    pub(crate) fn new() -> Arc<Self> {
+    pub(crate) fn new(hosts: &'static [&'static str]) -> Arc<Self> {
         Arc::new(Self {
             supported_algs: rustls::crypto::ring::default_provider()
                 .signature_verification_algorithms,
+            hosts,
         })
     }
 }
@@ -112,7 +117,7 @@ impl ServerCertVerifier for PinnedVerifier {
     /// 1. extracting its `SubjectPublicKeyInfo` DER,
     /// 2. SHA-256-hashing that DER,
     /// 3. constant-time-comparing against [`FPSS_SPKI_SHA256`],
-    /// 4. asserting the `server_name` is an allowed FPSS hostname.
+    /// 4. asserting the `server_name` is an allowed hostname.
     ///
     /// Intermediate certificates, the OCSP response, and `now` are
     /// deliberately ignored: the pin is on the leaf's public key alone,
@@ -128,7 +133,7 @@ impl ServerCertVerifier for PinnedVerifier {
         // Step 1: hostname allowlist. Do this first so a misconfigured
         // host never reaches the key-material code path.
         let hostname = server_name.to_str();
-        if !ALLOWED_FPSS_HOSTS.iter().any(|h| *h == hostname.as_ref()) {
+        if !self.hosts.iter().any(|h| *h == hostname.as_ref()) {
             return Err(RustlsError::InvalidCertificate(
                 CertificateError::NotValidForName,
             ));
@@ -157,7 +162,7 @@ impl ServerCertVerifier for PinnedVerifier {
         // generic "certificate is not valid for the given name".
         if !ct_eq_bytes(spki_digest.as_slice(), &FPSS_SPKI_SHA256) {
             return Err(RustlsError::General(format!(
-                "FPSS SPKI pin mismatch: presented leaf SubjectPublicKeyInfo \
+                "SPKI pin mismatch: presented leaf SubjectPublicKeyInfo \
                  did not match the expected ThetaData pin for host {hostname:?}",
                 hostname = hostname.as_ref()
             )));
@@ -233,7 +238,7 @@ mod tests {
     #[test]
     fn pin_matches_captured_thetadata_leaf() {
         install_provider();
-        let verifier = PinnedVerifier::new();
+        let verifier = PinnedVerifier::new(ALLOWED_FPSS_HOSTS);
         let leaf = CertificateDer::from(THETADATA_FPSS_LEAF_DER);
 
         let result =
@@ -247,7 +252,7 @@ mod tests {
     #[test]
     fn pin_matches_on_sibling_fpss_host() {
         install_provider();
-        let verifier = PinnedVerifier::new();
+        let verifier = PinnedVerifier::new(ALLOWED_FPSS_HOSTS);
         let leaf = CertificateDer::from(THETADATA_FPSS_LEAF_DER);
 
         // Same cert served from nj-b -- the SPKI pin + allowlist should
@@ -260,7 +265,7 @@ mod tests {
     #[test]
     fn unknown_hostname_is_rejected_even_with_valid_pin() {
         install_provider();
-        let verifier = PinnedVerifier::new();
+        let verifier = PinnedVerifier::new(ALLOWED_FPSS_HOSTS);
         let leaf = CertificateDer::from(THETADATA_FPSS_LEAF_DER);
 
         // Same cert, wrong hostname -- must fail. This is the defense
@@ -279,7 +284,7 @@ mod tests {
     #[test]
     fn malformed_certificate_is_rejected() {
         install_provider();
-        let verifier = PinnedVerifier::new();
+        let verifier = PinnedVerifier::new(ALLOWED_FPSS_HOSTS);
         // Obvious garbage -- not a valid X.509 DER.
         let leaf = CertificateDer::from(&[0u8; 32][..]);
 

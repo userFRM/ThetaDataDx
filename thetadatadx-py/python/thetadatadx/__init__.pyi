@@ -242,7 +242,7 @@ class Config:
     reconnect_replay_pace_ms: int
     """Jittered pause, in milliseconds, between subscription-replay bursts after an auto-reconnect (default 5; ``0`` removes the pause)."""
     reconnect_callback: Optional[Callable[[int, int], Optional[int]]]
-    """Custom reconnect policy: a callable ``(reason: int, attempt: int) -> Optional[int]`` returning the reconnect delay in milliseconds, or ``None`` to stop (the stream then emits the terminal :class:`ReconnectsExhausted` event). Runs on the streaming I/O thread; permanent disconnect reasons never reach it. Assign ``None`` to restore the auto policy. Write-only: the configured callable cannot be read back (:attr:`reconnect_policy` then reports ``"custom"``)."""
+    """Custom reconnect policy: a callable ``(reason: int, attempt: int) -> Optional[int]`` returning the reconnect delay in milliseconds, or ``None`` to stop (the stream then emits the terminal :class:`ReconnectsExhausted` event). Runs on an SDK streaming thread; permanent disconnect reasons never reach it. Assign ``None`` to restore the auto policy. Write-only: the configured callable cannot be read back (:attr:`reconnect_policy` then reports ``"custom"``)."""
     worker_threads: Optional[int]
     """Async worker-thread count for the embedded runtime. ``None`` defers to the default sizing; an ``int`` (including ``0``, which clamps to ``1``) pins the worker count."""
     retry_initial_delay_ms: int
@@ -278,7 +278,7 @@ class Config:
     streaming_ping_interval_ms: int
     """Interval, in milliseconds, between client-side streaming heartbeats."""
     streaming_ring_size: int
-    """Capacity, in slots, of the streaming event ring; must be a power of two and at least 64."""
+    """Capacity, in slots, of the streaming event ring; must be a power of two from 64 to ``2**24``, otherwise connecting raises."""
     streaming_io_read_slice_ms: int
     """Time slice, in milliseconds, the streaming I/O loop spends reading per iteration."""
     streaming_keepalive_idle_secs: int
@@ -291,8 +291,8 @@ class Config:
     def market_data_environment(self) -> Literal["PROD", "STAGE"]:
         """Target market-data environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The market-data and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MARKET_DATA_TYPE`` key on :meth:`Config.from_dotenv`) set the market-data channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``market_data_type`` string the inline :class:`Client` constructor accepts."""
     @property
-    def streaming_environment(self) -> Literal["PROD", "DEV"]:
-        """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster or ``"DEV"`` for the dev cluster. The streaming and market-data channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
+    def streaming_environment(self) -> Literal["PROD", "STAGE", "DEV"]:
+        """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster, ``"STAGE"`` for the staging cluster or ``"DEV"`` for the dev cluster. The streaming and market-data channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
     consumer_cpu: Optional[int]
     """CPU core to pin the streaming consumer thread to; ``None`` (default) leaves it under the OS scheduler. An out-of-range or offline core is a best-effort no-op."""
     wait_mode: Literal["spin", "busyspin", "park", "backoff"]

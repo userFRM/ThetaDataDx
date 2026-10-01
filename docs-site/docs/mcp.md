@@ -16,7 +16,7 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp-server@next"],
+      "args": ["-y", "thetadatadx-mcp-server"],
       "env": {
         "THETADATA_API_KEY": "your-api-key"
       }
@@ -25,14 +25,14 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
 }
 ```
 
-`npx -y thetadatadx-mcp-server@next` fetches a prebuilt binary for your platform (Linux and macOS on x64 and arm64, Windows on x64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
+`npx -y thetadatadx-mcp-server` fetches a prebuilt binary for your platform (Linux and macOS on x64 and arm64, Windows on x64) and runs it; nothing else to install. To authenticate with an email and password instead of an API key, swap the `env` block:
 
 ```json
 {
   "mcpServers": {
     "thetadata": {
       "command": "npx",
-      "args": ["-y", "thetadatadx-mcp-server@next"],
+      "args": ["-y", "thetadatadx-mcp-server"],
       "env": {
         "THETADATA_EMAIL": "you@example.com",
         "THETADATA_PASSWORD": "your-password"
@@ -62,7 +62,7 @@ Every generated market-data endpoint plus `ping`. Tool names and parameters matc
 
 Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools. FREE-tier classes stay listed because FREE grants delayed data. `ping` and the trading calendar are offered to every account. The flat-file tools follow the class in their name, and the generic flat-file request appears for any account holding a stock or option tier, since those are the only classes with flat files. Each market-data tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
 
-When credentials are present the connected surface also carries the flat-file tools, advertised by class the way the endpoint tools are: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV or JSON Lines, and returns the written path:
+When credentials are present the connected surface also carries the flat-file tools, advertised by class the way the endpoint tools are: an account with only a stock tier sees the stock ones and the generic request, not the option ones. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV (the default), a JSON array, JSON Lines or an HTML table, and returns the written path:
 
 - `thetadatadx_flatfile_request`: generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error.
 - `thetadatadx_flatfile_option_trade_quote`: option trade-quote flat file.
@@ -80,6 +80,7 @@ Without credentials, the server still starts and serves the offline tool (`ping`
 - Pin one contract with a concrete strike: `"strike":"385"`.
 - Use `"strike":"*"` when you want a bulk chain-style response; rows then carry contract-identity fields.
 - `strike_range` narrows a bulk selection around the money; it does not fan a pinned strike out to neighbors.
+- One call returns at most 50,000 rows. A larger result is refused with its row count, so narrow it: a symbol, a single strike and right, a `strike_range` or `max_dte`, a coarser `interval`, or a `start_time` / `end_time` window. A full-day tick chain belongs in the SDK's streaming history builders or the flat-file tools.
 
 ## Troubleshooting
 
@@ -90,7 +91,7 @@ Run `thetadatadx-mcp-server` by hand: the process must start silently and wait o
 ::: details Only `ping` appears
 That is offline mode: credentials were missing or rejected, or the vendor was unreachable. Check `THETADATA_API_KEY`, or `THETADATA_EMAIL` / `THETADATA_PASSWORD`, in the client's `env` block, and run with `RUST_LOG=debug` to see which of the two it was.
 
-The connect is not blocking: the server answers `initialize` immediately and connects in the background, because a client that waits on the handshake times out. `tools/list` waits up to five seconds for that connect to settle before it answers, so a listing made at startup reports the connected surface. If the vendor takes longer than that, the listing is the offline set, which is the honest answer while there is no connection; list again once the connection is up.
+The connect is not blocking: the server answers `initialize` immediately and connects in the background, because a client that waits on the handshake times out. `tools/list` and `tools/call` wait up to five seconds for that connect to settle before they answer, so a listing or a call made at startup sees the connected surface. If the vendor takes longer than that, the listing is the offline set, which is the honest answer while there is no connection; list again once the connection is up.
 :::
 
 ::: details Calls fail with permission errors

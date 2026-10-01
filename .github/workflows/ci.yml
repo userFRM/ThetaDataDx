@@ -82,12 +82,12 @@ jobs:
             # clippy only for the lint matrix.
             ffi='[{"os":"ubuntu-latest","artifact-name":"ffi-linux-x86_64","artifact-path":"target/release/libthetadatadx_ffi.so\ntarget/release/libthetadatadx_ffi.a"}]'
             bindings='[{"os":"ubuntu-latest","ffi_artifact":"ffi-linux-x86_64"}]'
-            lint='[{"os":"ubuntu-latest","toolchain":"1.88"}]'
+            lint='[{"os":"ubuntu-latest","toolchain":"1.94"}]'
           else
             # main / tag / schedule / merge_group: full cross-platform set.
             ffi='[{"os":"ubuntu-latest","artifact-name":"ffi-linux-x86_64","artifact-path":"target/release/libthetadatadx_ffi.so\ntarget/release/libthetadatadx_ffi.a"},{"os":"macos-latest","artifact-name":"ffi-macos-arm64","artifact-path":"target/release/libthetadatadx_ffi.dylib\ntarget/release/libthetadatadx_ffi.a"},{"os":"windows-latest","artifact-name":"ffi-windows-msvc-x86_64","artifact-path":"target/release/thetadatadx_ffi.dll\ntarget/release/thetadatadx_ffi.dll.lib"}]'
             bindings='[{"os":"ubuntu-latest","ffi_artifact":"ffi-linux-x86_64"},{"os":"macos-latest","ffi_artifact":"ffi-macos-arm64"},{"os":"windows-latest","ffi_artifact":"ffi-windows-msvc-x86_64"}]'
-            lint='[{"os":"ubuntu-latest","toolchain":"1.88"},{"os":"macos-latest","toolchain":"stable"},{"os":"windows-latest","toolchain":"stable"}]'
+            lint='[{"os":"ubuntu-latest","toolchain":"1.94"},{"os":"macos-latest","toolchain":"stable"},{"os":"windows-latest","toolchain":"stable"}]'
           fi
           {
             echo "ffi_matrix={\"include\":${ffi}}"
@@ -320,19 +320,36 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 scripts/ci/tests/test_check_agreement.py
+      # validate_release.sh drives the agreement check at release time and
+      # must fail closed when a validator crashes, emits no counts or fails
+      # to build. Its offline tests need no credentials.
+      - run: python3 scripts/release/tests/test_validate_release.py
 
   cargo-deny:
-    name: Cargo deny
+    name: Cargo deny (${{ matrix.manifest }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # The workspace and every crate excluded from it, each of which
+        # resolves and ships its own Cargo.lock.
+        manifest:
+          - Cargo.toml
+          - thetadatadx-py/Cargo.toml
+          - thetadatadx-ts/Cargo.toml
+          - tools/server/Cargo.toml
+          - tools/mcp/Cargo.toml
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
           # Run every sub-check (advisories, bans, licenses, sources).
-          # Policy lives in deny.toml at the repo root.
+          # Policy lives in deny.toml at the repo root, which cargo-deny
+          # finds from each manifest's parent directories.
           arguments: --all-features
+          manifest-path: ${{ matrix.manifest }}
 
   # ═══════════════════════════════════════════════════════════════
   # HEAVY LANE. Cross-platform builds and the slow compile-heavy jobs.
@@ -362,14 +379,20 @@ jobs:
       fail-fast: false
       # The Linux stable clippy pass is the fast-lane `clippy` job; this
       # matrix covers the MSRV floor (Linux, declared in
-      # `[workspace.package].rust-version`) plus the cross-platform
-      # runners. The `setup` planner keeps a PR to the ubuntu/MSRV leg —
-      # which catches a dependency bump that lifts the rustc floor before
-      # release — and defers the macOS/Windows clippy legs to main and
-      # the nightly run, off the per-push critical path.
+      # `[workspace.package].rust-version` and in each excluded crate's
+      # manifest) plus the cross-platform runners. The `setup` planner
+      # keeps a PR to the ubuntu/MSRV leg — which catches a dependency bump
+      # that lifts the rustc floor before release — and defers the
+      # macOS/Windows clippy legs to main and the nightly run, off the
+      # per-push critical path.
       matrix: ${{ fromJSON(needs.setup.outputs.lint_matrix) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
+    env:
+      # rust-toolchain.toml pins `stable`, and a toolchain file outranks
+      # `rustup default`, which is all the install step sets. Without this
+      # the MSRV leg would compile with current stable.
+      RUSTUP_TOOLCHAIN: ${{ matrix.toolchain }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
@@ -378,7 +401,22 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - if: matrix.toolchain == 'stable'
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # The floor covers every feature, and the excluded crates declare the
+      # same floor: anyone installing the Python sdist or building the napi
+      # addon compiles them from source. They share the workspace target
+      # directory so common dependencies compile once.
+      - if: matrix.toolchain != 'stable'
+        shell: bash
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          set -euo pipefail
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          for manifest in thetadatadx-py thetadatadx-ts tools/server tools/mcp; do
+            cargo check --manifest-path "$manifest/Cargo.toml" --all-targets --all-features --locked
+          done
 
   test:
     name: Test
@@ -701,7 +739,11 @@ jobs:
       - if: runner.os == 'Windows'
         shell: bash
         run: rustup target add x86_64-pc-windows-gnu
+      # The MSVC C runtime is linked statically, as in build-server, so the
+      # shipped DLL does not need the Visual C++ redistributable beside it.
       - run: cargo build --release -p thetadatadx-ffi --locked
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
       - if: runner.os == 'Windows'
         shell: bash
         env:
@@ -765,8 +807,14 @@ jobs:
         run: rustup target add ${{ matrix.target }}
       - name: Build release binary
         shell: bash
+        # The MSVC C runtime is linked statically. Linked dynamically, the
+        # binary needs VCRUNTIME140.dll from the Visual C++ redistributable,
+        # which a clean Windows install does not have, and it would not start
+        # there. The variable is scoped to the MSVC target; the other legs
+        # ignore it.
         env:
           CC_x86_64_unknown_linux_musl: musl-gcc
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --locked --manifest-path tools/server/Cargo.toml --target ${{ matrix.target }}
       - name: Package archive
         shell: bash
@@ -963,9 +1011,10 @@ jobs:
       - uses: actions/checkout@v7
       - name: Require every verification aggregate green for this tag
         # `verified` above covers this workflow only. The wheel tests live in
-        # python.yml, the generated-declaration check in typescript.yml and the
-        # allocations-per-row gate in perf-gate.yml, and a tag starts all of
-        # them independently. Without this, a red Python lane would leave the
+        # python.yml, the generated-declaration check in typescript.yml, the
+        # allocations-per-row gate in perf-gate.yml and the MCP server's target
+        # builds in release-mcp-npm.yml, and a tag starts all of them
+        # independently. Without this, a red Python lane would leave the
         # crate published and PyPI empty, which is the split release the
         # aggregate was introduced to prevent, one workflow further out.
         uses: ./.github/actions/require-ci-green
@@ -993,7 +1042,7 @@ jobs:
                 return 0
               fi
 
-              existing=$(python3 -c 'import json, sys, urllib.request; url = f"https://crates.io/api/v1/crates/{sys.argv[1]}"; data = json.load(urllib.request.urlopen(url, timeout=30)); print(data["crate"]["max_version"])' "$package")
+              existing=$(python3 -c 'import json, sys, urllib.request; url = f"https://crates.io/api/v1/crates/{sys.argv[1]}"; data = json.load(urllib.request.urlopen(url, timeout=30)); print(data["crate"]["max_version"])' "$package") || existing=""
 
               if [ "$existing" = "$version" ]; then
                 echo "$package $version already exists on crates.io; skipping publish"
@@ -1077,11 +1126,17 @@ jobs:
           stage artifacts/linux/libthetadatadx_ffi.a   libthetadatadx_ffi-linux-x86_64.a
           stage artifacts/macos/libthetadatadx_ffi.dylib libthetadatadx_ffi.dylib
           stage artifacts/macos/libthetadatadx_ffi.a     libthetadatadx_ffi-macos.a
-          stage artifacts/windows-msvc/thetadatadx_ffi.dll     thetadatadx_ffi-windows-msvc.dll
-          stage artifacts/windows-msvc/thetadatadx_ffi.dll.lib thetadatadx_ffi-windows-msvc.dll.lib
-          stage artifacts/windows-gnu/thetadatadx_ffi.dll      thetadatadx_ffi-windows-gnu.dll
-          stage artifacts/windows-gnu/libthetadatadx_ffi.dll.a libthetadatadx_ffi-windows-gnu.dll.a
-          stage artifacts/windows-gnu/libthetadatadx_ffi.a     libthetadatadx_ffi-windows-gnu.a
+
+          # A Windows import library records the name of the DLL it was made
+          # for, `thetadatadx_ffi.dll`, and a program linked against it asks
+          # the loader for exactly that name, so the DLL cannot be renamed to
+          # tell the MSVC and MinGW builds apart. Each toolchain's DLL and
+          # libraries ship in one archive under their original names, which
+          # are also the names thetadatadx-cpp/CMakeLists.txt looks for.
+          ( cd artifacts/windows-msvc && zip -q -MM "$RUNNER_TEMP/msvc.zip" thetadatadx_ffi.dll thetadatadx_ffi.dll.lib )
+          stage "$RUNNER_TEMP/msvc.zip" thetadatadx_ffi-windows-msvc-x86_64.zip
+          ( cd artifacts/windows-gnu && zip -q -MM "$RUNNER_TEMP/gnu.zip" thetadatadx_ffi.dll libthetadatadx_ffi.dll.a libthetadatadx_ffi.a )
+          stage "$RUNNER_TEMP/gnu.zip" thetadatadx_ffi-windows-gnu-x86_64.zip
 
           server_count=0
           while IFS= read -r archive; do

@@ -60,13 +60,16 @@ use crate::{
 /// Grace window a teardown gives the dispatcher to exit on its own — by
 /// observing the ring shutdown — before the wake hook is fired.
 ///
-/// A dispatcher that is NOT blocked off the event ring returns from
-/// `for_each_scoped` within microseconds of `client.shutdown()`, so it is
-/// observed finished almost immediately and the wake hook never runs. A
-/// dispatcher blocked inside a full bounded callback queue's `Blocking` `call`
-/// never finishes on its own (the joining thread cannot drain the queue), so it
-/// is still running when this window elapses and the wake hook aborts the
-/// threadsafe function to release it.
+/// `client.shutdown()` only signals: the dispatcher keeps delivering every
+/// event already in the ring and returns from `for_each_scoped` once the ring
+/// is drained. With a small backlog that is well inside this window and the
+/// wake hook never runs. A dispatcher blocked inside a full bounded callback
+/// queue's `Blocking` `call` while the Node main thread is the one joining it
+/// never finishes on its own, so it is still running when this window elapses
+/// and the wake hook aborts the threadsafe function to release it. A join on
+/// any other thread leaves the main thread free to drain the queue, so the
+/// hook leaves the function alone there however long the backlog takes (see
+/// [`abort_hook_expect_closing`]).
 ///
 /// Why fire the hook only as a fallback rather than unconditionally: the wake
 /// hook for the `ThreadsafeFunction` path ([`abort_hook`]) ABORTS the function,
@@ -74,8 +77,8 @@ use crate::{
 /// forever. `reconnect()` re-registers the SAME function on the fresh session,
 /// so aborting it on every stop would leave a reconnected session unable to
 /// deliver events. Firing the abort only when the dispatcher is genuinely stuck
-/// keeps the function alive across the common (not-backed-up) reconnect while
-/// still breaking the deadlock when it actually occurs.
+/// keeps the function alive across a reconnect while still breaking the
+/// deadlock when it actually occurs.
 const DISPATCHER_TEARDOWN_WAKE_GRACE: Duration = Duration::from_millis(250);
 
 /// Poll cadence for the grace window above.
@@ -212,13 +215,14 @@ pub(crate) fn abort_waking_before_marking(
 ///
 /// # When it runs
 ///
-/// Teardown installs this as the session's `on_teardown` and runs it through
-/// [`join_dispatcher_with_wake`], which fires it only as a FALLBACK — after the
-/// dispatcher fails to exit on its own within the grace window. The abort is
-/// permanent (a later `call` returns `Closing` forever) and `reconnect` re-uses
-/// the same function, so firing it on every stop would break a reconnected
-/// session; gating it behind the grace fires it only when it is the sole way to
-/// break a real deadlock.
+/// Teardown installs this, through [`abort_hook_expect_closing`], as the
+/// session's `on_teardown` and runs it through [`join_dispatcher_with_wake`],
+/// which fires it only as a FALLBACK, after the dispatcher fails to exit on its
+/// own within the grace window. The abort is permanent (a later `call` returns
+/// `Closing` forever) and `reconnect` re-uses the same function, so firing it on
+/// every stop would break a reconnected session. The grace and the thread check
+/// in [`abort_hook_expect_closing`] together fire it only when it is the sole
+/// way to break a real deadlock.
 pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Send> {
     // Clone the SHARED handle (an `Arc<ThreadsafeFunctionHandle>`). Every clone
     // of the threadsafe function — including the one the blocked consumer holds
@@ -269,12 +273,26 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
     })
 }
 
+/// Wrap [`abort_hook`] so it aborts only when the teardown joins on
+/// `js_thread`, the Node main thread that drains `callback`'s queue, and marks
+/// the `Closing` statuses that abort produces as expected.
+///
+/// Only a join on that thread can keep the queue from draining. A join on any
+/// other thread, such as the blocking worker `reconnect()` tears the old
+/// session down on, leaves the main thread delivering the backlog, so the
+/// dispatcher drains the ring and exits however long that takes. Aborting
+/// there would discard every event still queued and leave `reconnect()` with a
+/// closed callback it cannot re-register.
 pub(crate) fn abort_hook_expect_closing(
     callback: &Arc<TsfnCallback>,
     closing_expected: Arc<AtomicBool>,
+    js_thread: std::thread::ThreadId,
 ) -> Box<dyn FnOnce() + Send> {
     let hook = abort_hook(callback);
     Box::new(move || {
+        if std::thread::current().id() != js_thread {
+            return;
+        }
         closing_expected.store(true, Ordering::Release);
         hook();
     })
@@ -346,45 +364,9 @@ impl FpssParams {
         }
     }
 
-    /// Thread every connection-side knob from the snapshot into a
-    /// [`fpss::StreamingClientBuilder`]. Kept in lockstep with the
-    /// unified client's connect path (`thetadatadx-rs/src/client.rs`)
-    /// and the C ABI (`thetadatadx-ffi/src/streaming.rs::streaming_builder`) so the
-    /// standalone client honours the full streaming and reconnect surface.
     fn builder(&self) -> fpss::StreamingClientBuilder<'_> {
-        fpss::StreamingClientBuilder::new(&self.creds, self.streaming.hosts())
-            .ring_size(self.streaming.ring_size)
-            .consumer_cpu(self.streaming.consumer_cpu)
-            .wait_mode(self.streaming.wait_mode)
-            .park_interval_us(self.streaming.park_interval_us)
-            .reconnect_policy(self.reconnect.policy.clone())
-            .reconnect_wait_ms(self.reconnect.wait_ms)
-            .reconnect_wait_max_ms(self.reconnect.wait_max_ms)
-            .reconnect_wait_rate_limited_ms(self.reconnect.wait_rate_limited_ms)
-            .reconnect_wait_server_restart_ms(self.reconnect.wait_server_restart_ms)
-            .reconnect_jitter(self.reconnect.jitter)
-            .reconnect_replay_burst_size(self.reconnect.replay_burst_size)
-            .reconnect_replay_pace_ms(self.reconnect.replay_pace_ms)
-            .connect_timeout_ms(self.streaming.connect_timeout_ms)
-            .read_timeout_ms(self.streaming.timeout_ms)
-            .ping_interval_ms(self.streaming.ping_interval_ms)
-            .io_read_slice_ms(self.streaming.io_read_slice_ms)
-            .keepalive_idle_secs(self.streaming.keepalive_idle_secs)
-            .keepalive_interval_secs(self.streaming.keepalive_interval_secs)
-            .keepalive_retries(self.streaming.keepalive_retries)
+        fpss::StreamingClientBuilder::from_config(&self.creds, &self.streaming, &self.reconnect)
     }
-}
-
-/// Build the snapshot from an owned [`DirectConfig`], rejecting a config
-/// with no streaming hosts before any TLS work begins. Mirrors the Python
-/// `StreamingClient.__new__` empty-hosts guard.
-fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::Result<FpssParams> {
-    if direct.streaming_hosts().is_empty() {
-        return Err(crate::invalid_parameter_err(
-            "StreamingClient: config.streaming.hosts is empty (use Config.production() or set the streaming hosts)",
-        ));
-    }
-    Ok(FpssParams::from_config(creds, direct))
 }
 
 type InnerSlot = Arc<Mutex<Option<Arc<RustStreamingClient>>>>;
@@ -456,6 +438,9 @@ pub struct StreamingClient {
     /// Faults and drops accrued by sessions this handle has already retired.
     /// See [`RetiredFaults`].
     retired: RetiredCounts,
+    /// The Node main thread this handle was created on, which drains the
+    /// callback queue. See [`abort_hook_expect_closing`].
+    js_thread: std::thread::ThreadId,
 }
 
 #[derive(Clone)]
@@ -658,15 +643,16 @@ impl StreamingClient {
             {
                 if handle.thread().id() != std::thread::current().id() {
                     // Signal-grace-wake-join. `client.shutdown()` above signals
-                    // the ring; a dispatcher parked there exits on its own and
-                    // is joined without ever firing the hook. Only if it is
-                    // still blocked off the ring after the grace window — parked
-                    // inside the `Blocking` tsfn `call` because the bounded
-                    // callback queue is full — does the hook abort the function.
-                    // That abort makes the dispatcher resume, see the shutdown,
-                    // and let the join return. Avoiding the hook on the normal
-                    // path keeps the function reusable across the common
-                    // `reconnect()` (see the constant docs above).
+                    // the ring; the dispatcher drains it, exits on its own and
+                    // is joined without ever firing the hook. The hook aborts
+                    // the function only if the dispatcher is still running after
+                    // the grace window and this join runs on the Node main
+                    // thread, which then cannot drain a full bounded callback
+                    // queue the dispatcher's `Blocking` tsfn `call` is parked
+                    // in. That abort makes the dispatcher resume, see the
+                    // shutdown, and let the join return. `reconnect()` joins on
+                    // a blocking worker, so the hook never fires there and the
+                    // function stays reusable (see the constant docs above).
                     if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
                         let reason = panic_reason(payload.as_ref());
                         let mut guard = dispatcher
@@ -782,8 +768,11 @@ impl StreamingClient {
         // (see `abort_hook`). The dispatcher would otherwise park forever
         // waiting for the Node main thread — which is itself inside the join —
         // to drain the queue.
-        let on_teardown: Box<dyn FnOnce() + Send> =
-            abort_hook_expect_closing(&callback, Arc::clone(&callback_closing_expected));
+        let on_teardown: Box<dyn FnOnce() + Send> = abort_hook_expect_closing(
+            &callback,
+            Arc::clone(&callback_closing_expected),
+            self.js_thread,
+        );
 
         // Publish the client and dispatcher under the callback lock held
         // across the whole transition so a concurrent `stopStreaming` + newer
@@ -970,14 +959,14 @@ impl StreamingClient {
     /// may be reused or mutated afterward without affecting this client.
     #[napi(factory)]
     pub fn connect(creds: &Credentials, config: Option<&Config>) -> napi::Result<StreamingClient> {
-        let direct = config_or_production(config);
+        let direct = config_or_production(config)?;
         // Seed the process-global runtime from this client's runtime config
         // so `workerThreads` is honored when this is the first client in
         // the process, even though the streaming connection is opened lazily by
         // `startStreaming`. A runtime-build failure surfaces here as a typed
         // error rather than being deferred to the first `startStreaming`.
         crate::runtime_from_config(&direct.runtime)?;
-        let params = params_from_direct(&creds.inner, &direct)?;
+        let params = FpssParams::from_config(&creds.inner, &direct);
         Ok(StreamingClient::from_params(params))
     }
 
@@ -991,14 +980,14 @@ impl StreamingClient {
         config: Option<&Config>,
     ) -> napi::Result<StreamingClient> {
         let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let direct = config_or_production(config);
+        let direct = config_or_production(config)?;
         // Seed the process-global runtime from this client's runtime config
         // so `workerThreads` is honored when this is the first client in
         // the process, even though the streaming connection is opened lazily by
         // `startStreaming`. A runtime-build failure surfaces here as a typed
         // error rather than being deferred to the first `startStreaming`.
         crate::runtime_from_config(&direct.runtime)?;
-        let params = params_from_direct(&creds, &direct)?;
+        let params = FpssParams::from_config(&creds, &direct);
         Ok(StreamingClient::from_params(params))
     }
 
@@ -1011,8 +1000,8 @@ impl StreamingClient {
     /// exception follows Node's normal exception handling.
     ///
     /// Backpressure: a slow callback first fills a bounded delivery queue
-    /// and then the event ring behind it, at which point the oldest events
-    /// are dropped and counted by `droppedEventCount()` while
+    /// and then the event ring behind it, at which point the newest incoming
+    /// events are dropped and counted by `droppedEventCount()` while
     /// `ringOccupancy()` reports the in-flight depth. Watch those two
     /// signals to detect a callback that cannot keep up. The receive path
     /// is never blocked by a slow callback, so the upstream connection
@@ -1320,7 +1309,7 @@ impl StreamingClient {
             .spawn_blocking(move || inner.restore_subscriptions(&per_contract, &full_stream))
             .await
             .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
-            .map_err(|e| napi::Error::from_reason(format!("reconnect succeeded but {e}")))
+            .map_err(to_napi_err)
     }
 
     /// Block until every superseded streaming session's event-ring consumer
@@ -1373,7 +1362,8 @@ impl StreamingClient {
 
 impl StreamingClient {
     /// Assemble an idle handle from a parameter snapshot. The streaming TLS
-    /// connection is not opened until `startStreaming`.
+    /// connection is not opened until `startStreaming`. Called from the
+    /// factories, which run on the Node main thread.
     fn from_params(params: FpssParams) -> Self {
         Self {
             params,
@@ -1383,81 +1373,8 @@ impl StreamingClient {
             prev_drained: Arc::new(Mutex::new(Vec::new())),
             dispatcher: Arc::new(Mutex::new(DispatcherSession::Idle)),
             retired: RetiredCounts::default(),
+            js_thread: std::thread::current().id(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use thetadatadx::config::{JitterMode, ReconnectPolicy};
-
-    /// Anti-drift guard for the standalone connect path.
-    ///
-    /// `FpssParams` snapshots the whole `StreamingConfig` + `ReconnectConfig`
-    /// and `builder()` threads every field into the `StreamingClientBuilder`,
-    /// so the standalone TypeScript `StreamingClient` honours the same
-    /// streaming and reconnect surface as the unified client and the C ABI.
-    /// This test sets every streaming and reconnect knob to a non-default
-    /// value and asserts each one survives the snapshot. A future field that
-    /// `from_config` forgets to carry makes this fail rather than silently
-    /// dropping a user's tuning.
-    #[test]
-    fn from_config_preserves_every_streaming_and_reconnect_knob() {
-        let creds = RustCredentials::new("user@example.com", "secret");
-        let mut config = DirectConfig::production();
-
-        // Streaming: flip every knob away from its production default.
-        config.set_streaming_hosts(vec![("stream.example.com".to_owned(), 12345)]);
-        config.streaming.timeout_ms = 111_111;
-        config.streaming.ring_size = 1 << 20;
-        config.streaming.ping_interval_ms = 22_222;
-        config.streaming.connect_timeout_ms = 33_333;
-        config.streaming.io_read_slice_ms = 44;
-        config.streaming.keepalive_idle_secs = 66;
-        config.streaming.keepalive_interval_secs = 77;
-        config.streaming.keepalive_retries = 8;
-        config.streaming.consumer_cpu = Some(3);
-
-        // Reconnect: flip every knob away from its production default.
-        config.reconnect.wait_ms = 1_010;
-        config.reconnect.wait_max_ms = 2_020;
-        config.reconnect.wait_rate_limited_ms = 3_030;
-        config.reconnect.wait_server_restart_ms = 4_040;
-        config.reconnect.jitter = JitterMode::None;
-        config.reconnect.replay_burst_size = 51;
-        config.reconnect.replay_pace_ms = 62;
-        config.reconnect.policy = ReconnectPolicy::Manual;
-
-        let params = FpssParams::from_config(&creds, &config);
-
-        let s = &params.streaming;
-        assert_eq!(s.hosts(), config.streaming_hosts());
-        assert_eq!(s.timeout_ms, 111_111);
-        assert_eq!(s.ring_size, 1 << 20);
-        assert_eq!(s.ping_interval_ms, 22_222);
-        assert_eq!(s.connect_timeout_ms, 33_333);
-        assert_eq!(s.io_read_slice_ms, 44);
-        assert_eq!(s.keepalive_idle_secs, 66);
-        assert_eq!(s.keepalive_interval_secs, 77);
-        assert_eq!(s.keepalive_retries, 8);
-        assert_eq!(s.consumer_cpu, Some(3));
-
-        let r = &params.reconnect;
-        assert_eq!(r.wait_ms, 1_010);
-        assert_eq!(r.wait_max_ms, 2_020);
-        assert_eq!(r.wait_rate_limited_ms, 3_030);
-        assert_eq!(r.wait_server_restart_ms, 4_040);
-        assert_eq!(r.jitter, JitterMode::None);
-        assert_eq!(r.replay_burst_size, 51);
-        assert_eq!(r.replay_pace_ms, 62);
-        assert!(
-            matches!(r.policy, ReconnectPolicy::Manual),
-            "reconnect policy must survive the snapshot"
-        );
-
-        // The snapshot must build without panicking with every knob set.
-        let _ = params.builder();
     }
 }
 

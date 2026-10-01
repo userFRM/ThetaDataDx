@@ -274,7 +274,7 @@ fn generate_endpoint_stream_dispatch_arm(out: &mut String, endpoint: &GeneratedE
         .collect::<Vec<_>>();
 
     for param in &method_call_params {
-        emit_required_arg(out, endpoint, param);
+        emit_required_arg(out, param);
     }
 
     let call_args = method_call_params
@@ -374,7 +374,7 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
             .iter()
             .partition(|param| is_method_call_param(param));
         for param in &method_params {
-            emit_required_arg(out, endpoint, param);
+            emit_required_arg(out, param);
         }
         let args = method_params
             .iter()
@@ -452,7 +452,7 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
         .collect::<Vec<_>>();
 
     for param in &method_call_params {
-        emit_required_arg(out, endpoint, param);
+        emit_required_arg(out, param);
     }
 
     let call_args = method_call_params
@@ -532,7 +532,7 @@ fn emit_builder_deadline(out: &mut String) {
     out.push_str("            }\n");
 }
 
-fn emit_required_arg(out: &mut String, _endpoint: &GeneratedEndpoint, param: &GeneratedParam) {
+fn emit_required_arg(out: &mut String, param: &GeneratedParam) {
     if param.param_type == "Symbols" {
         writeln!(
             out,

@@ -1,9 +1,13 @@
-//! The `option_list_dates` filters must reach the wire.
+//! The list filters must reach the wire as the vendor reads them.
 //!
-//! The vendor narrows this route by `strike` and `right`, and the terminal
-//! returns only the matching dates. This SDK sent the contract spec with
-//! `strike = "*"` and `right = "both"` pinned, whatever the caller asked for,
-//! so a filtered request came back as the unfiltered list.
+//! The vendor narrows `option_list_dates` by `strike` and `right`, and the
+//! terminal returns only the matching dates. This SDK sent the contract spec
+//! with `strike = "*"` and `right = "both"` pinned, whatever the caller asked
+//! for, so a filtered request came back as the unfiltered list.
+//!
+//! The vendor reads a list's `symbol` filter as a comma-separated list, one
+//! value of the repeated wire field per symbol. A filter the SDK cannot
+//! answer faithfully is refused before anything is sent.
 //!
 //! The mock captures the request body the client actually wrote, so the
 //! assertion is on the encoded `ContractSpec`, not on a value the builder
@@ -18,7 +22,7 @@ use tokio::sync::Semaphore;
 
 use thetadatadx::grpc::{Channel, ChannelPool};
 use thetadatadx::mdds::MarketDataClient;
-use thetadatadx::DirectConfig;
+use thetadatadx::{DirectConfig, Error};
 
 /// The slice of `OptionListDatesRequest` this test reads back.
 ///
@@ -51,6 +55,21 @@ struct CapturedQuery {
 struct CapturedRequest {
     #[prost(message, optional, tag = "2")]
     params: Option<CapturedQuery>,
+}
+
+/// The slice of `OptionListContractsRequest` the symbol-list test reads back.
+#[derive(Clone, PartialEq, prost::Message)]
+struct CapturedSymbolsQuery {
+    #[prost(string, tag = "1")]
+    request_type: String,
+    #[prost(string, repeated, tag = "2")]
+    symbol: Vec<String>,
+}
+
+#[derive(Clone, PartialEq, prost::Message)]
+struct CapturedSymbolsRequest {
+    #[prost(message, optional, tag = "2")]
+    params: Option<CapturedSymbolsQuery>,
 }
 
 #[path = "grpc_mock_server.rs"]
@@ -117,4 +136,40 @@ async fn an_unfiltered_call_still_sends_the_vendor_defaults() {
     let spec = captured_contract_spec(&captured);
     assert_eq!(spec.strike.as_deref(), Some("*"), "default strike changed");
     assert_eq!(spec.right.as_deref(), Some("both"), "default right changed");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_symbol_list_is_split_on_the_wire_or_refused_unsent() {
+    let (_mock, client, captured) = client_capturing_request().await;
+    let _ = client
+        .option_list_contracts("trade", "20250321")
+        .symbol("AAPL, SPY")
+        .await;
+    let bytes = captured.lock().expect("capture lock").clone();
+    let params = CapturedSymbolsRequest::decode(bytes.as_slice())
+        .expect("captured bytes decode as the list-contracts request")
+        .params
+        .expect("request carries its params");
+    assert_eq!(params.request_type, "trade", "request_type was not sent");
+    assert_eq!(params.symbol, ["AAPL", "SPY"], "one wire value per symbol");
+
+    // Expirations come back as plain values that cannot name their symbol,
+    // and a filter naming no symbol would read as no filter at all.
+    let (_mock, client, captured) = client_capturing_request().await;
+    let expirations = client.option_list_expirations("AAPL,SPY").await;
+    let contracts = client
+        .option_list_contracts("trade", "20250321")
+        .symbol(" , ")
+        .await
+        .map(|_| ());
+    for result in [expirations.map(|_| ()), contracts] {
+        assert!(
+            matches!(&result, Err(Error::Config { kind, .. }) if kind.is_invalid_parameter()),
+            "expected an invalid-parameter refusal, got {result:?}"
+        );
+    }
+    assert!(
+        captured.lock().expect("capture lock").is_empty(),
+        "a refused request reached the wire"
+    );
 }

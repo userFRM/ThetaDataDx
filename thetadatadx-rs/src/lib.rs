@@ -145,23 +145,11 @@ pub mod grpc;
 pub(crate) mod observability;
 
 // The binary-encoding data layer — tick types, enums, `Price`, the
-// FIT codec, Black-Scholes Greeks, and the condition / exchange /
-// sequence lookups. The crate root re-exports its public surface under
-// stable `thetadatadx::*` paths (see the re-export blocks below); the
-// `tdbe` name itself stays internal so the SDK ships as one crate with
-// one published package. Never widen to `pub` — that would resurface
-// the `tdbe` path consumers must not depend on.
-//
-// The layer carries the complete data-format API: some entry points
-// (the per-Greek Black-Scholes primitives, the FIT codec, the
-// canonical-JSON helpers, a handful of enum/error constructors) have no
-// caller inside a default-feature build — they are reached by the
-// `__internal` re-exports below (workspace tools and bindings) and by the
-// data-format benches. Enabling `__internal` makes those re-exports `pub`,
-// so dead-code analysis still covers the whole layer there; the
-// allow applies only to the narrower default build where the curated
-// public surface does not name them.
-#[cfg_attr(not(feature = "__internal"), allow(dead_code))]
+// FIT codec, and the condition / exchange / sequence lookups. The crate
+// root re-exports its public surface under stable `thetadatadx::*` paths
+// (see the re-export blocks below); the `tdbe` name itself stays internal
+// so the SDK ships as one crate with one published package. Never widen to
+// `pub` — that would resurface the `tdbe` path consumers must not depend on.
 pub(crate) mod tdbe;
 
 pub(crate) mod util;
@@ -494,8 +482,17 @@ pub mod utils {
 #[doc(hidden)]
 pub use crate::tdbe::time;
 
-/// Canonical JSON helpers (`finite_or_null`, `canonicalize`,
-/// `canonicalize_and_serialize`) for the CLI / server / MCP renderers.
+/// The streaming ring-size rule the connect-time validation applies, so the
+/// binding setters reject exactly the values a connect would.
+///
+/// Only available when the `__internal` feature is enabled. NOT a stable
+/// public surface; for workspace tools and bindings only.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub use crate::util::ring::check_ring_size;
+
+/// Canonical JSON helper (`finite_or_null`) for the CLI / server / MCP
+/// renderers.
 ///
 /// Only available when the `__internal` feature is enabled. NOT a stable
 /// public surface — for workspace tools and bindings only.
@@ -568,7 +565,7 @@ pub mod mimalloc {
 /// let creds  = Credentials::from_file("creds.txt")?;
 /// let client = Client::connect(&creds, DirectConfig::production()).await?;
 /// let stock  = Contract::stock("AAPL");
-/// let option = Contract::option("SPX", OptionLeg { expiration: "20260620", strike: "5400", right: "C" })?;
+/// let option = Contract::option("SPX", OptionLeg { expiration: "20261218", strike: "5400", right: "C" })?;
 /// client.stream().subscribe(stock.quote())?;
 /// client.stream().subscribe(option.trade())?;
 /// client.stream().subscribe(SecType::Option.full_trades())?;

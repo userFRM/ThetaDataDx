@@ -192,35 +192,35 @@ pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
     out
 }
 
-/// Emit the timeout-aware await of a local `call` future: race it against
-/// `tokio::time::timeout` when `timeout_ms` is `Some`, plain `.await`
-/// otherwise. `indent` is the leading whitespace of the `if let` line; the
-/// match body nests at `indent + 4` / `indent + 8`. Shared by every list /
-/// snapshot dispatch emitter (Python and TypeScript) so the generated
-/// timeout race reads identically across surfaces.
-pub(super) fn write_timeout_call(out: &mut String, indent: &str) {
+/// Emit the await of the list endpoint call `{method}({args})`, applying a
+/// caller's `timeout_ms` as the endpoint's per-call deadline: through the
+/// `{method}_with_deadline` overload of a plain list endpoint, or `.with_deadline`
+/// on the builder a `builder` list endpoint returns. `indent` is the leading
+/// whitespace of the `match` line. Shared by every list dispatch emitter
+/// (Python and TypeScript).
+///
+/// The core owns the deadline contract: `None` runs under the configured
+/// request timeout, and an explicit value, including `0` for "no deadline",
+/// goes through the same resolution every other endpoint uses.
+pub(super) fn write_list_call(
+    out: &mut String,
+    indent: &str,
+    method: &str,
+    args: &str,
+    builder: bool,
+) {
     use std::fmt::Write as _;
-    // `timeout_ms == 0` disables the per-call deadline rather than firing an
-    // immediate timeout. `tokio::time::timeout(Duration::ZERO, ..)` fails
-    // instantly, but the builder endpoints read `0` as
-    // `with_deadline(Duration::ZERO)` — "no explicit deadline" — so the same
-    // `timeout_ms` value must not mean opposite things across endpoint
-    // families. `None` and `Some(0)` therefore both run under the configured
-    // request timeout; only a positive value arms the race.
+    let deadline = "std::time::Duration::from_millis(ms)";
+    let with_deadline = if builder {
+        format!("{method}({args}).with_deadline({deadline})")
+    } else if args.is_empty() {
+        format!("{method}_with_deadline({deadline})")
+    } else {
+        format!("{method}_with_deadline({args}, {deadline})")
+    };
     writeln!(out, "{indent}match timeout_ms {{").unwrap();
-    writeln!(out, "{indent}    None | Some(0) => call.await,").unwrap();
-    writeln!(
-        out,
-        "{indent}    Some(ms) => match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
-    )
-    .unwrap();
-    writeln!(out, "{indent}        Ok(inner) => inner,").unwrap();
-    writeln!(
-        out,
-        "{indent}        Err(_) => Err(thetadatadx::Error::Timeout {{ duration_ms: ms }}),"
-    )
-    .unwrap();
-    writeln!(out, "{indent}    }},").unwrap();
+    writeln!(out, "{indent}    None => {method}({args}).await,").unwrap();
+    writeln!(out, "{indent}    Some(ms) => {with_deadline}.await,").unwrap();
     writeln!(out, "{indent}}}").unwrap();
 }
 

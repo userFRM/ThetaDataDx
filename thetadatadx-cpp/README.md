@@ -16,7 +16,7 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
 - **Three access modes** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
 - **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
@@ -61,8 +61,8 @@ int main() {
         .api_key("td1_...")
         .connect();
 
-    // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260619", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
+    // First-order Greeks for every strike on SPY's 2026-06-18 expiry, as of 2024-03-15
+    auto greeks = client.market_data().option_history_greeks_first_order("SPY", "20260618", thetadatadx::EndpointRequestOptions{}.with_date("20240315"));
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
                     t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
@@ -149,7 +149,7 @@ int main() {
     // Fluent contract-first subscriptions.
     auto stock  = thetadatadx::Contract::stock("AAPL");
     // OptionLeg: expiration, strike, right
-    auto option = thetadatadx::Contract::option("SPY", {"20260620", "550", "C"});
+    auto option = thetadatadx::Contract::option("SPY", {"20261218", "550", "C"});
 
     streaming.subscribe(stock.quote());
     streaming.subscribe_many({option.quote(), option.trade()});
@@ -192,9 +192,13 @@ streaming.subscribe(thetadatadx::SecType::option().full_trades());   // the call
 Prefer columns? `client.stream().batches(...)` is a sibling to the callback — the same subscriptions, delivered as Arrow record batches under a fixed schema through a native `arrow::RecordBatchReader`. Build the SDK with `-DTHETADATADX_CPP_ARROW=ON` (links arrow-cpp) to enable it:
 
 ```cpp
-// `batches(...)` starts the streaming session, so open it first, then subscribe.
-auto reader = client.stream().batches(/*batch_size=*/8192);
-client.stream().subscribe(thetadatadx::Contract::stock("AAPL").trade());
+// `batches(...)` lives on the unified `Client` and starts the streaming session,
+// so open it first, then subscribe.
+auto unified = thetadatadx::Client::connect(
+    thetadatadx::Credentials::from_file("creds.txt"),
+    thetadatadx::Config::production());
+auto reader = unified.stream().batches(/*batch_size=*/8192);
+unified.stream().subscribe(thetadatadx::Contract::stock("AAPL").trade());
 std::shared_ptr<arrow::RecordBatch> batch;
 while (reader->ReadNext(&batch).ok() && batch != nullptr) {
     std::printf("%lld rows\n", static_cast<long long>(batch->num_rows()));
@@ -225,11 +229,11 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
+64 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
-| Stock | 16 | EOD, OHLC, trades, quotes, snapshots, at-time |
+| Stock | 15 | EOD, OHLC, trades, quotes, snapshots, at-time |
 | Option | 36 | Every stock surface plus five Greeks tiers, open interest, contract lists |
 | Index | 9 | EOD, OHLC, price, snapshots |
 | Calendar | 3 | Market open/close, holidays, early closes |

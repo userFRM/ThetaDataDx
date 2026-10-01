@@ -275,8 +275,7 @@ private:
     std::optional<double> retry_after_;
 };
 
-/// Empty result / unknown contract (gRPC `NotFound`,
-/// `Error::NoData`).
+/// Empty result / unknown contract (gRPC `NotFound`).
 class NotFoundError : public ThetaDataError {
 public:
     using ThetaDataError::ThetaDataError;
@@ -771,7 +770,7 @@ public:
      *  Starts from the production configuration and applies the cluster
      *  keys carried by the file: `THETADATA_MARKET_DATA_TYPE` (`PROD` / `STAGE`)
      *  selects the market-data environment and `THETADATA_STREAMING_TYPE`
-     *  (`PROD` / `DEV`) selects the streaming environment (both
+     *  (`PROD` / `STAGE` / `DEV`) selects the streaming environment (both
      *  case-insensitive, selected independently), and the optional
      *  `THETADATA_MARKET_DATA_HOST` / `THETADATA_STREAMING_HOST` keys
      *  override the hosts (an explicit host wins over the environment
@@ -805,7 +804,7 @@ public:
 
     /** Install a custom reconnect policy driven by a C callback.
      *  Permanent disconnect reasons never reach the callback; it runs
-     *  on the SDK's streaming I/O thread and must be thread-safe.
+     *  on an SDK streaming thread and must be thread-safe.
      *  Return the delay in milliseconds or a negative value to stop.
      *  Pass nullptr to restore the default Auto policy.
      *
@@ -821,8 +820,8 @@ public:
     }
 
     /** Set the streaming event ring size (slots). Must be a power of two
-     *  >= 64; invalid values are rejected (thetadatadx_last_error). Default
-     *  131_072. */
+     *  from 64 to 2^24; invalid values are rejected (thetadatadx_last_error).
+     *  Default 131_072. */
     void set_streaming_ring_size(size_t n) {
         // The C setter returns void and rejects an invalid ring size through
         // the error slot; clear it first so a stale error isn't misread, then
@@ -870,12 +869,13 @@ public:
     }
 
     /** Target streaming environment carried by this configuration:
-     *  `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
-     *  The streaming and market-data environments are selected
-     *  independently; the production / stage / dev presets (and the
-     *  `THETADATA_STREAMING_TYPE` dotenv key) set the streaming channel, and
-     *  this is the readback of that selection. Returns an empty string if
-     *  the FFI getter returns null (null handle). */
+     *  `"PROD"` for the production cluster, `"STAGE"` for staging or
+     *  `"DEV"` for the dev cluster. The streaming and market-data
+     *  environments are selected independently; the production / stage /
+     *  dev presets (and the `THETADATA_STREAMING_TYPE` dotenv key) set the
+     *  streaming channel, and this is the readback of that selection.
+     *  Returns an empty string if the FFI getter returns null (null
+     *  handle). */
     std::string get_streaming_environment() const {
         detail::FfiString s(thetadatadx_config_get_streaming_environment(handle_.get()));
         return s.str();
@@ -1853,10 +1853,12 @@ public:
      *  Unlike `StreamingClient::set_callback` (one-shot), the unified path
      *  permits stop+register as a normal user flow: after
      *  `stop_streaming()` another `set_callback` REPLACES the saved
-     *  `(callback, ctx)`. `reconnect()` is built on top of this. Calling
-     *  `set_callback` on a live (running) session also replaces — the
-     *  previous (callback, ctx) is drained out before the new one is wired
-     *  in, with the same `await_drain(5000)` budget.
+     *  `(callback, ctx)`, after the previous one is drained out with the
+     *  same `await_drain(5000)` budget. Calling `set_callback` on a live
+     *  (running) session throws `StreamError` ("streaming already started"),
+     *  matching the C ABI, Python and TypeScript: a new registration starts
+     *  a fresh session, so replacing a live one would silently drop every
+     *  subscription. Use `reconnect()` to restart while keeping them.
      *
      *  A replacement always installs a FRESH node and registers that node's
      *  distinct `&fn`; it never reuses or mutates the previously-registered
@@ -1871,11 +1873,15 @@ public:
         if (!handle_ || !callback_) {
             detail::throw_for_code(THETADATADX_ERR_STREAM, "client is closed");
         }
-        // Replacing a live registration: stop the session and wait for the
-        // consumer thread to stop firing through the old node. Matches the
-        // C ABI's replace-allowed contract, which requires that a fresh
+        if (thetadatadx_client_is_streaming(handle_.get()) == 1) {
+            detail::throw_for_code(THETADATADX_ERR_STREAM, "streaming already started");
+        }
+        // Replacing a stopped registration: wait for the consumer thread to
+        // stop firing through the old node. Matches the C ABI's
+        // replace-after-stop contract, which requires that a fresh
         // callback's storage must not alias a still-running previous
-        // registration.
+        // registration. The stop is a no-op after a user stop and retires a
+        // session whose dispatcher failed.
         if (callback_->slot->fn) {
             thetadatadx_client_stop_streaming(handle_.get());
             int drained = thetadatadx_client_await_drain(handle_.get(), 5000);
@@ -1970,7 +1976,9 @@ public:
 
     /// Reconnect streaming and re-apply every previously active
     /// subscription. Throws on failure — the wrapped C ABI sets the
-    /// last-error slot on `-1` return.
+    /// last-error slot on `-1` return. If the session reconnected but some
+    /// subscriptions failed to restore, it throws `StreamError` with the
+    /// stream still live; `active_subscriptions()` lists what was restored.
     void reconnect() {
         int rc = thetadatadx_client_reconnect(handle_.get());
         if (rc < 0) {
@@ -2616,8 +2624,8 @@ public:
     }
 
     /// Select the streaming environment by its binding label
-    /// (`"PROD"` or `"DEV"`, case-insensitive). Composes with a market-data
-    /// selection.
+    /// (`"PROD"`, `"STAGE"` or `"DEV"`, case-insensitive). Composes with a
+    /// market-data selection.
     ClientBuilder& streaming_environment(const std::string& environment) & {
         set_streaming_environment(environment);
         return *this;
@@ -2761,7 +2769,9 @@ private:
     /// Per-channel preset selections, mirroring the independent market-data
     /// and streaming channels. Both default to production.
     enum class MarketDataKind { Production, Stage };
-    enum class StreamingKind { Production, Dev };
+    /// `StreamingKind` values are the `thetadatadx_config_with_streaming_environment`
+    /// selectors, so `resolve_config` passes the selection through as-is.
+    enum class StreamingKind : int32_t { Production = 0, Dev = 1, Stage = 2 };
 
     /// Record an auth source, rejecting a second different one. Re-stating
     /// the same kind overwrites; a different kind latches a conflict that
@@ -2803,7 +2813,7 @@ private:
     }
 
     /// Select the streaming channel by its string label
-    /// (`"PROD"` / `"DEV"`), rejecting anything else as a
+    /// (`"PROD"` / `"STAGE"` / `"DEV"`), rejecting anything else as a
     /// client-construction config error. The market-data channel is left
     /// untouched.
     void set_streaming_environment(const std::string& environment) {
@@ -2872,17 +2882,20 @@ private:
             "market-data environment must be PROD or STAGE; got \"" + environment + "\"");
     }
 
-    /// Parse a streaming channel label (`"PROD"` / `"DEV"`).
+    /// Parse a streaming channel label (`"PROD"` / `"STAGE"` / `"DEV"`).
     static StreamingKind parse_streaming_kind(const std::string& environment) {
         const std::string normalized = normalize_label(environment);
         if (normalized == "PROD") {
             return StreamingKind::Production;
         }
+        if (normalized == "STAGE") {
+            return StreamingKind::Stage;
+        }
         if (normalized == "DEV") {
             return StreamingKind::Dev;
         }
         detail::throw_config_error(
-            "streaming environment must be PROD or DEV; got \"" + environment + "\"");
+            "streaming environment must be PROD, STAGE or DEV; got \"" + environment + "\"");
     }
 
     /// Track the auth-source label so a second, different source can be
@@ -2987,8 +3000,9 @@ private:
                         detail::throw_last_ffi_error();
                     }
                 }
-                if (streaming_ == StreamingKind::Dev) {
-                    if (thetadatadx_config_with_streaming_environment(cfg.get(), 1) != 0) {
+                if (streaming_ != StreamingKind::Production) {
+                    if (thetadatadx_config_with_streaming_environment(
+                            cfg.get(), static_cast<int32_t>(streaming_)) != 0) {
                         detail::throw_last_ffi_error();
                     }
                 }
@@ -3024,7 +3038,7 @@ inline ClientBuilder Client::builder() { return ClientBuilder(); }
 // The fluent contract-first surface mirrored across every binding:
 //
 //     auto stock  = thetadatadx::Contract::stock("AAPL");
-//     auto option = thetadatadx::Contract::option("SPY", "20260620", "550", "C");
+//     auto option = thetadatadx::Contract::option("SPY", "20261218", "550", "C");
 //     client.subscribe(stock.quote());
 //     client.subscribe(option.trade());
 //     client.subscribe(thetadatadx::SecType::option().full_trades());
@@ -3155,10 +3169,10 @@ private:
 /// All three are strings, so a positional `(expiration, strike, right)`
 /// argument list lets a transposed pair compile silently. Passing them as
 /// named members — ideally via designated initialisers,
-/// `thetadatadx::OptionLeg{.expiration = "20260620", .strike = "550", .right =
+/// `thetadatadx::OptionLeg{.expiration = "20261218", .strike = "550", .right =
 /// "C"}` — makes the contract identity non-transposable.
 struct OptionLeg {
-    /// Expiration date as `YYYYMMDD` (e.g. `"20260620"`).
+    /// Expiration date as `YYYYMMDD` (e.g. `"20261218"`).
     std::string expiration;
     /// Strike price in dollars (e.g. `"550"` or `"550.50"`).
     std::string strike;
@@ -3183,7 +3197,7 @@ public:
     }
     /// Construct an option contract. Expiration / strike / right travel in
     /// one `OptionLeg`, members in that order, so a swapped pair cannot pass
-    /// silently: `Contract::option("SPY", {"20260620", "550", "C"})`.
+    /// silently: `Contract::option("SPY", {"20261218", "550", "C"})`.
     /// `right` accepts `"C"` / `"CALL"` / `"P"` / `"PUT"` (case-insensitive).
     static FluentContract option(std::string symbol, OptionLeg leg) {
         return FluentContract{std::move(symbol), "OPTION", true, std::move(leg.expiration),

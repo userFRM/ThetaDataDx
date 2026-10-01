@@ -16,7 +16,7 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
+- **Complete coverage**: stocks, options, indices, and rates across 64 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Greeks on demand** — first- through third-order Greeks and implied volatility, served straight from the option endpoints.
 - **Buffer or stream** — every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
@@ -51,7 +51,7 @@ async fn run() -> Result<(), thetadatadx::Error> {
     // EOD Greeks for a SPY option chain across Q1 2024.
     let chain = client
         .market_data()
-        .option_history_greeks_eod("SPY", "20260619", "20240101", "20240331")
+        .option_history_greeks_eod("SPY", "20260618", "20240101", "20240331")
         .await?;
 
     for t in chain.iter().take(5) {
@@ -88,7 +88,7 @@ let creds = Credentials::from_file("creds.txt")?;
 let client = Client::connect(&creds, DirectConfig::production()).await?;
 ```
 
-65 typed endpoints span stocks, options, indices, the market calendar, and interest rates. Each builder accepts `.await` for a buffered `Vec<Tick>`, or `.stream(handler)` for chunk-by-chunk delivery — the right choice for multi-day backfills, where it holds peak memory flat instead of materialising the whole response.
+64 typed endpoints span stocks, options, indices, the market calendar, and interest rates. Each builder accepts `.await` for a buffered `Vec<Tick>`, or `.stream(handler)` for chunk-by-chunk delivery, the right choice for multi-day backfills, where it holds peak memory flat instead of materialising the whole response.
 
 ## Streaming
 
@@ -150,7 +150,7 @@ client.stream().start_streaming(|event: &StreamEvent| {
 
 client.stream().subscribe(Contract::stock("AAPL").quote())?;
 client.stream().subscribe(
-    Contract::option("SPY", OptionLeg { expiration: "20260620", strike: "550", right: "C" })?
+    Contract::option("SPY", OptionLeg { expiration: "20261218", strike: "550", right: "C" })?
         .trade(),
 )?;
 

@@ -14,8 +14,8 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 | Bad or expired credentials | `Auth` | `AuthenticationError` / `InvalidCredentialsError` | `thetadatadx::AuthenticationError` / `thetadatadx::InvalidCredentialsError` |
 | Endpoint needs a higher tier | `Grpc` (permission) | `SubscriptionError` | `thetadatadx::SubscriptionError` |
 | Too many requests in flight upstream | `Grpc` (resource exhausted) | `RateLimitError` | `thetadatadx::RateLimitError` |
-| Request returned no rows | `NoData` | `NoDataFoundError` | `thetadatadx::Error` with `kind == NoData` |
-| Per-request deadline elapsed | `Timeout` | `TimeoutError` | `thetadatadx::Error` with `kind == Timeout` |
+| Request returned no rows | `Grpc` (not found) | `NotFoundError` / `NoDataFoundError` | `thetadatadx::NotFoundError` |
+| Per-request deadline elapsed | `Timeout` | `DeadlineExceededError` / `TimeoutError` | `thetadatadx::DeadlineExceededError` |
 | Connection / TLS / protocol fault | `Transport` | `NetworkError` | `thetadatadx::NetworkError` |
 | Response shape unexpected | `Decode` | `SchemaMismatchError` | `thetadatadx::SchemaMismatchError` |
 | Streaming session fault | `Stream` | `StreamError` | `thetadatadx::StreamError` |
@@ -23,7 +23,7 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 
 - **Python** exceptions all derive from `ThetaDataError`, so `except ThetaDataError` is the catch-all.
 - **TypeScript** throws a typed subclass, the same hierarchy the other bindings expose: `catch (e) { if (e instanceof SubscriptionError) ... }`. A rate-limit error carries `retryAfter`. The message still carries the same stable text as the Rust `Display` output, but an instance check is the reliable test, not a pattern over the message.
-- **C++** exceptions derive from `thetadatadx::ThetaDataError`; `NoData` and `Timeout` ride the generic `thetadatadx::Error` with a `kind` discriminator.
+- **C++** exceptions derive from `thetadatadx::ThetaDataError`, so `catch (const thetadatadx::ThetaDataError&)` is the catch-all.
 
 ```python
 from thetadatadx import NoDataFoundError, RateLimitError, ThetaDataError
@@ -40,19 +40,30 @@ except ThetaDataError:
 
 Transient faults (transport drops, upstream exhaustion) are retried inside the SDK with backoff before any error surfaces; tune the budget via the `retry_*` [configuration](/articles/configuration) fields.
 
-## Server error envelope
+## Server errors
 
-The [HTTP server](/server/http) reports every failure with one envelope shape and an `error_type` discriminator:
+The [HTTP server](/server/http) answers a failed data request the way the terminal does: with an HTTP status and the reason as a plain-text (`text/plain`) body.
+
+| HTTP status | Meaning |
+|---|---|
+| 400 | Missing or invalid parameter; the body names it. |
+| 404 | Unknown endpoint; the body names it. A path the server does not serve at all gets an empty 404. |
+| 410 | A v2 query parameter; the body names its v3 replacement. |
+| 503 | Upstream capacity exhausted after retries; carries `Retry-After`. |
+| Set by the upstream | The upstream service rejected the request. The server answers with the HTTP status the service attaches to the rejection (for example its no-data status when a query matches no rows) and the service's description, or with 500 when the service attaches no status. |
+
+Three kinds of failure are answered with a JSON envelope instead, whose `error_type` names the class: a query string the server cannot accept (more than 32 parameters, or one it cannot parse), every failure on the [flat-file](/articles/flat-files) routes, and an internal fault while the server renders a response.
 
 ```json
 {
-    "header": { "error_type": "bad_request", "error_msg": "missing required parameter: 'date' (Date YYYYMMDD)" },
+    "header": { "error_type": "bad_request", "error_msg": "request has 40 query parameters; max is 32" },
     "response": []
 }
 ```
 
 | HTTP status | `error_type` | Meaning |
 |---|---|---|
-| 400 | `bad_request` | Missing or invalid parameter; the message names it. |
-| 404 | `not_found` | Unknown route. |
-| 503 | `upstream_exhausted` | Upstream capacity exhausted after retries; carries `Retry-After`. |
+| 400 | `bad_request` | The query string or a flat-file parameter was rejected; the message names it. |
+| 404 | `flatfiles_no_data` | No flat file is available to this account for the requested date. |
+| 502 | `flatfiles_unavailable` | The upstream failed while serving the flat file. |
+| 500 | `serialization_error`, `server_error` | The server failed to render the response. This is a defect in the server, not a data condition. |
