@@ -3347,9 +3347,11 @@ components:
     Error:
       type: object
       description: |
-        The body of a failed request on every route. `error_type` is the
-        discriminator a client branches on; see the error codes page for the
-        values and the HTTP status each one comes with.
+        The JSON body of the two failures the server answers with an
+        envelope: a query string it cannot accept, and any failure on the
+        flat-file routes. `error_type` is the discriminator a client branches
+        on; see the error codes page for the values. Every other failed request
+        is answered with an HTTP status and a plain-text description.
       required: [header, response]
       properties:
         header:
