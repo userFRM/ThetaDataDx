@@ -319,10 +319,11 @@ fn list_rows(ep: &EndpointMeta, symbol: Option<&str>, items: &[String]) -> Vec<R
     let is_date = key == "date" || key == "expiration";
     let is_strike = key == "strike";
     // The symbol-scoped lists (`option_list_expirations` / `_strikes`) pair
-    // each value with the requested `symbol`; the bare symbol / date lists
-    // do not.
+    // each value with the requested symbol; the bare symbol / date lists do
+    // not. The SDK refuses more than one distinct symbol on these lists, so
+    // the first named in the request's comma-separated `symbol` is the one.
     let pair_symbol = symbol
-        .filter(|s| !s.is_empty())
+        .and_then(|s| s.split(',').map(str::trim).find(|s| !s.is_empty()))
         .filter(|_| key == "expiration" || key == "strike");
 
     items
@@ -3150,11 +3151,12 @@ mod tests {
             Some("2012-06-01")
         );
 
-        // Option strikes: symbol-paired, strike numeric.
+        // Option strikes: paired with the symbol the request named, not the
+        // raw parameter, strike numeric.
         let ep = thetadatadx::find("option_list_strikes").expect("endpoint exists");
         let rows = response_rows(
             ep,
-            Some("AAPL"),
+            Some(" AAPL,AAPL"),
             &EndpointOutput::StringList(vec!["80.000".into()]),
         );
         assert_eq!(
