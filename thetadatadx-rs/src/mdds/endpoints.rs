@@ -93,21 +93,6 @@ impl From<&[String]> for SymbolInput {
 }
 
 // ─── MDDS-scoped wire canonicalizers ────────────────────────────────────
-
-/// Split a list endpoint's symbol filter into the repeated `symbol` wire
-/// field, one ticker per element.
-///
-/// The vendor documents these filters as a comma-separated list
-/// (`symbol=AAPL,SPY,AMD`) and answers with the union. The wire field is
-/// repeated, so the list has to arrive split: sent as the single element
-/// `"AAPL,SPY"` it matches no symbol and the request comes back empty.
-fn split_symbol_list(symbols: &str) -> impl Iterator<Item = String> + '_ {
-    symbols
-        .split(',')
-        .map(str::trim)
-        .filter(|symbol| !symbol.is_empty())
-        .map(str::to_string)
-}
 //
 // These helpers are only meaningful for MDDS request construction, so
 // they live next to the generated request builders rather than in the
@@ -182,6 +167,63 @@ fn normalize_time_of_day(time_of_day: &str) -> String {
     }
 
     format!("{hours:02}:{minutes:02}:{seconds:02}.{millis:03}")
+}
+
+/// Split a list endpoint's symbol filter into the repeated `symbol` wire
+/// field, one ticker per element.
+///
+/// The vendor documents these filters as a comma-separated list
+/// (`symbol=AAPL,SPY,AMD`) and answers with the union. The wire field is
+/// repeated, so the list has to arrive split: sent as the single element
+/// `"AAPL,SPY"` it matches no symbol and the request comes back empty.
+///
+/// # Errors
+///
+/// Refuses a filter that names no symbol (`","`). Sent as an empty field it
+/// would read as no filter at all, which on the contract list is the whole
+/// universe.
+fn split_symbol_list(symbols: &str) -> Result<Vec<String>, Error> {
+    let list: Vec<String> = symbols
+        .split(',')
+        .map(str::trim)
+        .filter(|symbol| !symbol.is_empty())
+        .map(str::to_string)
+        .collect();
+    if list.is_empty() {
+        return Err(Error::config_invalid(
+            "symbol",
+            format!("'symbol' ({symbols:?}) names no symbol"),
+        ));
+    }
+    Ok(list)
+}
+
+/// [`split_symbol_list`] for a list returned as plain values, one symbol at
+/// a time.
+///
+/// The vendor answers a multi-symbol expiration or strike list with each row
+/// tagged by its symbol, and the plain list these endpoints return cannot
+/// carry the tag, so the union would hold values nobody can attribute.
+///
+/// # Errors
+///
+/// Refuses a filter naming more than one distinct symbol, before the request
+/// is sent, as well as one naming none.
+fn split_single_symbol(symbols: &str) -> Result<Vec<String>, Error> {
+    let mut list = split_symbol_list(symbols)?;
+    list.sort_unstable();
+    list.dedup();
+    if list.len() > 1 {
+        return Err(Error::config_invalid(
+            "symbol",
+            format!(
+                "'symbol' names {} symbols ({}); this list cannot say which symbol each value belongs to, so request one symbol at a time",
+                list.len(),
+                list.join(",")
+            ),
+        ));
+    }
+    Ok(list)
 }
 
 /// Helper: build a `proto::ContractSpec` from the four standard option params.

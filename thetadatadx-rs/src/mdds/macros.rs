@@ -75,39 +75,6 @@ pub(crate) fn effective_deadline(
     }
 }
 
-/// Refuse a list response whose rows belong to more than one symbol.
-///
-/// A list request that names several symbols comes back with each row tagged
-/// by its symbol, and the plain list a list endpoint returns cannot carry the
-/// tag. Merging the rows would answer with expirations or strikes that cannot
-/// be told apart, so the request is refused instead. A date list carries no
-/// symbol column (the vendor answers with the union of dates), and a single
-/// symbol's rows all carry the same tag, so neither is affected.
-pub(crate) fn refuse_multi_symbol_list(
-    table: &crate::proto::DataTable,
-    endpoint: &str,
-) -> Result<(), crate::error::Error> {
-    let headers: Vec<&str> = table.headers.iter().map(String::as_str).collect();
-    if crate::mdds::decode::headers::find_header(&headers, "symbol").is_none() {
-        return Ok(());
-    }
-    let mut symbols: Vec<String> = crate::mdds::decode::extract_text_column(table, "symbol")
-        .into_iter()
-        .flatten()
-        .collect();
-    symbols.sort_unstable();
-    symbols.dedup();
-    if symbols.len() > 1 {
-        return Err(crate::mdds::endpoint_args::EndpointError::InvalidParams(format!(
-            "'symbol' named {} symbols ({}); {endpoint} returns a plain list that cannot say which symbol each row belongs to, so request one symbol at a time",
-            symbols.len(),
-            symbols.join(",")
-        ))
-        .into());
-    }
-    Ok(())
-}
-
 pub(crate) async fn run_with_optional_deadline<F, T>(
     deadline: Option<std::time::Duration>,
     fut: F,
@@ -846,6 +813,10 @@ macro_rules! list_endpoint_impl_body {
         // by the macro body cannot reach the caller's `self`.
         let client: &MarketDataClient = $client;
         $crate::mdds::macros::run_with_optional_deadline($deadline, async move {
+            // Build the wire parameters once, before a permit is taken: an
+            // input the request builder refuses fails here without anything
+            // being sent, and every attempt sends the same bytes.
+            let params = &proto::$query { $($field : $val),* };
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
             let _metrics_start = std::time::Instant::now();
@@ -859,7 +830,7 @@ macro_rules! list_endpoint_impl_body {
                     let qi = client.build_query_info(snap.uuid.clone());
                     let request = proto::$req {
                         query_info: Some(qi),
-                        params: Some(proto::$query { $($field : $val),* }),
+                        params: Some(params.clone()),
                     };
                     // Bind the lease to a local so it lives across
                     // the await — the pre-dispatch reservation
@@ -880,9 +851,6 @@ macro_rules! list_endpoint_impl_body {
             ).await?;
             metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
                 .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
-            if $col != "symbol" {
-                $crate::mdds::macros::refuse_multi_symbol_list(&table, stringify!($name))?;
-            }
             // List returns preserve the server's row order verbatim
             // (terminal parity — the wire order is the contract).
             Ok(decode::extract_text_column(&table, $col)
@@ -3102,49 +3070,5 @@ mod warn_buffered_tests {
             events.is_empty(),
             "threshold=0 must disable the warn entirely; got {events:?}"
         );
-    }
-}
-
-#[cfg(test)]
-mod multi_symbol_list_tests {
-    use super::refuse_multi_symbol_list;
-    use crate::proto;
-
-    fn text_table(headers: &[&str], rows: &[&[&str]]) -> proto::DataTable {
-        proto::DataTable {
-            headers: headers.iter().map(|h| (*h).to_string()).collect(),
-            data_table: rows
-                .iter()
-                .map(|row| proto::DataValueList {
-                    values: row
-                        .iter()
-                        .map(|cell| proto::DataValue {
-                            data_type: Some(proto::data_value::DataType::Text((*cell).into())),
-                        })
-                        .collect(),
-                })
-                .collect(),
-        }
-    }
-
-    fn refused(headers: &[&str], rows: &[&[&str]]) -> bool {
-        refuse_multi_symbol_list(&text_table(headers, rows), "option_list_expirations").is_err()
-    }
-
-    /// A list whose rows span several symbols is refused, because the plain
-    /// list cannot say which symbol each row belongs to. One symbol's rows,
-    /// and a date list, which carries no symbol column, pass.
-    #[test]
-    fn list_rows_spanning_symbols_are_refused() {
-        assert!(refused(
-            &["symbol", "expiration"],
-            &[&["AAPL", "20261218"], &["SPY", "20261218"]]
-        ));
-        assert!(!refused(
-            &["symbol", "expiration"],
-            &[&["AAPL", "20261218"], &["AAPL", "20270115"]]
-        ));
-        assert!(!refused(&["date"], &[&["20260930"], &["20261001"]]));
-        assert!(!refused(&["symbol", "strike"], &[]));
     }
 }

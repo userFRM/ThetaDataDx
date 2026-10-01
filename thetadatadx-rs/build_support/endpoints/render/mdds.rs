@@ -634,10 +634,19 @@ pub(super) fn mdds_query_field_expr(
                 // it), which the server reads as "list the full universe".
                 // A set filter sends each symbol of its comma-separated list.
                 format!(
-                    "{arg_name}.iter().flat_map(|symbols| split_symbol_list(symbols)).collect()"
+                    "{arg_name}.as_deref().map(split_symbol_list).transpose()?.unwrap_or_default()"
                 )
             } else if list_context {
-                format!("split_symbol_list({arg_name}).collect()")
+                // A date list answers several symbols with the union of
+                // their dates. Any other plain list (expirations, strikes)
+                // answers with each value tagged by its symbol, which the
+                // returned `Vec<String>` cannot carry, so it takes one.
+                let split = if endpoint.list_column.as_deref() == Some("date") {
+                    "split_symbol_list"
+                } else {
+                    "split_single_symbol"
+                };
+                format!("{split}({arg_name})?")
             } else {
                 format!("vec![{arg_name}.clone()]")
             }
