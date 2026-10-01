@@ -522,21 +522,6 @@ pub(crate) fn validate_u32_arg(name: &str, v: f64) -> napi::Result<u32> {
     Ok(validate_nonneg_whole(name, v, u32::MAX as f64, None)? as u32)
 }
 
-/// Validate a `u32` domain knob that additionally requires `>= 1` (a
-/// burst size or attempt budget where `0` is a degenerate value the core
-/// rejects at connect). Layered on [`validate_u32_arg`] so the
-/// finite/whole/range checks stay in one place; only the extra `0` floor
-/// lives here.
-pub(crate) fn validate_u32_arg_min1(name: &str, v: f64) -> napi::Result<u32> {
-    let value = validate_u32_arg(name, v)?;
-    if value == 0 {
-        return Err(invalid_parameter_err(format!(
-            "{name} must be at least 1; got 0"
-        )));
-    }
-    Ok(value)
-}
-
 /// Validate an optional `u32` domain knob, leaving an omitted value
 /// (`None`) untouched. The pinned-CPU / worker-thread setters take this
 /// shape: `null` defers to the OS / default sizing, a number pins the
