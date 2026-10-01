@@ -123,6 +123,29 @@ exit 0
         self.assertIn("agreement failed", proc.stdout)
         self.assertIn("RELEASE BLOCKED", proc.stdout)
 
+    def test_entitlement_skips_block_release(self) -> None:
+        # An entitlement lapsed to the free tier: the free cells pass and every
+        # paid cell skips, so neither validator's all-skip guard fires and both
+        # exit 0. The matrix was mostly not measured, so the release is blocked.
+        proc = self.run_release(
+            python_stub="""#!/usr/bin/env bash
+case "$1" in
+  -c) exit 0 ;;
+  */check_python.py) printf 'COUNTS:19:346:0\\n'; exit 0 ;;
+  */check_agreement.py) printf 'agreement ok\\n'; exit 0 ;;
+esac
+exit 64
+""",
+            cpp_stub="""#!/usr/bin/env bash
+printf 'COUNTS:19:346:0\\n'
+exit 0
+""",
+        )
+
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertNotIn("RELEASE OK", proc.stdout)
+        self.assertIn("692 cell(s) refused for entitlement", proc.stdout)
+
     def test_missing_python_counts_blocks_release(self) -> None:
         proc = self.run_release(
             python_stub="""#!/usr/bin/env bash

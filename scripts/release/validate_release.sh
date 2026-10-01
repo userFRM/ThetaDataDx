@@ -223,9 +223,15 @@ echo "  ────────────────────────
 printf "  %-12s %3d PASS  %3d SKIP  %3d FAIL\n" "TOTAL" "$TOTAL_PASS" "$TOTAL_SKIP" "$TOTAL_FAIL"
 echo "═══════════════════════════════════════════════════"
 
-if [ "$TOTAL_FAIL" -gt 0 ]; then
+# A SKIP is a cell the account was refused, so nothing was measured there.
+# The validators fail only when every cell skips, but an entitlement that
+# lapses back to the free tier still passes the free cells and skips the rest,
+# which would otherwise print RELEASE OK over a matrix that was mostly never
+# run. The release account holds every tier the matrix declares, so any skip
+# blocks.
+if [ "$TOTAL_FAIL" -gt 0 ] || [ "$TOTAL_SKIP" -gt 0 ]; then
     echo ""
-    echo "RELEASE BLOCKED — $TOTAL_FAIL failure(s) detected."
+    echo "RELEASE BLOCKED — $TOTAL_FAIL failure(s), $TOTAL_SKIP cell(s) refused for entitlement and not measured."
     exit 1
 else
     echo ""
