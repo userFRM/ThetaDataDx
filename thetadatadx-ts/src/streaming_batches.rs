@@ -36,17 +36,17 @@ fn checked_tuning(value: f64, field: &str) -> napi::Result<usize> {
 
 /// Map the optional `backpressure` string to the core enum. `"block"`
 /// (default) or `"dropOldest"` / `"drop_oldest"` (needs a `capacity`).
+/// A `capacity` is checked whatever the mode, as the Python binding checks it.
 fn parse_backpressure(kind: Option<String>, capacity: Option<f64>) -> napi::Result<Backpressure> {
+    let capacity = capacity
+        .map(|c| checked_tuning(c, "capacity"))
+        .transpose()?;
     match kind.as_deref().map(str::to_ascii_lowercase).as_deref() {
         None | Some("block") => Ok(Backpressure::Block),
-        Some("dropoldest") | Some("drop_oldest") => {
-            let capacity = match capacity {
-                Some(c) => checked_tuning(c, "capacity")?.max(1),
-                None => 4,
-            };
-            Ok(Backpressure::DropOldest { capacity })
-        }
-        Some(other) => Err(napi::Error::from_reason(format!(
+        Some("dropoldest") | Some("drop_oldest") => Ok(Backpressure::DropOldest {
+            capacity: capacity.map_or(4, |c| c.max(1)),
+        }),
+        Some(other) => Err(crate::invalid_parameter_err(format!(
             "unknown backpressure {other:?}; expected \"block\" or \"dropOldest\""
         ))),
     }
@@ -217,5 +217,26 @@ impl RecordBatchStreamHandle {
         // worker thread, and lets the dispatcher exit. No handle-level lock,
         // so a concurrent `nextIpc` pull is unblocked rather than deadlocked.
         self.inner.close_shared();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_backpressure;
+
+    /// A capacity that is not a non-negative whole number is refused in
+    /// every mode, and an unknown mode is refused, rather than either being
+    /// read as a default.
+    #[test]
+    fn backpressure_rejects_an_invalid_capacity_in_every_mode() {
+        for kind in [None, Some("block"), Some("dropOldest")] {
+            for bad in [f64::NAN, f64::INFINITY, -1.0, 1.5] {
+                assert!(
+                    parse_backpressure(kind.map(String::from), Some(bad)).is_err(),
+                    "{kind:?} accepted capacity {bad}"
+                );
+            }
+        }
+        assert!(parse_backpressure(Some("sideways".to_string()), None).is_err());
     }
 }
