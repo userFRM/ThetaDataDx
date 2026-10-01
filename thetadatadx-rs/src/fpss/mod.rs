@@ -2329,12 +2329,13 @@ impl StreamingClient {
         unsubscribe: bool,
     ) -> Result<(), Error> {
         self.check_connected()?;
-        // Reject a pair with no upstream full-stream broadcast before
-        // allocating a req_id, emitting a frame, or tracking the subscription
-        // for reconnect replay. Such a subscribe is accepted on the wire and
-        // answered `Subscribed`, then never streams a tick, so it is rejected
-        // here at the subscribe boundary instead.
-        if !full_stream_supported(sec_type, kind) {
+        // Reject a subscribe to a pair with no upstream full-stream broadcast
+        // before allocating a req_id, emitting a frame, or tracking the
+        // subscription for reconnect replay. Such a subscribe is accepted on
+        // the wire and answered `Subscribed`, then never streams a tick, so it
+        // is rejected here at the subscribe boundary instead. An unsubscribe
+        // is left alone, as on the per-contract path.
+        if !unsubscribe && !full_stream_supported(sec_type, kind) {
             let remedy = match kind {
                 protocol::FullSubscriptionKind::Trades => {
                     "Full-stream Trades is published for Stock and Option; subscribe \
