@@ -126,7 +126,10 @@ def bump_napi_index_js(path: Path, current: str, target: str) -> None:
     regenerating would; `check_version_sync.py` verifies the result either way.
     """
     text = path.read_text()
-    found = set(re.findall(r"\b\d+\.\d+\.\d+\b", text))
+    # The same pattern `check_version_sync.py` reads the file with. Stopping at
+    # the patch digit reads a `0.5.1-rc.1` pin as `0.5.1`, so every bump away
+    # from a pre-release stopped here after the manifests were already written.
+    found = set(re.findall(r"\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", text))
     if found != {current}:
         sys.exit(
             f"{path.relative_to(ROOT)}: pins {sorted(found)}, expected only "
