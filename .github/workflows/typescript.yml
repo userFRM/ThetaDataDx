@@ -123,11 +123,29 @@ jobs:
         # through RUSTFLAGS rather than the target-scoped variable because
         # `--strip` makes napi set RUSTFLAGS, which cargo then uses in place
         # of any target-scoped flags; napi appends to a RUSTFLAGS it is given.
+        #
+        # The Linux addon links against glibc 2.17 through napi's prebuilt
+        # cross toolchain rather than against the runner's glibc. npm cannot
+        # express a glibc version, so it installs the addon on any glibc host
+        # Node runs on, and an addon linked on the runner failed to load on
+        # every host older than the runner's glibc.
         env:
           RUSTFLAGS: ${{ matrix.target == 'x86_64-pc-windows-msvc' && '-C target-feature=+crt-static' || '' }}
         run: |
-          npx napi build --platform --release --target ${{ matrix.target }} --strip
+          npx napi build --platform --release --target ${{ matrix.target }} --strip ${{ matrix.target == 'x86_64-unknown-linux-gnu' && '--use-napi-cross' || '' }}
           node scripts/postbuild_alias_contract.mjs
+      # Every test below runs on the runner that built the addon, so none of
+      # them can see a glibc floor above the runner's own. This reads the
+      # floor from the symbol versions the addon requires.
+      - name: Verify the Linux addon requires nothing newer than glibc 2.17
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        working-directory: thetadatadx-ts
+        shell: bash
+        run: |
+          newest="$(objdump -T thetadatadx-ts.linux-x64-gnu.node | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sort -uV | tail -n 1)"
+          echo "newest glibc symbol version required: ${newest:-none found}"
+          [ -n "$newest" ]
+          [ "$(printf '%s\n' "$newest" GLIBC_2.17 | sort -V | tail -n 1)" = GLIBC_2.17 ]
       # The committed `index.d.ts` must equal what
       # `npm run build` just produced (napi-rs emission + the U7
       # postbuild alias). Any drift means a contributor forgot to
