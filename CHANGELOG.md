@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A request sent as its connection closes now fails at once instead of waiting.** When the market-data connection ended at the instant a request was being queued on it, that request could miss the connection's final cleanup and stay queued until another call reached the same channel. With the per-call deadline disabled (`timeout_ms = 0`, or `with_deadline(Duration::ZERO)` in Rust) nothing else bounded that wait, so a call on an otherwise idle client could hang indefinitely; with a deadline it failed only when the deadline expired. Each connection's request queue is now released the moment the connection ends, so such a request fails immediately with a connection-closed error, which the retry path already treats as transient and re-sends on a fresh connection. Flow-control windows, keepalive, deadlines and error classification are unchanged.
+
 ## [0.5.0] - 2026-10-01
 
 ### Added
