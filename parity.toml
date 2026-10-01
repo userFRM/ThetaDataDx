@@ -2554,13 +2554,13 @@ cpp = "char"
 class = "EodTick"
 name = "created_ms_of_day"
 python = "i32"
-typescript = "i32"
+typescript = "f64"   # a JS `number`, checked as a whole i32 on the way back in
 
 [[value_field]]
 class = "EodTick"
 name = "last_trade_ms_of_day"
 python = "i32"
-typescript = "i32"
+typescript = "f64"   # a JS `number`, checked as a whole i32 on the way back in
 
 [[value_field]]
 class = "CalendarDay"
