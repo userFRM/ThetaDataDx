@@ -231,10 +231,10 @@ echo "════════════════════════�
 # blocks.
 if [ "$TOTAL_FAIL" -gt 0 ] || [ "$TOTAL_SKIP" -gt 0 ]; then
     echo ""
-    echo "RELEASE BLOCKED — $TOTAL_FAIL failure(s), $TOTAL_SKIP cell(s) refused for entitlement and not measured."
+    echo "RELEASE BLOCKED: $TOTAL_FAIL failure(s), $TOTAL_SKIP cell(s) refused for entitlement and not measured."
     exit 1
 else
     echo ""
-    echo "RELEASE OK — Python and C++ validated and in agreement."
+    echo "RELEASE OK: Python and C++ validated and in agreement."
     exit 0
 fi
