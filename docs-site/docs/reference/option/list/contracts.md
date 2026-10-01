@@ -42,7 +42,7 @@ This endpoint is updated real-time.
 |---|---|---|---|---|
 | `request_type` | string | yes | — | Request type. Accepted values: `trade`, `quote`, `eod`, `ohlc`. |
 | `date` | date | yes | — | Date YYYYMMDD |
-| `symbol` | string | no | — | Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date. |
+| `symbol` | string | no | — | Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date. |
 | `max_dte` | int | no | — | Maximum days to expiration |
 | `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
 

@@ -632,10 +632,12 @@ pub(super) fn mdds_query_field_expr(
                 // Optional builder symbol stored as `Option<String>`: an
                 // unset filter sends an empty repeated field (proto3 omits
                 // it), which the server reads as "list the full universe".
-                // A set filter sends the single supplied symbol.
-                format!("{arg_name}.iter().cloned().collect()")
+                // A set filter sends each symbol of its comma-separated list.
+                format!(
+                    "{arg_name}.iter().flat_map(|symbols| split_symbol_list(symbols)).collect()"
+                )
             } else if list_context {
-                format!("vec![{arg_name}.to_string()]")
+                format!("split_symbol_list({arg_name}).collect()")
             } else {
                 format!("vec![{arg_name}.clone()]")
             }

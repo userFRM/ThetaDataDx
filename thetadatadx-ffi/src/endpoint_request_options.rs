@@ -35,7 +35,7 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub strike: *const c_char,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: *const c_char,
-    /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
+    /// Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date.
     pub symbol: *const c_char,
     /// Maximum days to expiration
     pub max_dte: i32,

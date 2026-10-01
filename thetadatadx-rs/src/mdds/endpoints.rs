@@ -93,6 +93,21 @@ impl From<&[String]> for SymbolInput {
 }
 
 // ─── MDDS-scoped wire canonicalizers ────────────────────────────────────
+
+/// Split a list endpoint's symbol filter into the repeated `symbol` wire
+/// field, one ticker per element.
+///
+/// The vendor documents these filters as a comma-separated list
+/// (`symbol=AAPL,SPY,AMD`) and answers with the union. The wire field is
+/// repeated, so the list has to arrive split: sent as the single element
+/// `"AAPL,SPY"` it matches no symbol and the request comes back empty.
+fn split_symbol_list(symbols: &str) -> impl Iterator<Item = String> + '_ {
+    symbols
+        .split(',')
+        .map(str::trim)
+        .filter(|symbol| !symbol.is_empty())
+        .map(str::to_string)
+}
 //
 // These helpers are only meaningful for MDDS request construction, so
 // they live next to the generated request builders rather than in the

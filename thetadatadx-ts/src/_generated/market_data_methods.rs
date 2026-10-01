@@ -323,7 +323,7 @@ pub struct OptionListStrikesOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListContractsOptions {
-    /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
+    /// Ticker symbol to filter by (e.g. AAPL), or a comma-separated list (AAPL,SPY) for the contracts of each. Omit to list every contract for the date.
     pub symbol: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
