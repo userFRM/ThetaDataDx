@@ -340,7 +340,11 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         .iter()
         .filter_map(|param| direct_date_arg_name(param))
     {
-        writeln!(out, "        validate_date_required(&{arg})?;").unwrap();
+        writeln!(
+            out,
+            "        crate::mdds::validate::validate_date(&{arg}, {arg:?})?;"
+        )
+        .unwrap();
     }
     let endpoint_name_literal = format!("{:?}", endpoint.name);
     // Resolve the effective deadline once, exactly like the

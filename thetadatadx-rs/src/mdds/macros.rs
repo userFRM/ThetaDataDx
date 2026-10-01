@@ -1181,7 +1181,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1299,7 +1299,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1420,7 +1420,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1517,7 +1517,7 @@ macro_rules! parsed_endpoint {
                     deadline,
                 } = self;
                 let _ = &client;
-                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                 let deadline = $crate::mdds::macros::effective_deadline(
                     deadline,
                     client.config().market_data.request_timeout_secs,
@@ -1611,7 +1611,7 @@ macro_rules! parsed_endpoint {
                         deadline,
                     } = self;
                     let _ = &client;
-                    $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                    $($($crate::mdds::validate::validate_date(&$date_arg, stringify!($date_arg))?;)+)?
                     let inner = async move {
                         tracing::debug!(endpoint = stringify!($name), "gRPC request");
                         metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
