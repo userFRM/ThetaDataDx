@@ -21,25 +21,22 @@ use thetadatadx::streaming::{Backpressure, RecordBatchStream};
 
 use crate::to_napi_err;
 
-/// Validate a tuning value the caller passed as a JS `number`, rejecting a
-/// negative the way the Python binding's `usize` parameters do (a JS `-1` would
-/// otherwise coerce silently to a huge unsigned value). A non-negative value is
-/// returned as `usize`; the core upper-clamps it (see
-/// `thetadatadx::streaming::MAX_BATCH_SIZE` / `MAX_QUEUE_DEPTH`), so no upper
-/// check is needed here. Keeps TS and Python input handling consistent:
-/// negative is an error in both, oversized is clamped in both.
-fn checked_tuning(value: i64, field: &str) -> napi::Result<usize> {
-    if value < 0 {
-        return Err(napi::Error::from_reason(format!(
-            "{field} must be non-negative, got {value}"
-        )));
-    }
-    Ok(value as usize)
+/// Validate a tuning value the caller passed as a JS `number`, rejecting
+/// anything that is not a non-negative whole number with
+/// `InvalidParameterError`, the way the Python binding's `usize` parameters
+/// reject it. The field is a `number` rather than a napi integer because napi
+/// reads an integer field through V8, which turns NaN and the infinities into
+/// `0` and truncates a fraction, so `{ batchSize: NaN }` would silently select
+/// one-row batches. The core upper-clamps the value (see
+/// `thetadatadx::streaming::MAX_BATCH_SIZE` / `MAX_QUEUE_DEPTH`), so the only
+/// upper bound here is the largest integer a `number` holds exactly.
+fn checked_tuning(value: f64, field: &str) -> napi::Result<usize> {
+    Ok(crate::validate_nonneg_whole(field, value, 9_007_199_254_740_991.0, None)? as usize)
 }
 
 /// Map the optional `backpressure` string to the core enum. `"block"`
 /// (default) or `"dropOldest"` / `"drop_oldest"` (needs a `capacity`).
-fn parse_backpressure(kind: Option<String>, capacity: Option<i64>) -> napi::Result<Backpressure> {
+fn parse_backpressure(kind: Option<String>, capacity: Option<f64>) -> napi::Result<Backpressure> {
     match kind.as_deref().map(str::to_ascii_lowercase).as_deref() {
         None | Some("block") => Ok(Backpressure::Block),
         Some("dropoldest") | Some("drop_oldest") => {
@@ -112,10 +109,10 @@ fn schema_to_ipc(schema: &Arc<arrow_schema::Schema>) -> napi::Result<Vec<u8>> {
 #[napi(object)]
 #[derive(Default)]
 pub struct BatchesOptions {
-    pub batch_size: Option<i64>,
-    pub linger_ms: Option<i64>,
+    pub batch_size: Option<f64>,
+    pub linger_ms: Option<f64>,
     pub backpressure: Option<String>,
-    pub capacity: Option<i64>,
+    pub capacity: Option<f64>,
 }
 
 /// Open a [`RecordBatchStreamHandle`] over the unified client's stream.
@@ -124,15 +121,14 @@ pub struct BatchesOptions {
 /// on a blocking worker so the Node event loop is never frozen.
 pub(crate) async fn open_handle(
     client: Arc<thetadatadx::Client>,
-    batch_size: Option<i64>,
-    linger_ms: Option<i64>,
+    batch_size: Option<f64>,
+    linger_ms: Option<f64>,
     backpressure: Option<String>,
-    capacity: Option<i64>,
+    capacity: Option<f64>,
 ) -> napi::Result<RecordBatchStreamHandle> {
     let backpressure = parse_backpressure(backpressure, capacity)?;
-    // Validate the numeric knobs at the boundary, rejecting negatives the way
-    // the Python binding does, before handing off to the blocking worker. The
-    // core upper-clamps the magnitude, so only the sign is checked here.
+    // Validate the numeric knobs at the boundary, the way the Python binding
+    // does, before handing off to the blocking worker.
     let batch_size = batch_size
         .map(|v| checked_tuning(v, "batchSize"))
         .transpose()?;
