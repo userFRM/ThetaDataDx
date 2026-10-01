@@ -143,17 +143,13 @@ jobs:
         shell: bash
         run: python ../scripts/ci/check_windows_crt_static.py thetadatadx-ts.win32-x64-msvc.node
       # Every test below runs on the runner that built the addon, so none of
-      # them can see a glibc floor above the runner's own. This reads the
-      # floor from the symbol versions the addon requires.
+      # them can see a glibc floor above the runner's own.
       - name: Verify the Linux addon requires nothing newer than glibc 2.17
         if: matrix.target == 'x86_64-unknown-linux-gnu'
-        working-directory: thetadatadx-ts
-        shell: bash
-        run: |
-          newest="$(objdump -T thetadatadx-ts.linux-x64-gnu.node | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sort -uV | tail -n 1)"
-          echo "newest glibc symbol version required: ${newest:-none found}"
-          [ -n "$newest" ]
-          [ "$(printf '%s\n' "$newest" GLIBC_2.17 | sort -V | tail -n 1)" = GLIBC_2.17 ]
+        uses: ./.github/actions/check-glibc-ceiling
+        with:
+          path: thetadatadx-ts/thetadatadx-ts.linux-x64-gnu.node
+          glibc: "2.17"
       # The committed `index.d.ts` must equal what
       # `npm run build` just produced (napi-rs emission + the U7
       # postbuild alias). Any drift means a contributor forgot to
