@@ -161,7 +161,7 @@ jobs:
           before-script-linux: |
             set -euo pipefail
             PROTOC_VERSION=29.3
-            curl -fsSL -o /tmp/protoc.zip \
+            curl -fsSL --retry 5 --retry-delay 10 -o /tmp/protoc.zip \
               "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip"
             unzip -q /tmp/protoc.zip -d /usr/local
             chmod 0755 /usr/local/bin/protoc
