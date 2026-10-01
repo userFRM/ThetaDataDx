@@ -535,10 +535,11 @@ impl StreamingState {
         if let Some(client) = &client {
             client.shutdown();
         }
-        // A custom reconnect policy's closure runs on the I/O thread, and the
-        // dispatcher exits only once that thread drops the ring producer, so
-        // joining it from there would never return. Detach instead, as for a
-        // dispatcher self-call below.
+        // A custom reconnect policy's closure runs on the I/O thread when no
+        // decision thread could be spawned for it, and the dispatcher exits
+        // only once that thread drops the ring producer, so joining it from
+        // there would never return. Detach instead, as for a dispatcher
+        // self-call below.
         let on_io_thread = client.as_ref().is_some_and(|c| c.on_io_thread());
         if let DispatcherSession::Running {
             handle,

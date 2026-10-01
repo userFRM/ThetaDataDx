@@ -2523,9 +2523,10 @@ fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSess
             .push(client.drained_flag());
         client.shutdown();
     }
-    // A reconnect callback runs on the I/O thread, and the dispatcher exits
-    // only once that thread drops the ring producer, so a stop from there
-    // detaches the dispatcher instead of joining it.
+    // A reconnect callback runs on the I/O thread when no decision thread
+    // could be spawned for it, and the dispatcher exits only once that
+    // thread drops the ring producer, so a stop from there detaches the
+    // dispatcher instead of joining it.
     if !taken
         .as_ref()
         .is_some_and(|(client, _)| client.on_io_thread())

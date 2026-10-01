@@ -978,8 +978,9 @@ impl StreamingClient {
             py.detach(move || {
                 if let PyFpssDispatcherSession::Running { handle, .. } = prev_session {
                     // Neither the dispatcher (a callback) nor the I/O thread (a
-                    // reconnect callback) can wait for the dispatcher: it exits
-                    // only once the I/O thread drops the ring producer.
+                    // reconnect callback decided inline, when no decision
+                    // thread could be spawned) can wait for the dispatcher: it
+                    // exits only once the I/O thread drops the ring producer.
                     if handle.thread().id() != std::thread::current().id()
                         && !client.on_io_thread()
                     {

@@ -2554,7 +2554,8 @@ impl StreamingClient {
     }
 
     /// Whether the calling thread is this client's I/O thread, which runs a
-    /// custom reconnect policy's decision closure.
+    /// custom reconnect policy's decision closure itself when no decision
+    /// thread could be spawned for it.
     ///
     /// A teardown called from there must not wait for the event dispatcher:
     /// the dispatcher exits only once the I/O thread drops the ring producer,
