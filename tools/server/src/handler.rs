@@ -425,6 +425,14 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
         EndpointError::UnknownEndpoint(message) => {
             plain_error_response(StatusCode::NOT_FOUND, &message)
         }
+        // The SDK refused the request's own input before or after asking
+        // upstream (for example a list request naming several symbols on an
+        // endpoint whose plain list cannot attribute its rows): a bad
+        // request, not a server fault.
+        EndpointError::Server(thetadatadx::Error::Config {
+            kind: thetadatadx::ConfigErrorKind::InvalidValue { message, .. },
+            ..
+        }) => plain_error_response(StatusCode::BAD_REQUEST, &message),
         // Upstream capacity rejection that survived the SDK's retry
         // budget (`ResourceExhausted` is classified transient and
         // retried with backoff before it ever reaches this handler).
@@ -1626,26 +1634,32 @@ mod tests {
 
     /// v3 registry / data errors are a plain-text body at the right status —
     /// no JSON envelope, `text/plain` content type, the message verbatim.
+    /// A request the SDK itself refuses is a 400 like one the registry
+    /// refuses, not a server fault.
     #[tokio::test]
     async fn endpoint_invalid_params_emits_plain_text_body() {
-        let ep = any_endpoint();
-        let resp = endpoint_error_response(
-            ep,
+        for error in [
             EndpointError::InvalidParams("missing required parameter: 'date'".to_string()),
-        );
-        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
-        assert_eq!(
-            resp.headers()
-                .get(axum::http::header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some("text/plain; charset=utf-8")
-        );
-        let body = read_body(resp).await;
-        assert_eq!(body, "missing required parameter: 'date'");
-        assert!(
-            !body.contains('{') && !body.contains("header"),
-            "v3 error body must not be a JSON envelope: {body}"
-        );
+            EndpointError::Server(thetadatadx::Error::config_invalid(
+                "endpoint.params",
+                "missing required parameter: 'date'",
+            )),
+        ] {
+            let resp = endpoint_error_response(any_endpoint(), error);
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+            assert_eq!(
+                resp.headers()
+                    .get(axum::http::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok()),
+                Some("text/plain; charset=utf-8")
+            );
+            let body = read_body(resp).await;
+            assert_eq!(body, "missing required parameter: 'date'");
+            assert!(
+                !body.contains('{') && !body.contains("header"),
+                "v3 error body must not be a JSON envelope: {body}"
+            );
+        }
     }
 
     /// An unknown endpoint maps to a 404 plain-text body.
