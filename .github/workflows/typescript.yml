@@ -115,6 +115,16 @@ jobs:
         # alias the documented public surface depends on. Running
         # `napi build` alone would diverge from `package.json` and
         # fail the generated-output check below on every CI run.
+        #
+        # The Windows addon links the MSVC C runtime statically. Linked
+        # dynamically it needs VCRUNTIME140.dll from the Visual C++
+        # redistributable, which node.exe does not bring along and a clean
+        # Windows install does not have, so `require` failed there. It goes
+        # through RUSTFLAGS rather than the target-scoped variable because
+        # `--strip` makes napi set RUSTFLAGS, which cargo then uses in place
+        # of any target-scoped flags; napi appends to a RUSTFLAGS it is given.
+        env:
+          RUSTFLAGS: ${{ matrix.target == 'x86_64-pc-windows-msvc' && '-C target-feature=+crt-static' || '' }}
         run: |
           npx napi build --platform --release --target ${{ matrix.target }} --strip
           node scripts/postbuild_alias_contract.mjs

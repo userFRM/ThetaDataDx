@@ -739,7 +739,11 @@ jobs:
       - if: runner.os == 'Windows'
         shell: bash
         run: rustup target add x86_64-pc-windows-gnu
+      # The MSVC C runtime is linked statically, as in build-server, so the
+      # shipped DLL does not need the Visual C++ redistributable beside it.
       - run: cargo build --release -p thetadatadx-ffi --locked
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
       - if: runner.os == 'Windows'
         shell: bash
         env:
@@ -803,8 +807,14 @@ jobs:
         run: rustup target add ${{ matrix.target }}
       - name: Build release binary
         shell: bash
+        # The MSVC C runtime is linked statically. Linked dynamically, the
+        # binary needs VCRUNTIME140.dll from the Visual C++ redistributable,
+        # which a clean Windows install does not have, and it would not start
+        # there. The variable is scoped to the MSVC target; the other legs
+        # ignore it.
         env:
           CC_x86_64_unknown_linux_musl: musl-gcc
+          CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --locked --manifest-path tools/server/Cargo.toml --target ${{ matrix.target }}
       - name: Package archive
         shell: bash
