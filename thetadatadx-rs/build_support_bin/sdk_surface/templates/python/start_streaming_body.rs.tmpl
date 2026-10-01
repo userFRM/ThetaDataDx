@@ -135,16 +135,16 @@
         .map_err(to_py_err)?;
         // Connect succeeded: hand the reservation off to the live session so the
         // guard does not clear it on return. No post-connect ownership re-check
-        // is needed: the core install (`install_live`) re-checks the stop
-        // generation under the dispatcher lock, so a concurrent stop that raced
-        // this start either bumps the generation before the install (which then
-        // refuses and this call returns the handshake error) or retires the
-        // freshly installed session afterward. Either way the core is left
-        // consistent, so the binding must not itself call the shared
-        // `stop_streaming` here -- doing so would tear down a DIFFERENT session a
-        // concurrent restart had already installed. The standalone client shuts
-        // down its OWN unpublished client on supersession; the unified client
-        // has no own client to discard, only the shared core the gate governs.
+        // is needed: the core holds its dispatcher lock from before the connect
+        // through the install, and every core teardown takes that lock, so a
+        // concurrent stop runs either wholly before the connect, which then
+        // installs normally, or after the install, retiring the fresh session.
+        // Either way the core is left consistent, so the binding must not
+        // itself call the shared `stop_streaming` here -- doing so would tear down
+        // a DIFFERENT session a concurrent restart had already installed. The
+        // standalone client shuts down its OWN unpublished client on
+        // supersession; the unified client has no own client to discard, only
+        // the shared core the gate governs.
         reservation.disarm();
         Ok(())
     }

@@ -233,14 +233,12 @@ pub(crate) struct StreamingState {
     /// FFI `ctx`. The Vec preserves every retired generation until its
     /// own flag is observed `true`.
     prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
-    /// Monotonic counter incremented by every [`Client::stop_streaming`].
+    /// Monotonic counter incremented by every teardown, under the
+    /// `dispatcher` lock.
     ///
-    /// Each `start_streaming*()` snapshots this value at entry and
-    /// re-checks it after the FPSS connect completes. If the snapshot
-    /// no longer matches, an interleaving `stop_streaming` raised the
-    /// generation, the freshly built [`StreamingClient`] is dropped, and
-    /// the install is rejected. Closes the `Stopped → Live` resurrection
-    /// race where an in-flight start could come up AFTER stop returned.
+    /// The start path reads it under the same lock and returns it with the
+    /// new session, so the columnar reader can retire only the session it
+    /// started (see [`Self::quiesce_if_owned`]).
     stop_generation: AtomicU64,
     /// Dispatcher lifecycle — single mutex covering the single-flight
     /// serialisation, the `JoinHandle`, and the failure payload.
@@ -451,13 +449,9 @@ impl StreamingState {
                 return None;
             }
         }
-        // Bump the stop generation BEFORE the slot swap so any in-flight
-        // `start_streaming*()` that snapshotted the previous value will fail
-        // its install check and not resurrect the slot to `Live` after this
-        // returns. AcqRel because the ordering relative to the `state.swap`
-        // below is what closes the resurrection race. The bump is under the
-        // dispatcher lock, so it is also mutually exclusive with
-        // `start_dispatcher`'s generation snapshot and the reader-close gate.
+        // The bump is under the dispatcher lock, so it is mutually exclusive
+        // with `start_dispatcher`, which holds that lock from its generation
+        // read to its install, and with the reader-close gate above.
         self.stop_generation.fetch_add(1, Ordering::AcqRel);
         // A teardown ends whatever a failed reconnect left to replay: an
         // explicit stop drops subscriptions, and a reconnect has already
@@ -751,17 +745,6 @@ impl Client {
         }
     }
 
-    /// Helper: error returned when an in-flight `start_streaming*()`
-    /// raced behind a [`Self::stop_streaming`] and would have resurrected
-    /// streaming after the caller observed it stopped. The freshly built
-    /// [`StreamingClient`] is dropped before this returns.
-    fn stopped_during_start() -> Error {
-        Error::Stream {
-            kind: crate::error::StreamErrorKind::Disconnected,
-            message: "stop_streaming() raced ahead of start_streaming(); start refused".into(),
-        }
-    }
-
     /// Start the FPSS streaming connection with a callback handler.
     ///
     /// Open the streaming channel, authenticate, and start the reader
@@ -910,15 +893,14 @@ impl Client {
 
     /// Start FPSS streaming with a custom dispatcher consumer body.
     ///
-    /// Factors the connect / spawn / install / rollback sequence shared by
+    /// Factors the connect / spawn / install sequence shared by
     /// the per-event callback path ([`Self::start_streaming_scoped`]) and
     /// the columnar pull path ([`Self::start_streaming_batches`]). The
     /// `dispatcher_body` closure runs on the dispatcher thread once the
     /// streaming slot is installed; it owns the consumer loop (typically
     /// [`crate::fpss::StreamingClient::for_each_scoped`]) and returns when
-    /// the ring shuts down. The single-flight gate, startup gate, install,
-    /// and failure rollback are identical across both consumers, so they
-    /// live here once.
+    /// the ring shuts down. The single-flight gate, startup gate and install
+    /// are identical across both consumers, so they live here once.
     ///
     /// `on_teardown` is the optional dispatcher wakeup hook (see
     /// [`DispatcherSession::Running`]). The callback path passes `None` when its
@@ -939,9 +921,9 @@ impl Client {
     /// was installed at. The columnar reader stamps that generation so its
     /// close tears down only the session it started, never a later session
     /// that replaced it (see [`crate::streaming::RecordBatchStream`]).
-    /// The value is the generation the install was validated against, so it
-    /// identifies this session even if a teardown bumps the generation right
-    /// after the install commits.
+    /// Every teardown bumps the generation under the dispatcher lock, which
+    /// this start holds from the read to the install, so the value identifies
+    /// this session until the teardown that retires it.
     ///
     /// # Errors
     ///
@@ -956,13 +938,12 @@ impl Client {
     where
         B: FnOnce(Arc<StreamingClient>) + Send + 'static,
     {
-        // Single-flight gate: `dispatcher` mutex serialises the entire
-        // connect-spawn-install sequence so two concurrent starts cannot
-        // each spawn a dispatcher and race to overwrite the Running
-        // variant.  The lock is held across the FPSS connect call
-        // (typically tens of milliseconds); a second concurrent start
-        // is rejected upfront by the `is_streaming` fast path or by
-        // `install_live` once it observes a `Live` slot.
+        // Single-flight gate: the `dispatcher` mutex serialises the entire
+        // connect-spawn-install sequence against every other start and every
+        // teardown, all of which take it. The lock is held across the FPSS
+        // connect call (typically tens of milliseconds), so a stop issued
+        // during a start blocks until the install finishes and then retires
+        // that session; nothing is installed after a stop returns.
         let mut dispatcher_guard = self
             .streaming
             .dispatcher
@@ -974,10 +955,6 @@ impl Client {
             return Err(Self::already_streaming());
         }
 
-        // Snapshot the stop generation BEFORE connecting. If another
-        // thread calls `stop_streaming()` between this load and the
-        // post-connect `install_live`, the install path observes the
-        // mismatch and refuses to resurrect the slot to `Live`.
         let gen_at_entry = self.streaming.stop_generation.load(Ordering::Acquire);
 
         let config = self.market_data.config();
@@ -992,7 +969,7 @@ impl Client {
 
         // Spawn the dispatcher behind a startup gate so the consumer body
         // does not run until the streaming slot is installed. This
-        // closes two windows simultaneously:
+        // closes two windows:
         //
         //   1. `is_streaming()` / `connection_status()` cannot observe
         //      `Live` without a live dispatcher thread behind it (the
@@ -1003,22 +980,15 @@ impl Client {
         //      already `Live` by the time the dispatcher pulls its
         //      first event.
         //
-        // The gate also lets the install-failure rollback signal the
-        // dispatcher to fall through without ever running the consumer
-        // body.
-        //
         // `OnceLock::wait()` (stable since Rust 1.87, below our MSRV) blocks the
-        // dispatcher until the spawn site calls `.set(true)` (go) or
-        // `.set(false)` (abort).
-        let gate: Arc<OnceLock<bool>> = Arc::new(OnceLock::new());
+        // dispatcher until the spawn site calls `.set(())`.
+        let gate: Arc<OnceLock<()>> = Arc::new(OnceLock::new());
         let gate_for_dispatcher = Arc::clone(&gate);
         let dispatcher_client = Arc::clone(&client_arc);
         let dispatcher_handle = std::thread::Builder::new()
             .name("thetadatadx-fpss-dispatcher".into())
             .spawn(move || {
-                if !*gate_for_dispatcher.wait() {
-                    return;
-                }
+                gate_for_dispatcher.wait();
                 // The consumer body drives `StreamingClient::for_each_scoped`,
                 // which drives `poll_batch`, which wraps each callback
                 // invocation in its own `catch_unwind`.  A panic in the
@@ -1050,65 +1020,19 @@ impl Client {
                 message: format!("failed to spawn streaming dispatcher thread: {e}"),
             })?;
 
-        // Run the install under `catch_unwind` so a panic (e.g. an
-        // `ArcSwap` allocator OOM) cannot leave the dispatcher blocked
-        // on `gate.wait()` forever.
-        let install_attempt = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.install_live(
-                StreamingSlot::Live {
-                    client: Arc::clone(&client_arc),
-                },
-                gen_at_entry,
-            )
+        self.streaming.state.store(Arc::new(StreamingSlot::Live {
+            client: Arc::clone(&client_arc),
         }));
-
-        let install_result = match install_attempt {
-            Ok(r) => r,
-            Err(panic_payload) => {
-                // Signal abort so the dispatcher exits without invoking
-                // the user callback, then roll the freshly-built client
-                // back before re-raising the panic.
-                let _ = gate.set(false);
-                client_arc.shutdown();
-                drop(client_arc);
-                if dispatcher_handle.thread().id() != std::thread::current().id() {
-                    let _ = dispatcher_handle.join();
-                }
-                *dispatcher_guard = DispatcherSession::Idle;
-                std::panic::resume_unwind(panic_payload);
-            }
+        // Publish the Running variant in the same locked section, so a
+        // teardown that acquires the lock next finds the JoinHandle and the
+        // wake hook, then open the gate.
+        *dispatcher_guard = DispatcherSession::Running {
+            handle: dispatcher_handle,
+            on_teardown,
+            registers_drain_flag,
         };
-
-        match install_result {
-            Ok(()) => {
-                // Publish the Running variant before opening the gate so
-                // `stop_streaming` finds the JoinHandle regardless of how
-                // quickly the dispatcher thread starts executing. The teardown
-                // wake hook is installed in the same transition, so a quiesce
-                // racing this start never observes a `Running` session lacking
-                // its hook.
-                *dispatcher_guard = DispatcherSession::Running {
-                    handle: dispatcher_handle,
-                    on_teardown,
-                    registers_drain_flag,
-                };
-                let _ = gate.set(true);
-                Ok((client_arc, gen_at_entry))
-            }
-            Err(install_err) => {
-                // Shut down the client so the dispatcher sees a clean
-                // ring shutdown when it wakes; abort the gate so the
-                // dispatcher skips its iterator loop entirely.
-                client_arc.shutdown();
-                drop(client_arc);
-                let _ = gate.set(false);
-                if dispatcher_handle.thread().id() != std::thread::current().id() {
-                    let _ = dispatcher_handle.join();
-                }
-                *dispatcher_guard = DispatcherSession::Idle;
-                Err(install_err)
-            }
-        }
+        let _ = gate.set(());
+        Ok((client_arc, gen_at_entry))
     }
 
     /// Start FPSS streaming in columnar pull mode, routing decoded
@@ -1246,62 +1170,6 @@ impl Client {
     #[cfg(feature = "arrow")]
     pub(crate) fn streaming_state_weak(&self) -> std::sync::Weak<StreamingState> {
         Arc::downgrade(&self.streaming)
-    }
-
-    /// Atomically swap the slot to a fresh `Live` state.
-    ///
-    /// Rejects the install when:
-    ///
-    /// 1. another `start_streaming*` raced in and the slot is already
-    ///    `Live` (returns [`Self::already_streaming`]); or
-    /// 2. an interleaving [`Self::stop_streaming`] bumped the
-    ///    [`Self::stop_generation`] counter past `gen_at_entry`
-    ///    (returns [`Self::stopped_during_start`]). This is the
-    ///    `Stopped → Live` resurrection guard: a caller that started
-    ///    connecting BEFORE `stop_streaming` was invoked must NOT see
-    ///    its connection installed AFTER stop returned, even though
-    ///    the FPSS connect itself succeeded.
-    ///
-    /// On either rejection the freshly built [`StreamingClient`] (carried
-    /// inside `new`) falls out of scope, which triggers its reader-
-    /// thread shutdown and detaches the dispatcher cleanly.
-    fn install_live(&self, new_slot: StreamingSlot, gen_at_entry: u64) -> Result<(), Error> {
-        let new = Arc::new(new_slot);
-        // CAS loop: only swap from `Idle` or `Stopped` into `Live`,
-        // AND only when the stop-generation matches the snapshot taken
-        // at start-entry. ArcSwap doesn't expose `compare_and_swap` on
-        // `&Arc<T>` directly for non-Eq T; we instead read, decide,
-        // and rcu the state. The `rcu` closure is retried until the
-        // swap is observed atomically.
-        let stop_gen = &self.streaming.stop_generation;
-        let prev = self.streaming.state.rcu(|current| match &**current {
-            StreamingSlot::Live { .. } => Arc::clone(current),
-            _ => {
-                // Re-check the stop generation INSIDE the rcu closure.
-                // If another thread called `stop_streaming` after we
-                // snapshotted `gen_at_entry`, refuse the install by
-                // leaving the slot unchanged and signalling via the
-                // returned `prev` shape (see post-rcu match below).
-                if stop_gen.load(Ordering::Acquire) != gen_at_entry {
-                    Arc::clone(current)
-                } else {
-                    Arc::clone(&new)
-                }
-            }
-        });
-        if matches!(&*prev, StreamingSlot::Live { .. }) {
-            // Lost the race: another start_streaming installed first.
-            // `new` falls out of scope and shuts down its FPSS client.
-            return Err(Self::already_streaming());
-        }
-        // Final check: if the rcu closure refused due to the generation
-        // mismatch, the cell was left at its current value (Stopped or
-        // Idle). Distinguish from "successful install" by re-reading
-        // the cell — if it does not point to our `new`, we lost.
-        if !Arc::ptr_eq(&self.streaming.state.load_full(), &new) {
-            return Err(Self::stopped_during_start());
-        }
-        Ok(())
     }
 
     /// Events the TLS reader could not publish into the event ring because
@@ -3092,26 +2960,6 @@ mod tests {
 
     use super::*;
 
-    /// Lightweight stand-in for `StreamingSlot` carrying just enough
-    /// shape to walk the state machine transitions without spinning up
-    /// a real FPSS connection. The transitions and the `ArcSwap`
-    /// install/swap mechanics are what we are validating; the live
-    /// payload (`StreamingClient`, `StreamingDispatcher`) is exercised by
-    /// the existing FPSS integration tests.
-    enum SlotMarker {
-        Idle,
-        Live(u32),
-        Stopped,
-    }
-
-    fn variant(s: &SlotMarker) -> &'static str {
-        match s {
-            SlotMarker::Idle => "Idle",
-            SlotMarker::Live(_) => "Live",
-            SlotMarker::Stopped => "Stopped",
-        }
-    }
-
     /// Compile-level proof that [`Client::flat_files`] returns a
     /// [`FlatFiles`] view and that each method resolves against the right
     /// argument and return types — mirroring the flat-files surface the
@@ -3170,41 +3018,9 @@ mod tests {
         ));
     }
 
-    /// Walks Idle → Live → Stopped → Live → Stopped, asserting the
-    /// `ArcSwap` cell observes each transition exactly once and that
-    /// the `Live` payload (here a generation counter) is preserved
-    /// across re-installs.
-    #[test]
-    fn streaming_slot_state_machine_transitions() {
-        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Idle);
-
-        // Idle observed.
-        assert_eq!(variant(&cell.load()), "Idle");
-
-        // Idle → Live(1)
-        let prev = cell.swap(Arc::new(SlotMarker::Live(1)));
-        assert_eq!(variant(&prev), "Idle");
-        assert_eq!(variant(&cell.load()), "Live");
-
-        // Live(1) → Stopped
-        let prev = cell.swap(Arc::new(SlotMarker::Stopped));
-        assert!(matches!(&*prev, SlotMarker::Live(1)));
-        assert_eq!(variant(&cell.load()), "Stopped");
-
-        // Stopped → Live(2)  — the second start path
-        let prev = cell.swap(Arc::new(SlotMarker::Live(2)));
-        assert_eq!(variant(&prev), "Stopped");
-        assert!(matches!(&**cell.load(), SlotMarker::Live(2)));
-
-        // Live(2) → Stopped (second shutdown)
-        let prev = cell.swap(Arc::new(SlotMarker::Stopped));
-        assert!(matches!(&*prev, SlotMarker::Live(2)));
-        assert_eq!(variant(&cell.load()), "Stopped");
-    }
-
     /// [`StreamingState::quiesce`] is the single teardown both delivery modes
     /// share. From a never-started state it leaves the slot `Stopped`, the
-    /// dispatcher `Idle`, and bumps the stop generation (the resurrection
+    /// dispatcher `Idle`, and bumps the stop generation (the reader-close
     /// guard). This is the state the pull reader's close now lands the client
     /// in — truthful and reusable — instead of leaving a stale `Live` slot and
     /// a `Running` dispatcher with an exited thread. The `Live`-slot shutdown
@@ -3230,7 +3046,7 @@ mod tests {
         );
         assert!(
             state.stop_generation() > gen0,
-            "quiesce must bump the stop generation (resurrection guard)"
+            "quiesce must bump the stop generation (reader-close gate)"
         );
 
         // Idempotent: a second close (e.g. binding close() then the core Drop)
@@ -3866,35 +3682,6 @@ mod tests {
         state.quiesce(); // tidy the surviving session's thread
     }
 
-    /// Concurrent `start` race: only one caller observes the install,
-    /// the other sees `Live` and must reject. Modeled with the same
-    /// rcu CAS the real `install_live` uses.
-    #[test]
-    fn streaming_slot_rejects_double_install() {
-        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Idle);
-
-        let new1 = Arc::new(SlotMarker::Live(1));
-        let prev = cell.rcu(|cur| match &**cur {
-            SlotMarker::Live(_) => Arc::clone(cur),
-            _ => Arc::clone(&new1),
-        });
-        assert!(matches!(&*prev, SlotMarker::Idle));
-        assert_eq!(variant(&cell.load()), "Live");
-
-        // Second installer races in: must observe `Live` from `prev`.
-        let new2 = Arc::new(SlotMarker::Live(2));
-        let prev = cell.rcu(|cur| match &**cur {
-            SlotMarker::Live(_) => Arc::clone(cur),
-            _ => Arc::clone(&new2),
-        });
-        assert!(
-            matches!(&*prev, SlotMarker::Live(1)),
-            "second installer must see existing Live(1) and bail"
-        );
-        // Cell is unchanged: still Live(1), the Live(2) install was rejected.
-        assert!(matches!(&**cell.load(), SlotMarker::Live(1)));
-    }
-
     /// Inject a single failing per-contract subscribe call and prove the
     /// returned failure list contains exactly the failed `(kind, contract)`
     /// pair — not a count, not a boolean, the real structured contents.
@@ -4021,82 +3808,6 @@ mod tests {
             }
             other => panic!("expected PartialReconnect, got {other:?}"),
         }
-    }
-
-    /// Resurrection-race regression: an in-flight `start_streaming*` that
-    /// snapshotted `stop_generation = N` at entry must NOT install `Live` when an
-    /// interleaving `stop_streaming` has bumped `stop_generation` to
-    /// `N+1` by the time the install runs. This is the
-    /// `Stopped → Live` resurrection race the generation token closes.
-    ///
-    /// Models the install path the real `install_live` walks: rcu
-    /// over the `ArcSwap`, gated by an `AtomicU64` stop-gen
-    /// re-read inside the closure, with a post-rcu pointer-equality
-    /// check on the cell to distinguish "rcu refused due to gen
-    /// mismatch" from "rcu installed our value".
-    #[test]
-    fn install_live_refuses_when_stop_generation_advanced() {
-        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Stopped);
-        let stop_gen = AtomicU64::new(0);
-
-        // Caller snapshots the gen at entry, then bumps it (simulating
-        // an interleaving `stop_streaming` that ran while the FPSS
-        // connect was still in flight).
-        let gen_at_entry = stop_gen.load(Ordering::Acquire);
-        stop_gen.fetch_add(1, Ordering::AcqRel);
-
-        // Now run the install_live shape. The rcu closure must observe
-        // the bumped gen and refuse to install.
-        let new = Arc::new(SlotMarker::Live(99));
-        let _prev = cell.rcu(|current| match &**current {
-            SlotMarker::Live(_) => Arc::clone(current),
-            _ => {
-                if stop_gen.load(Ordering::Acquire) != gen_at_entry {
-                    Arc::clone(current)
-                } else {
-                    Arc::clone(&new)
-                }
-            }
-        });
-
-        // Cell must STILL be Stopped — the install was refused.
-        assert!(
-            matches!(&**cell.load(), SlotMarker::Stopped),
-            "install_live must refuse to resurrect Stopped → Live when stop_generation advanced",
-        );
-        // Pointer-equality probe matches the production code's final
-        // disambiguation: the cell does NOT point to `new`, so the
-        // caller would observe `Self::stopped_during_start()`.
-        assert!(
-            !Arc::ptr_eq(&cell.load_full(), &new),
-            "cell must not hold `new` after the gen-mismatch refusal",
-        );
-    }
-
-    /// Sanity: when the generation has NOT advanced, the install
-    /// proceeds. The two tests together pin both branches of the
-    /// generation gate.
-    #[test]
-    fn install_live_installs_when_stop_generation_stable() {
-        let cell: ArcSwap<SlotMarker> = ArcSwap::from_pointee(SlotMarker::Stopped);
-        let stop_gen = AtomicU64::new(7);
-
-        let gen_at_entry = stop_gen.load(Ordering::Acquire);
-
-        let new = Arc::new(SlotMarker::Live(42));
-        let _prev = cell.rcu(|current| match &**current {
-            SlotMarker::Live(_) => Arc::clone(current),
-            _ => {
-                if stop_gen.load(Ordering::Acquire) != gen_at_entry {
-                    Arc::clone(current)
-                } else {
-                    Arc::clone(&new)
-                }
-            }
-        });
-
-        assert!(matches!(&**cell.load(), SlotMarker::Live(42)));
-        assert!(Arc::ptr_eq(&cell.load_full(), &new));
     }
 
     /// `prev_drained_is_set` distinguishes "at least one stop captured a
