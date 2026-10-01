@@ -106,6 +106,13 @@ jobs:
           CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
         run: cargo build --release --locked --manifest-path tools/mcp/Cargo.toml --target ${{ matrix.target }}
 
+      # The runner has the redistributable, so nothing else here would notice
+      # the binary falling back to the dynamic runtime.
+      - name: Verify the binary does not import the Visual C++ runtime
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python scripts/ci/check_windows_crt_static.py tools/mcp/target/${{ matrix.target }}/release/thetadatadx-mcp-server.exe
+
       - name: Stage binary
         shell: bash
         # Stage into a workspace-relative dir, not `mktemp -d`: on the Windows
