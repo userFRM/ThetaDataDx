@@ -15,7 +15,7 @@ info:
     as ISO YYYY-MM-DD and times as ISO local date-times in Eastern Time.
     Intervals are one of the presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     All prices are f64 (double) -- decoded during parsing.
-  version: 0.5.0
+  version: 0.5.1
   contact:
     name: ThetaDataDx
     url: https://github.com/userFRM/ThetaDataDx
