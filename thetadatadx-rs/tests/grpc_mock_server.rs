@@ -338,6 +338,45 @@ pub async fn serve_one_connection(
     let mut stream_index: usize = 0;
     while let Some(request_result) = connection.accept().await {
         let (request, respond) = request_result?;
+        if behaviour.goaway_mid_stream || behaviour.goaway_pre_response {
+            // GOAWAY after the request body is in: with only the
+            // response head and one DATA chunk sent in
+            // `goaway_mid_stream` mode, with no response at all in
+            // `goaway_pre_response` mode. Either path surfaces
+            // `ChannelError::ConnectionClosed` on the client; the pool
+            // relies on that distinction to recycle the dead channel
+            // rather than treating it as a stream-level reset. The two
+            // modes are mutually exclusive at the call site (configure
+            // one OR the other).
+            //
+            // Served inline so this task alone decides when the
+            // connection is polled. It is driven while the body drains,
+            // because the body's DATA frames arrive only while it is
+            // polled and can trail the HEADERS frame `accept` returned
+            // with. It is then left alone until the GOAWAY, so the
+            // partial response and the GOAWAY leave together, with no
+            // reset of the abandoned stream in between.
+            let mut body = request.into_body();
+            let drain = async {
+                while let Some(chunk) = body.data().await {
+                    let chunk = chunk?;
+                    let _ = body.flow_control().release_capacity(chunk.len());
+                }
+                Ok::<(), h2::Error>(())
+            };
+            let driven = std::future::poll_fn(|cx| connection.poll_closed(cx));
+            tokio::select! {
+                drained = drain => drained?,
+                _ = driven => {}
+            }
+            if behaviour.goaway_mid_stream {
+                respond_partial_then_drop(respond, &chunks).await?;
+            } else {
+                drop(respond);
+            }
+            connection.abrupt_shutdown(h2::Reason::NO_ERROR);
+            continue;
+        }
         let chunks = chunks.clone();
         let status_message = status_message.clone();
         let behaviour_inner = behaviour.clone();
@@ -347,7 +386,6 @@ pub async fn serve_one_connection(
         // survived the poisoned exchange.
         let poison_status_details = stream_index < behaviour.invalid_status_details_streams;
         stream_index += 1;
-        let (handler_done_tx, handler_done_rx) = oneshot::channel::<()>();
         tokio::spawn(async move {
             if let Err(e) = handle_request(
                 request,
@@ -362,21 +400,7 @@ pub async fn serve_one_connection(
             {
                 eprintln!("grpc_mock_server: request handler failed: {e}");
             }
-            let _ = handler_done_tx.send(());
         });
-        if behaviour.goaway_mid_stream || behaviour.goaway_pre_response {
-            // Wait until the handler completes (it skips the response
-            // entirely in `goaway_pre_response` mode, or skips
-            // trailers in `goaway_mid_stream` mode), then abrupt-
-            // shutdown the connection. Either path surfaces
-            // `ChannelError::ConnectionClosed` on the client — the
-            // pool relies on that distinction to recycle the dead
-            // channel rather than treating it as a stream-level
-            // reset. The two modes are mutually exclusive at the
-            // call site (configure one OR the other).
-            let _ = handler_done_rx.await;
-            connection.abrupt_shutdown(h2::Reason::NO_ERROR);
-        }
     }
     Ok(())
 }
@@ -465,21 +489,6 @@ async fn handle_request(
     }
     if let Some(d) = behaviour.pre_response_delay {
         tokio::time::sleep(d).await;
-    }
-    if behaviour.goaway_mid_stream {
-        // Send response head + one DATA chunk to get the stream
-        // running, then exit without trailers so the outer
-        // accept-loop fires GOAWAY mid-stream.
-        respond_partial_then_drop(respond, &chunks).await?;
-        return Ok(());
-    }
-    if behaviour.goaway_pre_response {
-        // Body drained; do not send any response HEADERS or DATA.
-        // The outer accept-loop fires GOAWAY after this handler
-        // signals completion. The client's pending response future
-        // / send_data observes the connection-level shutdown.
-        drop(respond);
-        return Ok(());
     }
     if let Some(reason) = behaviour.stream_reset_reason {
         // Per-stream RST_STREAM with the supplied reason. The h2

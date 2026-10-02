@@ -162,8 +162,7 @@ where
             Ok(Poll::Ready(Some(Ok(msg)))) => Poll::Ready(Some(Ok(msg))),
             Ok(Poll::Ready(Some(Err(status)))) => {
                 this.closed = true;
-                let deadline_ms = this.deadline.is_some().then_some(this.deadline_duration_ms);
-                Poll::Ready(Some(Err(classify_status(status, deadline_ms))))
+                Poll::Ready(Some(Err(classify_status(status))))
             }
             Ok(Poll::Ready(None)) => {
                 this.closed = true;
