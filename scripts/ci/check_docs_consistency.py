@@ -11,6 +11,9 @@ surface by checking a few high-signal invariants:
   server treats as optional, nor hide the value an omitted one takes)
 - each option route's documented `expiration` pattern accepting the `*`
   wildcard exactly where the pinned vendor spec accepts it
+- every route's `x-code-examples` being the call the registry's signature
+  actually takes, rendered from the registry rather than kept by hand
+  (`--write-examples` rewrites them)
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
 - `llms.txt` covering every page on the site (and naming no deleted page)
@@ -1376,6 +1379,249 @@ def check_openapi_expiration_wildcard() -> None:
         )
 
 
+# The optional parameters the published examples pin. Pinning `strike` and
+# `right` turns an option route's wildcard default into the single-contract
+# request a reader is usually after, and `interval` is the one tuning knob most
+# intraday requests set. Mirrors `showcased_builder_params` in the docs
+# generator (`build_support_bin/endpoints/docs_render/lang.rs`), which seeds the
+# reference pages' request builder from the same three.
+OPENAPI_EXAMPLE_OPTIONALS = ("strike", "right", "interval")
+
+# One example per language, in the order the document carries them, with the
+# label the renderer prints beside the snippet.
+OPENAPI_EXAMPLE_LANGS = (("rust", "Rust"), ("python", "Python"), ("cpp", "C++"))
+
+
+def _endpoint_attr(endpoint: dict, key: str) -> str | None:
+    """An endpoint attribute, resolved through its template chain."""
+    value = endpoint.get(key)
+    template_name = endpoint.get("template")
+    seen: set[str] = set()
+    while value is None and template_name is not None and template_name not in seen:
+        seen.add(template_name)
+        template = TEMPLATES.get(template_name)
+        if template is None:
+            fail(f"endpoint {endpoint['name']} references unknown template {template_name!r}")
+        value = template.get(key)
+        template_name = template.get("extends")
+    return value
+
+
+def _example_value(endpoint: dict, param: dict) -> str:
+    """The literal an example passes for `param`, from `[test_fixtures]`.
+
+    The same table the generated live validators draw from, so every published
+    example is a request those validators exercise against production. A param
+    the table cannot answer for fails the gate rather than being handed an
+    invented literal.
+    """
+    fixtures = SURFACE["test_fixtures"]
+    name, param_type = param["name"], param["param_type"]
+    override = fixtures.get("concrete_overrides", {}).get(name)
+    if override is not None:
+        return override
+    if param_type in ("Symbol", "Symbols"):
+        category = _endpoint_attr(endpoint, "category")
+        symbol = fixtures.get("category_symbol", {}).get(category)
+        if symbol is None:
+            fail(
+                f"[test_fixtures.category_symbol] has no symbol for category "
+                f"{category!r} ({endpoint['name']}), so no example value exists"
+            )
+        return symbol
+    value = fixtures.get("concrete_by_type", {}).get(param_type)
+    if value is None:
+        fail(
+            f"[test_fixtures.concrete_by_type] has no value for param type "
+            f"{param_type!r} ({endpoint['name']}.{name}), so no example value exists"
+        )
+    return value
+
+
+def _example_variable(endpoint: dict) -> str:
+    """The variable an example binds its result to, derived from the endpoint.
+
+    A list route is named for the rows it lists (`symbols`, `dates`); any other
+    is named for its return type with the `Ticks` suffix dropped
+    (`QuoteTicks` -> `quote`, `TradeGreeksAllTicks` -> `trade_greeks_all`).
+    """
+    list_column = endpoint.get("list_column")
+    if list_column is not None:
+        return f"{list_column}s"
+    returns = _endpoint_attr(endpoint, "returns")
+    if returns is None:
+        fail(f"endpoint {endpoint['name']} declares no return type to name a variable after")
+    out: list[str] = []
+    for i, ch in enumerate(returns.removesuffix("Ticks")):
+        if ch.isupper() and i > 0:
+            out.append("_")
+        out.append(ch.lower())
+    return "".join(out)
+
+
+def _example_literal(param: dict, value: str, lang: str) -> str:
+    """`value` as a literal of `param`'s type in `lang`."""
+    param_type = param["param_type"]
+    if param_type == "Bool":
+        return value.capitalize() if lang == "python" else value
+    if param_type in ("Int", "Float"):
+        return value
+    if param_type == "Symbols":
+        return {
+            "rust": f'&["{value}"]',
+            "python": f'["{value}"]',
+            "cpp": f'{{"{value}"}}',
+        }[lang]
+    return f'"{value}"'
+
+
+def render_openapi_examples() -> dict[str, str]:
+    """`{documented path: x-code-examples block}` rendered from the registry.
+
+    The registry already records which parameters a call takes positionally
+    (`binding = "method"`) and which are optional (`binding = "builder"`), so
+    the snippets are derived from it rather than written by hand, where they
+    came to pass optional parameters positionally into signatures that have no
+    such positions. Each language gets the shape its binding exposes: a Rust
+    builder chain, Python keyword arguments, and a C++ `EndpointRequestOptions`
+    with fluent setters.
+    """
+    blocks: dict[str, str] = {}
+    by_name: dict[str, str] = {}
+    for endpoint in REGISTRY_ENDPOINTS:
+        params: list[dict] = []
+        template_name = endpoint.get("template")
+        if template_name is not None:
+            params.extend(_template_params(template_name))
+        params.extend(_expand_param_group(endpoint.get("params", [])))
+        required = [p for p in params if p.get("binding") == "method"]
+        optional = [
+            p
+            for name in OPENAPI_EXAMPLE_OPTIONALS
+            for p in params
+            if p["name"] == name and p.get("binding") == "builder"
+        ]
+        name = endpoint["name"]
+        variable = _example_variable(endpoint)
+        lines = ["      x-code-examples:"]
+        for lang, label in OPENAPI_EXAMPLE_LANGS:
+            args = ", ".join(
+                _example_literal(p, _example_value(endpoint, p), lang) for p in required
+            )
+            if lang == "rust":
+                chain = "".join(
+                    f'.{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
+                    for p in optional
+                )
+                call = f"let {variable} = client.market_data().{name}({args}){chain}.await?;"
+            elif lang == "python":
+                kwargs = "".join(
+                    f', {p["name"]}={_example_literal(p, _example_value(endpoint, p), lang)}'
+                    for p in optional
+                )
+                call = f"{variable} = client.market_data.{name}({args}{kwargs})"
+            else:
+                setters = "".join(
+                    f'.with_{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
+                    for p in optional
+                )
+                options = (
+                    f", thetadatadx::EndpointRequestOptions{{}}{setters}" if setters else ""
+                )
+                call = f"auto {variable} = client.market_data().{name}({args}{options});"
+            lines += [
+                f"        - lang: {lang}",
+                f"          label: {label}",
+                "          source: |",
+                f"            {call}",
+            ]
+        block = "\n".join(lines) + "\n"
+        blocks[endpoint["rest_path"]] = block
+        by_name[name] = block
+    # A server-only path alias is a second spelling of one endpoint, served by
+    # the same code through the same SDK method, so it carries that endpoint's
+    # example.
+    for alias, endpoint_name in OPENAPI_ALIAS_ENDPOINTS.items():
+        blocks[alias] = by_name[endpoint_name]
+    return blocks
+
+
+def _openapi_example_blocks(text: str) -> dict[str, tuple[str, int, int]]:
+    """`{path: (block, start, end)}` for each route's `x-code-examples`.
+
+    `start` and `end` are offsets into `text`, so `--write-examples` can
+    replace a block in place without reflowing the rest of the document.
+
+    A blank line separates one route from the next and belongs to neither, but
+    an indentation scan cannot see where an indented block ends and the blank
+    run begins, so trailing blank lines are left outside the span. Replacing a
+    block that swallowed them would delete the separator.
+    """
+    found: dict[str, tuple[str, int, int]] = {}
+    for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE):
+        path = match.group(1)
+        path_block, path_end = _yaml_block(text, rf"^  {re.escape(path)}:\s*$")
+        offset = path_end - len(path_block)
+        inner, inner_end = _yaml_block(path_block, r"^      x-code-examples:\s*$")
+        if not inner:
+            continue
+        end = offset + inner_end
+        trailing = len(inner) - len(inner.rstrip("\n"))
+        # Keep the one newline that ends the block's last line.
+        if trailing > 1:
+            inner = inner[: -(trailing - 1)]
+            end -= trailing - 1
+        found[path] = (inner, end - len(inner), end)
+    return found
+
+
+def check_openapi_examples(write: bool = False) -> None:
+    """Each route's `x-code-examples` must be the block the registry renders.
+
+    Kept by hand, the snippets drifted from the signatures they claim to show:
+    most passed the optional `strike` and `right` positionally, which no
+    binding accepts, so a reader who copied one got a call that does not
+    compile. Rendering them from the registry and comparing byte for byte means
+    a signature change moves the examples with it. `write` rewrites the
+    document instead of comparing, which is how the snippets are regenerated.
+    """
+    text = OPENAPI_YAML.read_text()
+    expected = render_openapi_examples()
+    documented = _openapi_example_blocks(text)
+    if write:
+        # Rewrite from the back so each replacement leaves the earlier offsets
+        # untouched.
+        for path, (block, start, end) in sorted(
+            documented.items(), key=lambda item: item[1][1], reverse=True
+        ):
+            want = expected.get(path)
+            if want is not None and want != block:
+                text = text[:start] + want + text[end:]
+        OPENAPI_YAML.write_text(text)
+        print(f"openapi examples: rewrote {rel(OPENAPI_YAML)}")
+        return
+    checked = 0
+    for path, want in sorted(expected.items()):
+        entry = documented.get(path)
+        if entry is None:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} carries no `x-code-examples`, so the "
+                f"route publishes no runnable call. Run with --write-examples."
+            )
+        checked += 1
+        if entry[0] != want:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} `x-code-examples` is not what the "
+                f"registry renders. Run with --write-examples.\n"
+                f"--- documented ---\n{entry[0]}--- registry ---\n{want}"
+            )
+    if checked == 0:
+        fail(
+            f"{rel(OPENAPI_YAML)} parsed to no `x-code-examples` blocks (the "
+            f"spec's layout changed: the gate would be blind to example drift)"
+        )
+
+
 def check_flatfile_matrix() -> None:
     """OpenAPI flat-file enums must equal the `SERVED_DATASETS` served matrix.
 
@@ -1970,6 +2216,7 @@ def main() -> None:
     check_openapi()
     check_openapi_parameters()
     check_openapi_expiration_wildcard()
+    check_openapi_examples()
     check_flatfile_matrix()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()
@@ -1986,7 +2233,18 @@ if __name__ == "__main__":
         action="store_true",
         help="Run the embedded self-test and exit.",
     )
+    parser.add_argument(
+        "--write-examples",
+        action="store_true",
+        help=(
+            "Rewrite the OpenAPI document's x-code-examples from the endpoint "
+            "registry instead of checking them, then exit."
+        ),
+    )
     args = parser.parse_args()
     if args.selftest:
         sys.exit(_selftest())
+    if args.write_examples:
+        check_openapi_examples(write=True)
+        raise SystemExit(0)
     main()

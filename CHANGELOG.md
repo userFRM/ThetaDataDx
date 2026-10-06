@@ -33,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Both spellings of the option list-dates route publish the same rule for `expiration`.** `/v3/option/list/dates` documented a parameter that rejects the `*` wildcard while its path-segment form documented one that accepts it, so a client generated from the contract carried two methods for one endpoint that disagreed on whether a chain-wide request was valid. Both now carry the rule the vendor publishes for that route, which rejects the wildcard.
 
+- **Every code example in the published contract is a call that works as written.** Most of them passed the optional `strike` and `right` as positional arguments, which no binding accepts: the methods take `symbol` and `expiration` positionally and every optional by name, so a reader who copied a snippet got a call that does not compile or raises a type error. The examples are now rendered from the endpoint registry, which records which parameters a call takes positionally and which are optional, in the shape each binding exposes: a Rust builder chain, Python keyword arguments, and a C++ options object with fluent setters. The values they pass are the ones the live validators exercise against the vendor, so each snippet is a request known to be answered.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed
