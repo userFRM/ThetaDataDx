@@ -18,9 +18,7 @@ pub unsafe extern "C" fn thetadatadx_stock_list_symbols_with_options(
             return empty;
         }
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_symbols", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_list_symbols", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -72,9 +70,7 @@ pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_list_dates", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_list_dates", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -124,9 +120,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_snapshot_ohlc", &args) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
@@ -185,9 +179,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_snapshot_trade", &args) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
@@ -246,9 +238,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_snapshot_quote", &args) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
@@ -307,9 +297,7 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_snapshot_market_value", &args) {
             Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
@@ -382,9 +370,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_history_eod", &args) {
             Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
@@ -443,9 +429,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_history_ohlc", &args) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
@@ -504,9 +488,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_history_trade", &args) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
@@ -565,9 +547,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_history_quote", &args) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
@@ -626,9 +606,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_history_trade_quote", &args) {
             Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
@@ -708,9 +686,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_at_time_trade", &args) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
@@ -790,9 +766,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "stock_at_time_quote", &args) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
@@ -839,9 +813,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_symbols_with_options(
             return empty;
         }
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_symbols", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_list_symbols", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -900,9 +872,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_dates", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_list_dates", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -947,9 +917,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_expirations_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_expirations", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_list_expirations", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -1001,9 +969,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_strikes", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_list_strikes", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -1060,9 +1026,7 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
             thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_list_contracts", &args) {
             Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOptionContractArray::from_vec(values.into_vec()) {
@@ -1128,9 +1092,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_ohlc", &args) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
@@ -1196,9 +1158,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_trade", &args) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
@@ -1264,9 +1224,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_quote", &args) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
@@ -1332,9 +1290,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_open_interest", &args) {
             Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOpenInterestTickArray::from_vec(values.into_vec()) {
@@ -1400,9 +1356,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_market_value", &args) {
             Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
@@ -1468,9 +1422,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_greeks_implied_volatility", &args) {
             Ok(thetadatadx::EndpointOutput::IvTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxIvTickArray::from_vec(values.into_vec()) {
@@ -1536,9 +1488,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_greeks_all", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
@@ -1604,9 +1554,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_all_with_op
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_all", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_binomial_greeks_all", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
@@ -1672,9 +1620,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_greeks_first_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
@@ -1740,9 +1686,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_first_order
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_first_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_binomial_greeks_first_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
@@ -1808,9 +1752,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_greeks_second_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
@@ -1876,9 +1818,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_second_orde
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_second_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_binomial_greeks_second_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
@@ -1944,9 +1884,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_greeks_third_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
@@ -2012,9 +1950,7 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_third_order
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_third_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_snapshot_binomial_greeks_third_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
@@ -2094,9 +2030,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_eod", &args) {
             Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
@@ -2162,9 +2096,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_ohlc", &args) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
@@ -2230,9 +2162,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_trade", &args) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
@@ -2298,9 +2228,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_quote", &args) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
@@ -2366,9 +2294,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_trade_quote", &args) {
             Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
@@ -2434,9 +2360,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_open_interest", &args) {
             Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOpenInterestTickArray::from_vec(values.into_vec()) {
@@ -2516,9 +2440,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_greeks_eod", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksEodTickArray::from_vec(values.into_vec()) {
@@ -2598,9 +2520,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_with_opt
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_eod", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_greeks_eod", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksEodTickArray::from_vec(values.into_vec()) {
@@ -2666,9 +2586,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_greeks_all", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
@@ -2734,9 +2652,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_with_opt
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_all", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_greeks_all", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
@@ -2802,9 +2718,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_trade_greeks_all", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksAllTickArray::from_vec(values.into_vec()) {
@@ -2870,9 +2784,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_wi
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_all", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_trade_greeks_all", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksAllTickArray::from_vec(values.into_vec()) {
@@ -2938,9 +2850,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_greeks_first_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
@@ -3006,9 +2916,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_first_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_greeks_first_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
@@ -3074,9 +2982,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_trade_greeks_first_order", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
@@ -3142,9 +3048,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_first_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_trade_greeks_first_order", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
@@ -3210,9 +3114,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_greeks_second_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
@@ -3278,9 +3180,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_second_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_greeks_second_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
@@ -3346,9 +3246,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_trade_greeks_second_order", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
@@ -3414,9 +3312,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_second_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_trade_greeks_second_order", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
@@ -3482,9 +3378,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_greeks_third_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
@@ -3550,9 +3444,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_third_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_greeks_third_order", &args) {
             Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
@@ -3618,9 +3510,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_trade_greeks_third_order", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
@@ -3686,9 +3576,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_third_order", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_binomial_trade_greeks_third_order", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
@@ -3754,9 +3642,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_greeks_implied_volatility", &args) {
             Ok(thetadatadx::EndpointOutput::IvTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxIvTickArray::from_vec(values.into_vec()) {
@@ -3822,9 +3708,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
             thetadatadx::EndpointArgValue::Str(expiration.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_history_trade_greeks_implied_volatility", &args) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksImpliedVolatilityTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksImpliedVolatilityTickArray::from_vec(values.into_vec()) {
@@ -3911,9 +3795,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_at_time_trade", &args) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
@@ -4000,9 +3882,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "option_at_time_quote", &args) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
@@ -4049,9 +3929,7 @@ pub unsafe extern "C" fn thetadatadx_index_list_symbols_with_options(
             return empty;
         }
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_symbols", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_list_symbols", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -4096,9 +3974,7 @@ pub unsafe extern "C" fn thetadatadx_index_list_dates_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_list_dates", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_list_dates", &args) {
             Ok(thetadatadx::EndpointOutput::StringList(values)) => match ThetaDataDxStringArray::from_vec(values) {
                 Ok(arr) => arr,
                 Err(e) => {
@@ -4148,9 +4024,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_snapshot_ohlc", &args) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
@@ -4209,9 +4083,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_snapshot_price", &args) {
             Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxPriceTickArray::from_vec(values.into_vec()) {
@@ -4270,9 +4142,7 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
             thetadatadx::EndpointArgValue::Str(symbols.join(",")),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_snapshot_market_value", &args) {
             Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
@@ -4345,9 +4215,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_history_eod", &args) {
             Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
@@ -4420,9 +4288,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_history_ohlc", &args) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
@@ -4481,9 +4347,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
             thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_history_price", &args) {
             Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxPriceTickArray::from_vec(values.into_vec()) {
@@ -4563,9 +4427,7 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
             thetadatadx::EndpointArgValue::Str(time_of_day.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "index_at_time_price", &args) {
             Ok(thetadatadx::EndpointOutput::IndexPriceAtTimeTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxIndexPriceAtTimeTickArray::from_vec(values.into_vec()) {
@@ -4617,9 +4479,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
             return empty;
         }
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "calendar_open_today", &args) {
             Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
@@ -4678,9 +4538,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
             thetadatadx::EndpointArgValue::Str(date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "calendar_on_date", &args) {
             Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
@@ -4739,9 +4597,7 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
             thetadatadx::EndpointArgValue::Str(year.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "calendar_year", &args) {
             Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
@@ -4814,9 +4670,7 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
             thetadatadx::EndpointArgValue::Str(end_date.to_string()),
         );
 
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
-        }) {
+        match invoke_endpoint_blocking(&client.inner, "interest_rate_history_eod", &args) {
             Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => {
                 let columns = values.columns().clone();
                 match ThetaDataDxInterestRateTickArray::from_vec(values.into_vec()) {

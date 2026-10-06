@@ -284,14 +284,12 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     }
 
     out.push('\n');
-    out.push_str("        match runtime().block_on(async {\n");
     writeln!(
         out,
-        "            thetadatadx::endpoint::invoke_endpoint(&client.inner, {:?}, &args).await",
+        "        match invoke_endpoint_blocking(&client.inner, {:?}, &args) {{",
         endpoint.name
     )
     .unwrap();
-    out.push_str("        }) {\n");
     if has_presence {
         // The variant now carries `Ticks<T>` (rows + wire column set). Clone the
         // presence, run the fallible `from_vec` first, and write the heap-owned
@@ -477,14 +475,12 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     // dereferences `ctx`; it only hands it back to the user's `extern "C"`
     // function exactly as registered.
     out.push_str("        let sink = TickChunkSink { callback, ctx };\n");
-    out.push_str("        match runtime().block_on(async {\n");
     writeln!(
         out,
-        "            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, {:?}, &args, move |rows, len| sink.emit(rows, len)).await",
+        "        match invoke_endpoint_stream_blocking(&client.inner, {:?}, &args, sink) {{",
         endpoint.name
     )
     .unwrap();
-    out.push_str("        }) {\n");
     out.push_str("            Ok(()) => 0,\n");
     out.push_str("            Err(error) => {\n");
     out.push_str("                set_error_from(&thetadatadx::Error::from(error));\n");
