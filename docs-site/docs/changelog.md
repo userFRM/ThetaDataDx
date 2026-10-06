@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The published REST contract no longer demands parameters the API treats as optional.** It marked `strike` and `right` required on every option route, and `symbol` required on both spellings of the contract listing, so a client generated from it could not ask for a whole chain, for both sides of one, or for every contract traded on a date without being made to supply a value the server does not need. All three are optional now and each records the value an omitted request takes: every strike, both sides, and the full contract universe for the date. The contract also carries the defaults and the permitted values it had been leaving out, on `start_time`, `end_time`, `interval`, `venue`, `exclusive`, `rate_type`, `version`, `use_market_value`, `underlyer_use_nbbo` and `request_type`, so a reader can tell what each one does when it is left out; `request_type` no longer offers `OPEN_INTEREST`, which no route serves.
 
+- **Both spellings of the option list-dates route publish the same rule for `expiration`.** `/v3/option/list/dates` documented a parameter that rejects the `*` wildcard while its path-segment form documented one that accepts it, so a client generated from the contract carried two methods for one endpoint that disagreed on whether a chain-wide request was valid. Both now carry the rule the vendor publishes for that route, which rejects the wildcard.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed

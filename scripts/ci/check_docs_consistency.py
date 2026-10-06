@@ -9,6 +9,8 @@ surface by checking a few high-signal invariants:
 - per-route OpenAPI parameter names, required flags and defaults matching
   the same registry (a generated client must not demand a parameter the
   server treats as optional, nor hide the value an omitted one takes)
+- each option route's documented `expiration` pattern accepting the `*`
+  wildcard exactly where the pinned vendor spec accepts it
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
 - `llms.txt` covering every page on the site (and naming no deleted page)
@@ -55,6 +57,17 @@ OPENAPI_SERVER_URL = "http://localhost:25503"
 
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
+
+# The pinned snapshot of the vendor's own v3 spec, the source of truth for
+# which option endpoints accept `expiration=*`. Upstream models the two cases
+# as separate components (`expiration` / `expiration_no_star`) and the Rust
+# generator already derives `supports_expiration_wildcard` per endpoint from
+# this file for the live validator's wildcard cells
+# (`thetadatadx-rs/build_support_bin/upstream_openapi.rs`). Our published
+# contract makes the same distinction by hand, with one anchor per case, so
+# the gate derives the expected answer from the same snapshot rather than
+# trusting 30-odd hand-written choices to stay right.
+UPSTREAM_OPENAPI_YAML = ROOT / "scripts/ci/data/upstream_openapi.yaml"
 
 # The Rust source that is the single source of truth for the flat-file served
 # matrix: the `(SecType, ReqType)` pairs the distribution serves
@@ -1109,8 +1122,10 @@ _OPENAPI_PARAM_ITEM_RE = re.compile(r"^        - ", re.MULTILINE)
 _OPENAPI_PARAM_ALIAS_RE = re.compile(r"\*([A-Za-z0-9_-]+)\s*$")
 
 
-def _openapi_param_fields(block: str) -> tuple[str, bool, str | None] | None:
-    """`(name, required, default)` for one OpenAPI parameter node.
+def _openapi_param_fields(
+    block: str,
+) -> tuple[str, bool, str | None, str | None] | None:
+    """`(name, required, default, pattern)` for one OpenAPI parameter node.
 
     `None` when the node carries no `name:`, which is how the non-parameter
     anchors in `x-anchors` (the response envelope, the row schema) are passed
@@ -1124,17 +1139,19 @@ def _openapi_param_fields(block: str) -> tuple[str, bool, str | None] | None:
         return None
     required = re.search(r"^\s*required:\s*(true|false)\s*$", block, re.MULTILINE)
     default = re.search(r"^\s*default:\s*(\S.*?)\s*$", block, re.MULTILINE)
+    pattern = re.search(r"^\s*pattern:\s*(\S.*?)\s*$", block, re.MULTILINE)
     return (
         name.group(1),
         required is not None and required.group(1) == "true",
         default.group(1).strip("'\"") if default else None,
+        pattern.group(1).strip("'\"") if pattern else None,
     )
 
 
 def openapi_route_params(
     text: str, paths: set[str] | None = None
-) -> dict[str, dict[str, tuple[bool, str | None]]]:
-    """`{path: {param: (required, default)}}` as the checked-in spec declares it.
+) -> dict[str, dict[str, tuple[bool, str | None, str | None]]]:
+    """`{path: {param: (required, default, pattern)}}` as the spec declares it.
 
     The spec writes most parameters once under `x-anchors` and aliases them per
     route (`- *strike-param`), so the anchors are read first and an alias
@@ -1147,7 +1164,7 @@ def openapi_route_params(
     a route outside that set is passed over rather than held to a parameter
     shape this parser happens to understand.
     """
-    anchors: dict[str, tuple[str, bool, str | None]] = {}
+    anchors: dict[str, tuple[str, bool, str | None, str | None]] = {}
     for match in _OPENAPI_ANCHOR_RE.finditer(text):
         block, _ = _yaml_block(
             text, rf"^  {re.escape(match.group(1))}: &{re.escape(match.group(2))}\s*$"
@@ -1156,13 +1173,13 @@ def openapi_route_params(
         if fields is not None:
             anchors[match.group(2)] = fields
 
-    routes: dict[str, dict[str, tuple[bool, str | None]]] = {}
+    routes: dict[str, dict[str, tuple[bool, str | None, str | None]]] = {}
     for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE):
         path = match.group(1)
         if paths is not None and path not in paths:
             continue
         path_block, _ = _yaml_block(text, rf"^  {re.escape(path)}:\s*$")
-        params: dict[str, tuple[bool, str | None]] = {}
+        params: dict[str, tuple[bool, str | None, str | None]] = {}
         # A path may carry several operations; every one of their
         # `parameters:` blocks is read, so a second method is never skipped.
         position = 0
@@ -1188,7 +1205,7 @@ def openapi_route_params(
                             f"{rel(OPENAPI_YAML)} {path} has a parameter "
                             f"entry with no `name:`"
                         )
-                params[fields[0]] = (fields[1], fields[2])
+                params[fields[0]] = (fields[1], fields[2], fields[3])
         routes[path] = params
     return routes
 
@@ -1231,7 +1248,7 @@ def check_openapi_parameters(
             )
         for name in sorted(want):
             want_required, want_default = want[name]
-            got_required, got_default = got[name]
+            got_required, got_default, _ = got[name]
             if want_required != got_required:
                 fail(
                     f"{rel(OPENAPI_YAML)} {path} documents {name} as "
@@ -1248,6 +1265,114 @@ def check_openapi_parameters(
         fail(
             f"{rel(OPENAPI_YAML)} parsed to no registry route parameters "
             f"(the spec's layout changed: the gate would be blind to parameter drift)"
+        )
+
+
+def registry_route_endpoint_names() -> dict[str, str]:
+    """`{documented path: registry endpoint name}` for every route we own.
+
+    The endpoint name is the join key to the vendor snapshot, whose
+    `operationId` is the registry name verbatim. The server-only path aliases
+    resolve to the endpoint they dispatch to, so both spellings of one endpoint
+    answer to the same upstream row.
+    """
+    names = {ep["rest_path"]: ep["name"] for ep in REGISTRY_ENDPOINTS}
+    names.update(OPENAPI_ALIAS_ENDPOINTS)
+    return names
+
+
+def upstream_expiration_wildcard() -> dict[str, bool]:
+    """`{endpoint name: accepts `expiration=*`}` from the pinned vendor spec.
+
+    Upstream references one of two parameter components per operation:
+    `expiration` accepts the wildcard, `expiration_no_star` rejects it. Only
+    operations that reference one of them get an entry, so an endpoint that
+    takes no expiration at all is simply absent.
+
+    An empty result means the snapshot was refreshed into a shape this parser
+    does not recognise (upstream renamed the components, or restructured the
+    parameter blocks), which must fail loudly rather than silently excuse every
+    route. The Rust derivation fails closed on the same condition.
+    """
+    text = UPSTREAM_OPENAPI_YAML.read_text()
+    wildcard: dict[str, bool] = {}
+    operation: str | None = None
+    for line in text.splitlines():
+        match = re.match(r"^\s+operationId:\s*(\S+)\s*$", line)
+        if match:
+            operation = match.group(1)
+            continue
+        if operation is None:
+            continue
+        if "parameters/expiration_no_star" in line:
+            wildcard[operation] = False
+        elif re.search(r'parameters/expiration"?\'?\s*$', line):
+            wildcard[operation] = True
+    if not wildcard:
+        fail(
+            f"{rel(UPSTREAM_OPENAPI_YAML)} yielded no expiration component "
+            f"references, so the wildcard rule could not be derived for any "
+            f"endpoint. Upstream changed the spec's shape; update this parser."
+        )
+    return wildcard
+
+
+def check_openapi_expiration_wildcard() -> None:
+    """A documented `expiration` accepts `*` exactly where upstream does.
+
+    The contract carries two expiration anchors, one whose pattern matches the
+    `*` wildcard and one whose pattern rejects it, and the choice is made per
+    route. Made by hand, the two spellings of one endpoint drifted apart and
+    published contradictory rules for the same request. The rule is asserted
+    against the pinned vendor snapshot instead, which is where the answer
+    actually lives.
+
+    The pattern is tested by matching it against `*` rather than by reading the
+    anchor's name or looking for an escaped asterisk, so it holds whatever way
+    a future pattern spells the wildcard.
+    """
+    endpoint_names = registry_route_endpoint_names()
+    wildcard = upstream_expiration_wildcard()
+    documented = openapi_route_params(OPENAPI_YAML.read_text(), set(endpoint_names))
+    checked = 0
+    for path, params in sorted(documented.items()):
+        expiration = params.get("expiration")
+        if expiration is None:
+            continue
+        name = endpoint_names[path]
+        if name not in wildcard:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} documents an `expiration`, but "
+                f"{rel(UPSTREAM_OPENAPI_YAML)} records no expiration component "
+                f"for {name}, so the wildcard rule cannot be verified"
+            )
+        pattern = expiration[2]
+        if pattern is None:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} documents `expiration` with no "
+                f"`pattern`, so it states no rule about the `*` wildcard"
+            )
+        try:
+            allows_wildcard = re.match(pattern, "*") is not None
+        except re.error as exc:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} `expiration` pattern "
+                f"{pattern!r} is not a valid regular expression: {exc}"
+            )
+        checked += 1
+        if allows_wildcard != wildcard[name]:
+            upstream = "accepts" if wildcard[name] else "rejects"
+            ours = "accepts" if allows_wildcard else "rejects"
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} documents an `expiration` that "
+                f"{ours} the `*` wildcard, but {rel(UPSTREAM_OPENAPI_YAML)} says "
+                f"{name} {upstream} it. Alias the matching expiration anchor."
+            )
+    if checked == 0:
+        fail(
+            f"{rel(OPENAPI_YAML)} parsed to no documented `expiration` "
+            f"parameters (the spec's layout changed: the gate would be blind to "
+            f"a wrong wildcard rule)"
         )
 
 
@@ -1844,6 +1969,7 @@ def main() -> None:
     check_llms_txt()
     check_openapi()
     check_openapi_parameters()
+    check_openapi_expiration_wildcard()
     check_flatfile_matrix()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()

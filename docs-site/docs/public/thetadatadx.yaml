@@ -1074,7 +1074,7 @@ paths:
       parameters:
         - *request_type-path-param
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *format-param
