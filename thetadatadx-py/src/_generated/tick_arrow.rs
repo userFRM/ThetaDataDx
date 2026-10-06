@@ -73,6 +73,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -118,6 +119,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -137,6 +139,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -155,6 +158,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -172,6 +176,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -205,6 +210,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -303,6 +309,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -329,6 +336,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -349,6 +357,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -374,6 +383,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -398,6 +408,7 @@ pub(crate) fn arrow_schema_for_qualname(qualname: &str) -> Option<Arc<Schema>> {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -750,6 +761,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -781,6 +793,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -813,6 +826,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -938,6 +952,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -1002,6 +1020,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -1045,6 +1064,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -1089,6 +1109,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -1262,6 +1283,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -1300,6 +1325,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -1317,6 +1343,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -1335,6 +1362,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -1404,6 +1432,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -1441,6 +1473,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -1457,6 +1490,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -1474,6 +1508,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -1539,6 +1574,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -1575,6 +1614,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -1590,6 +1630,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -1606,6 +1647,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -1666,6 +1708,10 @@ pub(crate) mod slice_arrow {
         if has_date {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
         }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
@@ -1839,6 +1885,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -1853,6 +1900,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -1868,6 +1916,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -1924,6 +1973,10 @@ pub(crate) mod slice_arrow {
         if has_date {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
         }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
@@ -2437,6 +2490,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2475,6 +2529,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2514,6 +2569,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -2667,6 +2723,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -2712,6 +2772,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2736,6 +2797,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2761,6 +2823,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -2858,6 +2921,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -2897,6 +2964,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2915,6 +2983,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2934,6 +3003,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -3007,6 +3077,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -3051,6 +3125,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -3074,6 +3149,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -3098,6 +3174,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -3191,6 +3268,10 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -3234,6 +3315,7 @@ pub(crate) mod slice_arrow {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -3256,6 +3338,7 @@ pub(crate) mod slice_arrow {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -3279,6 +3362,7 @@ pub(crate) mod slice_arrow {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -3367,6 +3451,10 @@ pub(crate) mod slice_arrow {
         if has_date {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
         }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));

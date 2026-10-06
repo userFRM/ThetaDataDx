@@ -194,6 +194,8 @@ pub struct GreeksAllTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -339,6 +341,8 @@ pub struct GreeksEodTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -404,6 +408,8 @@ pub struct GreeksFirstOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -467,6 +473,8 @@ pub struct GreeksSecondOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -529,6 +537,8 @@ pub struct GreeksThirdOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -649,7 +659,7 @@ pub struct InterestRateTick {
     pub rate: f64,
 }
 
-/// Implied volatility tick -- 14 fields.
+/// Implied volatility tick -- 15 fields.
 ///
 /// The `option_history_greeks_implied_volatility` wire columns map as:
 ///
@@ -683,6 +693,8 @@ pub struct IvTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -1049,6 +1061,8 @@ pub struct TradeGreeksAllTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -1151,6 +1165,8 @@ pub struct TradeGreeksFirstOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -1242,6 +1258,8 @@ pub struct TradeGreeksImpliedVolatilityTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -1342,6 +1360,8 @@ pub struct TradeGreeksSecondOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.
@@ -1441,6 +1461,8 @@ pub struct TradeGreeksThirdOrderTick {
     pub underlying_price: f64,
     /// Trading date as a YYYYMMDD integer.
     pub date: i32,
+    /// Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions.
+    pub underlying_date: i32,
     /// Contract expiration (`YYYYMMDD`), or 0 when the response does not carry it.
     pub expiration: i32,
     /// Contract strike price in dollars, or 0.0 when the response does not carry it.

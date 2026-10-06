@@ -4292,6 +4292,7 @@ export interface GreeksAllTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -4416,6 +4417,7 @@ export interface GreeksEodTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -4514,6 +4516,7 @@ export interface GreeksFirstOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -4611,6 +4614,7 @@ export interface GreeksSecondOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -4707,6 +4711,7 @@ export interface GreeksThirdOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -5171,6 +5176,7 @@ export interface IvTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -7974,6 +7980,7 @@ export interface TradeGreeksAllTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -8079,6 +8086,7 @@ export interface TradeGreeksFirstOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -8178,6 +8186,7 @@ export interface TradeGreeksImpliedVolatilityTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -8282,6 +8291,7 @@ export interface TradeGreeksSecondOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string
@@ -8385,6 +8395,7 @@ export interface TradeGreeksThirdOrderTick {
   underlyingMsOfDay: number
   underlyingPrice: number
   date: number
+  underlyingDate: number
   expiration?: number
   strike?: number
   right?: string

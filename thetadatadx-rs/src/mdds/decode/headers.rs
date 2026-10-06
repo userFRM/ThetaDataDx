@@ -45,10 +45,15 @@ pub(crate) const HEADER_ALIASES: &[(&str, &str)] = &[
     // The vendor's per-order Greeks endpoints (`option_*_greeks_*_order`)
     // and the `_greeks_all` / `_greeks_eod` endpoints publish the
     // underlying snapshot timestamp as `underlying_timestamp`. The tick
-    // schema models it as `underlying_ms_of_day` so the wire conversion
-    // (Timestamp -> ms-of-day) flows through the standard `row_number`
-    // path without a per-tick parser branch.
+    // schema splits it the way it splits the row's own `timestamp`: into
+    // `underlying_ms_of_day` (via `row_number`) and `underlying_date`
+    // (via `row_date`), both read from the one wire column. The dates are
+    // not interchangeable: a Greeks row pairs the option quote of one
+    // session with the underlying price of another whenever the snapshot
+    // is taken outside the option's own session, so the underlying's date
+    // has to be carried rather than inferred from `date`.
     ("underlying_ms_of_day", "underlying_timestamp"),
+    ("underlying_date", "underlying_timestamp"),
 ];
 
 /// Helper: find a column index by name, with alias fallback.
