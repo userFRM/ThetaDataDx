@@ -56,32 +56,31 @@ pub(super) fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<St
             ],
         ),
         "ServerError" => ("message", vec!["message: message.clone()".to_string()]),
-        "Disconnected" => (
-            "reason",
-            vec!["reason: i32::from(*reason as i16)".to_string()],
-        ),
-        "Reconnecting" => (
-            "reason, attempt, delay_ms",
-            vec![
-                // `RemoveReason` is `#[repr(i16)]`, so the discriminant
-                // widens losslessly and totally into the wire `i32` — no
-                // sentinel needed. `attempt: u32` can exceed `i32::MAX`, so
-                // it saturates instead so the diagnostic value stays
-                // non-negative in a (implausible but allowed) long-lived
-                // reconnect loop.
-                "reason: i32::from(*reason as i16)".to_string(),
-                "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)".to_string(),
-                "delay_ms: *delay_ms".to_string(),
-            ],
-        ),
-        "ReconnectsExhausted" => (
-            "reason, attempts",
-            vec![
-                "reason: i32::from(*reason as i16)".to_string(),
-                // Same saturating shape as `Reconnecting.attempt`.
-                "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string(),
-            ],
-        ),
+        "Disconnected" => {
+            let mut fields = vec!["reason: i32::from(*reason as i16)".to_string()];
+            fields.extend(cause_field_assignments());
+            ("reason, cause", fields)
+        }
+        "Reconnecting" => {
+            // `RemoveReason` is `#[repr(i16)]`, so the discriminant
+            // widens losslessly and totally into the wire `i32` — no
+            // sentinel needed. `attempt: u32` can exceed `i32::MAX`, so
+            // it saturates instead so the diagnostic value stays
+            // non-negative in a (implausible but allowed) long-lived
+            // reconnect loop.
+            let mut fields = vec!["reason: i32::from(*reason as i16)".to_string()];
+            fields.extend(cause_field_assignments());
+            fields.push("attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)".to_string());
+            fields.push("delay_ms: *delay_ms".to_string());
+            ("reason, cause, attempt, delay_ms", fields)
+        }
+        "ReconnectsExhausted" => {
+            let mut fields = vec!["reason: i32::from(*reason as i16)".to_string()];
+            fields.extend(cause_field_assignments());
+            // Same saturating shape as `Reconnecting.attempt`.
+            fields.push("attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string());
+            ("reason, cause, attempts", fields)
+        }
         "ParseError" => ("message", vec!["message: message.clone()".to_string()]),
         "UnknownFrame" => (
             "code, payload",
@@ -100,6 +99,21 @@ pub(super) fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<St
              add it to control_variant_mapping in build_support/fpss_events/common.rs"
         ),
     }
+}
+
+/// The three flat columns every `DisconnectCause`-bearing control event
+/// carries, in schema order. `DisconnectCause` is one `Copy` value on the
+/// Rust event; the C ABI carries scalars rather than a tagged union, so
+/// the schema flattens it into its code, the name of the I/O error kind
+/// behind a read or write failure, and the read deadline that expired.
+/// The accessors on the core type are the single place those three are
+/// derived, so no emitter repeats the mapping.
+pub(super) fn cause_field_assignments() -> Vec<String> {
+    vec![
+        "cause: cause.code()".to_string(),
+        "cause_io_error_kind: cause.io_error_kind_name()".to_string(),
+        "cause_timeout_ms: cause.read_timeout_ms()".to_string(),
+    ]
 }
 
 /// Maps a schema column type to the Rust field type emitted on the Python `#[pyclass]` struct.

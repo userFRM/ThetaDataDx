@@ -26,8 +26,8 @@ const CONTROL_VARIANTS = [
   { name: 'MarketOpen',         kind: 'market_open',          payload: 'marketOpen',         fields: [] },
   { name: 'MarketClose',        kind: 'market_close',         payload: 'marketClose',        fields: [] },
   { name: 'ServerError',        kind: 'server_error',         payload: 'serverError',        fields: ['message'] },
-  { name: 'Disconnected',       kind: 'disconnected',         payload: 'disconnected',       fields: ['reason'] },
-  { name: 'Reconnecting',       kind: 'reconnecting',         payload: 'reconnecting',       fields: ['reason', 'attempt', 'delayMs'] },
+  { name: 'Disconnected',       kind: 'disconnected',         payload: 'disconnected',       fields: ['reason', 'cause', 'causeIoErrorKind', 'causeTimeoutMs', 'causeName'] },
+  { name: 'Reconnecting',       kind: 'reconnecting',         payload: 'reconnecting',       fields: ['reason', 'cause', 'causeIoErrorKind', 'causeTimeoutMs', 'attempt', 'delayMs', 'causeName'] },
   { name: 'Reconnected',        kind: 'reconnected',          payload: 'reconnected',        fields: [] },
   // Named `ParseError` so the SDK ships no interface that shadows the
   // JS global `Error` class.

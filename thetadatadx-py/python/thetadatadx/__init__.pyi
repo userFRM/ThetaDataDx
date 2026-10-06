@@ -1013,10 +1013,21 @@ class Connected:
 
 @final
 class Disconnected:
-    """The server disconnected the client."""
+    """The connection ended.
+
+    ``reason`` is the server's own code when the server sent a disconnect
+    message, and otherwise the code the client has always reported for the
+    way the connection ended. ``cause`` says which of those happened.
+    """
 
     reason: int
     """Numeric disconnect reason code; see :attr:`reason_name` for the symbolic form."""
+    cause: int
+    """Where the disconnect came from, as an integer code: ``0`` the server sent a disconnect message, ``1`` the server ended the stream without one, ``2`` a read failed, ``3`` a write failed, ``4`` nothing arrived inside the client read deadline. See :attr:`cause_name` for the symbolic form."""
+    cause_io_error_kind: str
+    """Name of the I/O error kind behind a read or write failure (``"ConnectionReset"``, ``"BrokenPipe"``, ...); empty for every other cause."""
+    cause_timeout_ms: int
+    """Client read deadline that expired, in milliseconds; ``0`` for every other cause."""
 
     @property
     def kind(self) -> str:
@@ -1026,6 +1037,11 @@ class Disconnected:
     @property
     def reason_name(self) -> str:
         """The disconnect reason as a symbolic name (e.g. ``"TooManyRequests"``)."""
+        ...
+
+    @property
+    def cause_name(self) -> str:
+        """Where the disconnect came from, as a symbolic name (``"ServerSent"``, ``"ClosedByServer"``, ``"ReadFailed"``, ``"WriteFailed"``, ``"ReadTimeout"``)."""
         ...
 
     def __repr__(self) -> str:
@@ -1150,6 +1166,12 @@ class Reconnecting:
 
     reason: int
     """Numeric disconnect reason code that triggered the reconnect attempt; see :attr:`reason_name` for the symbolic form."""
+    cause: int
+    """Where the disconnect came from, as an integer code: ``0`` the server sent a disconnect message, ``1`` the server ended the stream without one, ``2`` a read failed, ``3`` a write failed, ``4`` nothing arrived inside the client read deadline. See :attr:`cause_name` for the symbolic form."""
+    cause_io_error_kind: str
+    """Name of the I/O error kind behind a read or write failure (``"ConnectionReset"``, ``"BrokenPipe"``, ...); empty for every other cause."""
+    cause_timeout_ms: int
+    """Client read deadline that expired, in milliseconds; ``0`` for every other cause."""
     attempt: int
     """One-based index of this reconnect attempt."""
     delay_ms: int
@@ -1163,6 +1185,11 @@ class Reconnecting:
     @property
     def reason_name(self) -> str:
         """The disconnect reason as a symbolic name."""
+        ...
+
+    @property
+    def cause_name(self) -> str:
+        """Where the disconnect came from, as a symbolic name (``"ServerSent"``, ``"ClosedByServer"``, ``"ReadFailed"``, ``"WriteFailed"``, ``"ReadTimeout"``)."""
         ...
 
     def __repr__(self) -> str:
@@ -1181,6 +1208,12 @@ class ReconnectsExhausted:
 
     reason: int
     """Numeric disconnect reason code of the final drop before recovery was abandoned; see :attr:`reason_name` for the symbolic form."""
+    cause: int
+    """Where the disconnect came from, as an integer code: ``0`` the server sent a disconnect message, ``1`` the server ended the stream without one, ``2`` a read failed, ``3`` a write failed, ``4`` nothing arrived inside the client read deadline. See :attr:`cause_name` for the symbolic form."""
+    cause_io_error_kind: str
+    """Name of the I/O error kind behind a read or write failure (``"ConnectionReset"``, ``"BrokenPipe"``, ...); empty for every other cause."""
+    cause_timeout_ms: int
+    """Client read deadline that expired, in milliseconds; ``0`` for every other cause."""
     attempts: int
     """Number of consecutive reconnect attempts consumed before giving up (``0`` when no reconnect was attempted)."""
 
@@ -1192,6 +1225,11 @@ class ReconnectsExhausted:
     @property
     def reason_name(self) -> str:
         """The disconnect reason as a symbolic name."""
+        ...
+
+    @property
+    def cause_name(self) -> str:
+        """Where the disconnect came from, as a symbolic name (``"ServerSent"``, ``"ClosedByServer"``, ``"ReadFailed"``, ``"WriteFailed"``, ``"ReadTimeout"``)."""
         ...
 
     def __repr__(self) -> str:

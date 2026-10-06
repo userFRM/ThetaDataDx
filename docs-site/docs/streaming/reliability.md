@@ -14,10 +14,27 @@ If recovery stops — budget exhausted, a permanent disconnect reason, or a `man
 ```python
 def on_event(event):
     if event.kind == "reconnects_exhausted":
-        page_operator(f"stream gave up: {event.reason_name} after {event.attempts} attempts")
+        page_operator(
+            f"stream gave up: {event.reason_name} ({event.cause_name}) "
+            f"after {event.attempts} attempts"
+        )
 ```
 
 A clean `stop_streaming()` emits no terminal event; only an unrecoverable session does.
+
+### Reading a disconnect
+
+`disconnected`, `reconnecting` and `reconnects_exhausted` all carry two fields. `reason` is the server's vocabulary, the code it sends when it ends a session itself. `cause` is where the disconnect came from, which is what tells you whether the server spoke at all:
+
+| `cause_name` | What happened |
+|---|---|
+| `ServerSent` | The server sent a disconnect message, and `reason` is its code. |
+| `ClosedByServer` | The server ended the stream without a message. |
+| `ReadFailed` | A read on the connection failed; `cause_io_error_kind` names the I/O error kind, for example `ConnectionReset`. |
+| `WriteFailed` | A write failed; `cause_io_error_kind` names the kind. |
+| `ReadTimeout` | Nothing arrived inside the client's own read deadline, which `cause_timeout_ms` reports in milliseconds. |
+
+The pair matters most where the two agree on a code: a `reason` of `TimedOut` with cause `ServerSent` is the server saying the session timed out, while the same reason with cause `ReadTimeout` is this client deciding nothing arrived in time. `cause_io_error_kind` is empty and `cause_timeout_ms` is zero on the causes that do not carry them.
 
 ### Policy knobs
 

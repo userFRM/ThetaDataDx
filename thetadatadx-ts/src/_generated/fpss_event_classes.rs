@@ -134,16 +134,23 @@ pub struct ContractAssigned {
     pub contract: Contract,
 }
 
-/// Streaming server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
+/// Streaming connection ended. `reason` is the integer disconnect code: the server's own when the server sent a disconnect message (wire code 12), and otherwise the code the client has always reported for the way the connection ended (4 TimedOut for its own read deadline, -1 Unspecified for a socket that closed or failed). Read the resolved reason-name field for its symbolic name, and the cause field for where the disconnect came from.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Disconnected {
     pub reason: i32,
+    pub cause: i32,
+    pub cause_io_error_kind: String,
+    pub cause_timeout_ms: BigInt,
     /// Resolved disconnect-reason name (e.g. `"TooManyRequests"`,
     /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
     /// Derived from the wire-level `reason` integer.
     pub reason_name: String,
+    /// Resolved disconnect-cause name: `"ServerSent"`,
+    /// `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or
+    /// `"ReadTimeout"`. Derived from the `cause` integer.
+    pub cause_name: String,
 }
 
 /// Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
@@ -194,31 +201,45 @@ pub struct Reconnected {}
 #[derive(Clone)]
 pub struct ReconnectedServer {}
 
-/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
+/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. `reason` and the cause fields describe the disconnect that triggered the attempt.
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct Reconnecting {
     pub reason: i32,
+    pub cause: i32,
+    pub cause_io_error_kind: String,
+    pub cause_timeout_ms: BigInt,
     pub attempt: i32,
     pub delay_ms: BigInt,
     /// Resolved disconnect-reason name (e.g. `"TooManyRequests"`,
     /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
     /// Derived from the wire-level `reason` integer.
     pub reason_name: String,
+    /// Resolved disconnect-cause name: `"ServerSent"`,
+    /// `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or
+    /// `"ReadTimeout"`. Derived from the `cause` integer.
+    pub cause_name: String,
 }
 
-/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name and the cause field for where that drop came from. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
 #[must_use]
 #[napi(object)]
 #[derive(Clone)]
 pub struct ReconnectsExhausted {
     pub reason: i32,
+    pub cause: i32,
+    pub cause_io_error_kind: String,
+    pub cause_timeout_ms: BigInt,
     pub attempts: i32,
     /// Resolved disconnect-reason name (e.g. `"TooManyRequests"`,
     /// `"InvalidCredentials"`, `"Unspecified"` for unknown codes).
     /// Derived from the wire-level `reason` integer.
     pub reason_name: String,
+    /// Resolved disconnect-cause name: `"ServerSent"`,
+    /// `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or
+    /// `"ReadTimeout"`. Derived from the `cause` integer.
+    pub cause_name: String,
 }
 
 /// Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
@@ -523,11 +544,18 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
         }
         BufferedEvent::Disconnected {
             reason,
+            cause,
+            cause_io_error_kind,
+            cause_timeout_ms,
         } => {
             out.kind = "disconnected";
             out.disconnected = Some(Disconnected {
                 reason,
+                cause,
+                cause_io_error_kind,
+                cause_timeout_ms: BigInt::from(cause_timeout_ms),
                 reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),
+                cause_name: thetadatadx::fpss::DisconnectCause::name_for_code(cause).to_string(),
             });
         }
         BufferedEvent::LoginSuccess {
@@ -572,26 +600,40 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
         }
         BufferedEvent::Reconnecting {
             reason,
+            cause,
+            cause_io_error_kind,
+            cause_timeout_ms,
             attempt,
             delay_ms,
         } => {
             out.kind = "reconnecting";
             out.reconnecting = Some(Reconnecting {
                 reason,
+                cause,
+                cause_io_error_kind,
+                cause_timeout_ms: BigInt::from(cause_timeout_ms),
                 attempt,
                 delay_ms: BigInt::from(delay_ms),
                 reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),
+                cause_name: thetadatadx::fpss::DisconnectCause::name_for_code(cause).to_string(),
             });
         }
         BufferedEvent::ReconnectsExhausted {
             reason,
+            cause,
+            cause_io_error_kind,
+            cause_timeout_ms,
             attempts,
         } => {
             out.kind = "reconnects_exhausted";
             out.reconnects_exhausted = Some(ReconnectsExhausted {
                 reason,
+                cause,
+                cause_io_error_kind,
+                cause_timeout_ms: BigInt::from(cause_timeout_ms),
                 attempts,
                 reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),
+                cause_name: thetadatadx::fpss::DisconnectCause::name_for_code(cause).to_string(),
             });
         }
         BufferedEvent::ReqResponse {

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A dropped stream says which way it ended.** `Disconnected`, `Reconnecting` and `ReconnectsExhausted` carried only `reason`, which is the server's own disconnect vocabulary, and that vocabulary has no word for the ways a connection ends without the server saying anything. Three of them, the server closing the socket with no message, a read failing and a write failing, all arrived as `Unspecified`, and the client's own read deadline arrived as `TimedOut`, indistinguishable from the server sending code 4. A session that logged in and then dropped therefore reported nothing usable, and the only way to learn more was a debug log. Each of the three events now carries a cause beside the reason: `ServerSent` (the server sent a disconnect message and `reason` is its code), `ClosedByServer`, `ReadFailed`, `WriteFailed` and `ReadTimeout`. A read or write failure names the I/O error kind it failed with, for example `ConnectionReset`, and a read timeout reports the deadline that expired. Every `reason` value is unchanged, so code matching on them keeps working. The fields are `cause` / `cause_name` / `cause_io_error_kind` / `cause_timeout_ms` in Python, the same set as `cause` / `causeName` / `causeIoErrorKind` / `causeTimeoutMs` in TypeScript, the same four on the C ABI event structs with `thetadatadx::cause_name` resolving the code in C++, and a `DisconnectCause` value in Rust. The cause also goes on the log lines that already report a disconnect, so it is visible at warn level without turning on debug logging.
+
+### Changed
+
+- **The three disconnect events carry one more field in Rust.** `StreamControl::Disconnected`, `StreamControl::Reconnecting` and `StreamControl::ReconnectsExhausted` each gained `cause: DisconnectCause` beside `reason`, so a `match` arm that names their fields exhaustively no longer compiles; add `cause`, or `..`, to the pattern. The variants were left constructible rather than marked `#[non_exhaustive]`, because that would also have stopped any crate outside the core from building one of these events, which a test harness for an event handler legitimately does. This is a breaking change to the Rust API; the Python, TypeScript, C and C++ surfaces only gain fields.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed

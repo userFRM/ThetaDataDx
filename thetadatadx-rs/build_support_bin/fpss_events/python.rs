@@ -269,6 +269,16 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
         out.push_str("    fn reason_name(&self) -> &'static str {\n");
         out.push_str("        thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()\n");
         out.push_str("    }\n");
+        // The cause beside it, resolved the same way. `reason` alone
+        // cannot say whether a `TimedOut` came from the server or from
+        // this client's own read deadline.
+        out.push_str("\n    /// Resolved disconnect-cause name: `\"ServerSent\"`,\n");
+        out.push_str("    /// `\"ClosedByServer\"`, `\"ReadFailed\"`, `\"WriteFailed\"` or\n");
+        out.push_str("    /// `\"ReadTimeout\"`. Derived from the `cause` integer.\n");
+        out.push_str("    #[getter]\n");
+        out.push_str("    fn cause_name(&self) -> &'static str {\n");
+        out.push_str("        thetadatadx::fpss::DisconnectCause::name_for_code(self.cause)\n");
+        out.push_str("    }\n");
     }
     out.push_str("}\n");
     out

@@ -149,7 +149,13 @@ static_assert(sizeof(ThetaDataDxStreamContractAssigned) == 48,
 
 static_assert(offsetof(ThetaDataDxStreamDisconnected, reason) == 0,
               "ThetaDataDxStreamDisconnected::reason offset drifted");
-static_assert(sizeof(ThetaDataDxStreamDisconnected) == 4,
+static_assert(offsetof(ThetaDataDxStreamDisconnected, cause) == 4,
+              "ThetaDataDxStreamDisconnected::cause offset drifted");
+static_assert(offsetof(ThetaDataDxStreamDisconnected, cause_io_error_kind) == 8,
+              "ThetaDataDxStreamDisconnected::cause_io_error_kind offset drifted");
+static_assert(offsetof(ThetaDataDxStreamDisconnected, cause_timeout_ms) == 16,
+              "ThetaDataDxStreamDisconnected::cause_timeout_ms offset drifted");
+static_assert(sizeof(ThetaDataDxStreamDisconnected) == 24,
               "ThetaDataDxStreamDisconnected total size drifted");
 
 static_assert(offsetof(ThetaDataDxStreamLoginSuccess, permissions) == 0,
@@ -191,18 +197,30 @@ static_assert(sizeof(ThetaDataDxStreamReconnectedServer) == 1,
 
 static_assert(offsetof(ThetaDataDxStreamReconnecting, reason) == 0,
               "ThetaDataDxStreamReconnecting::reason offset drifted");
-static_assert(offsetof(ThetaDataDxStreamReconnecting, attempt) == 4,
+static_assert(offsetof(ThetaDataDxStreamReconnecting, cause) == 4,
+              "ThetaDataDxStreamReconnecting::cause offset drifted");
+static_assert(offsetof(ThetaDataDxStreamReconnecting, cause_io_error_kind) == 8,
+              "ThetaDataDxStreamReconnecting::cause_io_error_kind offset drifted");
+static_assert(offsetof(ThetaDataDxStreamReconnecting, cause_timeout_ms) == 16,
+              "ThetaDataDxStreamReconnecting::cause_timeout_ms offset drifted");
+static_assert(offsetof(ThetaDataDxStreamReconnecting, attempt) == 24,
               "ThetaDataDxStreamReconnecting::attempt offset drifted");
-static_assert(offsetof(ThetaDataDxStreamReconnecting, delay_ms) == 8,
+static_assert(offsetof(ThetaDataDxStreamReconnecting, delay_ms) == 32,
               "ThetaDataDxStreamReconnecting::delay_ms offset drifted");
-static_assert(sizeof(ThetaDataDxStreamReconnecting) == 16,
+static_assert(sizeof(ThetaDataDxStreamReconnecting) == 40,
               "ThetaDataDxStreamReconnecting total size drifted");
 
 static_assert(offsetof(ThetaDataDxStreamReconnectsExhausted, reason) == 0,
               "ThetaDataDxStreamReconnectsExhausted::reason offset drifted");
-static_assert(offsetof(ThetaDataDxStreamReconnectsExhausted, attempts) == 4,
+static_assert(offsetof(ThetaDataDxStreamReconnectsExhausted, cause) == 4,
+              "ThetaDataDxStreamReconnectsExhausted::cause offset drifted");
+static_assert(offsetof(ThetaDataDxStreamReconnectsExhausted, cause_io_error_kind) == 8,
+              "ThetaDataDxStreamReconnectsExhausted::cause_io_error_kind offset drifted");
+static_assert(offsetof(ThetaDataDxStreamReconnectsExhausted, cause_timeout_ms) == 16,
+              "ThetaDataDxStreamReconnectsExhausted::cause_timeout_ms offset drifted");
+static_assert(offsetof(ThetaDataDxStreamReconnectsExhausted, attempts) == 24,
               "ThetaDataDxStreamReconnectsExhausted::attempts offset drifted");
-static_assert(sizeof(ThetaDataDxStreamReconnectsExhausted) == 8,
+static_assert(sizeof(ThetaDataDxStreamReconnectsExhausted) == 32,
               "ThetaDataDxStreamReconnectsExhausted total size drifted");
 
 static_assert(offsetof(ThetaDataDxStreamReqResponse, req_id) == 0,
@@ -256,33 +274,33 @@ static_assert(offsetof(ThetaDataDxStreamEvent, contract_assigned) == 544,
               "ThetaDataDxStreamEvent::contract_assigned offset drifted");
 static_assert(offsetof(ThetaDataDxStreamEvent, disconnected) == 592,
               "ThetaDataDxStreamEvent::disconnected offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, login_success) == 600,
+static_assert(offsetof(ThetaDataDxStreamEvent, login_success) == 616,
               "ThetaDataDxStreamEvent::login_success offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, market_close) == 608,
+static_assert(offsetof(ThetaDataDxStreamEvent, market_close) == 624,
               "ThetaDataDxStreamEvent::market_close offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, market_open) == 609,
+static_assert(offsetof(ThetaDataDxStreamEvent, market_open) == 625,
               "ThetaDataDxStreamEvent::market_open offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, parse_error) == 616,
+static_assert(offsetof(ThetaDataDxStreamEvent, parse_error) == 632,
               "ThetaDataDxStreamEvent::parse_error offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, ping) == 624,
+static_assert(offsetof(ThetaDataDxStreamEvent, ping) == 640,
               "ThetaDataDxStreamEvent::ping offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnected) == 640,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnected) == 656,
               "ThetaDataDxStreamEvent::reconnected offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnected_server) == 641,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnected_server) == 657,
               "ThetaDataDxStreamEvent::reconnected_server offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnecting) == 648,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnecting) == 664,
               "ThetaDataDxStreamEvent::reconnecting offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnects_exhausted) == 664,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnects_exhausted) == 704,
               "ThetaDataDxStreamEvent::reconnects_exhausted offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, req_response) == 672,
+static_assert(offsetof(ThetaDataDxStreamEvent, req_response) == 736,
               "ThetaDataDxStreamEvent::req_response offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, restart) == 680,
+static_assert(offsetof(ThetaDataDxStreamEvent, restart) == 744,
               "ThetaDataDxStreamEvent::restart offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, server_error) == 688,
+static_assert(offsetof(ThetaDataDxStreamEvent, server_error) == 752,
               "ThetaDataDxStreamEvent::server_error offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, unknown_control) == 696,
+static_assert(offsetof(ThetaDataDxStreamEvent, unknown_control) == 760,
               "ThetaDataDxStreamEvent::unknown_control offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, unknown_frame) == 704,
+static_assert(offsetof(ThetaDataDxStreamEvent, unknown_frame) == 768,
               "ThetaDataDxStreamEvent::unknown_frame offset drifted");
-static_assert(sizeof(ThetaDataDxStreamEvent) == 728,
+static_assert(sizeof(ThetaDataDxStreamEvent) == 792,
               "ThetaDataDxStreamEvent total size drifted");
