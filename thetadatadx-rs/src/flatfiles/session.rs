@@ -187,6 +187,13 @@ pub(crate) async fn connect_and_login<'a>(
 ) -> Result<AuthedSession, Error> {
     let mut last_err: Option<Error> = None;
     for host in hosts {
+        // A slot in the process-wide connection budget comes first, so
+        // these connects stay inside the vendor's per-address connection
+        // rate alongside the market-data channels and the streaming
+        // client. It sits outside the attempt's timeout below: queueing
+        // for the budget is not part of the connect-and-login deadline.
+        crate::connect_budget::acquire().await;
+
         let attempt = async {
             let mut stream = connect_tls(MddsHost {
                 host: host.host,

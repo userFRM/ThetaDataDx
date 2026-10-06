@@ -659,6 +659,14 @@ fn effective_pool_size(
 /// failure on the first call fails the whole pool fast rather than
 /// leaving a half-built pool behind.
 ///
+/// Each open takes a slot in the process-wide connection budget
+/// ([`crate::connect_budget`]), so a pool large enough to trip the
+/// vendor's per-address connection rate opens over a second or so
+/// instead of all at once. `connect_timeout` bounds each dial from
+/// inside the channel, covering the TCP connect, the TLS handshake and
+/// the HTTP/2 session establishment; waiting for the budget is not part
+/// of that bound, since queueing is not a connect failure.
+///
 /// Each channel is built with `config.market_data.max_message_size` so the
 /// configured per-frame ceiling propagates to every RPC dispatched on
 /// the pool — oversized response frames are rejected by the decode
@@ -713,50 +721,17 @@ async fn open_channel_pool(
     let mut channels = Vec::with_capacity(pool_size);
     for idx in 0..pool_size {
         let channel = if let Some(tls_config) = tls_config.as_ref() {
-            tokio::time::timeout(
+            Channel::connect_tls_tuned(
+                host,
+                port,
+                tls_config.clone(),
+                max_message_size,
+                tuning,
                 connect_timeout,
-                Channel::connect_tls_tuned(
-                    host,
-                    port,
-                    tls_config.clone(),
-                    max_message_size,
-                    tuning,
-                    connect_timeout,
-                ),
             )
             .await
-            .map_err(|_| {
-                // A connect timeout means the server was unreachable or
-                // black-holed, not that the caller's config is wrong. Classify
-                // it as a transport fault (`ConnectionClosed`) so the retry
-                // shell treats it as transient/retryable like other transport
-                // faults, instead of a terminal `Config` misconfiguration.
-                Error::Transport {
-                    kind: crate::error::TransportErrorKind::ConnectionClosed,
-                    message: format!(
-                        "tls connect to {host}:{port} timed out after {}s",
-                        config.market_data.connect_timeout_secs
-                    ),
-                }
-            })?
         } else {
-            tokio::time::timeout(
-                connect_timeout,
-                Channel::connect_h2c_tuned(host, port, max_message_size, tuning, connect_timeout),
-            )
-            .await
-            .map_err(|_| {
-                // See the TLS branch above: a connect timeout is an
-                // unreachable-server transport fault, not a config error, so it
-                // is classified `ConnectionClosed` and stays retryable.
-                Error::Transport {
-                    kind: crate::error::TransportErrorKind::ConnectionClosed,
-                    message: format!(
-                        "h2c connect to {host}:{port} timed out after {}s",
-                        config.market_data.connect_timeout_secs
-                    ),
-                }
-            })?
+            Channel::connect_h2c_tuned(host, port, max_message_size, tuning, connect_timeout).await
         }
         .map_err(|e| {
             // Route through the canonical `From<ChannelError> for Error`
@@ -960,10 +935,10 @@ mod connect_timeout_tests {
     /// The TLS path drives this deterministically: the client must receive the
     /// server's `ServerHello` before `connect_tls_tuned` resolves, so a peer
     /// that accepts the TCP connection but never speaks TLS holds the eager
-    /// connect open until the `tokio::time::timeout` in `open_channel_pool`
-    /// elapses. (An h2c connect cannot be used here: the hyper HTTP/2 client
-    /// handshake resolves as soon as it has sent its own preface, without
-    /// awaiting the server's SETTINGS, so a stalled h2c peer is reported ready.)
+    /// connect open until the channel's own dial timeout elapses. (An h2c
+    /// connect cannot be used here: the hyper HTTP/2 client handshake resolves
+    /// as soon as it has sent its own preface, without awaiting the server's
+    /// SETTINGS, so a stalled h2c peer is reported ready.)
     #[tokio::test]
     async fn connect_timeout_is_transport_not_config() {
         // Bind a listener that accepts connections and then stalls forever:

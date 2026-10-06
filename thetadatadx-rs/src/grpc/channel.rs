@@ -12,6 +12,15 @@
 //! unreachable or black-holed peer fails fast as a retryable transport
 //! fault rather than hanging once per-call deadlines are disabled.
 //!
+//! Every dial takes a slot in the process-wide connection budget
+//! ([`crate::connect_budget`]) before it opens a socket, so neither a
+//! pool opening its channels at startup nor a retry ladder during an
+//! outage can exceed the vendor's per-address connection rate. Dials on
+//! one channel are serialised, and the requests that queue behind a dial
+//! share its failure rather than each opening another connection; an
+//! established connection never touches either, so the request path is
+//! unaffected.
+//!
 //! The connection task removes the sender, rather than the next RPC
 //! replacing it, because of how the HTTP/2 client fails queued
 //! requests. Each request is queued for the connection task, which
@@ -718,8 +727,29 @@ struct TransportShared {
     /// Serialises dials, so RPCs that find no live connection at the
     /// same time share one new connection instead of opening one each.
     dial_lock: tokio::sync::Mutex<()>,
+    /// Outcome of the dials completed on this transport, read by
+    /// [`Transport::sender`] to decide whether a waiting request is
+    /// queued behind a dial that has already failed.
+    dialled: Mutex<DialOutcome>,
     /// Sequence number of the next connection.
     next_connection: AtomicU64,
+}
+
+/// The dials a transport has completed: how many have finished, and the
+/// error of the most recent one when it failed.
+///
+/// The count is what makes a recorded failure attributable. A request
+/// reads it before it queues on the dial lock; only a count that moved
+/// while it waited means the failure belongs to a dial that request was
+/// waiting for, rather than to some earlier one the channel has since
+/// recovered from.
+#[derive(Default)]
+struct DialOutcome {
+    /// Dials completed, successful or not.
+    completed: u64,
+    /// Error of the most recently completed dial, `None` when it
+    /// succeeded.
+    last_error: Option<String>,
 }
 
 impl Transport {
@@ -742,6 +772,7 @@ impl Transport {
                 connect_timeout,
                 live: Mutex::new(None),
                 dial_lock: tokio::sync::Mutex::new(()),
+                dialled: Mutex::new(DialOutcome::default()),
                 next_connection: AtomicU64::new(0),
             }),
         }
@@ -756,26 +787,84 @@ impl Transport {
             .map(|(_, sender)| sender.clone())
     }
 
+    /// Sender of a usable connection, dialling one when the live
+    /// connection is missing or has closed.
+    ///
+    /// Dials are serialised on [`TransportShared::dial_lock`], and the
+    /// request that holds it publishes its outcome, so requests that
+    /// queued behind a failed dial fail with it instead of each opening
+    /// another connection against a peer that has just refused one. The
+    /// shared failure is an I/O error, so it classifies as the same
+    /// retryable [`ChannelError::ConnectionClosed`] the dial itself
+    /// would have produced.
+    async fn sender(&self) -> Result<http2::SendRequest<tonic::body::Body>, BoxError> {
+        if let Some(sender) = self.live_sender() {
+            return Ok(sender);
+        }
+        let shared = &self.shared;
+        // Read the dial count before queueing: a count that has moved by
+        // the time the lock is ours means a dial this request waited
+        // behind has already answered.
+        let queued_after = lock(&shared.dialled).completed;
+        let _dialling = shared.dial_lock.lock().await;
+        if let Some(sender) = self.live_sender() {
+            return Ok(sender);
+        }
+        {
+            let dialled = lock(&shared.dialled);
+            if dialled.completed != queued_after {
+                if let Some(error) = &dialled.last_error {
+                    return Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::ConnectionAborted,
+                        format!(
+                            "connecting to {}:{} failed while this request waited for it: {error}",
+                            shared.connector.host, shared.connector.port
+                        ),
+                    )));
+                }
+            }
+        }
+        let dialled = self.dial().await;
+        {
+            let mut outcome = lock(&shared.dialled);
+            outcome.completed += 1;
+            outcome.last_error = dialled.as_ref().err().map(ToString::to_string);
+        }
+        dialled
+    }
+
     /// Dial a new connection, make it the live one and return its
     /// sender.
     ///
+    /// A slot in the process-wide connection budget comes first, so no
+    /// combination of pool opens and retries can exceed the vendor's
+    /// per-address connection rate (see [`crate::connect_budget`]). The
+    /// wait for it sits outside the connect timeout: queueing is not a
+    /// connect failure, and the caller's own cancellation already covers
+    /// it.
+    ///
     /// A dial that exceeds the connect timeout fails with an
     /// `std::io::Error` of kind `TimedOut`, which the classifiers map to
-    /// the retryable [`ChannelError::ConnectionClosed`].
+    /// the retryable [`ChannelError::ConnectionClosed`]. The timeout
+    /// covers the HTTP/2 session establishment as well as the TCP
+    /// connect and TLS handshake, so no phase of a dial to a stalled
+    /// peer is unbounded.
     async fn dial(&self) -> Result<http2::SendRequest<tonic::body::Body>, BoxError> {
+        crate::connect_budget::acquire().await;
         let shared = &self.shared;
-        let io = match shared.connect_timeout {
-            Some(limit) => tokio::time::timeout(limit, shared.connector.connect())
-                .await
-                .map_err(|_| {
-                    std::io::Error::new(
-                        std::io::ErrorKind::TimedOut,
-                        format!("dial timed out after {limit:?}"),
-                    )
-                })??,
-            None => shared.connector.connect().await?,
+        let open = async {
+            let io = shared.connector.connect().await?;
+            Ok::<_, BoxError>(shared.http2.handshake(io).await?)
         };
-        let (sender, connection) = shared.http2.handshake(io).await?;
+        let (sender, connection) = match shared.connect_timeout {
+            Some(limit) => tokio::time::timeout(limit, open).await.map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    format!("dial timed out after {limit:?}"),
+                )
+            })??,
+            None => open.await?,
+        };
         let id = shared.next_connection.fetch_add(1, Ordering::Relaxed);
         *lock(&shared.live) = Some((id, sender.clone()));
         let shared = Arc::downgrade(&self.shared);
@@ -820,16 +909,7 @@ impl tower_service::Service<http::Request<tonic::body::Body>> for Transport {
             // it while awaiting its response would keep the connection's
             // queue alive and could strand its own request.
             let response = {
-                let mut sender = match transport.live_sender() {
-                    Some(sender) => sender,
-                    None => {
-                        let _dialling = transport.shared.dial_lock.lock().await;
-                        match transport.live_sender() {
-                            Some(sender) => sender,
-                            None => transport.dial().await?,
-                        }
-                    }
-                };
+                let mut sender = transport.sender().await?;
                 sender.send_request(request)
             };
             Ok(response.await?)
@@ -1335,5 +1415,139 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(5), released)
             .await
             .expect("the ended connection's request sender must be released without another RPC");
+    }
+
+    /// New connections must stay inside the vendor's per-address rate.
+    /// An address that opens about 20 connections to the vendor's
+    /// services within 2 seconds is blocked for up to an hour, and every
+    /// connection from it then times out, so a client that dials a whole
+    /// pool at once, or retries hard through an outage, locks itself out
+    /// for far longer than the fault that caused it. The budget allows at
+    /// most 12 connections in any 2-second window, so 13 concurrent
+    /// opens, the smallest number that could break that ceiling, must
+    /// take more than 2 seconds to reach the listener.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn concurrent_dials_stay_under_the_vendor_connection_rate() {
+        const DIALS: usize = 13;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let port = listener.local_addr().expect("local addr").port();
+        let arrivals: Arc<Mutex<Vec<std::time::Instant>>> = Arc::new(Mutex::new(Vec::new()));
+        let server = tokio::spawn({
+            let arrivals = Arc::clone(&arrivals);
+            async move {
+                // Every accepted socket is held: a dial only has to reach
+                // the listener to be counted, and closing the peer would
+                // race the client's own view of the connection.
+                let mut held = Vec::new();
+                while let Ok((socket, _)) = listener.accept().await {
+                    lock(&arrivals).push(std::time::Instant::now());
+                    held.push(socket);
+                }
+            }
+        });
+
+        let dials: Vec<_> = (0..DIALS)
+            .map(|_| {
+                tokio::spawn(Channel::connect(
+                    "127.0.0.1",
+                    port,
+                    None,
+                    4 * 1024 * 1024,
+                    ChannelTuning::default(),
+                    None,
+                ))
+            })
+            .collect();
+
+        let all_arrived = async {
+            while lock(&arrivals).len() < DIALS {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        };
+        let arrived = tokio::time::timeout(Duration::from_secs(30), all_arrived).await;
+        for dial in dials {
+            dial.abort();
+        }
+        server.abort();
+        arrived.expect("every dial must reach the listener");
+
+        let arrivals = lock(&arrivals).clone();
+        let span = arrivals[DIALS - 1].duration_since(arrivals[0]);
+        assert!(
+            span >= Duration::from_secs(2),
+            "{DIALS} new connections must not fit in a 2 second window; they spanned {span:?}"
+        );
+    }
+
+    /// A failed dial must answer every request that was waiting for it.
+    /// Requests that find the connection gone queue on the channel's dial
+    /// lock; if each one dialled in turn after the one ahead of it
+    /// failed, a single unreachable peer would multiply one outage into
+    /// one new connection per queued request, which is how an outage
+    /// turns into a rate-limit block. Four requests behind a dial that
+    /// fails must therefore see one connection attempt between them, and
+    /// all four must still fail.
+    #[tokio::test]
+    async fn requests_queued_behind_a_failed_dial_share_its_failure() {
+        const WAITERS: usize = 4;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let port = listener.local_addr().expect("local addr").port();
+        let accepted = Arc::new(AtomicUsize::new(0));
+        let server = tokio::spawn({
+            let accepted = Arc::clone(&accepted);
+            async move {
+                while let Ok((socket, _)) = listener.accept().await {
+                    accepted.fetch_add(1, Ordering::Relaxed);
+                    // Closing without speaking TLS fails the handshake the
+                    // dialling request is awaiting. It can only fail after
+                    // that await, which is what puts the other requests on
+                    // the dial lock behind it.
+                    drop(socket);
+                }
+            }
+        });
+
+        let transport = Transport::new(
+            GrpcConnector {
+                host: Arc::from("127.0.0.1"),
+                port,
+                tls: Some(test_tls_config()),
+            },
+            ChannelTuning::default(),
+            None,
+        );
+        let outcomes = futures::future::join_all((0..WAITERS).map(|_| transport.sender())).await;
+        server.abort();
+
+        assert!(
+            outcomes.iter().all(Result::is_err),
+            "a failed dial must fail every request waiting on it"
+        );
+        assert_eq!(
+            accepted.load(Ordering::Relaxed),
+            1,
+            "{WAITERS} requests behind one failed dial must open one connection between them"
+        );
+    }
+
+    /// Client TLS for a dial that is meant to fail. The peer closes
+    /// without speaking TLS, so the handshake ends before any certificate
+    /// is looked at and an empty root store is all the config needs.
+    fn test_tls_config() -> Arc<rustls::ClientConfig> {
+        Arc::new(
+            rustls::ClientConfig::builder_with_provider(Arc::new(
+                rustls::crypto::ring::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .expect("safe default protocol versions")
+            .with_root_certificates(rustls::RootCertStore::empty())
+            .with_no_client_auth(),
+        )
     }
 }

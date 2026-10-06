@@ -179,6 +179,14 @@ pub fn connect_to_servers(
                 message: "connection aborted: client shutting down".to_string(),
             });
         }
+        // Take a slot in the process-wide connection budget first: the
+        // vendor blocks an address that opens connections faster than its
+        // limit, and a reconnect here competes with the market-data
+        // channels for that allowance. The wait is blocking, like the rest
+        // of this path, and spans at most the budget's spacing per
+        // queued connection.
+        crate::connect_budget::acquire_blocking();
+
         let addr = format!("{host}:{port}");
         tracing::debug!(server = %addr, "attempting FPSS connection");
 
