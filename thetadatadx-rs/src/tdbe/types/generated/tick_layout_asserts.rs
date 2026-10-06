@@ -84,9 +84,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(GreeksAllTick, underlying_ms_of_day), 200);
         assert_eq!(offset_of!(GreeksAllTick, underlying_price), 208);
         assert_eq!(offset_of!(GreeksAllTick, date), 216);
-        assert_eq!(offset_of!(GreeksAllTick, expiration), 220);
-        assert_eq!(offset_of!(GreeksAllTick, strike), 224);
-        assert_eq!(offset_of!(GreeksAllTick, right), 232);
+        assert_eq!(offset_of!(GreeksAllTick, underlying_date), 220);
+        assert_eq!(offset_of!(GreeksAllTick, expiration), 224);
+        assert_eq!(offset_of!(GreeksAllTick, strike), 232);
+        assert_eq!(offset_of!(GreeksAllTick, right), 240);
     }
 
     #[test]
@@ -137,14 +138,15 @@ mod layout_asserts {
         assert_eq!(offset_of!(GreeksEodTick, underlying_ms_of_day), 296);
         assert_eq!(offset_of!(GreeksEodTick, underlying_price), 304);
         assert_eq!(offset_of!(GreeksEodTick, date), 312);
-        assert_eq!(offset_of!(GreeksEodTick, expiration), 316);
-        assert_eq!(offset_of!(GreeksEodTick, strike), 320);
-        assert_eq!(offset_of!(GreeksEodTick, right), 328);
+        assert_eq!(offset_of!(GreeksEodTick, underlying_date), 316);
+        assert_eq!(offset_of!(GreeksEodTick, expiration), 320);
+        assert_eq!(offset_of!(GreeksEodTick, strike), 328);
+        assert_eq!(offset_of!(GreeksEodTick, right), 336);
     }
 
     #[test]
     fn greeks_first_order_tick_layout() {
-        assert_eq!(size_of::<GreeksFirstOrderTick>(), 128);
+        assert_eq!(size_of::<GreeksFirstOrderTick>(), 192);
         assert_eq!(align_of::<GreeksFirstOrderTick>(), 64);
         assert_eq!(offset_of!(GreeksFirstOrderTick, ms_of_day), 0);
         assert_eq!(offset_of!(GreeksFirstOrderTick, bid), 8);
@@ -160,9 +162,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(GreeksFirstOrderTick, underlying_ms_of_day), 88);
         assert_eq!(offset_of!(GreeksFirstOrderTick, underlying_price), 96);
         assert_eq!(offset_of!(GreeksFirstOrderTick, date), 104);
-        assert_eq!(offset_of!(GreeksFirstOrderTick, expiration), 108);
-        assert_eq!(offset_of!(GreeksFirstOrderTick, strike), 112);
-        assert_eq!(offset_of!(GreeksFirstOrderTick, right), 120);
+        assert_eq!(offset_of!(GreeksFirstOrderTick, underlying_date), 108);
+        assert_eq!(offset_of!(GreeksFirstOrderTick, expiration), 112);
+        assert_eq!(offset_of!(GreeksFirstOrderTick, strike), 120);
+        assert_eq!(offset_of!(GreeksFirstOrderTick, right), 128);
     }
 
     #[test]
@@ -182,9 +185,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(GreeksSecondOrderTick, underlying_ms_of_day), 80);
         assert_eq!(offset_of!(GreeksSecondOrderTick, underlying_price), 88);
         assert_eq!(offset_of!(GreeksSecondOrderTick, date), 96);
-        assert_eq!(offset_of!(GreeksSecondOrderTick, expiration), 100);
-        assert_eq!(offset_of!(GreeksSecondOrderTick, strike), 104);
-        assert_eq!(offset_of!(GreeksSecondOrderTick, right), 112);
+        assert_eq!(offset_of!(GreeksSecondOrderTick, underlying_date), 100);
+        assert_eq!(offset_of!(GreeksSecondOrderTick, expiration), 104);
+        assert_eq!(offset_of!(GreeksSecondOrderTick, strike), 112);
+        assert_eq!(offset_of!(GreeksSecondOrderTick, right), 120);
     }
 
     #[test]
@@ -203,9 +207,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(GreeksThirdOrderTick, underlying_ms_of_day), 72);
         assert_eq!(offset_of!(GreeksThirdOrderTick, underlying_price), 80);
         assert_eq!(offset_of!(GreeksThirdOrderTick, date), 88);
-        assert_eq!(offset_of!(GreeksThirdOrderTick, expiration), 92);
-        assert_eq!(offset_of!(GreeksThirdOrderTick, strike), 96);
-        assert_eq!(offset_of!(GreeksThirdOrderTick, right), 104);
+        assert_eq!(offset_of!(GreeksThirdOrderTick, underlying_date), 92);
+        assert_eq!(offset_of!(GreeksThirdOrderTick, expiration), 96);
+        assert_eq!(offset_of!(GreeksThirdOrderTick, strike), 104);
+        assert_eq!(offset_of!(GreeksThirdOrderTick, right), 112);
     }
 
     #[test]
@@ -254,9 +259,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(IvTick, underlying_ms_of_day), 64);
         assert_eq!(offset_of!(IvTick, underlying_price), 72);
         assert_eq!(offset_of!(IvTick, date), 80);
-        assert_eq!(offset_of!(IvTick, expiration), 84);
-        assert_eq!(offset_of!(IvTick, strike), 88);
-        assert_eq!(offset_of!(IvTick, right), 96);
+        assert_eq!(offset_of!(IvTick, underlying_date), 84);
+        assert_eq!(offset_of!(IvTick, expiration), 88);
+        assert_eq!(offset_of!(IvTick, strike), 96);
+        assert_eq!(offset_of!(IvTick, right), 104);
     }
 
     #[test]
@@ -380,9 +386,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(TradeGreeksAllTick, underlying_ms_of_day), 248);
         assert_eq!(offset_of!(TradeGreeksAllTick, underlying_price), 256);
         assert_eq!(offset_of!(TradeGreeksAllTick, date), 264);
-        assert_eq!(offset_of!(TradeGreeksAllTick, expiration), 268);
-        assert_eq!(offset_of!(TradeGreeksAllTick, strike), 272);
-        assert_eq!(offset_of!(TradeGreeksAllTick, right), 280);
+        assert_eq!(offset_of!(TradeGreeksAllTick, underlying_date), 268);
+        assert_eq!(offset_of!(TradeGreeksAllTick, expiration), 272);
+        assert_eq!(offset_of!(TradeGreeksAllTick, strike), 280);
+        assert_eq!(offset_of!(TradeGreeksAllTick, right), 288);
     }
 
     #[test]
@@ -416,14 +423,15 @@ mod layout_asserts {
         assert_eq!(offset_of!(TradeGreeksFirstOrderTick, underlying_ms_of_day), 136);
         assert_eq!(offset_of!(TradeGreeksFirstOrderTick, underlying_price), 144);
         assert_eq!(offset_of!(TradeGreeksFirstOrderTick, date), 152);
-        assert_eq!(offset_of!(TradeGreeksFirstOrderTick, expiration), 156);
-        assert_eq!(offset_of!(TradeGreeksFirstOrderTick, strike), 160);
-        assert_eq!(offset_of!(TradeGreeksFirstOrderTick, right), 168);
+        assert_eq!(offset_of!(TradeGreeksFirstOrderTick, underlying_date), 156);
+        assert_eq!(offset_of!(TradeGreeksFirstOrderTick, expiration), 160);
+        assert_eq!(offset_of!(TradeGreeksFirstOrderTick, strike), 168);
+        assert_eq!(offset_of!(TradeGreeksFirstOrderTick, right), 176);
     }
 
     #[test]
     fn trade_greeks_implied_volatility_tick_layout() {
-        assert_eq!(size_of::<TradeGreeksImpliedVolatilityTick>(), 128);
+        assert_eq!(size_of::<TradeGreeksImpliedVolatilityTick>(), 192);
         assert_eq!(align_of::<TradeGreeksImpliedVolatilityTick>(), 64);
         assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, ms_of_day), 0);
         assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, sequence), 4);
@@ -446,9 +454,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, underlying_ms_of_day), 88);
         assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, underlying_price), 96);
         assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, date), 104);
-        assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, expiration), 108);
-        assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, strike), 112);
-        assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, right), 120);
+        assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, underlying_date), 108);
+        assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, expiration), 112);
+        assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, strike), 120);
+        assert_eq!(offset_of!(TradeGreeksImpliedVolatilityTick, right), 128);
     }
 
     #[test]
@@ -481,9 +490,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(TradeGreeksSecondOrderTick, underlying_ms_of_day), 128);
         assert_eq!(offset_of!(TradeGreeksSecondOrderTick, underlying_price), 136);
         assert_eq!(offset_of!(TradeGreeksSecondOrderTick, date), 144);
-        assert_eq!(offset_of!(TradeGreeksSecondOrderTick, expiration), 148);
-        assert_eq!(offset_of!(TradeGreeksSecondOrderTick, strike), 152);
-        assert_eq!(offset_of!(TradeGreeksSecondOrderTick, right), 160);
+        assert_eq!(offset_of!(TradeGreeksSecondOrderTick, underlying_date), 148);
+        assert_eq!(offset_of!(TradeGreeksSecondOrderTick, expiration), 152);
+        assert_eq!(offset_of!(TradeGreeksSecondOrderTick, strike), 160);
+        assert_eq!(offset_of!(TradeGreeksSecondOrderTick, right), 168);
     }
 
     #[test]
@@ -515,9 +525,10 @@ mod layout_asserts {
         assert_eq!(offset_of!(TradeGreeksThirdOrderTick, underlying_ms_of_day), 120);
         assert_eq!(offset_of!(TradeGreeksThirdOrderTick, underlying_price), 128);
         assert_eq!(offset_of!(TradeGreeksThirdOrderTick, date), 136);
-        assert_eq!(offset_of!(TradeGreeksThirdOrderTick, expiration), 140);
-        assert_eq!(offset_of!(TradeGreeksThirdOrderTick, strike), 144);
-        assert_eq!(offset_of!(TradeGreeksThirdOrderTick, right), 152);
+        assert_eq!(offset_of!(TradeGreeksThirdOrderTick, underlying_date), 140);
+        assert_eq!(offset_of!(TradeGreeksThirdOrderTick, expiration), 144);
+        assert_eq!(offset_of!(TradeGreeksThirdOrderTick, strike), 152);
+        assert_eq!(offset_of!(TradeGreeksThirdOrderTick, right), 160);
     }
 
     #[test]

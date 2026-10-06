@@ -651,6 +651,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -683,6 +684,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -716,6 +718,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -749,6 +752,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -787,6 +791,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -818,6 +823,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -850,6 +856,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -975,6 +982,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -1025,6 +1036,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -1057,6 +1069,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -1090,6 +1103,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -1127,6 +1141,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -1158,6 +1173,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -1190,6 +1206,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -1284,6 +1301,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -1343,6 +1363,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -1387,6 +1408,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -1432,6 +1454,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -1477,6 +1500,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -1527,6 +1551,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -1570,6 +1595,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -1614,6 +1640,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -1787,6 +1814,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -1849,6 +1880,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -1893,6 +1925,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -1938,6 +1971,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -1987,6 +2021,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2030,6 +2065,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2074,6 +2110,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -2204,6 +2241,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -2237,6 +2277,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -2255,6 +2296,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -2274,6 +2316,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -2293,6 +2336,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -2317,6 +2361,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2334,6 +2379,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2352,6 +2398,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -2421,6 +2468,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -2457,6 +2508,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -2475,6 +2527,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -2494,6 +2547,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -2517,6 +2571,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2534,6 +2589,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2552,6 +2608,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -2604,6 +2661,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -2636,6 +2696,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -2653,6 +2714,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -2671,6 +2733,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -2689,6 +2752,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -2712,6 +2776,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2728,6 +2793,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2745,6 +2811,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -2810,6 +2877,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -2845,6 +2916,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -2862,6 +2934,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -2880,6 +2953,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -2902,6 +2976,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -2918,6 +2993,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -2935,6 +3011,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -2984,6 +3061,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -3015,6 +3095,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -3031,6 +3112,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -3048,6 +3130,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -3065,6 +3148,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -3087,6 +3171,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -3102,6 +3187,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -3118,6 +3204,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -3179,6 +3266,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -3213,6 +3304,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -3229,6 +3321,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -3246,6 +3339,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -3267,6 +3361,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -3282,6 +3377,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -3298,6 +3394,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -3343,6 +3440,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
         }
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
         }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
@@ -3754,6 +3854,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -3769,6 +3870,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -3785,6 +3887,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -3801,6 +3904,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -3822,6 +3926,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -3836,6 +3941,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -3851,6 +3957,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -3908,6 +4015,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -3941,6 +4052,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -3956,6 +4068,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -3972,6 +4085,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -3992,6 +4106,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -4006,6 +4121,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -4021,6 +4137,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -4063,6 +4180,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
         }
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
         }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
@@ -5386,6 +5506,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -5425,6 +5546,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -5465,6 +5587,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -5505,6 +5628,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -5550,6 +5674,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -5588,6 +5713,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -5627,6 +5753,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -5780,6 +5907,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -5837,6 +5968,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -5876,6 +6008,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -5916,6 +6049,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -5960,6 +6094,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -5998,6 +6133,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -6037,6 +6173,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -6152,6 +6289,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -6192,6 +6332,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -6217,6 +6358,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -6243,6 +6385,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -6269,6 +6412,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -6300,6 +6444,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -6324,6 +6469,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -6349,6 +6495,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -6446,6 +6593,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -6489,6 +6640,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -6514,6 +6666,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -6540,6 +6693,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -6570,6 +6724,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -6594,6 +6749,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -6619,6 +6775,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -6692,6 +6849,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -6726,6 +6886,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -6745,6 +6906,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -6765,6 +6927,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -6785,6 +6948,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -6810,6 +6974,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -6828,6 +6993,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -6847,6 +7013,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -6920,6 +7087,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -6957,6 +7128,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -6976,6 +7148,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -6996,6 +7169,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -7020,6 +7194,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -7038,6 +7213,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -7057,6 +7233,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -7112,6 +7289,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -7151,6 +7331,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -7175,6 +7356,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -7200,6 +7382,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -7225,6 +7408,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -7255,6 +7439,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -7278,6 +7463,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -7302,6 +7488,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -7395,6 +7582,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -7437,6 +7628,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -7461,6 +7653,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -7486,6 +7679,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -7515,6 +7709,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -7538,6 +7733,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -7562,6 +7758,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -7632,6 +7829,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
         }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
+        }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
         }
@@ -7670,6 +7870,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -7693,6 +7894,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -7717,6 +7919,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
             Field::new("underlying_ms_of_day", DataType::Int32, false),
             Field::new("underlying_price", DataType::Float64, false),
             Field::new("date", DataType::Int32, false),
+            Field::new("underlying_date", DataType::Int32, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
@@ -7741,6 +7944,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
             Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef,
             Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
+            Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
@@ -7770,6 +7974,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -7792,6 +7997,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -7815,6 +8021,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -7904,6 +8111,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
+        if has_underlying_date {
+            fields.push(Field::new("underlying_date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_date)) as ArrayRef);
+        }
         if has_expiration {
             fields.push(Field::new("expiration", DataType::Int32, true));
             columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
@@ -7945,6 +8156,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(n);
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
@@ -7968,6 +8180,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
             col_underlying_ms_of_day.push(t.underlying_ms_of_day);
             col_underlying_price.push(t.underlying_price);
             col_date.push(t.date);
+            col_underlying_date.push(t.underlying_date);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
@@ -7992,6 +8205,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
             Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into(),
             Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
+            Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
@@ -8020,6 +8234,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
         let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
         let has_underlying_price = present.contains("underlying_price");
         let has_date = present.contains("date");
+        let has_underlying_date = present.contains("underlying_date");
         let has_expiration = present.contains("expiration");
         let has_strike = present.contains("strike");
         let has_right = present.contains("right");
@@ -8042,6 +8257,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
         let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
         let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
         let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_underlying_date: Vec<i32> = Vec::with_capacity(if has_underlying_date { n } else { 0 });
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
@@ -8065,6 +8281,7 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
             if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
             if has_underlying_price { col_underlying_price.push(t.underlying_price); }
             if has_date { col_date.push(t.date); }
+            if has_underlying_date { col_underlying_date.push(t.underlying_date); }
             if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
             if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
@@ -8131,6 +8348,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
         }
         if has_date {
             series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_underlying_date {
+            series.push(Series::new(PlSmallStr::from_static("underlying_date"), col_underlying_date).into());
         }
         if has_expiration {
             series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());

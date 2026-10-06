@@ -905,7 +905,7 @@ fn greeks_all_row(t: &thetadatadx::GreeksAllTick) -> Value {
         "d1": t.d1, "d2": t.d2,
         "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
         "epsilon": t.epsilon, "lambda": t.lambda, "vera": t.vera,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -929,7 +929,7 @@ fn greeks_eod_row(t: &thetadatadx::GreeksEodTick) -> Value {
         "d1": t.d1, "d2": t.d2,
         "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
         "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -944,7 +944,7 @@ fn greeks_first_order_row(t: &thetadatadx::GreeksFirstOrderTick) -> Value {
         "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
         "implied_volatility": t.implied_volatility,
         "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -959,7 +959,7 @@ fn greeks_second_order_row(t: &thetadatadx::GreeksSecondOrderTick) -> Value {
         "vomma": t.vomma, "veta": t.veta,
         "implied_volatility": t.implied_volatility,
         "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -974,7 +974,7 @@ fn greeks_third_order_row(t: &thetadatadx::GreeksThirdOrderTick) -> Value {
         "ultima": t.ultima,
         "implied_volatility": t.implied_volatility,
         "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -996,7 +996,7 @@ fn trade_greeks_all_row(t: &thetadatadx::TradeGreeksAllTick) -> Value {
         "d1": t.d1, "d2": t.d2,
         "dual_delta": t.dual_delta, "dual_gamma": t.dual_gamma,
         "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1013,7 +1013,7 @@ fn trade_greeks_first_order_row(t: &thetadatadx::TradeGreeksFirstOrderTick) -> V
         "delta": t.delta, "theta": t.theta, "vega": t.vega,
         "rho": t.rho, "epsilon": t.epsilon, "lambda": t.lambda,
         "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1030,7 +1030,7 @@ fn trade_greeks_second_order_row(t: &thetadatadx::TradeGreeksSecondOrderTick) ->
         "gamma": t.gamma, "vanna": t.vanna, "charm": t.charm,
         "vomma": t.vomma, "veta": t.veta,
         "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1047,7 +1047,7 @@ fn trade_greeks_third_order_row(t: &thetadatadx::TradeGreeksThirdOrderTick) -> V
         "speed": t.speed, "zomma": t.zomma, "color": t.color,
         "ultima": t.ultima,
         "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1062,7 +1062,7 @@ fn trade_greeks_implied_volatility_row(t: &thetadatadx::TradeGreeksImpliedVolati
         "ext_condition3": code_or_null(t.ext_condition3, t.has_ext_condition3), "ext_condition4": code_or_null(t.ext_condition4, t.has_ext_condition4),
         "condition": code_or_null(t.condition, t.has_condition), "size": t.size, "exchange": code_or_null(t.exchange, t.has_exchange), "price": t.price,
         "implied_volatility": t.implied_volatility, "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1076,7 +1076,7 @@ fn iv_row(t: &thetadatadx::IvTick) -> Value {
         "midpoint": t.midpoint, "implied_volatility": t.implied_volatility,
         "ask": t.ask, "ask_implied_volatility": t.ask_implied_volatility,
         "iv_error": t.iv_error,
-        "underlying_ms_of_day": t.underlying_ms_of_day,
+        "underlying_date": t.underlying_date, "underlying_ms_of_day": t.underlying_ms_of_day,
         "underlying_price": t.underlying_price,
     });
     insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1865,6 +1865,7 @@ mod tests {
             underlying_ms_of_day: 0,
             underlying_price: 0.0,
             date: 20221219,
+            underlying_date: 20221220,
             expiration,
             strike,
             right,

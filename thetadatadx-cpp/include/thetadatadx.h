@@ -148,13 +148,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[20];
+    uint8_t _tail_padding[12];
 } ThetaDataDxGreeksAllTick THETADATADX_ALIGN64_END;
 
 /* End-of-day Greeks tick (option_history_greeks_eod) -- fuses every
@@ -210,13 +214,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[52];
+    uint8_t _tail_padding[44];
 } ThetaDataDxGreeksEodTick THETADATADX_ALIGN64_END;
 
 /* First-order Greeks subset tick (option_*_greeks_first_order). */
@@ -237,13 +245,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[4];
+    uint8_t _tail_padding[60];
 } ThetaDataDxGreeksFirstOrderTick THETADATADX_ALIGN64_END;
 
 /* Second-order Greeks subset tick (option_*_greeks_second_order). */
@@ -263,13 +275,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[12];
+    uint8_t _tail_padding[4];
 } ThetaDataDxGreeksSecondOrderTick THETADATADX_ALIGN64_END;
 
 /* Third-order Greeks subset tick (option_*_greeks_third_order). The
@@ -289,13 +305,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[20];
+    uint8_t _tail_padding[12];
 } ThetaDataDxGreeksThirdOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade union Greeks tick (option_history_trade_greeks_all).
@@ -346,13 +366,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[36];
+    uint8_t _tail_padding[28];
 } ThetaDataDxTradeGreeksAllTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade first-order Greeks tick
@@ -387,13 +411,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[20];
+    uint8_t _tail_padding[12];
 } ThetaDataDxTradeGreeksFirstOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade second-order Greeks tick
@@ -427,13 +455,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[28];
+    uint8_t _tail_padding[20];
 } ThetaDataDxTradeGreeksSecondOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade third-order Greeks tick
@@ -467,13 +499,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[36];
+    uint8_t _tail_padding[28];
 } ThetaDataDxTradeGreeksThirdOrderTick THETADATADX_ALIGN64_END;
 
 /* Per-OPRA-trade implied-volatility tick
@@ -504,13 +540,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[4];
+    uint8_t _tail_padding[60];
 } ThetaDataDxTradeGreeksImpliedVolatilityTick THETADATADX_ALIGN64_END;
 
 /* InterestRateTick (2 fields). End-of-day interest rate (percent).
@@ -541,13 +581,17 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double underlying_price;
     int32_t date;
+    /* Trading date of the underlying price as a YYYYMMDD integer. The
+     * vendor sends the underlying's moment in full, and its date is a day
+     * ahead of `date` on a snapshot taken outside the option's session. */
+    int32_t underlying_date;
     int32_t expiration;
     double strike;
     /* Unicode scalar value of the right character: 'C' (67) for a call,
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[28];
+    uint8_t _tail_padding[20];
 } ThetaDataDxIvTick THETADATADX_ALIGN64_END;
 
 /* Settlement market-value tick (option_*_market_value): the contract's

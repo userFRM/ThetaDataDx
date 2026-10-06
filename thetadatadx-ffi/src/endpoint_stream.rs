@@ -53,9 +53,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_history_eod", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -104,9 +102,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_ohlc", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_history_ohlc", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -155,9 +151,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_trade", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_history_trade", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -206,9 +200,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_quote", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_history_quote", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -257,9 +249,7 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_history_trade_quote", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_history_trade_quote", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -329,9 +319,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_at_time_trade", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_at_time_trade", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -401,9 +389,7 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "stock_at_time_quote", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "stock_at_time_quote", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -473,9 +459,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_eod", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -531,9 +515,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_ohlc", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_ohlc", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -589,9 +571,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_trade", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -647,9 +627,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_quote", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_quote", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -705,9 +683,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_quote", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_trade_quote", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -763,9 +739,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_open_interest", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_open_interest", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -835,9 +809,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_eod", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_greeks_eod", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -907,9 +879,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_eod", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_greeks_eod", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -965,9 +935,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_greeks_all", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1023,9 +991,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_greeks_all", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1081,9 +1047,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_trade_greeks_all", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1139,9 +1103,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_st
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_trade_greeks_all", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1197,9 +1159,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_greeks_first_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1255,9 +1215,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_greeks_first_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1313,9 +1271,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_trade_greeks_first_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1371,9 +1327,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_trade_greeks_first_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1429,9 +1383,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_greeks_second_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1487,9 +1439,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_greeks_second_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1545,9 +1495,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_trade_greeks_second_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1603,9 +1551,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_trade_greeks_second_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1661,9 +1607,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_greeks_third_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1719,9 +1663,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_greeks_third_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1777,9 +1719,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_trade_greeks_third_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1835,9 +1775,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_binomial_trade_greeks_third_order", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1893,9 +1831,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_st
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_implied_volatility", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_greeks_implied_volatility", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -1951,9 +1887,7 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_implied_volatility", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_history_trade_greeks_implied_volatility", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -2030,9 +1964,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_at_time_trade", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_at_time_trade", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -2109,9 +2041,7 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_at_time_quote", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "option_at_time_quote", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -2174,9 +2104,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "index_history_eod", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -2239,9 +2167,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_history_ohlc", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "index_history_ohlc", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -2290,9 +2216,7 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_history_price", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "index_history_price", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -2362,9 +2286,7 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "index_at_time_price", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "index_at_time_price", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
@@ -2427,9 +2349,7 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_stream(
             return empty;
         };
         let sink = TickChunkSink { callback, ctx };
-        match runtime().block_on(async {
-            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "interest_rate_history_eod", &args, move |rows, len| sink.emit(rows, len)).await
-        }) {
+        match invoke_endpoint_stream_blocking(&client.inner, "interest_rate_history_eod", &args, sink) {
             Ok(()) => 0,
             Err(error) => {
                 set_error_from(&thetadatadx::Error::from(error));
