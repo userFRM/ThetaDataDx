@@ -6,6 +6,9 @@ surface by checking a few high-signal invariants:
 
 - endpoint/tool counts in top-level docs, each derived from the list it heads
 - REST/OpenAPI path + operationId parity with `endpoint_surface.toml`
+- per-route OpenAPI parameter names, required flags and defaults matching
+  the same registry (a generated client must not demand a parameter the
+  server treats as optional, nor hide the value an omitted one takes)
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
 - `llms.txt` covering every page on the site (and naming no deleted page)
@@ -168,6 +171,29 @@ SERVER_ONLY_OPERATION_IDS = {
     "interestRateHistoryEodPath",
     "flatfileGetBySecType",
 }
+# Query params the OpenAPI contract documents that the endpoint registry does
+# not model. `format` is a server-side rendering knob (`tools/server`'s
+# `parse_response_format`), not an upstream request parameter, so it has no
+# registry row and must not read as parameter drift.
+OPENAPI_REST_ONLY_PARAMS = {"format"}
+
+# Server-only `/v3` route -> the registry endpoint it dispatches to, from
+# `register_v3_path_routes` in `tools/server/src/router.rs`. Each of these is
+# a second spelling of an endpoint the registry already serves (the terminal's
+# `{request_type}` path-segment forms and its three renamed routes), handled by
+# the same code with the same parameters, so the parameter check holds them to
+# the same registry row as their sibling. The `{request_type}` forms move that
+# one parameter from the query string into the path, which the check reads as
+# the required, default-less parameter the registry declares.
+OPENAPI_ALIAS_ENDPOINTS = {
+    "/v3/stock/list/dates/{request_type}": "stock_list_dates",
+    "/v3/option/list/dates/{request_type}": "option_list_dates",
+    "/v3/option/list/contracts/{request_type}": "option_list_contracts",
+    "/v3/calendar/today": "calendar_open_today",
+    "/v3/calendar/year_holidays": "calendar_year",
+    "/v3/interest_rate/history/eod": "interest_rate_history_eod",
+}
+
 # Builder-bound params (the optional fluent setters that materialize as fields
 # on the `*EndpointRequestOptions` structs) come from two places in the surface:
 # the reusable `[param_groups.*]` definitions AND inline `[[endpoints.params]]`
@@ -231,6 +257,19 @@ def lower_camel(snake: str) -> str:
 def fail(message: str) -> None:
     print(f"docs consistency error: {message}", file=sys.stderr)
     raise SystemExit(1)
+
+
+def rel(path: Path) -> str:
+    """`path` for a message, repo-relative where it can be.
+
+    The self-test points a checked path at a synthetic fixture in a temp
+    directory, which `Path.relative_to(ROOT)` refuses; a failure message is
+    no place to raise.
+    """
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
 
 
 def expect_contains(path: Path, snippet: str) -> None:
@@ -985,6 +1024,233 @@ def _enum_values(block: str) -> list[str]:
     return [v.strip().strip("'\"") for v in m.group(1).split(",") if v.strip()]
 
 
+def _expand_param_group(params: list[dict], chain: tuple[str, ...] = ()) -> list[dict]:
+    """Flatten `[[...params]]` rows, resolving every `use = "<group>"` row.
+
+    A row either declares a param inline (`name = ...`) or references a
+    reusable `[param_groups.*]` entry, which may itself reference further
+    groups. `chain` is the resolution path, so a group that references itself
+    fails by name instead of recursing until the interpreter gives up.
+    """
+    out: list[dict] = []
+    for param in params:
+        group_name = param.get("use")
+        if group_name is None:
+            out.append(param)
+            continue
+        if group_name in chain:
+            fail(
+                "endpoint_surface.toml param_group cycle: "
+                + " -> ".join((*chain, group_name))
+            )
+        group = SURFACE["param_groups"].get(group_name)
+        if group is None:
+            fail(f"endpoint_surface.toml references unknown param group {group_name!r}")
+        out.extend(_expand_param_group(group.get("params", []), (*chain, group_name)))
+    return out
+
+
+def _template_params(name: str, chain: tuple[str, ...] = ()) -> list[dict]:
+    """The params a `[templates.<name>]` contributes, base template first."""
+    if name in chain:
+        fail("endpoint_surface.toml template cycle: " + " -> ".join((*chain, name)))
+    template = TEMPLATES.get(name)
+    if template is None:
+        fail(f"endpoint_surface.toml references unknown template {name!r}")
+    out: list[dict] = []
+    base = template.get("extends")
+    if base is not None:
+        out.extend(_template_params(base, (*chain, name)))
+    out.extend(_expand_param_group(template.get("params", [])))
+    return out
+
+
+def registry_route_params() -> dict[str, dict[str, tuple[bool, str | None]]]:
+    """`{rest_path: {param: (required, default)}}` for every registry route.
+
+    The registry is the surface the SDK and `tools/server` actually implement,
+    so it is what the published contract has to agree with. Params come from
+    the endpoint's template chain plus its own inline rows, both resolved
+    through `[param_groups.*]`; a default is the registry literal verbatim
+    (`"*"`, `"1s"`, `"true"`), which is how the OpenAPI scalar reads too.
+
+    The server-only path aliases in `OPENAPI_ALIAS_ENDPOINTS` resolve to the
+    row of the endpoint they dispatch to.
+    """
+    resolved: dict[str, dict[str, tuple[bool, str | None]]] = {}
+    by_name: dict[str, dict[str, tuple[bool, str | None]]] = {}
+    for endpoint in REGISTRY_ENDPOINTS:
+        params: list[dict] = []
+        template_name = endpoint.get("template")
+        if template_name is not None:
+            params.extend(_template_params(template_name))
+        params.extend(_expand_param_group(endpoint.get("params", [])))
+        row = {
+            param["name"]: (bool(param.get("required", False)), param.get("default"))
+            for param in params
+        }
+        resolved[endpoint["rest_path"]] = row
+        by_name[endpoint["name"]] = row
+    for alias, endpoint_name in OPENAPI_ALIAS_ENDPOINTS.items():
+        row = by_name.get(endpoint_name)
+        if row is None:
+            fail(
+                f"OPENAPI_ALIAS_ENDPOINTS maps {alias} to {endpoint_name!r}, which is "
+                f"not a registry endpoint"
+            )
+        resolved[alias] = row
+    return resolved
+
+
+# An `x-anchors` entry: `  <key>: &<anchor>` at the block's own indentation.
+_OPENAPI_ANCHOR_RE = re.compile(r"^  ([A-Za-z0-9_-]+): &([A-Za-z0-9_-]+)\s*$", re.MULTILINE)
+# A `parameters:` list item: `        - ` at the operation's item indentation.
+_OPENAPI_PARAM_ITEM_RE = re.compile(r"^        - ", re.MULTILINE)
+_OPENAPI_PARAM_ALIAS_RE = re.compile(r"\*([A-Za-z0-9_-]+)\s*$")
+
+
+def _openapi_param_fields(block: str) -> tuple[str, bool, str | None] | None:
+    """`(name, required, default)` for one OpenAPI parameter node.
+
+    `None` when the node carries no `name:`, which is how the non-parameter
+    anchors in `x-anchors` (the response envelope, the row schema) are passed
+    over. Each key is read at its first occurrence: a parameter node orders
+    them `name` / `in` / `required` / `schema.default` ahead of its
+    `description`, so prose quoting one of those words cannot be read as the
+    value.
+    """
+    name = re.search(r"^\s*(?:-\s+)?name:\s*(\S+)\s*$", block, re.MULTILINE)
+    if name is None:
+        return None
+    required = re.search(r"^\s*required:\s*(true|false)\s*$", block, re.MULTILINE)
+    default = re.search(r"^\s*default:\s*(\S.*?)\s*$", block, re.MULTILINE)
+    return (
+        name.group(1),
+        required is not None and required.group(1) == "true",
+        default.group(1).strip("'\"") if default else None,
+    )
+
+
+def openapi_route_params(
+    text: str, paths: set[str] | None = None
+) -> dict[str, dict[str, tuple[bool, str | None]]]:
+    """`{path: {param: (required, default)}}` as the checked-in spec declares it.
+
+    The spec writes most parameters once under `x-anchors` and aliases them per
+    route (`- *strike-param`), so the anchors are read first and an alias
+    resolves to its anchor's fields; a route that spells a parameter out inline
+    is read in place. Parsed rather than loaded because this gate is the
+    cargo-free, dependency-free fast path the docs deploy runs, and a YAML
+    library is not available to it.
+
+    `paths` restricts the read to the routes the caller is going to compare, so
+    a route outside that set is passed over rather than held to a parameter
+    shape this parser happens to understand.
+    """
+    anchors: dict[str, tuple[str, bool, str | None]] = {}
+    for match in _OPENAPI_ANCHOR_RE.finditer(text):
+        block, _ = _yaml_block(
+            text, rf"^  {re.escape(match.group(1))}: &{re.escape(match.group(2))}\s*$"
+        )
+        fields = _openapi_param_fields(block)
+        if fields is not None:
+            anchors[match.group(2)] = fields
+
+    routes: dict[str, dict[str, tuple[bool, str | None]]] = {}
+    for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE):
+        path = match.group(1)
+        if paths is not None and path not in paths:
+            continue
+        path_block, _ = _yaml_block(text, rf"^  {re.escape(path)}:\s*$")
+        params: dict[str, tuple[bool, str | None]] = {}
+        # A path may carry several operations; every one of their
+        # `parameters:` blocks is read, so a second method is never skipped.
+        position = 0
+        while True:
+            block, position = _yaml_block(
+                path_block, r"^      parameters:\s*$", after=position
+            )
+            if not block:
+                break
+            for item in _OPENAPI_PARAM_ITEM_RE.split(block)[1:]:
+                alias = _OPENAPI_PARAM_ALIAS_RE.fullmatch(item.strip())
+                if alias:
+                    fields = anchors.get(alias.group(1))
+                    if fields is None:
+                        fail(
+                            f"{rel(OPENAPI_YAML)} {path} aliases unknown "
+                            f"parameter anchor *{alias.group(1)}"
+                        )
+                else:
+                    fields = _openapi_param_fields(item)
+                    if fields is None:
+                        fail(
+                            f"{rel(OPENAPI_YAML)} {path} has a parameter "
+                            f"entry with no `name:`"
+                        )
+                params[fields[0]] = (fields[1], fields[2])
+        routes[path] = params
+    return routes
+
+
+def check_openapi_parameters(
+    expected: dict[str, dict[str, tuple[bool, str | None]]] | None = None,
+) -> None:
+    """Every documented route's parameters must match the registry row.
+
+    Names, required flags and defaults are all compared. A parameter the spec
+    marks required that the registry makes optional forces every generated
+    client to send a value the server does not need; a missing default leaves
+    a reader with no way to know what omitting the parameter does.
+
+    Routes the registry does not own are not read at all: the system, shutdown
+    and flat-file routes have no registry row, and a route added to the spec
+    ahead of the registry is the path-set assertion's business, not this one.
+    `checked` guards the other direction, where a spec reformat leaves the
+    parser matching nothing and the gate silently blind.
+
+    `expected` overrides the derived registry rows; the self-test passes
+    synthetic ones so the comparison is exercised on both sides.
+    """
+    if expected is None:
+        expected = registry_route_params()
+    documented = openapi_route_params(OPENAPI_YAML.read_text(), set(expected))
+    checked = 0
+    for path, want in sorted(expected.items()):
+        got = documented.get(path)
+        if got is None:
+            continue
+        checked += 1
+        extra = sorted(set(got) - set(want) - OPENAPI_REST_ONLY_PARAMS)
+        missing = sorted(set(want) - set(got))
+        if extra or missing:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} parameter set drifted from "
+                f"endpoint_surface.toml. missing={missing or '[]'} "
+                f"extra={extra or '[]'}"
+            )
+        for name in sorted(want):
+            want_required, want_default = want[name]
+            got_required, got_default = got[name]
+            if want_required != got_required:
+                fail(
+                    f"{rel(OPENAPI_YAML)} {path} documents {name} as "
+                    f"required={got_required}, but endpoint_surface.toml declares "
+                    f"required={want_required}"
+                )
+            if want_default != got_default:
+                fail(
+                    f"{rel(OPENAPI_YAML)} {path} documents {name} with "
+                    f"default {got_default!r}, but endpoint_surface.toml declares "
+                    f"{want_default!r}"
+                )
+    if checked == 0:
+        fail(
+            f"{rel(OPENAPI_YAML)} parsed to no registry route parameters "
+            f"(the spec's layout changed: the gate would be blind to parameter drift)"
+        )
+
+
 def check_flatfile_matrix() -> None:
     """OpenAPI flat-file enums must equal the `SERVED_DATASETS` served matrix.
 
@@ -1323,7 +1589,8 @@ def check_tier_badges() -> None:
 
 
 def _selftest() -> int:
-    """Hermetic checks for the server flag-default derivation (G5).
+    """Hermetic checks for the server flag-default derivation (G5) and the
+    OpenAPI parameter comparison.
 
     Drives `server_arg_defaults`, `_parse_doc_flag_table`, and
     `_value_enum_render` on synthetic inputs:
@@ -1340,6 +1607,13 @@ def _selftest() -> int:
     * A documented default that disagrees with the source value is caught
       value-by-value, where a substring scan would miss a default that
       changed to a value still printed elsewhere.
+
+    The OpenAPI parameter cases drive `check_openapi_parameters` on a
+    synthetic spec against synthetic registry rows, so both sides of the
+    comparison are fixed here rather than tracking the live registry. A spec
+    that agrees is accepted; a required flag or a default moved on one side
+    only is refused; and a spec whose routes the parser cannot find is
+    refused rather than passing on an empty comparison.
     """
     import tempfile
 
@@ -1446,6 +1720,114 @@ def _selftest() -> int:
         finally:
             SERVER_MAIN_RS = saved_main
 
+    # --- OpenAPI parameter comparison ---------------------------------------
+    # One route, one aliased parameter and one inline one, so both resolution
+    # paths are exercised. `format` is the REST-only parameter the registry
+    # never carries and the comparison must forgive.
+    synthetic_spec = (
+        "x-anchors:\n"
+        "  strike-param: &strike-param\n"
+        "    name: strike\n"
+        "    in: query\n"
+        "    required: false\n"
+        "    schema:\n"
+        "      type: string\n"
+        "      default: '*'\n"
+        "    description: >-\n"
+        "      Prose that says required: true and default: 9 to prove neither\n"
+        "      is read out of a description.\n"
+        "  format-param: &format-param\n"
+        "    name: format\n"
+        "    in: query\n"
+        "    required: false\n"
+        "    schema:\n"
+        "      type: string\n"
+        "      default: csv\n"
+        "paths:\n"
+        "  /v3/option/snapshot/trade:\n"
+        "    get:\n"
+        "      operationId: optionSnapshotTrade\n"
+        "      parameters:\n"
+        "        - name: symbol\n"
+        "          in: query\n"
+        "          required: true\n"
+        "          schema:\n"
+        "            type: string\n"
+        "        - *strike-param\n"
+        "        - name: interval\n"
+        "          in: query\n"
+        "          required: false\n"
+        "          schema:\n"
+        "            type: string\n"
+        "            default: 1s\n"
+        "        - *format-param\n"
+        "      responses:\n"
+        "        '200':\n"
+        "          description: ok\n"
+    )
+    synthetic_rows = {
+        "/v3/option/snapshot/trade": {
+            "symbol": (True, None),
+            "strike": (False, "*"),
+            "interval": (False, "1s"),
+        }
+    }
+
+    global OPENAPI_YAML
+    saved_openapi = OPENAPI_YAML
+
+    def openapi_case(label: str, spec: str, rows: dict, *, refuse: bool) -> None:
+        """Run the parameter gate on `spec`; `refuse` says it must reject it."""
+        global OPENAPI_YAML
+        with tempfile.TemporaryDirectory() as td:
+            fake_spec = Path(td) / "thetadatadx.yaml"
+            fake_spec.write_text(spec, encoding="utf-8")
+            OPENAPI_YAML = fake_spec
+            try:
+                check_openapi_parameters(rows)
+            except SystemExit:
+                if not refuse:
+                    failures.append(
+                        f"openapi-params: {label} was refused but agrees with the rows"
+                    )
+            else:
+                if refuse:
+                    failures.append(f"openapi-params: {label} was accepted")
+            finally:
+                OPENAPI_YAML = saved_openapi
+
+    openapi_case("an agreeing spec", synthetic_spec, synthetic_rows, refuse=False)
+
+    # A required flag moved on the spec side only. The aliased parameter is
+    # the one moved, so an alias resolved to a stale or shared node would
+    # show up here too.
+    required_drift = synthetic_spec.replace(
+        "    name: strike\n    in: query\n    required: false\n",
+        "    name: strike\n    in: query\n    required: true\n",
+    )
+    if required_drift == synthetic_spec:
+        failures.append(
+            "openapi-params: the fixture no longer carries the optional "
+            "`strike` this case marks required, so the case proves nothing"
+        )
+    openapi_case("a required-flag drift", required_drift, synthetic_rows, refuse=True)
+
+    # A default moved on the registry side only.
+    moved_default = {
+        path: {**params, "interval": (False, "5s")}
+        for path, params in synthetic_rows.items()
+    }
+    openapi_case("a default drift", synthetic_spec, moved_default, refuse=True)
+
+    # A spec the parser finds no route in must fail rather than pass on an
+    # empty comparison.
+    openapi_case(
+        "a spec with no comparable route",
+        synthetic_spec,
+        {"/v3/stock/snapshot/trade": {"symbol": (True, None)}},
+        refuse=True,
+    )
+
     if failures:
         print("check_docs_consistency --selftest: FAILED")
         for f in failures:
@@ -1461,6 +1843,7 @@ def main() -> None:
     check_reference_pages()
     check_llms_txt()
     check_openapi()
+    check_openapi_parameters()
     check_flatfile_matrix()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()

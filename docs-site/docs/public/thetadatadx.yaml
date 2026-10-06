@@ -84,6 +84,17 @@ x-anchors:
       type: string
     description: Ticker symbol (e.g. "AAPL")
 
+  symbol-optional-param: &symbol-optional-param
+    name: symbol
+    in: query
+    required: false
+    schema:
+      type: string
+    description: >-
+      Ticker symbol to filter by (e.g. "AAPL"), or a comma-separated list
+      ("AAPL,SPY") for the contracts of each. Omit it to list every contract
+      for the date.
+
   symbols-param: &symbols-param
     name: symbol
     in: query
@@ -161,10 +172,15 @@ x-anchors:
   interval-param: &interval-param
     name: interval
     in: query
-    required: true
+    required: false
     schema:
       type: string
-    description: 'One of the interval presets: tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.'
+      enum: [tick, 10ms, 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h]
+      default: 1s
+    description: >-
+      Aggregation interval. One of the presets in the enum; omitting it
+      samples at 1s. Intervals under 1m are available on single-day requests
+      only.
 
   time_of_day-param: &time_of_day-param
     name: time_of_day
@@ -180,7 +196,11 @@ x-anchors:
     required: false
     schema:
       type: string
-    description: Data venue (e.g. "nqb" for Nasdaq Basic)
+      enum: [nqb, utp_cta]
+      default: nqb
+    description: >-
+      Data venue: `nqb` is Nasdaq Basic, `utp_cta` the merged UTP and CTA
+      feeds. Omitting it reads Nasdaq Basic.
 
   min_time-param: &min_time-param
     name: min_time
@@ -196,7 +216,8 @@ x-anchors:
     required: false
     schema:
       type: string
-    description: Start of the time-of-day window, Eastern Time HH:MM:SS (default 09:30:00)
+      default: '09:30:00'
+    description: Start of the time-of-day window, inclusive, Eastern Time HH:MM:SS
 
   end_time-param: &end_time-param
     name: end_time
@@ -204,7 +225,8 @@ x-anchors:
     required: false
     schema:
       type: string
-    description: End of the time-of-day window, Eastern Time HH:MM:SS (default 16:00:00)
+      default: '16:00:00'
+    description: End of the time-of-day window, inclusive, Eastern Time HH:MM:SS
 
   request_type-param: &request_type-param
     name: request_type
@@ -212,8 +234,21 @@ x-anchors:
     required: true
     schema:
       type: string
-      enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
-    description: The type of data request
+      enum: [trade, quote, eod, ohlc, TRADE, QUOTE, EOD, OHLC]
+    description: >-
+      The type of data request, in the upstream lower-case vocabulary or the
+      equivalent upper-case spelling.
+
+  request_type-path-param: &request_type-path-param
+    name: request_type
+    in: path
+    required: true
+    schema:
+      type: string
+      enum: [trade, quote, eod, ohlc, TRADE, QUOTE, EOD, OHLC]
+    description: >-
+      The type of data request, in the upstream lower-case vocabulary or the
+      equivalent upper-case spelling.
 
   expiration-param: &expiration-param
     name: expiration
@@ -240,24 +275,29 @@ x-anchors:
   strike-param: &strike-param
     name: strike
     in: query
-    required: true
+    required: false
     schema:
       type: string
-    description: Strike price in dollars as a string (e.g. "500" or "17.5")
+      default: '*'
+    description: >-
+      Strike price in dollars as a string (e.g. "500" or "17.5"). Omit it to
+      select every strike on the expiration, the same as passing `*`.
 
   right-param: &right-param
     name: right
     in: query
-    required: true
+    required: false
     schema:
       type: string
       enum: [call, put, both, C, P, c, p, CALL, PUT, Call, Put, "*"]
+      default: both
     description: >-
       Option side. Use `both` or `*` (alias) for calls and puts. Accepts
-      `call`, `put`, `both` (upstream ThetaData vocabulary; upstream default
-      is `both`), plus our short-forms `C` (call), `P` (put), and `*` (alias
-      for `both`) for SDK ergonomics. Matching is case-insensitive. Every
-      endpoint that exposes `right` accepts the `both` / `*` wildcard.
+      `call`, `put`, `both` (upstream ThetaData vocabulary), plus our
+      short-forms `C` (call), `P` (put), and `*` (alias for `both`) for SDK
+      ergonomics. Matching is case-insensitive. Every endpoint that exposes
+      `right` accepts the `both` / `*` wildcard, and omitting the parameter
+      returns both sides.
 
   max_dte-param: &max_dte-param
     name: max_dte
@@ -281,7 +321,10 @@ x-anchors:
     required: false
     schema:
       type: boolean
-    description: Whether time boundaries are exclusive
+      default: true
+    description: >-
+      When true, a quote whose timestamp equals the trade timestamp is
+      excluded and only quotes strictly before the trade are paired with it.
 
   # --- Greeks optional parameters ---
   annual_dividend-param: &annual_dividend-param
@@ -299,7 +342,9 @@ x-anchors:
     required: false
     schema:
       type: string
-    description: Interest rate type for Greeks calculation
+      enum: [sofr, treasury_m1, treasury_m3, treasury_m6, treasury_y1, treasury_y2, treasury_y3, treasury_y5, treasury_y7, treasury_y10, treasury_y20, treasury_y30]
+      default: sofr
+    description: Risk-free-rate source used in the Greeks calculation
 
   rate_value-param: &rate_value-param
     name: rate_value
@@ -325,7 +370,12 @@ x-anchors:
     required: false
     schema:
       type: string
-    description: Greeks calculation model version
+      enum: [latest, '1']
+      default: latest
+    description: >-
+      Greeks model version. `1` holds the time to expiration at 0.15 days for
+      a 0DTE contract; `latest` uses the real time to expiration, down to a
+      floor of one hour.
 
   binomial_steps-param: &binomial_steps-param
     name: binomial_steps
@@ -354,7 +404,10 @@ x-anchors:
     required: false
     schema:
       type: boolean
-    description: Use market value instead of midpoint for Greeks calculation
+      default: false
+    description: >-
+      When true, calculate the Greeks against the option market value
+      (mid-price) instead of the NBBO bid/ask pair.
 
   underlyer_use_nbbo-param: &underlyer_use_nbbo-param
     name: underlyer_use_nbbo
@@ -362,7 +415,10 @@ x-anchors:
     required: false
     schema:
       type: boolean
-    description: Use NBBO midpoint for underlying price
+      default: false
+    description: >-
+      When true, the underlyer price fed to the Greeks calculation is the
+      midpoint of its NBBO; when false it is the last trade price.
 
   # --- Response shape ---
   # Every registry route answers in the same envelope; only the columns of a
@@ -515,13 +571,7 @@ paths:
         gRPC: GetStockListDates
       tags: [Stock / List]
       parameters:
-        - name: request_type
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
-          description: The type of data request (case-insensitive).
+        - *request_type-path-param
         - *symbol-param
         - *format-param
       responses:
@@ -1017,13 +1067,7 @@ paths:
         gRPC: GetOptionListDates
       tags: [Option / List]
       parameters:
-        - name: request_type
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
-          description: The type of data request (case-insensitive).
+        - *request_type-path-param
         - *symbol-param
         - *expiration-param
         - *strike-param
@@ -1114,7 +1158,7 @@ paths:
       tags: [Option / List]
       parameters:
         - *request_type-param
-        - *symbol-param
+        - *symbol-optional-param
         - *date-param
         - *max_dte-param
         - *format-param
@@ -1147,14 +1191,8 @@ paths:
         gRPC: GetOptionListContracts
       tags: [Option / List]
       parameters:
-        - name: request_type
-          in: path
-          required: true
-          schema:
-            type: string
-            enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
-          description: The type of data request (case-insensitive).
-        - *symbol-param
+        - *request_type-path-param
+        - *symbol-optional-param
         - *date-param
         - *max_dte-param
         - *format-param
