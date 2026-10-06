@@ -6,6 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use super::enum_projection::EnumProjection;
 use super::model::GeneratedEndpoint;
 use super::test_fixtures::TestFixtures;
 
@@ -46,6 +47,10 @@ const KNOWN_MODE_OVERRIDES: &[&str] = &[
 ///     `mode_overrides` fall through to opaque panics in `modes.rs`. Dead
 ///     keys under `mode_overrides.<mode>` are accepted even when no endpoint
 ///     emitting that mode binds the name (the override is silently unused).
+///   * A value for an enum-typed param that is not one of the enum's wire
+///     values. The key check above only proves the param exists, so a value
+///     the vendor does not define reaches the live validators and they
+///     exercise a request the server never agreed to serve.
 ///
 /// Every check collects every offender across every fixture map and returns
 /// them in one combined error so a dev fixing TOML drift sees the full
@@ -53,6 +58,7 @@ const KNOWN_MODE_OVERRIDES: &[&str] = &[
 pub(super) fn validate_test_fixtures(
     fixtures: &TestFixtures,
     endpoints: &[GeneratedEndpoint],
+    enums: &[EnumProjection],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut errors: Vec<String> = Vec::new();
 
@@ -322,6 +328,67 @@ pub(super) fn validate_test_fixtures(
             "[test_fixtures.optional_defaults] references param names that are not builder-bound \
              on any endpoint: {}",
             sorted.join(", ")
+        ));
+    }
+
+    // Enum-typed values: a fixture for a param whose `param_type` names an
+    // enum must carry one of that enum's wire values, because the live
+    // validators send the fixture verbatim.
+    //
+    // Scoped to the maps keyed by parameter name. `concrete_by_type` is keyed
+    // by wire type and its two enum rows deliberately carry spellings the
+    // vendor accepts beside the wire value (`C` for a call, `TRADE` for the
+    // request type) which the SDK's own validators normalise, so holding it
+    // to the wire values alone would reject requests the server serves.
+    // Covering it needs the validators' accepted-spelling tables, which live
+    // in the crate rather than here.
+    let enum_wires: HashMap<&str, HashSet<&str>> = enums
+        .iter()
+        .map(|e| {
+            (
+                e.name.as_str(),
+                e.variants.iter().map(|v| v.wire.as_str()).collect(),
+            )
+        })
+        .collect();
+    let param_enum: HashMap<&str, &str> = live_endpoints
+        .iter()
+        .flat_map(|ep| ep.params.iter())
+        .filter(|p| enum_wires.contains_key(p.param_type.as_str()))
+        .map(|p| (p.name.as_str(), p.param_type.as_str()))
+        .collect();
+
+    let mut undefined_enum_values: Vec<String> = Vec::new();
+    let mut check_enum_values = |label: String, rows: &HashMap<String, String>| {
+        for (name, value) in rows {
+            let Some(enum_name) = param_enum.get(name.as_str()) else {
+                continue;
+            };
+            let wires = &enum_wires[*enum_name];
+            if !wires.contains(value.as_str()) {
+                let mut defined: Vec<&str> = wires.iter().copied().collect();
+                defined.sort_unstable();
+                undefined_enum_values.push(format!(
+                    "  {label}.{name} = '{value}' is not a value of enum '{enum_name}' \
+                     (expected one of: {})",
+                    defined.join(", ")
+                ));
+            }
+        }
+    };
+    check_enum_values("optional_defaults".to_string(), &fixtures.optional_defaults);
+    check_enum_values(
+        "concrete_overrides".to_string(),
+        &fixtures.concrete_overrides,
+    );
+    for (mode_name, overrides) in &fixtures.mode_overrides {
+        check_enum_values(format!("mode_overrides.{mode_name}"), overrides);
+    }
+    if !undefined_enum_values.is_empty() {
+        undefined_enum_values.sort();
+        errors.push(format!(
+            "[test_fixtures] has values that are not defined by their enum:\n{}",
+            undefined_enum_values.join("\n")
         ));
     }
 

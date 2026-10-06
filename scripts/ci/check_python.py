@@ -297,8 +297,8 @@ CELLS = [
     #   rationale: stock_price=150.0 optional Greeks-input wiring
     ("option_snapshot_greeks_implied_volatility", "with_stock_price", "standard", "stock_price=150.0 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", stock_price=150.0, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_greeks_implied_volatility", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_greeks_implied_volatility", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_greeks_implied_volatility", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -313,7 +313,7 @@ CELLS = [
     ("option_snapshot_greeks_implied_volatility", "with_use_market_value", "standard", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_implied_volatility::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -336,8 +336,8 @@ CELLS = [
     #   rationale: stock_price=150.0 optional Greeks-input wiring
     ("option_snapshot_greeks_all", "with_stock_price", "professional", "stock_price=150.0 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", stock_price=150.0, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_greeks_all", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -352,7 +352,7 @@ CELLS = [
     ("option_snapshot_greeks_all", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -378,8 +378,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_snapshot_binomial_greeks_all", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", binomial_steps=51, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_all::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_binomial_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_binomial_greeks_all", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_all::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_binomial_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -394,7 +394,7 @@ CELLS = [
     ("option_snapshot_binomial_greeks_all", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_all("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -417,8 +417,8 @@ CELLS = [
     #   rationale: stock_price=150.0 optional Greeks-input wiring
     ("option_snapshot_greeks_first_order", "with_stock_price", "standard", "stock_price=150.0 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", stock_price=150.0, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_greeks_first_order", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_greeks_first_order", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_greeks_first_order", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -433,7 +433,7 @@ CELLS = [
     ("option_snapshot_greeks_first_order", "with_use_market_value", "standard", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -459,8 +459,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_snapshot_binomial_greeks_first_order", "with_binomial_steps", "standard", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", binomial_steps=51, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_first_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_binomial_greeks_first_order", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_binomial_greeks_first_order", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_first_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_binomial_greeks_first_order", "with_max_dte", "standard", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -475,7 +475,7 @@ CELLS = [
     ("option_snapshot_binomial_greeks_first_order", "with_use_market_value", "standard", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_first_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -498,8 +498,8 @@ CELLS = [
     #   rationale: stock_price=150.0 optional Greeks-input wiring
     ("option_snapshot_greeks_second_order", "with_stock_price", "professional", "stock_price=150.0 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", stock_price=150.0, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_greeks_second_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -514,7 +514,7 @@ CELLS = [
     ("option_snapshot_greeks_second_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -540,8 +540,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_snapshot_binomial_greeks_second_order", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", binomial_steps=51, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_second_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_binomial_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_binomial_greeks_second_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_second_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_binomial_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -556,7 +556,7 @@ CELLS = [
     ("option_snapshot_binomial_greeks_second_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_second_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -579,8 +579,8 @@ CELLS = [
     #   rationale: stock_price=150.0 optional Greeks-input wiring
     ("option_snapshot_greeks_third_order", "with_stock_price", "professional", "stock_price=150.0 optional Greeks-input wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", stock_price=150.0, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_greeks_third_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -595,7 +595,7 @@ CELLS = [
     ("option_snapshot_greeks_third_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_snapshot_binomial_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -621,8 +621,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_snapshot_binomial_greeks_third_order", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", binomial_steps=51, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_third_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_snapshot_binomial_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_snapshot_binomial_greeks_third_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_third_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_snapshot_binomial_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -637,7 +637,7 @@ CELLS = [
     ("option_snapshot_binomial_greeks_third_order", "with_use_market_value", "professional", "use_market_value=true optional flag wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_binomial_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_snapshot_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_snapshot_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_snapshot_binomial_greeks_third_order("SPY", "20250321", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, stock_price=150.0, binomial_steps=51, version="1", max_dte=30, strike_range=10, min_time="09:45:00", use_market_value=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_eod::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_eod", "concrete", "free", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_eod("SPY", "20250321", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -822,8 +822,8 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_eod", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", rate_value=0.05, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_eod", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_greeks_eod", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_eod::with_underlyer_use_nbbo
     #   rationale: underlyer_use_nbbo=true optional flag wiring
     ("option_history_greeks_eod", "with_underlyer_use_nbbo", "standard", "underlyer_use_nbbo=true optional flag wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", underlyer_use_nbbo=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -835,7 +835,7 @@ CELLS = [
     ("option_history_greeks_eod", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", strike_range=10, timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_eod::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_eod::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_greeks_eod", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -858,8 +858,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_greeks_eod", "with_binomial_steps", "standard", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", binomial_steps=51, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_eod::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_greeks_eod", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", version="dg3", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_greeks_eod", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", version="1", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_eod::with_underlyer_use_nbbo
     #   rationale: underlyer_use_nbbo=true optional flag wiring
     ("option_history_binomial_greeks_eod", "with_underlyer_use_nbbo", "standard", "underlyer_use_nbbo=true optional flag wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", underlyer_use_nbbo=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -871,7 +871,7 @@ CELLS = [
     ("option_history_binomial_greeks_eod", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", strike_range=10, timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_binomial_greeks_eod::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_greeks_eod", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_eod("SPY", "20250321", "20250303", "20250303", strike="570", right="call", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", underlyer_use_nbbo=True, max_dte=30, strike_range=10, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_greeks_all("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -897,14 +897,14 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_greeks_all", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_all::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -933,14 +933,14 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_greeks_all", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_all::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_greeks_all", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_all::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_binomial_greeks_all", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_binomial_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_trade_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -969,8 +969,8 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_all", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_trade_greeks_all", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -982,7 +982,7 @@ CELLS = [
     ("option_history_trade_greeks_all", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_all::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_trade_greeks_all", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1014,8 +1014,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_trade_greeks_all", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_all::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_trade_greeks_all", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_trade_greeks_all", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_all::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_binomial_trade_greeks_all", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1027,7 +1027,7 @@ CELLS = [
     ("option_history_binomial_trade_greeks_all", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_all::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_trade_greeks_all", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_all("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1053,14 +1053,14 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_first_order", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_first_order", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_greeks_first_order", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_first_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_greeks_first_order", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1089,14 +1089,14 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_greeks_first_order", "with_binomial_steps", "standard", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_first_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_greeks_first_order", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_greeks_first_order", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_first_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_binomial_greeks_first_order", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_binomial_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_greeks_first_order", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_trade_greeks_first_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1125,8 +1125,8 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_first_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_first_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_trade_greeks_first_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_greeks_first_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1138,7 +1138,7 @@ CELLS = [
     ("option_history_trade_greeks_first_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_first_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_trade_greeks_first_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1170,8 +1170,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_trade_greeks_first_order", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_first_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_trade_greeks_first_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_trade_greeks_first_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_first_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_binomial_trade_greeks_first_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1183,7 +1183,7 @@ CELLS = [
     ("option_history_binomial_trade_greeks_first_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_first_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_trade_greeks_first_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_first_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1209,14 +1209,14 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_greeks_second_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_second_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1245,14 +1245,14 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_greeks_second_order", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_second_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_greeks_second_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_second_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_binomial_greeks_second_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_binomial_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_trade_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1281,8 +1281,8 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_second_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_trade_greeks_second_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1294,7 +1294,7 @@ CELLS = [
     ("option_history_trade_greeks_second_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_second_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_trade_greeks_second_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1326,8 +1326,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_trade_greeks_second_order", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_second_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_trade_greeks_second_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_trade_greeks_second_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_second_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_binomial_trade_greeks_second_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1339,7 +1339,7 @@ CELLS = [
     ("option_history_binomial_trade_greeks_second_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_second_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_trade_greeks_second_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_second_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1365,14 +1365,14 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_greeks_third_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_third_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1401,14 +1401,14 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_greeks_third_order", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_third_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_greeks_third_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_greeks_third_order::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_binomial_greeks_third_order", "with_strike_range", "professional", "strike_range=10 optional filter wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_binomial_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_trade_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1437,8 +1437,8 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_third_order", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_trade_greeks_third_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1450,7 +1450,7 @@ CELLS = [
     ("option_history_trade_greeks_third_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_third_order::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_binomial_trade_greeks_third_order", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1482,8 +1482,8 @@ CELLS = [
     #   rationale: binomial_steps=51 optional binomial-tree step-count wiring
     ("option_history_binomial_trade_greeks_third_order", "with_binomial_steps", "professional", "binomial_steps=51 optional binomial-tree step-count wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", binomial_steps=51, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_third_order::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_binomial_trade_greeks_third_order", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_binomial_trade_greeks_third_order", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_third_order::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_binomial_trade_greeks_third_order", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1495,7 +1495,7 @@ CELLS = [
     ("option_history_binomial_trade_greeks_third_order", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_binomial_trade_greeks_third_order::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_binomial_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_binomial_trade_greeks_third_order", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_binomial_trade_greeks_third_order("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, binomial_steps=51, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_greeks_implied_volatility", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1521,14 +1521,14 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_greeks_implied_volatility", "with_rate_value", "standard", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_greeks_implied_volatility", "with_version", "standard", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_greeks_implied_volatility", "with_version", "standard", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::with_strike_range
     #   rationale: strike_range=10 optional filter wiring
     ("option_history_greeks_implied_volatility", "with_strike_range", "standard", "strike_range=10 optional filter wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", strike_range=10, date="20250303", start_time="09:30:00", end_time="10:00:00", timeout_ms=SLOW_MODE_TIMEOUT_MS)),
     # option_history_greeks_implied_volatility::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_greeks_implied_volatility", "all_optionals", "standard", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", date="20250303", interval="1m", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", strike_range=10, start_date="20250303", end_date="20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_history_trade_greeks_implied_volatility", "concrete", "professional", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1557,8 +1557,8 @@ CELLS = [
     #   rationale: rate_value=0.05 optional Greeks-input wiring
     ("option_history_trade_greeks_implied_volatility", "with_rate_value", "professional", "rate_value=0.05 optional Greeks-input wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", rate_value=0.05, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_version
-    #   rationale: version=dg3 optional Greeks-version selector wiring
-    ("option_history_trade_greeks_implied_volatility", "with_version", "professional", "version=dg3 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", version="dg3", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    #   rationale: version=1 optional Greeks-version selector wiring
+    ("option_history_trade_greeks_implied_volatility", "with_version", "professional", "version=1 optional Greeks-version selector wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", version="1", date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
     ("option_history_trade_greeks_implied_volatility", "with_max_dte", "professional", "max_dte=30 optional filter wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", max_dte=30, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
@@ -1570,7 +1570,7 @@ CELLS = [
     ("option_history_trade_greeks_implied_volatility", "with_perf_boost_intraday", "professional", "perf_boost_intraday=true optional flag wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", perf_boost_intraday=True, date="20250303", strike="570", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_history_trade_greeks_implied_volatility::all_optionals
     #   rationale: every applicable optional set at once — proves multi-optional wiring
-    ("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="dg3", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_history_trade_greeks_implied_volatility", "all_optionals", "professional", "every applicable optional set at once — proves multi-optional wiring", lambda: market_data.option_history_trade_greeks_implied_volatility("SPY", "20250321", strike="570", right="call", date="20250303", start_time="09:30:00", end_time="10:00:00", annual_dividend=0.015, rate_type="sofr", rate_value=0.05, version="1", max_dte=30, strike_range=10, start_date="20250303", end_date="20250303", perf_boost_intraday=True, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_at_time_trade::concrete
     #   rationale: required params set, plus the date the vendor needs where it is optional — baseline wire path
     ("option_at_time_trade", "concrete", "standard", "required params set, plus the date the vendor needs where it is optional — baseline wire path", lambda: market_data.option_at_time_trade("SPY", "20250321", "20250303", "20250303", "12:00:00.000", timeout_ms=PER_CELL_TIMEOUT_MS)),
