@@ -750,13 +750,16 @@ async fn channel_surfaces_non_ok_status_as_rpc_error() {
 async fn channel_rejects_connect_to_closed_port() {
     // Bind a port, then drop the listener so the connect target is
     // unreachable. The connect call must surface a clean error rather
-    // than hang.
+    // than hang. The deadline is a hang guard, not a latency bound: a
+    // dial first waits for a slot in the process-wide connection budget,
+    // and every other test in this binary is competing for the same
+    // slots.
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let port = listener.local_addr().unwrap().port();
     drop(listener);
 
     let result = tokio::time::timeout(
-        Duration::from_secs(2),
+        Duration::from_secs(30),
         Channel::connect_h2c("127.0.0.1", port),
     )
     .await

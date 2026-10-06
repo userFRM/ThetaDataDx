@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A client no longer rate-limits itself out of the vendor's services.** The vendor blocks a public address that opens about 20 new connections to its streaming or market-data services within 2 seconds, and the block can last an hour. While it holds, every new connection from that address times out, so a client cannot recover until it clears. Nothing here paced new connections, and two ordinary paths reached that rate on their own: a market-data client opened its whole channel pool back to back, 8 connections on the Pro tier and more when `max_concurrent_requests` is raised, and during a short outage every retry of a request whose connection had gone dialled again, with one retry per pool channel running at a time. A server-side failure of a few seconds could therefore end in an hour-long block, far longer than the fault that caused it. New connections now take a slot in one process-wide budget shared by the market-data pool, the streaming client and flat-file downloads, which hands out at most 12 in any 2-second window and opens the first few immediately, so a pool opens over about a second rather than all at once. Waiting for a slot stays inside the caller's own deadline and cancellation, and the connect timeout still bounds the connect itself rather than the wait for a slot. Requests that queue behind a dial on the same channel now share its outcome, so one failed dial fails them all instead of each opening another connection against a peer that has just refused one. The connect timeout also covers the HTTP/2 session setup now, so no phase of a dial to a stalled peer is unbounded. Established connections never touch the budget, so steady-state request handling is unchanged.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed
