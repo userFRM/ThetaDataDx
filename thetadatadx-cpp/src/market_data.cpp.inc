@@ -246,11 +246,29 @@ std::vector<GreeksAllTick> MarketDataClient::option_snapshot_greeks_all(const st
     return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
 }
 
+std::vector<GreeksAllTick> MarketDataClient::option_snapshot_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
+}
+
 std::vector<GreeksFirstOrderTick> MarketDataClient::option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_snapshot_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
+}
+
+std::vector<GreeksFirstOrderTick> MarketDataClient::option_snapshot_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
 }
@@ -264,11 +282,29 @@ std::vector<GreeksSecondOrderTick> MarketDataClient::option_snapshot_greeks_seco
     return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
 }
 
+std::vector<GreeksSecondOrderTick> MarketDataClient::option_snapshot_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
+}
+
 std::vector<GreeksThirdOrderTick> MarketDataClient::option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_snapshot_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
+}
+
+std::vector<GreeksThirdOrderTick> MarketDataClient::option_snapshot_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
 }
@@ -336,11 +372,29 @@ std::vector<GreeksEodTick> MarketDataClient::option_history_greeks_eod(const std
     return detail::check_tick_array<GreeksEodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_eod_tick_array_free);
 }
 
+std::vector<GreeksEodTick> MarketDataClient::option_history_binomial_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_eod_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksEodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_eod_tick_array_free);
+}
+
 std::vector<GreeksAllTick> MarketDataClient::option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
+}
+
+std::vector<GreeksAllTick> MarketDataClient::option_history_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
 }
@@ -354,11 +408,29 @@ std::vector<TradeGreeksAllTick> MarketDataClient::option_history_trade_greeks_al
     return detail::check_tick_array<TradeGreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_all_tick_array_free);
 }
 
+std::vector<TradeGreeksAllTick> MarketDataClient::option_history_binomial_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_all_tick_array_free);
+}
+
 std::vector<GreeksFirstOrderTick> MarketDataClient::option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
+}
+
+std::vector<GreeksFirstOrderTick> MarketDataClient::option_history_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
 }
@@ -372,11 +444,29 @@ std::vector<TradeGreeksFirstOrderTick> MarketDataClient::option_history_trade_gr
     return detail::check_tick_array<TradeGreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_first_order_tick_array_free);
 }
 
+std::vector<TradeGreeksFirstOrderTick> MarketDataClient::option_history_binomial_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_first_order_tick_array_free);
+}
+
 std::vector<GreeksSecondOrderTick> MarketDataClient::option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
+}
+
+std::vector<GreeksSecondOrderTick> MarketDataClient::option_history_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
 }
@@ -390,6 +480,15 @@ std::vector<TradeGreeksSecondOrderTick> MarketDataClient::option_history_trade_g
     return detail::check_tick_array<TradeGreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_second_order_tick_array_free);
 }
 
+std::vector<TradeGreeksSecondOrderTick> MarketDataClient::option_history_binomial_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_second_order_tick_array_free);
+}
+
 std::vector<GreeksThirdOrderTick> MarketDataClient::option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -399,11 +498,29 @@ std::vector<GreeksThirdOrderTick> MarketDataClient::option_history_greeks_third_
     return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
 }
 
+std::vector<GreeksThirdOrderTick> MarketDataClient::option_history_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
+}
+
 std::vector<TradeGreeksThirdOrderTick> MarketDataClient::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_trade_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_third_order_tick_array_free);
+}
+
+std::vector<TradeGreeksThirdOrderTick> MarketDataClient::option_history_binomial_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_third_order_tick_array_free);
 }
@@ -816,11 +933,29 @@ std::vector<GreeksAllTick> MarketData::option_snapshot_greeks_all(const std::str
     return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
 }
 
+std::vector<GreeksAllTick> MarketData::option_snapshot_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
+}
+
 std::vector<GreeksFirstOrderTick> MarketData::option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_snapshot_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
+}
+
+std::vector<GreeksFirstOrderTick> MarketData::option_snapshot_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
 }
@@ -834,11 +969,29 @@ std::vector<GreeksSecondOrderTick> MarketData::option_snapshot_greeks_second_ord
     return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
 }
 
+std::vector<GreeksSecondOrderTick> MarketData::option_snapshot_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
+}
+
 std::vector<GreeksThirdOrderTick> MarketData::option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_snapshot_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
+}
+
+std::vector<GreeksThirdOrderTick> MarketData::option_snapshot_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_snapshot_binomial_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
 }
@@ -906,11 +1059,29 @@ std::vector<GreeksEodTick> MarketData::option_history_greeks_eod(const std::stri
     return detail::check_tick_array<GreeksEodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_eod_tick_array_free);
 }
 
+std::vector<GreeksEodTick> MarketData::option_history_binomial_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_eod_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksEodTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_eod_tick_array_free);
+}
+
 std::vector<GreeksAllTick> MarketData::option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
+}
+
+std::vector<GreeksAllTick> MarketData::option_history_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_all_tick_array_free);
 }
@@ -924,11 +1095,29 @@ std::vector<TradeGreeksAllTick> MarketData::option_history_trade_greeks_all(cons
     return detail::check_tick_array<TradeGreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_all_tick_array_free);
 }
 
+std::vector<TradeGreeksAllTick> MarketData::option_history_binomial_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_all_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksAllTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_all_tick_array_free);
+}
+
 std::vector<GreeksFirstOrderTick> MarketData::option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
+}
+
+std::vector<GreeksFirstOrderTick> MarketData::option_history_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_first_order_tick_array_free);
 }
@@ -942,11 +1131,29 @@ std::vector<TradeGreeksFirstOrderTick> MarketData::option_history_trade_greeks_f
     return detail::check_tick_array<TradeGreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_first_order_tick_array_free);
 }
 
+std::vector<TradeGreeksFirstOrderTick> MarketData::option_history_binomial_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_first_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksFirstOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_first_order_tick_array_free);
+}
+
 std::vector<GreeksSecondOrderTick> MarketData::option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
+}
+
+std::vector<GreeksSecondOrderTick> MarketData::option_history_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<GreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_second_order_tick_array_free);
 }
@@ -960,6 +1167,15 @@ std::vector<TradeGreeksSecondOrderTick> MarketData::option_history_trade_greeks_
     return detail::check_tick_array<TradeGreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_second_order_tick_array_free);
 }
 
+std::vector<TradeGreeksSecondOrderTick> MarketData::option_history_binomial_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_second_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksSecondOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_second_order_tick_array_free);
+}
+
 std::vector<GreeksThirdOrderTick> MarketData::option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
@@ -969,11 +1185,29 @@ std::vector<GreeksThirdOrderTick> MarketData::option_history_greeks_third_order(
     return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
 }
 
+std::vector<GreeksThirdOrderTick> MarketData::option_history_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<GreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_greeks_third_order_tick_array_free);
+}
+
 std::vector<TradeGreeksThirdOrderTick> MarketData::option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
     ThetaDataDxColumnPresence presence_raw{nullptr, 0};
     auto arr = thetadatadx_option_history_trade_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
+    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
+    return detail::check_tick_array<TradeGreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_third_order_tick_array_free);
+}
+
+std::vector<TradeGreeksThirdOrderTick> MarketData::option_history_binomial_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options, ColumnPresence* out_columns) const {
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    ThetaDataDxColumnPresence presence_raw{nullptr, 0};
+    auto arr = thetadatadx_option_history_binomial_trade_greeks_third_order_with_options(market_data_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw, out_columns ? &presence_raw : nullptr);
     if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }
     return detail::check_tick_array<TradeGreeksThirdOrderTick>(arr, [](auto a){ return detail::to_vector(a.data, a.len); }, thetadatadx_trade_greeks_third_order_tick_array_free);
 }

@@ -190,6 +190,87 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
             let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
+        "option_history_binomial_greeks_all" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksAllTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_greeks_eod" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksEodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_eod_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_greeks_first_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_greeks_second_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_greeks_third_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_trade_greeks_all" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_trade_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(trade_greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_trade_greeks_first_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_trade_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(trade_greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_trade_greeks_second_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_trade_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(trade_greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_history_binomial_trade_greeks_third_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_trade_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(trade_greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
         "option_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
             let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
@@ -351,6 +432,42 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
             let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
             let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(option_contracts_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_snapshot_binomial_greeks_all" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksAllTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_snapshot_binomial_greeks_first_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_snapshot_binomial_greeks_second_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
+        }
+        "option_snapshot_binomial_greeks_third_order" => {
+            let table = decode_chunks_into_table(&refs)?;
+            let rows = thetadatadx::decode::parse_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let columns = if columns.contains("symbol") { columns } else { match thetadatadx::decode::response_symbol(&table) { thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns } };
+            let ticks = thetadatadx::Ticks::new(rows, columns);
+            Ok(greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;

@@ -56,8 +56,12 @@ struct EndpointRequestOptions {
     std::optional<std::string> version;
     /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
     std::optional<bool> use_market_value;
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    std::optional<int32_t> binomial_steps;
     /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     std::optional<bool> underlyer_use_nbbo;
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    std::optional<bool> perf_boost_intraday;
     /// Per-call deadline in milliseconds.
     std::optional<uint64_t> timeout_ms;
 
@@ -141,8 +145,16 @@ struct EndpointRequestOptions {
         use_market_value = value;
         return *this;
     }
+    EndpointRequestOptions& with_binomial_steps(int32_t value) {
+        binomial_steps = value;
+        return *this;
+    }
     EndpointRequestOptions& with_underlyer_use_nbbo(bool value) {
         underlyer_use_nbbo = value;
+        return *this;
+    }
+    EndpointRequestOptions& with_perf_boost_intraday(bool value) {
+        perf_boost_intraday = value;
         return *this;
     }
     EndpointRequestOptions& with_timeout_ms(uint64_t value) {
@@ -258,9 +270,17 @@ struct FfiEndpointRequestOptions {
             raw.use_market_value = *options.use_market_value ? 1 : 0;
             raw.has_use_market_value = 1;
         }
+        if (options.binomial_steps) {
+            raw.binomial_steps = *options.binomial_steps;
+            raw.has_binomial_steps = 1;
+        }
         if (options.underlyer_use_nbbo) {
             raw.underlyer_use_nbbo = *options.underlyer_use_nbbo ? 1 : 0;
             raw.has_underlyer_use_nbbo = 1;
+        }
+        if (options.perf_boost_intraday) {
+            raw.perf_boost_intraday = *options.perf_boost_intraday ? 1 : 0;
+            raw.has_perf_boost_intraday = 1;
         }
         if (options.timeout_ms) {
             raw.timeout_ms = *options.timeout_ms;

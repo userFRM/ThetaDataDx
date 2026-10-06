@@ -1,6 +1,6 @@
 ---
-title: Second-Order Trade Greeks
-description: "Fetch second-order Greeks on each trade for an option contract."
+title: Second-Order Binomial Greeks
+description: "Fetch second-order binomial Greeks history (intraday, sampled by interval)."
 aside: false
 ---
 
@@ -8,28 +8,30 @@ aside: false
 
 <script setup>
 const cfg = {
-  httpPath: "v3/option/history/trade_greeks/second_order",
-  method: { rust: "option_history_trade_greeks_second_order", python: "option_history_trade_greeks_second_order", ts: "optionHistoryTradeGreeksSecondOrder", cpp: "option_history_trade_greeks_second_order" },
+  httpPath: "v3/option/history/binomial_greeks/second_order",
+  method: { rust: "option_history_binomial_greeks_second_order", python: "option_history_binomial_greeks_second_order", ts: "optionHistoryBinomialGreeksSecondOrder", cpp: "option_history_binomial_greeks_second_order" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
-  print: ["ms_of_day", "price", "gamma", "vanna"],
-  returns: "TradeGreeksSecondOrderTick",
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "interval", type: "string", default: "1m" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  print: ["date", "gamma", "vanna", "charm"],
+  returns: "GreeksSecondOrderTick",
   sample: [
-    {"charm":-1.0514,"condition":125,"exchange":9,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"gamma":0.0006,"implied_vol":0.5749,"iv_error":0.0132,"price":0.01,"sequence":156249981,"size":1,"timestamp":"2024-11-04T09:53:54.069","underlying_price":221.33,"underlying_timestamp":"2024-11-04T09:53:54","vanna":0.0398,"veta":0.0137,"vomma":2.5798},
+    {"ask":2.78,"bid":2.75,"charm":-2.2947,"gamma":0.0516,"implied_vol":0.3222,"iv_error":0.0002,"timestamp":"2024-11-04T10:30:00.000","underlying_price":221.73,"underlying_timestamp":"2024-11-04T10:30:00.000","vanna":0.1251,"veta":413.6358,"vomma":0.1983},
+    {"ask":2.53,"bid":2.51,"charm":-2.9472,"gamma":0.0538,"implied_vol":0.3103,"iv_error":0.0001,"timestamp":"2024-11-04T11:30:00.000","underlying_price":221.49,"underlying_timestamp":"2024-11-04T11:30:00.000","vanna":0.1752,"veta":417.5248,"vomma":0.4303},
   ],
 }
 </script>
 
-# Second-Order Trade Greeks
+# Second-Order Binomial Greeks
 
 <TierBadge tier="professional" />
 
-Fetch second-order Greeks on each trade for an option contract.
+Fetch second-order binomial Greeks history (intraday, sampled by interval).
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
-- Calculates greeks for every trade reported by OPRA.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
 - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
-- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+- Multi-day requests are limited to 1 month of data.
 
 <RequestBuilder :cfg="cfg" />
 
@@ -38,39 +40,32 @@ Fetch second-order Greeks on each trade for an option contract.
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD. Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
+| `expiration` | date | yes | — | Expiration date YYYYMMDD |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. |
 | `date` | date | no | — | Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. |
+| `interval` | string | no | `1s` | Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. |
 | `start_time` | string | no | `09:30:00` | Start time filter |
 | `end_time` | string | no | `16:00:00` | End time filter |
 | `annual_dividend` | float | no | — | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
 | `rate_type` | string | no | `sofr` | Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. |
 | `rate_value` | float | no | — | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
+| `binomial_steps` | int | no | `101` | Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. |
 | `version` | string | no | `latest` | Greeks model version. Accepted values: `latest`, `1`. |
-| `max_dte` | int | no | — | Maximum days to expiration |
 | `strike_range` | int | no | — | Strike range filter |
 | `start_date` | date | no | — | Start date YYYYMMDD |
 | `end_date` | date | no | — | End date YYYYMMDD |
-| `perf_boost_intraday` | bool | no | `false` | When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. |
 | `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response
 
-Rows of `TradeGreeksSecondOrderTick`:
+Rows of `GreeksSecondOrderTick`:
 
 | Field | Type | Description |
 |---|---|---|
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
-| `sequence` | i32 | Exchange-assigned trade sequence number. |
-| `ext_condition1` | i32 | Additional trade condition code. |
-| `ext_condition2` | i32 | Additional trade condition code. |
-| `ext_condition3` | i32 | Additional trade condition code. |
-| `ext_condition4` | i32 | Additional trade condition code. |
-| `condition` | i32 | Trade condition code. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
-| `size` | i32 | Number of contracts or shares traded. |
-| `exchange` | i32 | Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
-| `price` | f64 | Trade price. |
+| `bid` | f64 | Last NBBO bid price. |
+| `ask` | f64 | Last NBBO ask price. |
 | `gamma` | f64 | Rate of change of delta with respect to the underlying price. |
 | `vanna` | f64 | Sensitivity of delta to a change in implied volatility. |
 | `charm` | f64 | Rate of change of delta over time. |

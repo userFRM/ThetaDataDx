@@ -614,6 +614,40 @@ pub struct OptionSnapshotGreeksAllRequest {
     pub params: ::core::option::Option<OptionSnapshotGreeksAllRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksAllRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, tag = "2")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "3")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "4")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "5")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "6")]
+    pub stock_price: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "7")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "8")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "9")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "10")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "12")]
+    pub use_market_value: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksAllRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionSnapshotBinomialGreeksAllRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksFirstOrderRequestQuery {
     #[prost(message, optional, tag = "1")]
     pub contract_spec: ::core::option::Option<ContractSpec>,
@@ -644,6 +678,42 @@ pub struct OptionSnapshotGreeksFirstOrderRequest {
     pub query_info: ::core::option::Option<QueryInfo>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<OptionSnapshotGreeksFirstOrderRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksFirstOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, tag = "2")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "3")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "4")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "5")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "6")]
+    pub stock_price: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "7")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "8")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "9")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "10")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "12")]
+    pub use_market_value: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksFirstOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionSnapshotBinomialGreeksFirstOrderRequestQuery,
+    >,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksSecondOrderRequestQuery {
@@ -678,6 +748,42 @@ pub struct OptionSnapshotGreeksSecondOrderRequest {
     pub params: ::core::option::Option<OptionSnapshotGreeksSecondOrderRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksSecondOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, tag = "2")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "3")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "4")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "5")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "6")]
+    pub stock_price: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "7")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "8")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "9")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "10")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "12")]
+    pub use_market_value: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksSecondOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionSnapshotBinomialGreeksSecondOrderRequestQuery,
+    >,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionSnapshotGreeksThirdOrderRequestQuery {
     #[prost(message, optional, tag = "1")]
     pub contract_spec: ::core::option::Option<ContractSpec>,
@@ -708,6 +814,42 @@ pub struct OptionSnapshotGreeksThirdOrderRequest {
     pub query_info: ::core::option::Option<QueryInfo>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<OptionSnapshotGreeksThirdOrderRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksThirdOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, tag = "2")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "3")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "4")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "5")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "6")]
+    pub stock_price: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "7")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "8")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "9")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "10")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub min_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "12")]
+    pub use_market_value: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionSnapshotBinomialGreeksThirdOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionSnapshotBinomialGreeksThirdOrderRequestQuery,
+    >,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct OptionHistoryEodRequestQuery {
@@ -904,6 +1046,40 @@ pub struct OptionHistoryGreeksEodRequest {
     pub params: ::core::option::Option<OptionHistoryGreeksEodRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksEodRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, tag = "2")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub start_date: ::prost::alloc::string::String,
+    #[prost(string, tag = "4")]
+    pub end_date: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "5")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "6")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "7")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "8")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "9")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "10")]
+    pub underlyer_use_nbbo: ::core::option::Option<bool>,
+    #[prost(int32, optional, tag = "11")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksEodRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionHistoryBinomialGreeksEodRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryGreeksAllRequestQuery {
     #[prost(message, optional, tag = "1")]
     pub contract_spec: ::core::option::Option<ContractSpec>,
@@ -940,6 +1116,44 @@ pub struct OptionHistoryGreeksAllRequest {
     pub params: ::core::option::Option<OptionHistoryGreeksAllRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksAllRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "6")]
+    pub interval: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "7")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "8")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "9")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "10")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksAllRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionHistoryBinomialGreeksAllRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksAllRequestQuery {
     #[prost(message, optional, tag = "1")]
     pub contract_spec: ::core::option::Option<ContractSpec>,
@@ -967,6 +1181,8 @@ pub struct OptionHistoryTradeGreeksAllRequestQuery {
     pub start_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "13")]
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "14")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksAllRequest {
@@ -974,6 +1190,46 @@ pub struct OptionHistoryTradeGreeksAllRequest {
     pub query_info: ::core::option::Option<QueryInfo>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<OptionHistoryTradeGreeksAllRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksAllRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "6")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "7")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "8")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "9")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "10")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "11")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "15")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksAllRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<OptionHistoryBinomialTradeGreeksAllRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryGreeksFirstOrderRequestQuery {
@@ -1015,6 +1271,46 @@ pub struct OptionHistoryGreeksFirstOrderRequest {
     pub params: ::core::option::Option<OptionHistoryGreeksFirstOrderRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksFirstOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "6")]
+    pub interval: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "7")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "8")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "9")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "10")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksFirstOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionHistoryBinomialGreeksFirstOrderRequestQuery,
+    >,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksFirstOrderRequestQuery {
     #[prost(message, optional, tag = "1")]
     pub contract_spec: ::core::option::Option<ContractSpec>,
@@ -1042,6 +1338,8 @@ pub struct OptionHistoryTradeGreeksFirstOrderRequestQuery {
     pub start_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "13")]
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "14")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksFirstOrderRequest {
@@ -1049,6 +1347,48 @@ pub struct OptionHistoryTradeGreeksFirstOrderRequest {
     pub query_info: ::core::option::Option<QueryInfo>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<OptionHistoryTradeGreeksFirstOrderRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksFirstOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "6")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "7")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "8")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "9")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "10")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "11")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "15")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksFirstOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionHistoryBinomialTradeGreeksFirstOrderRequestQuery,
+    >,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryGreeksSecondOrderRequestQuery {
@@ -1087,6 +1427,46 @@ pub struct OptionHistoryGreeksSecondOrderRequest {
     pub params: ::core::option::Option<OptionHistoryGreeksSecondOrderRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksSecondOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "6")]
+    pub interval: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "7")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "8")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "9")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "10")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksSecondOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionHistoryBinomialGreeksSecondOrderRequestQuery,
+    >,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksSecondOrderRequestQuery {
     #[prost(message, optional, tag = "1")]
     pub contract_spec: ::core::option::Option<ContractSpec>,
@@ -1114,6 +1494,8 @@ pub struct OptionHistoryTradeGreeksSecondOrderRequestQuery {
     pub start_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "13")]
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "14")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksSecondOrderRequest {
@@ -1121,6 +1503,48 @@ pub struct OptionHistoryTradeGreeksSecondOrderRequest {
     pub query_info: ::core::option::Option<QueryInfo>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<OptionHistoryTradeGreeksSecondOrderRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksSecondOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "6")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "7")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "8")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "9")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "10")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "11")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "15")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksSecondOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionHistoryBinomialTradeGreeksSecondOrderRequestQuery,
+    >,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryGreeksThirdOrderRequestQuery {
@@ -1159,6 +1583,46 @@ pub struct OptionHistoryGreeksThirdOrderRequest {
     pub params: ::core::option::Option<OptionHistoryGreeksThirdOrderRequestQuery>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksThirdOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "6")]
+    pub interval: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "7")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "8")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "9")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "10")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "11")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialGreeksThirdOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionHistoryBinomialGreeksThirdOrderRequestQuery,
+    >,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksThirdOrderRequestQuery {
     #[prost(message, optional, tag = "1")]
     pub contract_spec: ::core::option::Option<ContractSpec>,
@@ -1186,6 +1650,8 @@ pub struct OptionHistoryTradeGreeksThirdOrderRequestQuery {
     pub start_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "13")]
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "14")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksThirdOrderRequest {
@@ -1193,6 +1659,48 @@ pub struct OptionHistoryTradeGreeksThirdOrderRequest {
     pub query_info: ::core::option::Option<QueryInfo>,
     #[prost(message, optional, tag = "2")]
     pub params: ::core::option::Option<OptionHistoryTradeGreeksThirdOrderRequestQuery>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksThirdOrderRequestQuery {
+    #[prost(message, optional, tag = "1")]
+    pub contract_spec: ::core::option::Option<ContractSpec>,
+    #[prost(string, optional, tag = "2")]
+    pub date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "3")]
+    pub expiration: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "4")]
+    pub start_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub end_time: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "6")]
+    pub annual_dividend: ::core::option::Option<f64>,
+    #[prost(string, optional, tag = "7")]
+    pub rate_type: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(double, optional, tag = "8")]
+    pub rate_value: ::core::option::Option<f64>,
+    #[prost(int32, optional, tag = "9")]
+    pub binomial_steps: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "10")]
+    pub version: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(int32, optional, tag = "11")]
+    pub max_dte: ::core::option::Option<i32>,
+    #[prost(int32, optional, tag = "12")]
+    pub strike_range: ::core::option::Option<i32>,
+    #[prost(string, optional, tag = "13")]
+    pub start_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "14")]
+    pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "15")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct OptionHistoryBinomialTradeGreeksThirdOrderRequest {
+    #[prost(message, optional, tag = "1")]
+    pub query_info: ::core::option::Option<QueryInfo>,
+    #[prost(message, optional, tag = "2")]
+    pub params: ::core::option::Option<
+        OptionHistoryBinomialTradeGreeksThirdOrderRequestQuery,
+    >,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryGreeksImpliedVolatilityRequestQuery {
@@ -1261,6 +1769,8 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityRequestQuery {
     pub start_date: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(string, optional, tag = "13")]
     pub end_date: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(bool, optional, tag = "14")]
+    pub perf_boost_intraday: ::core::option::Option<bool>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct OptionHistoryTradeGreeksImpliedVolatilityRequest {
@@ -2103,6 +2613,27 @@ pub mod beta_theta_terminal {
             .await
     }
     ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksAll`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_snapshot_binomial_greeks_all(
+        channel: &crate::grpc::Channel,
+        req: super::OptionSnapshotBinomialGreeksAllRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionSnapshotBinomialGreeksAllRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksAll", req)
+            .await
+    }
+    ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotGreeksFirstOrder`.
     ///
     /// # Errors
@@ -2121,6 +2652,30 @@ pub mod beta_theta_terminal {
                 super::OptionSnapshotGreeksFirstOrderRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotGreeksFirstOrder", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksFirstOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_snapshot_binomial_greeks_first_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionSnapshotBinomialGreeksFirstOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionSnapshotBinomialGreeksFirstOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksFirstOrder",
+                req,
+            )
             .await
     }
     ///
@@ -2145,6 +2700,30 @@ pub mod beta_theta_terminal {
             .await
     }
     ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksSecondOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_snapshot_binomial_greeks_second_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionSnapshotBinomialGreeksSecondOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionSnapshotBinomialGreeksSecondOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksSecondOrder",
+                req,
+            )
+            .await
+    }
+    ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotGreeksThirdOrder`.
     ///
     /// # Errors
@@ -2163,6 +2742,30 @@ pub mod beta_theta_terminal {
                 super::OptionSnapshotGreeksThirdOrderRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotGreeksThirdOrder", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksThirdOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_snapshot_binomial_greeks_third_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionSnapshotBinomialGreeksThirdOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionSnapshotBinomialGreeksThirdOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionSnapshotBinomialGreeksThirdOrder",
+                req,
+            )
             .await
     }
     ///
@@ -2313,6 +2916,27 @@ pub mod beta_theta_terminal {
             .await
     }
     ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksEod`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_greeks_eod(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialGreeksEodRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialGreeksEodRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksEod", req)
+            .await
+    }
+    ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksAll`.
     ///
     /// # Errors
@@ -2331,6 +2955,27 @@ pub mod beta_theta_terminal {
                 super::OptionHistoryGreeksAllRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksAll", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksAll`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_greeks_all(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialGreeksAllRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialGreeksAllRequest,
+                super::ResponseData,
+            >("/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksAll", req)
             .await
     }
     ///
@@ -2355,6 +3000,30 @@ pub mod beta_theta_terminal {
             .await
     }
     ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksAll`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_trade_greeks_all(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialTradeGreeksAllRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialTradeGreeksAllRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksAll",
+                req,
+            )
+            .await
+    }
+    ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksFirstOrder`.
     ///
     /// # Errors
@@ -2373,6 +3042,30 @@ pub mod beta_theta_terminal {
                 super::OptionHistoryGreeksFirstOrderRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksFirstOrder", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksFirstOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_greeks_first_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialGreeksFirstOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialGreeksFirstOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksFirstOrder",
+                req,
+            )
             .await
     }
     ///
@@ -2400,6 +3093,30 @@ pub mod beta_theta_terminal {
             .await
     }
     ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksFirstOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_trade_greeks_first_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialTradeGreeksFirstOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialTradeGreeksFirstOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksFirstOrder",
+                req,
+            )
+            .await
+    }
+    ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksSecondOrder`.
     ///
     /// # Errors
@@ -2418,6 +3135,30 @@ pub mod beta_theta_terminal {
                 super::OptionHistoryGreeksSecondOrderRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksSecondOrder", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksSecondOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_greeks_second_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialGreeksSecondOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialGreeksSecondOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksSecondOrder",
+                req,
+            )
             .await
     }
     ///
@@ -2445,6 +3186,30 @@ pub mod beta_theta_terminal {
             .await
     }
     ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksSecondOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_trade_greeks_second_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialTradeGreeksSecondOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialTradeGreeksSecondOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksSecondOrder",
+                req,
+            )
+            .await
+    }
+    ///
     /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksThirdOrder`.
     ///
     /// # Errors
@@ -2463,6 +3228,30 @@ pub mod beta_theta_terminal {
                 super::OptionHistoryGreeksThirdOrderRequest,
                 super::ResponseData,
             >("/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryGreeksThirdOrder", req)
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksThirdOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_greeks_third_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialGreeksThirdOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialGreeksThirdOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialGreeksThirdOrder",
+                req,
+            )
             .await
     }
     ///
@@ -2485,6 +3274,30 @@ pub mod beta_theta_terminal {
                 super::ResponseData,
             >(
                 "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryTradeGreeksThirdOrder",
+                req,
+            )
+            .await
+    }
+    ///
+    /// gRPC method: `/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksThirdOrder`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`crate::grpc::ChannelError`] when the RPC fails to open
+    /// or the server's response head is malformed.
+    pub async fn get_option_history_binomial_trade_greeks_third_order(
+        channel: &crate::grpc::Channel,
+        req: super::OptionHistoryBinomialTradeGreeksThirdOrderRequest,
+    ) -> Result<
+        crate::grpc::ServerStreaming<super::ResponseData>,
+        crate::grpc::ChannelError,
+    > {
+        channel
+            .server_streaming::<
+                super::OptionHistoryBinomialTradeGreeksThirdOrderRequest,
+                super::ResponseData,
+            >(
+                "/BetaEndpoints.BetaThetaTerminal/GetOptionHistoryBinomialTradeGreeksThirdOrder",
                 req,
             )
             .await

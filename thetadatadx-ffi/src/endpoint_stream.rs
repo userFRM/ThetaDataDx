@@ -847,6 +847,78 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_stream(
     })
 }
 
+/// Fetch end-of-day binomial Greeks history for an option contract.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    start_date: *const c_char
+,
+    end_date: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let start_date = require_cstr!(start_date, empty);
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = require_cstr!(end_date, empty);
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_eod", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
@@ -895,6 +967,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_stream(
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
         }) {
             Ok(()) => 0,
             Err(error) => {
@@ -963,6 +1093,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_stream(
     })
 }
 
+/// Fetch all binomial Greeks on each trade for an option contract.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_all", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch first-order Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
@@ -1011,6 +1199,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_stream(
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
         }) {
             Ok(()) => 0,
             Err(error) => {
@@ -1079,6 +1325,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_str
     })
 }
 
+/// Fetch first-order binomial Greeks on each trade for an option contract.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_order_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_first_order", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch second-order Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
@@ -1127,6 +1431,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_stream(
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
         }) {
             Ok(()) => 0,
             Err(error) => {
@@ -1195,6 +1557,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_st
     })
 }
 
+/// Fetch second-order binomial Greeks on each trade for an option contract.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second_order_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_second_order", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch third-order Greeks history (intraday, sampled by interval).
 ///
 /// Stream the result chunk-by-chunk through `callback` without
@@ -1253,6 +1673,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_stream(
     })
 }
 
+/// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch third-order Greeks on each trade for an option contract.
 ///
 /// Stream the result chunk-by-chunk through `callback` without
@@ -1301,6 +1779,64 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_str
         let sink = TickChunkSink { callback, ctx };
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_trade_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
+        }) {
+            Ok(()) => 0,
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch third-order binomial Greeks on each trade for an option contract.
+///
+/// Stream the result chunk-by-chunk through `callback` without
+/// materialising the full response. `callback(rows, len, ctx)` is
+/// invoked once per server chunk with a pointer to a contiguous run
+/// of the endpoint's tick struct (the same layout the buffered
+/// `_with_options` array returns); the chunk is freed before the next
+/// is fetched, so peak memory tracks a single chunk. Accepts the same
+/// optional builder parameters as the buffered form. Returns 0 on a
+/// clean drain, -1 on error (inspect `thetadatadx_last_error`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_order_stream(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    callback: Option<ThetaDataDxTickChunkCallback>,
+    ctx: *mut c_void,
+    options: *const ThetaDataDxEndpointRequestOptions,
+) -> i32 {
+    ffi_boundary!(-1, {
+        let empty = -1;
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        let Some(callback) = callback else {
+            set_error("callback function pointer is null");
+            return empty;
+        };
+        let sink = TickChunkSink { callback, ctx };
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint_stream(&client.inner, "option_history_binomial_trade_greeks_third_order", &args, move |rows, len| sink.emit(rows, len)).await
         }) {
             Ok(()) => 0,
             Err(error) => {
