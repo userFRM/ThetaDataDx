@@ -9,6 +9,11 @@ surface by checking a few high-signal invariants:
 - per-route OpenAPI parameter names, required flags and defaults matching
   the same registry (a generated client must not demand a parameter the
   server treats as optional, nor hide the value an omitted one takes)
+- each option route's documented `expiration` pattern accepting the `*`
+  wildcard exactly where the pinned vendor spec accepts it
+- every route's `x-code-examples` being the call the registry's signature
+  actually takes, rendered from the registry rather than kept by hand
+  (`--write-examples` rewrites them)
 - one generated docs-site reference page per registry endpoint (and no
   stale extras), each carrying the fixed page anatomy markers
 - `llms.txt` covering every page on the site (and naming no deleted page)
@@ -55,6 +60,17 @@ OPENAPI_SERVER_URL = "http://localhost:25503"
 
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
+
+# The pinned snapshot of the vendor's own v3 spec, the source of truth for
+# which option endpoints accept `expiration=*`. Upstream models the two cases
+# as separate components (`expiration` / `expiration_no_star`) and the Rust
+# generator already derives `supports_expiration_wildcard` per endpoint from
+# this file for the live validator's wildcard cells
+# (`thetadatadx-rs/build_support_bin/upstream_openapi.rs`). Our published
+# contract makes the same distinction by hand, with one anchor per case, so
+# the gate derives the expected answer from the same snapshot rather than
+# trusting 30-odd hand-written choices to stay right.
+UPSTREAM_OPENAPI_YAML = ROOT / "scripts/ci/data/upstream_openapi.yaml"
 
 # The Rust source that is the single source of truth for the flat-file served
 # matrix: the `(SecType, ReqType)` pairs the distribution serves
@@ -1109,8 +1125,10 @@ _OPENAPI_PARAM_ITEM_RE = re.compile(r"^        - ", re.MULTILINE)
 _OPENAPI_PARAM_ALIAS_RE = re.compile(r"\*([A-Za-z0-9_-]+)\s*$")
 
 
-def _openapi_param_fields(block: str) -> tuple[str, bool, str | None] | None:
-    """`(name, required, default)` for one OpenAPI parameter node.
+def _openapi_param_fields(
+    block: str,
+) -> tuple[str, bool, str | None, str | None] | None:
+    """`(name, required, default, pattern)` for one OpenAPI parameter node.
 
     `None` when the node carries no `name:`, which is how the non-parameter
     anchors in `x-anchors` (the response envelope, the row schema) are passed
@@ -1124,17 +1142,19 @@ def _openapi_param_fields(block: str) -> tuple[str, bool, str | None] | None:
         return None
     required = re.search(r"^\s*required:\s*(true|false)\s*$", block, re.MULTILINE)
     default = re.search(r"^\s*default:\s*(\S.*?)\s*$", block, re.MULTILINE)
+    pattern = re.search(r"^\s*pattern:\s*(\S.*?)\s*$", block, re.MULTILINE)
     return (
         name.group(1),
         required is not None and required.group(1) == "true",
         default.group(1).strip("'\"") if default else None,
+        pattern.group(1).strip("'\"") if pattern else None,
     )
 
 
 def openapi_route_params(
     text: str, paths: set[str] | None = None
-) -> dict[str, dict[str, tuple[bool, str | None]]]:
-    """`{path: {param: (required, default)}}` as the checked-in spec declares it.
+) -> dict[str, dict[str, tuple[bool, str | None, str | None]]]:
+    """`{path: {param: (required, default, pattern)}}` as the spec declares it.
 
     The spec writes most parameters once under `x-anchors` and aliases them per
     route (`- *strike-param`), so the anchors are read first and an alias
@@ -1147,7 +1167,7 @@ def openapi_route_params(
     a route outside that set is passed over rather than held to a parameter
     shape this parser happens to understand.
     """
-    anchors: dict[str, tuple[str, bool, str | None]] = {}
+    anchors: dict[str, tuple[str, bool, str | None, str | None]] = {}
     for match in _OPENAPI_ANCHOR_RE.finditer(text):
         block, _ = _yaml_block(
             text, rf"^  {re.escape(match.group(1))}: &{re.escape(match.group(2))}\s*$"
@@ -1156,13 +1176,13 @@ def openapi_route_params(
         if fields is not None:
             anchors[match.group(2)] = fields
 
-    routes: dict[str, dict[str, tuple[bool, str | None]]] = {}
+    routes: dict[str, dict[str, tuple[bool, str | None, str | None]]] = {}
     for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE):
         path = match.group(1)
         if paths is not None and path not in paths:
             continue
         path_block, _ = _yaml_block(text, rf"^  {re.escape(path)}:\s*$")
-        params: dict[str, tuple[bool, str | None]] = {}
+        params: dict[str, tuple[bool, str | None, str | None]] = {}
         # A path may carry several operations; every one of their
         # `parameters:` blocks is read, so a second method is never skipped.
         position = 0
@@ -1188,7 +1208,7 @@ def openapi_route_params(
                             f"{rel(OPENAPI_YAML)} {path} has a parameter "
                             f"entry with no `name:`"
                         )
-                params[fields[0]] = (fields[1], fields[2])
+                params[fields[0]] = (fields[1], fields[2], fields[3])
         routes[path] = params
     return routes
 
@@ -1231,7 +1251,7 @@ def check_openapi_parameters(
             )
         for name in sorted(want):
             want_required, want_default = want[name]
-            got_required, got_default = got[name]
+            got_required, got_default, _ = got[name]
             if want_required != got_required:
                 fail(
                     f"{rel(OPENAPI_YAML)} {path} documents {name} as "
@@ -1248,6 +1268,357 @@ def check_openapi_parameters(
         fail(
             f"{rel(OPENAPI_YAML)} parsed to no registry route parameters "
             f"(the spec's layout changed: the gate would be blind to parameter drift)"
+        )
+
+
+def registry_route_endpoint_names() -> dict[str, str]:
+    """`{documented path: registry endpoint name}` for every route we own.
+
+    The endpoint name is the join key to the vendor snapshot, whose
+    `operationId` is the registry name verbatim. The server-only path aliases
+    resolve to the endpoint they dispatch to, so both spellings of one endpoint
+    answer to the same upstream row.
+    """
+    names = {ep["rest_path"]: ep["name"] for ep in REGISTRY_ENDPOINTS}
+    names.update(OPENAPI_ALIAS_ENDPOINTS)
+    return names
+
+
+def upstream_expiration_wildcard() -> dict[str, bool]:
+    """`{endpoint name: accepts `expiration=*`}` from the pinned vendor spec.
+
+    Upstream references one of two parameter components per operation:
+    `expiration` accepts the wildcard, `expiration_no_star` rejects it. Only
+    operations that reference one of them get an entry, so an endpoint that
+    takes no expiration at all is simply absent.
+
+    An empty result means the snapshot was refreshed into a shape this parser
+    does not recognise (upstream renamed the components, or restructured the
+    parameter blocks), which must fail loudly rather than silently excuse every
+    route. The Rust derivation fails closed on the same condition.
+    """
+    text = UPSTREAM_OPENAPI_YAML.read_text()
+    wildcard: dict[str, bool] = {}
+    operation: str | None = None
+    for line in text.splitlines():
+        match = re.match(r"^\s+operationId:\s*(\S+)\s*$", line)
+        if match:
+            operation = match.group(1)
+            continue
+        if operation is None:
+            continue
+        if "parameters/expiration_no_star" in line:
+            wildcard[operation] = False
+        elif re.search(r'parameters/expiration"?\'?\s*$', line):
+            wildcard[operation] = True
+    if not wildcard:
+        fail(
+            f"{rel(UPSTREAM_OPENAPI_YAML)} yielded no expiration component "
+            f"references, so the wildcard rule could not be derived for any "
+            f"endpoint. Upstream changed the spec's shape; update this parser."
+        )
+    return wildcard
+
+
+def check_openapi_expiration_wildcard() -> None:
+    """A documented `expiration` accepts `*` exactly where upstream does.
+
+    The contract carries two expiration anchors, one whose pattern matches the
+    `*` wildcard and one whose pattern rejects it, and the choice is made per
+    route. Made by hand, the two spellings of one endpoint drifted apart and
+    published contradictory rules for the same request. The rule is asserted
+    against the pinned vendor snapshot instead, which is where the answer
+    actually lives.
+
+    The pattern is tested by matching it against `*` rather than by reading the
+    anchor's name or looking for an escaped asterisk, so it holds whatever way
+    a future pattern spells the wildcard.
+    """
+    endpoint_names = registry_route_endpoint_names()
+    wildcard = upstream_expiration_wildcard()
+    documented = openapi_route_params(OPENAPI_YAML.read_text(), set(endpoint_names))
+    checked = 0
+    for path, params in sorted(documented.items()):
+        expiration = params.get("expiration")
+        if expiration is None:
+            continue
+        name = endpoint_names[path]
+        if name not in wildcard:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} documents an `expiration`, but "
+                f"{rel(UPSTREAM_OPENAPI_YAML)} records no expiration component "
+                f"for {name}, so the wildcard rule cannot be verified"
+            )
+        pattern = expiration[2]
+        if pattern is None:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} documents `expiration` with no "
+                f"`pattern`, so it states no rule about the `*` wildcard"
+            )
+        try:
+            allows_wildcard = re.match(pattern, "*") is not None
+        except re.error as exc:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} `expiration` pattern "
+                f"{pattern!r} is not a valid regular expression: {exc}"
+            )
+        checked += 1
+        if allows_wildcard != wildcard[name]:
+            upstream = "accepts" if wildcard[name] else "rejects"
+            ours = "accepts" if allows_wildcard else "rejects"
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} documents an `expiration` that "
+                f"{ours} the `*` wildcard, but {rel(UPSTREAM_OPENAPI_YAML)} says "
+                f"{name} {upstream} it. Alias the matching expiration anchor."
+            )
+    if checked == 0:
+        fail(
+            f"{rel(OPENAPI_YAML)} parsed to no documented `expiration` "
+            f"parameters (the spec's layout changed: the gate would be blind to "
+            f"a wrong wildcard rule)"
+        )
+
+
+# The optional parameters the published examples pin. Pinning `strike` and
+# `right` turns an option route's wildcard default into the single-contract
+# request a reader is usually after, and `interval` is the one tuning knob most
+# intraday requests set. Mirrors `showcased_builder_params` in the docs
+# generator (`build_support_bin/endpoints/docs_render/lang.rs`), which seeds the
+# reference pages' request builder from the same three.
+OPENAPI_EXAMPLE_OPTIONALS = ("strike", "right", "interval")
+
+# One example per language, in the order the document carries them, with the
+# label the renderer prints beside the snippet.
+OPENAPI_EXAMPLE_LANGS = (("rust", "Rust"), ("python", "Python"), ("cpp", "C++"))
+
+
+def _endpoint_attr(endpoint: dict, key: str) -> str | None:
+    """An endpoint attribute, resolved through its template chain."""
+    value = endpoint.get(key)
+    template_name = endpoint.get("template")
+    seen: set[str] = set()
+    while value is None and template_name is not None and template_name not in seen:
+        seen.add(template_name)
+        template = TEMPLATES.get(template_name)
+        if template is None:
+            fail(f"endpoint {endpoint['name']} references unknown template {template_name!r}")
+        value = template.get(key)
+        template_name = template.get("extends")
+    return value
+
+
+def _example_value(endpoint: dict, param: dict) -> str:
+    """The literal an example passes for `param`, from `[test_fixtures]`.
+
+    The same table the generated live validators draw from, so every published
+    example is a request those validators exercise against production. A param
+    the table cannot answer for fails the gate rather than being handed an
+    invented literal.
+    """
+    fixtures = SURFACE["test_fixtures"]
+    name, param_type = param["name"], param["param_type"]
+    override = fixtures.get("concrete_overrides", {}).get(name)
+    if override is not None:
+        return override
+    if param_type in ("Symbol", "Symbols"):
+        category = _endpoint_attr(endpoint, "category")
+        symbol = fixtures.get("category_symbol", {}).get(category)
+        if symbol is None:
+            fail(
+                f"[test_fixtures.category_symbol] has no symbol for category "
+                f"{category!r} ({endpoint['name']}), so no example value exists"
+            )
+        return symbol
+    value = fixtures.get("concrete_by_type", {}).get(param_type)
+    if value is None:
+        fail(
+            f"[test_fixtures.concrete_by_type] has no value for param type "
+            f"{param_type!r} ({endpoint['name']}.{name}), so no example value exists"
+        )
+    return value
+
+
+def _example_variable(endpoint: dict) -> str:
+    """The variable an example binds its result to, derived from the endpoint.
+
+    A list route is named for the rows it lists (`symbols`, `dates`); any other
+    is named for its return type with the `Ticks` suffix dropped
+    (`QuoteTicks` -> `quote`, `TradeGreeksAllTicks` -> `trade_greeks_all`).
+    """
+    list_column = endpoint.get("list_column")
+    if list_column is not None:
+        return f"{list_column}s"
+    returns = _endpoint_attr(endpoint, "returns")
+    if returns is None:
+        fail(f"endpoint {endpoint['name']} declares no return type to name a variable after")
+    out: list[str] = []
+    for i, ch in enumerate(returns.removesuffix("Ticks")):
+        if ch.isupper() and i > 0:
+            out.append("_")
+        out.append(ch.lower())
+    return "".join(out)
+
+
+def _example_literal(param: dict, value: str, lang: str) -> str:
+    """`value` as a literal of `param`'s type in `lang`."""
+    param_type = param["param_type"]
+    if param_type == "Bool":
+        return value.capitalize() if lang == "python" else value
+    if param_type in ("Int", "Float"):
+        return value
+    if param_type == "Symbols":
+        return {
+            "rust": f'&["{value}"]',
+            "python": f'["{value}"]',
+            "cpp": f'{{"{value}"}}',
+        }[lang]
+    return f'"{value}"'
+
+
+def render_openapi_examples() -> dict[str, str]:
+    """`{documented path: x-code-examples block}` rendered from the registry.
+
+    The registry already records which parameters a call takes positionally
+    (`binding = "method"`) and which are optional (`binding = "builder"`), so
+    the snippets are derived from it rather than written by hand, where they
+    came to pass optional parameters positionally into signatures that have no
+    such positions. Each language gets the shape its binding exposes: a Rust
+    builder chain, Python keyword arguments, and a C++ `EndpointRequestOptions`
+    with fluent setters.
+    """
+    blocks: dict[str, str] = {}
+    by_name: dict[str, str] = {}
+    for endpoint in REGISTRY_ENDPOINTS:
+        params: list[dict] = []
+        template_name = endpoint.get("template")
+        if template_name is not None:
+            params.extend(_template_params(template_name))
+        params.extend(_expand_param_group(endpoint.get("params", [])))
+        required = [p for p in params if p.get("binding") == "method"]
+        optional = [
+            p
+            for name in OPENAPI_EXAMPLE_OPTIONALS
+            for p in params
+            if p["name"] == name and p.get("binding") == "builder"
+        ]
+        name = endpoint["name"]
+        variable = _example_variable(endpoint)
+        lines = ["      x-code-examples:"]
+        for lang, label in OPENAPI_EXAMPLE_LANGS:
+            args = ", ".join(
+                _example_literal(p, _example_value(endpoint, p), lang) for p in required
+            )
+            if lang == "rust":
+                chain = "".join(
+                    f'.{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
+                    for p in optional
+                )
+                call = f"let {variable} = client.market_data().{name}({args}){chain}.await?;"
+            elif lang == "python":
+                kwargs = "".join(
+                    f', {p["name"]}={_example_literal(p, _example_value(endpoint, p), lang)}'
+                    for p in optional
+                )
+                call = f"{variable} = client.market_data.{name}({args}{kwargs})"
+            else:
+                setters = "".join(
+                    f'.with_{p["name"]}({_example_literal(p, _example_value(endpoint, p), lang)})'
+                    for p in optional
+                )
+                options = (
+                    f", thetadatadx::EndpointRequestOptions{{}}{setters}" if setters else ""
+                )
+                call = f"auto {variable} = client.market_data().{name}({args}{options});"
+            lines += [
+                f"        - lang: {lang}",
+                f"          label: {label}",
+                "          source: |",
+                f"            {call}",
+            ]
+        block = "\n".join(lines) + "\n"
+        blocks[endpoint["rest_path"]] = block
+        by_name[name] = block
+    # A server-only path alias is a second spelling of one endpoint, served by
+    # the same code through the same SDK method, so it carries that endpoint's
+    # example.
+    for alias, endpoint_name in OPENAPI_ALIAS_ENDPOINTS.items():
+        blocks[alias] = by_name[endpoint_name]
+    return blocks
+
+
+def _openapi_example_blocks(text: str) -> dict[str, tuple[str, int, int]]:
+    """`{path: (block, start, end)}` for each route's `x-code-examples`.
+
+    `start` and `end` are offsets into `text`, so `--write-examples` can
+    replace a block in place without reflowing the rest of the document.
+
+    A blank line separates one route from the next and belongs to neither, but
+    an indentation scan cannot see where an indented block ends and the blank
+    run begins, so trailing blank lines are left outside the span. Replacing a
+    block that swallowed them would delete the separator.
+    """
+    found: dict[str, tuple[str, int, int]] = {}
+    for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE):
+        path = match.group(1)
+        path_block, path_end = _yaml_block(text, rf"^  {re.escape(path)}:\s*$")
+        offset = path_end - len(path_block)
+        inner, inner_end = _yaml_block(path_block, r"^      x-code-examples:\s*$")
+        if not inner:
+            continue
+        end = offset + inner_end
+        trailing = len(inner) - len(inner.rstrip("\n"))
+        # Keep the one newline that ends the block's last line.
+        if trailing > 1:
+            inner = inner[: -(trailing - 1)]
+            end -= trailing - 1
+        found[path] = (inner, end - len(inner), end)
+    return found
+
+
+def check_openapi_examples(write: bool = False) -> None:
+    """Each route's `x-code-examples` must be the block the registry renders.
+
+    Kept by hand, the snippets drifted from the signatures they claim to show:
+    most passed the optional `strike` and `right` positionally, which no
+    binding accepts, so a reader who copied one got a call that does not
+    compile. Rendering them from the registry and comparing byte for byte means
+    a signature change moves the examples with it. `write` rewrites the
+    document instead of comparing, which is how the snippets are regenerated.
+    """
+    text = OPENAPI_YAML.read_text()
+    expected = render_openapi_examples()
+    documented = _openapi_example_blocks(text)
+    if write:
+        # Rewrite from the back so each replacement leaves the earlier offsets
+        # untouched.
+        for path, (block, start, end) in sorted(
+            documented.items(), key=lambda item: item[1][1], reverse=True
+        ):
+            want = expected.get(path)
+            if want is not None and want != block:
+                text = text[:start] + want + text[end:]
+        OPENAPI_YAML.write_text(text)
+        print(f"openapi examples: rewrote {rel(OPENAPI_YAML)}")
+        return
+    checked = 0
+    for path, want in sorted(expected.items()):
+        entry = documented.get(path)
+        if entry is None:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} carries no `x-code-examples`, so the "
+                f"route publishes no runnable call. Run with --write-examples."
+            )
+        checked += 1
+        if entry[0] != want:
+            fail(
+                f"{rel(OPENAPI_YAML)} {path} `x-code-examples` is not what the "
+                f"registry renders. Run with --write-examples.\n"
+                f"--- documented ---\n{entry[0]}--- registry ---\n{want}"
+            )
+    if checked == 0:
+        fail(
+            f"{rel(OPENAPI_YAML)} parsed to no `x-code-examples` blocks (the "
+            f"spec's layout changed: the gate would be blind to example drift)"
         )
 
 
@@ -1844,6 +2215,8 @@ def main() -> None:
     check_llms_txt()
     check_openapi()
     check_openapi_parameters()
+    check_openapi_expiration_wildcard()
+    check_openapi_examples()
     check_flatfile_matrix()
     check_mcp_tool_inventory()
     check_endpoint_option_surface()
@@ -1860,7 +2233,18 @@ if __name__ == "__main__":
         action="store_true",
         help="Run the embedded self-test and exit.",
     )
+    parser.add_argument(
+        "--write-examples",
+        action="store_true",
+        help=(
+            "Rewrite the OpenAPI document's x-code-examples from the endpoint "
+            "registry instead of checking them, then exit."
+        ),
+    )
     args = parser.parse_args()
     if args.selftest:
         sys.exit(_selftest())
+    if args.write_examples:
+        check_openapi_examples(write=True)
+        raise SystemExit(0)
     main()
