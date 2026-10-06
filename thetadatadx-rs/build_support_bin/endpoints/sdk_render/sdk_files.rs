@@ -117,7 +117,7 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
     // Every fixture consumer flows through here, so validating at this
     // seam catches every drift case with full per-endpoint blast radius.
     let fixtures = load_test_fixtures()?;
-    validate_test_fixtures(&fixtures, &parsed.endpoints)?;
+    validate_test_fixtures(&fixtures, &parsed.endpoints, &enum_projections)?;
     let builder_params = collect_builder_params(&parsed.endpoints);
 
     Ok(vec![
