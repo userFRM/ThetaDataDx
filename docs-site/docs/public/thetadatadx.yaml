@@ -387,7 +387,10 @@ x-anchors:
       minimum: 5
       maximum: 201
       default: 101
-    description: Steps in the binomial tree used for the Greeks calculation. An even value is rounded up to the next odd one, and an expiration=* request is capped at 101 steps.
+    description: >-
+      Steps in the binomial tree used for the Greeks calculation. An even value
+      is rounded up to the next odd one, and a request for every expiration is
+      capped at 101 steps.
 
   perf_boost_intraday-param: &perf_boost_intraday-param
     name: perf_boost_intraday
@@ -396,7 +399,9 @@ x-anchors:
     schema:
       type: boolean
       default: false
-    description: Look the underlying price up with 1-second precision instead of millisecond precision on a current-day query, which answers faster
+    description: >-
+      When true, the underlying price for a current-day query is looked up with
+      1-second precision instead of millisecond precision, which answers faster.
 
   use_market_value-param: &use_market_value-param
     name: use_market_value
