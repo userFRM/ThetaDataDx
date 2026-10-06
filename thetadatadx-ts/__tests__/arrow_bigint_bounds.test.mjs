@@ -40,7 +40,7 @@ const ROWS = {
     lambda: 0, gamma: 0, vanna: 0, charm: 0, vomma: 0, veta: 0, vera: 0, speed: 0,
     zomma: 0, color: 0, ultima: 0, d1: 0, d2: 0, dualDelta: 0, dualGamma: 0,
     impliedVolatility: 0, ivError: 0, underlyingMsOfDay: 0, underlyingPrice: 0,
-    date: 20260115,
+    date: 20260115, underlyingDate: 20260116,
   },
   ohlcTickToArrowIpc: {
     msOfDay: 0, open: 1, high: 2, low: 0.5, close: 1.5, volume: 1000n, count: 10n,

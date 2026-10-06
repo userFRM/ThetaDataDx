@@ -75,6 +75,7 @@ Rows of `GreeksSecondOrderTick`:
 | `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |
 | `underlying_price` | f64 | Underlying price used in the calculation (midpoint of the underlying). |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
+| `underlying_date` | i32 | Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions. |
 
 Wildcard requests additionally populate `expiration` (YYYYMMDD), `strike` (dollars), and `right` ("C" / "P") on every row to identify the contract; on single-contract requests these are absent (None / null / undefined; the Rust and C rows carry the documented `0` / `0.0` / `'\0'` fills).
 

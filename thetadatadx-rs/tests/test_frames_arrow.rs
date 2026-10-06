@@ -123,13 +123,14 @@ fn greeks_first_order_tick_to_arrow() {
         underlying_ms_of_day: 34_200_001,
         underlying_price: 58.0025,
         date: 20_240_614,
+        underlying_date: 20_240_615,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
-    assert_eq!(batch.num_columns(), 17);
+    assert_eq!(batch.num_columns(), 18);
     assert_eq!(
         columns(&batch),
         vec![
@@ -147,6 +148,7 @@ fn greeks_first_order_tick_to_arrow() {
             "underlying_ms_of_day",
             "underlying_price",
             "date",
+            "underlying_date",
             "expiration",
             "strike",
             "right"
@@ -168,7 +170,13 @@ fn greeks_first_order_tick_to_arrow() {
     ] {
         assert_eq!(dtype_of(&batch, f64_col), DataType::Float64, "{f64_col}");
     }
-    for i32_col in ["ms_of_day", "underlying_ms_of_day", "date", "expiration"] {
+    for i32_col in [
+        "ms_of_day",
+        "underlying_ms_of_day",
+        "date",
+        "underlying_date",
+        "expiration",
+    ] {
         assert_eq!(dtype_of(&batch, i32_col), DataType::Int32, "{i32_col}");
     }
     assert_eq!(dtype_of(&batch, "right"), DataType::Utf8);
@@ -227,13 +235,14 @@ fn greeks_second_order_tick_to_arrow() {
         underlying_ms_of_day: 34_200_001,
         underlying_price: 58.0025,
         date: 20_240_614,
+        underlying_date: 20_240_615,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'P',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
-    assert_eq!(batch.num_columns(), 16);
+    assert_eq!(batch.num_columns(), 17);
     assert_eq!(
         columns(&batch),
         vec![
@@ -250,6 +259,7 @@ fn greeks_second_order_tick_to_arrow() {
             "underlying_ms_of_day",
             "underlying_price",
             "date",
+            "underlying_date",
             "expiration",
             "strike",
             "right"
@@ -313,13 +323,14 @@ fn greeks_third_order_tick_to_arrow() {
         underlying_ms_of_day: 34_200_001,
         underlying_price: 58.0025,
         date: 20_240_614,
+        underlying_date: 20_240_615,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let batch = ticks.as_slice().to_arrow().unwrap();
     assert_eq!(batch.num_rows(), 1);
-    assert_eq!(batch.num_columns(), 15);
+    assert_eq!(batch.num_columns(), 16);
     assert_eq!(
         columns(&batch),
         vec![
@@ -335,6 +346,7 @@ fn greeks_third_order_tick_to_arrow() {
             "underlying_ms_of_day",
             "underlying_price",
             "date",
+            "underlying_date",
             "expiration",
             "strike",
             "right"

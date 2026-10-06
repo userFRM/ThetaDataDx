@@ -927,10 +927,12 @@ pub(crate) fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO from `date` +
-            // the respective ms-of-day) replace the v2 `ms_of_day` /
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built
+            // from its own date and ms-of-day) replace the v2 `ms_of_day` /
             // `underlying_ms_of_day` / `date` integer columns, and the
-            // implied-vol field is named `implied_vol`.
+            // implied-vol field is named `implied_vol`. The underlying's
+            // date is its own: it is a day ahead of `date` on a snapshot
+            // taken outside the option's session.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid": t.bid,
@@ -957,7 +959,7 @@ pub(crate) fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
                 "dual_gamma": t.dual_gamma,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -979,10 +981,12 @@ pub(crate) fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO from `date` +
-            // the respective ms-of-day) replace the v2 `ms_of_day` /
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built
+            // from its own date and ms-of-day) replace the v2 `ms_of_day` /
             // `underlying_ms_of_day` / `date` integer columns, and the
-            // implied-vol field is named `implied_vol`.
+            // implied-vol field is named `implied_vol`. The underlying's
+            // date is its own: it is a day ahead of `date` on a snapshot
+            // taken outside the option's session.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "open": t.open,
@@ -1021,7 +1025,7 @@ pub(crate) fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<Row> {
                 "dual_gamma": t.dual_gamma,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1036,8 +1040,9 @@ pub(crate) fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1051,7 +1056,7 @@ pub(crate) fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -
                 "lambda": t.lambda,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1066,8 +1071,9 @@ pub(crate) fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick])
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1080,7 +1086,7 @@ pub(crate) fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick])
                 "veta": t.veta,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1096,8 +1102,9 @@ pub(crate) fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1109,7 +1116,7 @@ pub(crate) fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -
                 "ultima": t.ultima,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1127,8 +1134,9 @@ pub(crate) fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Ve
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1163,7 +1171,7 @@ pub(crate) fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Ve
                 "dual_gamma": t.dual_gamma,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1180,8 +1188,9 @@ pub(crate) fn trade_greeks_first_order_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1202,7 +1211,7 @@ pub(crate) fn trade_greeks_first_order_ticks_to_json(
                 "lambda": t.lambda,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1219,8 +1228,9 @@ pub(crate) fn trade_greeks_second_order_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1240,7 +1250,7 @@ pub(crate) fn trade_greeks_second_order_ticks_to_json(
                 "veta": t.veta,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1258,8 +1268,9 @@ pub(crate) fn trade_greeks_third_order_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1278,7 +1289,7 @@ pub(crate) fn trade_greeks_third_order_ticks_to_json(
                 "ultima": t.ultima,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1297,8 +1308,9 @@ pub(crate) fn trade_greeks_implied_volatility_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol field is named `implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
@@ -1313,7 +1325,7 @@ pub(crate) fn trade_greeks_implied_volatility_ticks_to_json(
                 "price": t.price,
                 "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_timestamp": ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
@@ -1338,8 +1350,9 @@ pub(crate) fn iv_ticks_to_json(ticks: &[IvTick], shape: RowShape) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
-            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
-            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // v3: `timestamp` / `underlying_timestamp` (each ISO, built from
+            // its own date and ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` columns; the
             // implied-vol fields are named `implied_vol` / `bid_implied_vol`
             // / `ask_implied_vol`.
             let mut row = row! {
@@ -1383,7 +1396,7 @@ pub(crate) fn iv_ticks_to_json(ticks: &[IvTick], shape: RowShape) -> Vec<Row> {
             );
             row.push(
                 "underlying_timestamp",
-                ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                ms_of_day_to_iso(t.underlying_date, t.underlying_ms_of_day),
             );
             row.push(
                 "underlying_price",
@@ -1739,6 +1752,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
             underlying_ms_of_day: 0,
             underlying_price: 0.0,
             date: 0,
+            underlying_date: 0,
             expiration: id_expiration,
             strike: id_strike,
             right: id_right,
@@ -1788,6 +1802,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
             underlying_ms_of_day: 0,
             underlying_price: 0.0,
             date: 0,
+            underlying_date: 0,
             expiration: id_expiration,
             strike: id_strike,
             right: id_right,
@@ -1808,6 +1823,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 underlying_ms_of_day: 0,
                 underlying_price: 0.0,
                 date: 0,
+                underlying_date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
@@ -1828,6 +1844,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 underlying_ms_of_day: 0,
                 underlying_price: 0.0,
                 date: 0,
+                underlying_date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
@@ -1847,6 +1864,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 underlying_ms_of_day: 0,
                 underlying_price: 0.0,
                 date: 0,
+                underlying_date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
@@ -1895,6 +1913,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 underlying_ms_of_day: 0,
                 underlying_price: 0.0,
                 date: 0,
+                underlying_date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
@@ -1929,6 +1948,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 underlying_ms_of_day: 0,
                 underlying_price: 0.0,
                 date: 0,
+                underlying_date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
@@ -1962,6 +1982,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 underlying_ms_of_day: 0,
                 underlying_price: 0.0,
                 date: 0,
+                underlying_date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
@@ -1994,6 +2015,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 underlying_ms_of_day: 0,
                 underlying_price: 0.0,
                 date: 0,
+                underlying_date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
@@ -2023,6 +2045,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     underlying_ms_of_day: 0,
                     underlying_price: 0.0,
                     date: 0,
+                    underlying_date: 0,
                     expiration: id_expiration,
                     strike: id_strike,
                     right: id_right,
@@ -2041,6 +2064,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
             underlying_ms_of_day: 0,
             underlying_price: 0.0,
             date: 0,
+            underlying_date: 0,
             expiration: id_expiration,
             strike: id_strike,
             right: id_right,
@@ -2803,6 +2827,7 @@ mod tests {
             underlying_ms_of_day: 0,
             underlying_price: 0.0,
             date: 20260410,
+            underlying_date: 20260411,
             expiration: 20260417,
             strike: 150.0,
             right: 'C',
@@ -2847,6 +2872,7 @@ mod tests {
             "ms_of_day",
             "underlying_ms_of_day",
             "date",
+            "underlying_date",
         ] {
             assert!(r.get(k).is_none(), "v3 greeks must drop: {k}");
         }
@@ -2887,6 +2913,7 @@ mod tests {
             underlying_ms_of_day: 0,
             underlying_price: 0.0,
             date: 20260410,
+            underlying_date: 20260411,
             expiration: 0,
             strike: 0.0,
             right: '\0',
@@ -3785,6 +3812,7 @@ mod tests {
             underlying_ms_of_day: 0,
             underlying_price: 0.0,
             date: 0,
+            underlying_date: 0,
             // expiration 0 -> the serializer emits no contract id columns,
             // so this is the bare data order the CSV header must follow.
             expiration: 0,
@@ -3936,6 +3964,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -3988,6 +4017,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4010,6 +4040,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4031,6 +4062,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4051,6 +4083,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4070,6 +4103,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4119,6 +4153,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4154,6 +4189,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4188,6 +4224,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4221,6 +4258,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4250,6 +4288,7 @@ mod tests {
             underlying_ms_of_day: 34_200_000,
             underlying_price: 0.0,
             date: 20240102,
+            underlying_date: 20240103,
             expiration: 20260116,
             strike: 275.0,
             right: 'C',
@@ -4268,6 +4307,127 @@ mod tests {
     /// `greeks/second_order`, `greeks/third_order`) — both render contract-first
     /// (`symbol,expiration,strike,right,timestamp,...`). `greeks/eod` and the
     /// `trade_greeks/*` family are history-only.
+    /// `underlying_timestamp` carries the underlying's own date on every
+    /// Greeks variant.
+    ///
+    /// The vendor sends that column as a moment in full, and its date is not
+    /// the row's: a snapshot taken outside the option's session pairs the
+    /// previous session's option quote with the current session's underlying
+    /// price. This formatter used to build the published timestamp from the
+    /// row's `date`, which put out a date the vendor never sent. Every
+    /// fixture below sets `underlying_date` a day after `date`, so a
+    /// formatter reading the wrong field fails here on whichever variant
+    /// regressed.
+    #[test]
+    fn greeks_underlying_timestamp_carries_the_underlyings_own_date() {
+        fn iso_date(d: i32) -> String {
+            format!("{:04}-{:02}-{:02}", d / 10_000, (d / 100) % 100, d % 100)
+        }
+        fn first_row(ep_name: &str, output: EndpointOutput) -> sonic_rs::Value {
+            let ep = thetadatadx::find(ep_name).expect("endpoint exists");
+            response_rows(ep, None, &output)
+                .into_iter()
+                .next()
+                .expect("one row")
+        }
+
+        let mut cases: Vec<(&str, EndpointOutput, i32, i32)> = Vec::new();
+        macro_rules! case {
+            ($ep:expr, $variant:ident, $build:expr) => {{
+                let t = $build;
+                let (date, underlying_date) = (t.date, t.underlying_date);
+                cases.push((
+                    $ep,
+                    EndpointOutput::$variant(labelled_row(t)),
+                    date,
+                    underlying_date,
+                ));
+            }};
+        }
+        case!(
+            "option_snapshot_greeks_all",
+            GreeksAllTicks,
+            greeks_all_tick()
+        );
+        case!(
+            "option_history_greeks_eod",
+            GreeksEodTicks,
+            greeks_eod_tick()
+        );
+        case!(
+            "option_snapshot_greeks_first_order",
+            GreeksFirstOrderTicks,
+            greeks_first_order_tick()
+        );
+        case!(
+            "option_snapshot_greeks_second_order",
+            GreeksSecondOrderTicks,
+            greeks_second_order_tick()
+        );
+        case!(
+            "option_snapshot_greeks_third_order",
+            GreeksThirdOrderTicks,
+            greeks_third_order_tick()
+        );
+        case!(
+            "option_snapshot_greeks_implied_volatility",
+            IvTicks,
+            iv_tick()
+        );
+        case!(
+            "option_history_trade_greeks_all",
+            TradeGreeksAllTicks,
+            trade_greeks_all_tick()
+        );
+        case!(
+            "option_history_trade_greeks_first_order",
+            TradeGreeksFirstOrderTicks,
+            trade_greeks_first_order_tick()
+        );
+        case!(
+            "option_history_trade_greeks_second_order",
+            TradeGreeksSecondOrderTicks,
+            trade_greeks_second_order_tick()
+        );
+        case!(
+            "option_history_trade_greeks_third_order",
+            TradeGreeksThirdOrderTicks,
+            trade_greeks_third_order_tick()
+        );
+        case!(
+            "option_history_trade_greeks_implied_volatility",
+            TradeGreeksImpliedVolatilityTicks,
+            trade_greeks_iv_tick()
+        );
+
+        assert_eq!(cases.len(), 11, "every Greeks variant must be covered");
+        for (ep_name, output, date, underlying_date) in cases {
+            assert_ne!(
+                date, underlying_date,
+                "{ep_name}: the fixture must put the two dates on different days"
+            );
+            let row = first_row(ep_name, output);
+            let at = |key: &str| {
+                row.get(key)
+                    .and_then(|v: &sonic_rs::Value| v.as_str())
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            assert!(
+                at("timestamp").starts_with(&iso_date(date)),
+                "{ep_name}: timestamp {} must carry the row's date {}",
+                at("timestamp"),
+                iso_date(date)
+            );
+            assert!(
+                at("underlying_timestamp").starts_with(&iso_date(underlying_date)),
+                "{ep_name}: underlying_timestamp {} must carry the underlying's date {}",
+                at("underlying_timestamp"),
+                iso_date(underlying_date)
+            );
+        }
+    }
+
     #[test]
     fn greeks_csv_headers_match_v3_spec_every_variant() {
         // greeks/all — snapshot (spec ~:3453) AND history (spec ~:5579), same
