@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The three disconnect events carry one more field in Rust.** `StreamControl::Disconnected`, `StreamControl::Reconnecting` and `StreamControl::ReconnectsExhausted` each gained `cause: DisconnectCause` beside `reason`, so a `match` arm that names their fields exhaustively no longer compiles; add `cause`, or `..`, to the pattern. The variants were left constructible rather than marked `#[non_exhaustive]`, because that would also have stopped any crate outside the core from building one of these events, which a test harness for an event handler legitimately does. This is a breaking change to the Rust API; the Python, TypeScript, C and C++ surfaces only gain fields.
 
+### Fixed
+
+- **The published REST contract no longer demands parameters the API treats as optional.** It marked `strike` and `right` required on every option route, and `symbol` required on both spellings of the contract listing, so a client generated from it could not ask for a whole chain, for both sides of one, or for every contract traded on a date without being made to supply a value the server does not need. All three are optional now and each records the value an omitted request takes: every strike, both sides, and the full contract universe for the date. The contract also carries the defaults and the permitted values it had been leaving out, on `start_time`, `end_time`, `interval`, `venue`, `exclusive`, `rate_type`, `version`, `use_market_value`, `underlyer_use_nbbo` and `request_type`, so a reader can tell what each one does when it is left out; `request_type` no longer offers `OPEN_INTEREST`, which no route serves.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed
