@@ -212,14 +212,15 @@ fn render_ts_match_arm(event_name: &str, def: &EventDef) -> String {
             _ => writeln!(out, "                {name},", name = column.name).unwrap(),
         }
     }
-    // Populate the synthetic `reason_name` field on RemoveReason-bearing
-    // control variants so the TS surface mirrors the Python pyclass
-    // accessor.
+    // Populate the synthetic `reason_name` / `cause_name` fields on
+    // RemoveReason-bearing control variants so the TS surface mirrors the
+    // Python pyclass accessors.
     if matches!(
         event_name,
         "Disconnected" | "Reconnecting" | "ReconnectsExhausted"
     ) {
         out.push_str("                reason_name: thetadatadx::RemoveReason::from_code(reason as i16).as_str().to_string(),\n");
+        out.push_str("                cause_name: thetadatadx::fpss::DisconnectCause::name_for_code(cause).to_string(),\n");
     }
     out.push_str("            });\n        }\n");
     out
@@ -267,6 +268,10 @@ fn render_ts_event_class_struct(event_name: &str, def: &EventDef) -> String {
         out.push_str("    /// `\"InvalidCredentials\"`, `\"Unspecified\"` for unknown codes).\n");
         out.push_str("    /// Derived from the wire-level `reason` integer.\n");
         out.push_str("    pub reason_name: String,\n");
+        out.push_str("    /// Resolved disconnect-cause name: `\"ServerSent\"`,\n");
+        out.push_str("    /// `\"ClosedByServer\"`, `\"ReadFailed\"`, `\"WriteFailed\"` or\n");
+        out.push_str("    /// `\"ReadTimeout\"`. Derived from the `cause` integer.\n");
+        out.push_str("    pub cause_name: String,\n");
     }
     out.push_str("}\n");
     out

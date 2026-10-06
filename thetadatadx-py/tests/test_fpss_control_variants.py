@@ -46,8 +46,21 @@ CONTROL_VARIANTS: list[tuple[str, tuple[str, ...]]] = [
     ("MarketOpen", ()),
     ("MarketClose", ()),
     ("ServerError", ("message",)),
-    ("Disconnected", ("reason",)),
-    ("Reconnecting", ("reason", "attempt", "delay_ms")),
+    (
+        "Disconnected",
+        ("reason", "cause", "cause_io_error_kind", "cause_timeout_ms"),
+    ),
+    (
+        "Reconnecting",
+        (
+            "reason",
+            "cause",
+            "cause_io_error_kind",
+            "cause_timeout_ms",
+            "attempt",
+            "delay_ms",
+        ),
+    ),
     ("Reconnected", ()),
     ("ParseError", ("message",)),
     ("UnknownFrame", ("code", "payload")),

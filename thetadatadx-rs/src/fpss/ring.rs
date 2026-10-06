@@ -467,6 +467,7 @@ pub(crate) use crate::util::ring::{check_ring_size, MIN_RING_SIZE};
 mod tests {
     use super::super::events::FpssEventInternal;
     use super::*;
+    use crate::fpss::events::DisconnectCause;
     use crate::fpss::{StreamControl, StreamData, StreamEvent};
     use crate::tdbe::types::enums::RemoveReason;
     use disruptor::{build_single_producer, Producer};
@@ -645,6 +646,7 @@ mod tests {
         producer.publish(|slot| {
             slot.event = FpssEventInternal::Control(StreamControl::Disconnected {
                 reason: RemoveReason::ServerRestarting,
+                cause: DisconnectCause::ServerSent,
             });
         });
 
@@ -653,8 +655,9 @@ mod tests {
         let events = received.lock().unwrap();
         assert_eq!(events.len(), 1);
         match &events[0] {
-            StreamEvent::Control(StreamControl::Disconnected { reason }) => {
+            StreamEvent::Control(StreamControl::Disconnected { reason, cause }) => {
                 assert_eq!(*reason, RemoveReason::ServerRestarting);
+                assert_eq!(*cause, DisconnectCause::ServerSent);
             }
             other => panic!("expected Control(Disconnected), got {other:?}"),
         }

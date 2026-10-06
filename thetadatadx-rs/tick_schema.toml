@@ -415,6 +415,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.GreeksAllTick.render]
@@ -498,6 +499,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.GreeksEodTick.render]
@@ -543,6 +545,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.GreeksFirstOrderTick.render]
@@ -587,6 +590,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.GreeksSecondOrderTick.render]
@@ -631,6 +635,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.GreeksThirdOrderTick.render]
@@ -690,6 +695,7 @@ columns = [
     { name = "underlying_ms_of_day",    field = "underlying_ms_of_day",    type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",        field = "underlying_price",        type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                    field = "date",                    type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",         field = "underlying_date",         type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.IvTick.render]
@@ -781,6 +787,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.TradeGreeksAllTick.render]
@@ -832,6 +839,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.TradeGreeksFirstOrderTick.render]
@@ -882,6 +890,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.TradeGreeksSecondOrderTick.render]
@@ -932,6 +941,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.TradeGreeksThirdOrderTick.render]
@@ -978,6 +988,7 @@ columns = [
     { name = "underlying_ms_of_day", field = "underlying_ms_of_day", type = "i32", doc = "Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`." },
     { name = "underlying_price",     field = "underlying_price",     type = "price", doc = "Underlying price used in the calculation (midpoint of the underlying)." },
     { name = "date",                 field = "date",                 type = "i32", doc = "Trading date as a YYYYMMDD integer." },
+    { name = "underlying_date",      field = "underlying_date",      type = "i32", doc = "Trading date of the underlying price as a YYYYMMDD integer, decoded from the same wire column as `underlying_ms_of_day`. It differs from `date` when the underlying price and the option quote come from different sessions." },
 ]
 
 [types.TradeGreeksImpliedVolatilityTick.render]

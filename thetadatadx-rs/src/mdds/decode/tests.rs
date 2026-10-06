@@ -877,29 +877,41 @@ fn parse_greeks_all_ticks_decodes_price_encoded_greeks() {
 }
 
 /// Pin the `implied_vol -> implied_volatility` and
-/// `underlying_timestamp -> underlying_ms_of_day` aliases in
-/// `HEADER_ALIASES` by decoding a wire payload whose headers use only
-/// the v3 server-side names.
+/// `underlying_timestamp -> {underlying_ms_of_day, underlying_date}`
+/// aliases in `HEADER_ALIASES` by decoding a wire payload whose headers
+/// use only the v3 server-side names.
+///
+/// The two timestamp columns deliberately fall on different days, which
+/// is what the vendor sends whenever the option quote and the underlying
+/// price come from different sessions. The underlying's date has to be
+/// read from its own column: borrowing the row's `date`, as the decoder
+/// used to force every consumer to do by dropping the underlying's date
+/// entirely, publishes a day the vendor never sent.
 #[test]
 fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases() {
     // Headers use the v3 server-side names. Schema names
-    // (`implied_volatility`, `underlying_ms_of_day`) are deliberately
-    // absent so the parser MUST resolve them via `HEADER_ALIASES`.
+    // (`implied_volatility`, `underlying_ms_of_day`, `underlying_date`,
+    // `date`) are deliberately absent so the parser MUST resolve them
+    // via `HEADER_ALIASES`.
     let table = proto::DataTable {
         headers: vec![
             "ms_of_day".into(),
             "implied_vol".into(),
             "underlying_timestamp".into(),
+            "timestamp".into(),
         ],
         // IV = 0.42 encoded with price_type = 6 (value * 10^-4).
         // underlying_timestamp epoch_ms 1_775_050_200_000 corresponds
         // to 2026-04-01 09:30 ET, which `row_number` converts to
         // ms-of-day 34_200_000 (matching `first_row_underlying_ms_of_day`
-        // in the option_history_greeks_all fixture meta).
+        // in the option_history_greeks_all fixture meta) and `row_date`
+        // to 20260401. timestamp epoch_ms 1_774_987_199_834 is
+        // 2026-03-31 15:59:59.834 ET, the session before.
         data_table: vec![row_of(vec![
             dv_number(34_200_000),
             dv_price(4200, 6),
             dv_timestamp(1_775_050_200_000),
+            dv_timestamp(1_774_987_199_834),
         ])],
     };
     let ticks = parse_greeks_all_ticks(&table).unwrap();
@@ -916,6 +928,14 @@ fn parse_greeks_all_ticks_resolves_implied_vol_and_underlying_timestamp_aliases(
     // Non-zero ms-of-day proves the `underlying_timestamp` alias
     // resolved; a broken alias would leave the 0 seed in place.
     assert_eq!(t.underlying_ms_of_day, 34_200_000);
+    // Each date comes off its own column. A dropped `underlying_date`
+    // alias leaves the 0 seed, and reading the row's own date gives
+    // 20260331, so either regression fails here.
+    assert_eq!(t.date, 20_260_331, "date must come from `timestamp`");
+    assert_eq!(
+        t.underlying_date, 20_260_401,
+        "underlying_date must come from `underlying_timestamp`, not from `date`"
+    );
 }
 
 #[test]

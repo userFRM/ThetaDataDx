@@ -139,9 +139,12 @@ typedef struct {
     ThetaDataDxContract contract;
 } ThetaDataDxStreamContractAssigned;
 
-/* Streaming server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name. */
+/* Streaming connection ended. `reason` is the integer disconnect code: the server's own when the server sent a disconnect message (wire code 12), and otherwise the code the client has always reported for the way the connection ended (4 TimedOut for its own read deadline, -1 Unspecified for a socket that closed or failed). Read the resolved reason-name field for its symbolic name, and the cause field for where the disconnect came from. */
 typedef struct {
     int32_t reason;
+    int32_t cause;
+    const char * cause_io_error_kind;
+    uint64_t cause_timeout_ms;
 } ThetaDataDxStreamDisconnected;
 
 /* Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers. */
@@ -184,16 +187,22 @@ typedef struct {
     uint8_t _padding;
 } ThetaDataDxStreamReconnectedServer;
 
-/* Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. */
+/* Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. `reason` and the cause fields describe the disconnect that triggered the attempt. */
 typedef struct {
     int32_t reason;
+    int32_t cause;
+    const char * cause_io_error_kind;
+    uint64_t cause_timeout_ms;
     int32_t attempt;
     uint64_t delay_ms;
 } ThetaDataDxStreamReconnecting;
 
-/* Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted). */
+/* Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name and the cause field for where that drop came from. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted). */
 typedef struct {
     int32_t reason;
+    int32_t cause;
+    const char * cause_io_error_kind;
+    uint64_t cause_timeout_ms;
     int32_t attempts;
 } ThetaDataDxStreamReconnectsExhausted;
 

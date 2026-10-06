@@ -19,7 +19,7 @@ use rand::RngExt;
 use super::delta::{
     Baseline, DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS,
 };
-use super::events::{FpssEventInternal, StreamControl, StreamData};
+use super::events::{DisconnectCause, FpssEventInternal, StreamControl, StreamData};
 use super::framing;
 use super::protocol::{
     parse_contract_message, parse_disconnect_reason, parse_req_response, Contract,
@@ -757,6 +757,7 @@ pub fn decode_frame(
 
             Some(FpssEventInternal::Control(StreamControl::Disconnected {
                 reason,
+                cause: DisconnectCause::ServerSent,
             }))
         }
 
@@ -838,6 +839,7 @@ pub fn decode_frame(
 mod tests {
     use super::*;
     use crate::fpss::StreamEvent;
+    use crate::tdbe::types::enums::RemoveReason;
 
     // -----------------------------------------------------------------------
     // FIT encoding helpers for trade mapping tests
@@ -1117,6 +1119,33 @@ mod tests {
                 assert_eq!(payload.as_slice(), &[0u8]);
             }
             other => panic!("expected Control(Ping), got {other:?}"),
+        }
+    }
+
+    /// A DISCONNECTED frame is the one disconnect the server describes
+    /// itself, so the event it decodes to carries the server's code and
+    /// says the server sent it. Every other way a session ends is
+    /// classified by the I/O loop, and a `TimedOut` from here has to stay
+    /// distinguishable from this client's own read deadline.
+    #[test]
+    fn decode_code_12_disconnected_reports_the_server_as_the_cause() {
+        for (code, reason) in [
+            (4i16, RemoveReason::TimedOut),
+            (12, RemoveReason::TooManyRequests),
+            (15, RemoveReason::ServerRestarting),
+        ] {
+            let evt = decode_ctrl(StreamMsgType::Disconnected, &code.to_be_bytes());
+            match expect_public(&evt) {
+                StreamEvent::Control(StreamControl::Disconnected { reason: got, cause }) => {
+                    assert_eq!(*got, reason, "wire code {code} must decode to {reason:?}");
+                    assert_eq!(
+                        *cause,
+                        DisconnectCause::ServerSent,
+                        "a decoded DISCONNECTED frame is the server speaking"
+                    );
+                }
+                other => panic!("expected Control(Disconnected), got {other:?}"),
+            }
         }
     }
 

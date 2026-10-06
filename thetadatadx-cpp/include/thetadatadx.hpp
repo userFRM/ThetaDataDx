@@ -3547,8 +3547,8 @@ inline int64_t sequence_unsigned_to_signed(uint64_t unsigned_value) {
 //
 // C++ users get the same fluent surface Python and TypeScript see —
 // the strike in dollars, the option side as a `char`, `sec_type` as a
-// symbolic uppercase name, and `reason_name` for disconnect-reason
-// values. These inline helpers take the C struct by reference and
+// symbolic uppercase name, and `reason_name` / `cause_name` for
+// disconnect values. These inline helpers take the C struct by reference and
 // return the same shape Python / TypeScript bindings expose as fields.
 
 /// Strike price in dollars. Returns `std::nullopt` for non-option
@@ -3617,6 +3617,10 @@ inline std::string_view sec_type_name(int32_t sec_type) noexcept {
 /// ...). Mirrors the Python / TypeScript `reason_name` field surface.
 /// Returns `"Unspecified"` for unrecognised discriminants so callers
 /// stay total.
+///
+/// The reason is the server's vocabulary. For a disconnect the server
+/// never described, read @ref cause_name beside it to learn which way
+/// the connection actually ended.
 inline std::string_view reason_name(int32_t reason) noexcept {
     switch (reason) {
         case 0:
@@ -3655,6 +3659,32 @@ inline std::string_view reason_name(int32_t reason) noexcept {
             return "InvalidCredentialsNullUser";
         default:
             return "Unspecified";
+    }
+}
+
+/// Disconnect cause name (`"ServerSent"`, `"ClosedByServer"`,
+/// `"ReadFailed"`, `"WriteFailed"`, `"ReadTimeout"`) for the `cause`
+/// field on a disconnect event. Mirrors the Python / TypeScript
+/// `cause_name` surface. Returns `"Unknown"` for unrecognised
+/// discriminants so callers stay total.
+///
+/// `ReadFailed` and `WriteFailed` carry the I/O error kind as the event's
+/// `cause_io_error_kind` string, and `ReadTimeout` carries the deadline
+/// that expired as `cause_timeout_ms`.
+inline std::string_view cause_name(int32_t cause) noexcept {
+    switch (cause) {
+        case 0:
+            return "ServerSent";
+        case 1:
+            return "ClosedByServer";
+        case 2:
+            return "ReadFailed";
+        case 3:
+            return "WriteFailed";
+        case 4:
+            return "ReadTimeout";
+        default:
+            return "Unknown";
     }
 }
 

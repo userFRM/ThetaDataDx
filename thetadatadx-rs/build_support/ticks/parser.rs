@@ -68,8 +68,9 @@ pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
 /// type, and the seed literal its absent-column default fills with.
 ///
 /// Schema column types map onto four decode families: plain numerics
-/// (`row_number` / `row_number_i64` with the `date`-field variant
-/// `row_date`), price-or-number floats (`row_price_f64` — also the
+/// (`row_number` / `row_number_i64` with the `row_date` variant for the
+/// `date` and `underlying_date` fields, which read a YYYYMMDD integer or
+/// the date half of a wire `Timestamp`), price-or-number floats (`row_price_f64` — also the
 /// `price`, `eod_price`, and contract-`strike` decode), text
 /// (`row_text`), and the EOD wildcard-report shapes that additionally
 /// accept `Price` cells (`row_eod_*`).
@@ -78,7 +79,7 @@ fn column_decoder(def: &TickTypeDef, col: &ColumnDef) -> (&'static str, &'static
         "i32" => {
             if def.eod_style {
                 ("row_eod_number", "0")
-            } else if col.field == "date" {
+            } else if matches!(col.field.as_str(), "date" | "underlying_date") {
                 ("row_date", "0")
             } else {
                 ("row_number", "0")

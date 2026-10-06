@@ -674,8 +674,10 @@ mod tests {
             RemoveReason::ServerRestarting,
             RemoveReason::InvalidCredentialsNullUser,
         ] {
-            let event =
-                StreamEvent::Control(thetadatadx::fpss::StreamControl::Disconnected { reason });
+            let event = StreamEvent::Control(thetadatadx::fpss::StreamControl::Disconnected {
+                reason,
+                cause: thetadatadx::fpss::DisconnectCause::ServerSent,
+            });
             let json = fpss_event_to_ws_json(&event, None, "CONNECTED", StrikeFormat::Terminal)
                 .expect("DISCONNECTED control frame must serialise");
             // Key order inside the header object is serializer-defined;

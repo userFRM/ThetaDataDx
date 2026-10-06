@@ -126,13 +126,14 @@ fn greeks_first_order_tick_to_polars() {
         underlying_ms_of_day: 34_200_001,
         underlying_price: 58.0025,
         date: 20_240_614,
+        underlying_date: 20_240_615,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
-    assert_eq!(df.width(), 17);
+    assert_eq!(df.width(), 18);
     assert_eq!(
         columns(&df),
         vec![
@@ -150,6 +151,7 @@ fn greeks_first_order_tick_to_polars() {
             "underlying_ms_of_day",
             "underlying_price",
             "date",
+            "underlying_date",
             "expiration",
             "strike",
             "right"
@@ -171,7 +173,13 @@ fn greeks_first_order_tick_to_polars() {
     ] {
         assert_eq!(dtype_of(&df, f64_col), DataType::Float64, "{f64_col}");
     }
-    for i32_col in ["ms_of_day", "underlying_ms_of_day", "date", "expiration"] {
+    for i32_col in [
+        "ms_of_day",
+        "underlying_ms_of_day",
+        "date",
+        "underlying_date",
+        "expiration",
+    ] {
         assert_eq!(dtype_of(&df, i32_col), DataType::Int32, "{i32_col}");
     }
     assert_eq!(dtype_of(&df, "right"), DataType::String);
@@ -244,13 +252,14 @@ fn greeks_second_order_tick_to_polars() {
         underlying_ms_of_day: 34_200_001,
         underlying_price: 58.0025,
         date: 20_240_614,
+        underlying_date: 20_240_615,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'P',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
-    assert_eq!(df.width(), 16);
+    assert_eq!(df.width(), 17);
     assert_eq!(
         columns(&df),
         vec![
@@ -267,6 +276,7 @@ fn greeks_second_order_tick_to_polars() {
             "underlying_ms_of_day",
             "underlying_price",
             "date",
+            "underlying_date",
             "expiration",
             "strike",
             "right"
@@ -316,13 +326,14 @@ fn greeks_third_order_tick_to_polars() {
         underlying_ms_of_day: 34_200_001,
         underlying_price: 58.0025,
         date: 20_240_614,
+        underlying_date: 20_240_615,
         expiration: 20_240_621,
         strike: 500.0,
         right: 'C',
     }];
     let df = ticks.as_slice().to_polars().unwrap();
     assert_eq!(df.height(), 1);
-    assert_eq!(df.width(), 15);
+    assert_eq!(df.width(), 16);
     assert_eq!(
         columns(&df),
         vec![
@@ -338,6 +349,7 @@ fn greeks_third_order_tick_to_polars() {
             "underlying_ms_of_day",
             "underlying_price",
             "date",
+            "underlying_date",
             "expiration",
             "strike",
             "right"

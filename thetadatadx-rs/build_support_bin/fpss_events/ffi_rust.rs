@@ -168,6 +168,15 @@ fn fpss_column_doc(name: &str) -> String {
         "bid_condition" => "Quote condition code for the bid.",
         "bid_exchange" => "Exchange code posting the bid.",
         "bid_size" => "Number of contracts/shares resting at the bid.",
+        "cause" => {
+            "Where the disconnect came from: 0 the server sent a disconnect message, 1 the server ended the stream without one, 2 a read failed, 3 a write failed, 4 nothing arrived inside the client read deadline."
+        }
+        "cause_io_error_kind" => {
+            "Name of the I/O error kind behind a read or write failure (`\"ConnectionReset\"`, `\"BrokenPipe\"`, ...). Empty for every other cause."
+        }
+        "cause_timeout_ms" => {
+            "Client read deadline that expired, in milliseconds. Zero for every other cause."
+        }
         "close" => "Closing price of the bar.",
         "code" => "Unrecognized frame code reported by the server.",
         "condition" => "Primary trade condition code.",
@@ -197,7 +206,9 @@ fn fpss_column_doc(name: &str) -> String {
         }
         "price" => "Trade price.",
         "price_flags" => "Bit flags qualifying the trade price.",
-        "reason" => "Reason the server gave for dropping the connection.",
+        "reason" => {
+            "Disconnect code: the server's own when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended."
+        }
         "received_at_ns" => {
             "Wall-clock nanoseconds since UNIX epoch, captured at frame decode time."
         }
@@ -605,19 +616,33 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
             vec!["req_id: *req_id", "result: i32::from(*result as u8)"],
         ),
         "ServerError" => ("message", vec!["message: message_ptr"]),
-        "Disconnected" => ("reason", vec!["reason: i32::from(*reason as i16)"]),
-        "Reconnecting" => (
-            "reason, attempt, delay_ms",
+        "Disconnected" => (
+            "reason, cause",
             vec![
                 "reason: i32::from(*reason as i16)",
+                "cause: cause.code()",
+                "cause_io_error_kind: cause_io_error_kind_ptr",
+                "cause_timeout_ms: cause.read_timeout_ms()",
+            ],
+        ),
+        "Reconnecting" => (
+            "reason, cause, attempt, delay_ms",
+            vec![
+                "reason: i32::from(*reason as i16)",
+                "cause: cause.code()",
+                "cause_io_error_kind: cause_io_error_kind_ptr",
+                "cause_timeout_ms: cause.read_timeout_ms()",
                 "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)",
                 "delay_ms: *delay_ms",
             ],
         ),
         "ReconnectsExhausted" => (
-            "reason, attempts",
+            "reason, cause, attempts",
             vec![
                 "reason: i32::from(*reason as i16)",
+                "cause: cause.code()",
+                "cause_io_error_kind: cause_io_error_kind_ptr",
+                "cause_timeout_ms: cause.read_timeout_ms()",
                 "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)",
             ],
         ),
@@ -643,6 +668,23 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
     }
 }
 
+/// Extra `let` bindings a control arm needs before the shared
+/// backing-storage staging runs.
+///
+/// The staging below borrows a `String` the arm's pattern already bound.
+/// `cause_io_error_kind` is not a field on the Rust event: it is derived
+/// from the one `DisconnectCause` the event carries, so it is
+/// materialised here under the column's own name and the shared staging
+/// then treats it like any other string column.
+fn control_variant_prelude(event_name: &str) -> &'static str {
+    match event_name {
+        "Disconnected" | "Reconnecting" | "ReconnectsExhausted" => {
+            "                let cause_io_error_kind = cause.io_error_kind_name();\n"
+        }
+        _ => "",
+    }
+}
+
 fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
     let rust_variant = control_rust_variant(event_name);
     let (rust_pattern, field_assigns) = control_variant_mapping(event_name);
@@ -659,6 +701,8 @@ fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
         )
         .unwrap();
     }
+
+    out.push_str(control_variant_prelude(event_name));
 
     // Stage backing storage for any borrowed pointer fields.
     if let Some(field) = has_string {
@@ -737,7 +781,7 @@ fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
     } else {
         "None"
     };
-    let message_slot = if matches!(event_name, "ServerError" | "ParseError") {
+    let string_slot = if has_string.is_some() && event_name != "LoginSuccess" {
         "cstring_owned"
     } else {
         "None"
@@ -752,7 +796,7 @@ fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
         "                    ",
         contract_slot,
         permissions_slot,
-        message_slot,
+        string_slot,
         bytes_slot,
     );
     out.push_str("                }\n");
@@ -768,7 +812,9 @@ fn render_zero_fill_siblings(out: &mut String, indent: &str) {
 }
 
 /// Helper: render the four backing-storage slot assignments on the
-/// `FfiBufferedEvent`. The caller passes the indent string so the same
+/// `FfiBufferedEvent`. `control_string` owns whichever single string a
+/// control variant carries other than `LoginSuccess.permissions`, which
+/// has a slot of its own. The caller passes the indent string so the same
 /// helper works for the data-arm body (16 spaces) and the control-arm
 /// body (16 spaces — control arms are nested one extra level inside
 /// `match ctrl { ... }` but the buffered-event braces sit at the same
@@ -779,12 +825,12 @@ fn render_zero_buffered_storage(
     indent: &str,
     contract_symbol: &str,
     login_permissions: &str,
-    control_message: &str,
+    control_string: &str,
     payload_bytes: &str,
 ) {
     writeln!(out, "{indent}_contract_symbol: {contract_symbol},").unwrap();
     writeln!(out, "{indent}_login_permissions: {login_permissions},").unwrap();
-    writeln!(out, "{indent}_control_message: {control_message},").unwrap();
+    writeln!(out, "{indent}_control_string: {control_string},").unwrap();
     writeln!(out, "{indent}_payload_bytes: {payload_bytes},").unwrap();
 }
 

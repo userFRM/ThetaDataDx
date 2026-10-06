@@ -308,9 +308,11 @@ include!("fpss_event_structs.rs");
 /// pointer payload — `_contract_symbol` for any data event's
 /// `Contract.symbol` (or `ContractAssigned.contract.symbol`),
 /// `_login_permissions` for `LoginSuccess.permissions`,
-/// `_control_message` for `ServerError.message` / `Error.message`
-/// (mutually exclusive variants), and `_payload_bytes` for
-/// `UnknownFrame.payload` / `Ping.payload`. The
+/// `_control_string` for the single string any other control variant
+/// carries (`ServerError.message` / `Error.message`, and the
+/// `cause_io_error_kind` on `Disconnected` / `Reconnecting` /
+/// `ReconnectsExhausted`: all mutually exclusive variants), and
+/// `_payload_bytes` for `UnknownFrame.payload` / `Ping.payload`. The
 /// borrowed `*const c_char` / `*const u8` pointers in the public
 /// `ThetaDataDxStreamEvent` reference INTO these slots; users MUST NOT retain
 /// those pointers past the callback boundary.
@@ -322,8 +324,9 @@ pub(crate) struct FfiBufferedEvent {
     _contract_symbol: Option<CString>,
     /// Owns the `CString` backing `LoginSuccess.permissions`.
     _login_permissions: Option<CString>,
-    /// Owns the `CString` backing `ServerError.message` / `Error.message`.
-    _control_message: Option<CString>,
+    /// Owns the `CString` backing the single string any control variant
+    /// other than `LoginSuccess` carries.
+    _control_string: Option<CString>,
     /// Owns the byte payload backing `UnknownFrame.payload` /
     /// `Ping.payload` / `RawData.payload`.
     _payload_bytes: Option<Vec<u8>>,
@@ -3218,7 +3221,11 @@ mod null_callback_guard_tests {
 
 #[cfg(test)]
 mod discriminant_conversion_tests {
-    use thetadatadx::fpss::{StreamControl, StreamEvent};
+    use std::ffi::CStr;
+    use std::io::ErrorKind;
+    use std::time::Duration;
+
+    use thetadatadx::fpss::{DisconnectCause, StreamControl, StreamEvent};
     use thetadatadx::{RemoveReason, StreamResponseType};
 
     use super::{fpss_event_to_ffi, ThetaDataDxStreamEventKind};
@@ -3238,7 +3245,10 @@ mod discriminant_conversion_tests {
         // A representative in-range reason and the negative sentinel variant
         // both round-trip to their exact discriminant value.
         for reason in [RemoveReason::TooManyRequests, RemoveReason::Unspecified] {
-            let event = StreamEvent::Control(StreamControl::Disconnected { reason });
+            let event = StreamEvent::Control(StreamControl::Disconnected {
+                reason,
+                cause: DisconnectCause::ServerSent,
+            });
             let buffered = fpss_event_to_ffi(&event);
             assert!(matches!(
                 buffered.event.kind,
@@ -3248,6 +3258,61 @@ mod discriminant_conversion_tests {
                 buffered.event.disconnected.reason,
                 i32::from(reason as i16),
                 "in-range disconnect reason must convert to its discriminant unchanged"
+            );
+        }
+    }
+
+    /// The cause reaches the C ABI as its code plus the two details a C
+    /// caller cannot derive from the code alone: the name of the I/O
+    /// error kind behind a read or write failure, and the read deadline
+    /// that expired. Both are flattened beside the code because the C
+    /// struct carries scalars, so each has to be empty or zero on the
+    /// causes that do not carry it rather than hold a stale value from
+    /// the variant the schema shares the field with.
+    #[test]
+    fn disconnect_cause_and_its_details_reach_the_c_struct() {
+        let cases = [
+            (DisconnectCause::ServerSent, "", 0u64),
+            (DisconnectCause::ClosedByServer, "", 0),
+            (
+                DisconnectCause::ReadFailed(ErrorKind::ConnectionReset),
+                "ConnectionReset",
+                0,
+            ),
+            (
+                DisconnectCause::WriteFailed(ErrorKind::BrokenPipe),
+                "BrokenPipe",
+                0,
+            ),
+            (
+                DisconnectCause::ReadTimeout(Duration::from_millis(45_000)),
+                "",
+                45_000,
+            ),
+        ];
+        for (cause, kind_name, timeout_ms) in cases {
+            let event = StreamEvent::Control(StreamControl::Disconnected {
+                reason: cause.implied_reason(),
+                cause,
+            });
+            let buffered = fpss_event_to_ffi(&event);
+            let disconnected = &buffered.event.disconnected;
+            assert_eq!(disconnected.cause, cause.code(), "{cause:?} code");
+            assert!(
+                !disconnected.cause_io_error_kind.is_null(),
+                "{cause:?}: the kind name is always a readable C string, empty when absent"
+            );
+            // SAFETY: the pointer is non-null (asserted above) and points
+            // into the `CString` `buffered` owns, which outlives this read.
+            let kind = unsafe { CStr::from_ptr(disconnected.cause_io_error_kind) };
+            assert_eq!(
+                kind.to_str().expect("the kind name is ASCII"),
+                kind_name,
+                "{cause:?} I/O error kind name"
+            );
+            assert_eq!(
+                disconnected.cause_timeout_ms, timeout_ms,
+                "{cause:?} read timeout"
             );
         }
     }
@@ -3298,7 +3363,10 @@ mod discriminant_conversion_tests {
             RemoveReason::InvalidCredentialsNullUser,
         ];
         for reason in reasons {
-            let event = StreamEvent::Control(StreamControl::Disconnected { reason });
+            let event = StreamEvent::Control(StreamControl::Disconnected {
+                reason,
+                cause: DisconnectCause::ServerSent,
+            });
             let buffered = fpss_event_to_ffi(&event);
             assert_eq!(buffered.event.disconnected.reason, i32::from(reason as i16));
         }

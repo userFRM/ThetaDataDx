@@ -305,8 +305,8 @@ pub mod streaming {
         Contract, FullSubscriptionKind, OptionLeg, SecTypeExt, Subscription, SubscriptionKind,
     };
     pub use crate::fpss::{
-        PollOutcome, StreamControl, StreamData, StreamError, StreamEvent, StreamingClient,
-        StreamingClientBuilder,
+        DisconnectCause, PollOutcome, StreamControl, StreamData, StreamError, StreamEvent,
+        StreamingClient, StreamingClientBuilder,
     };
 
     /// Pull-based columnar delivery — read the live stream as Apache Arrow
