@@ -106,6 +106,7 @@ pub(crate) mod client;
 pub(crate) mod client_builder;
 pub mod columns;
 pub mod config;
+pub(crate) mod connect_budget;
 pub mod error;
 pub mod flatfiles;
 // The streaming implementation lives here, but `thetadatadx::streaming` is the
