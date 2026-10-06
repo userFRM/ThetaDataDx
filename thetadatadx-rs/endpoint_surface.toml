@@ -435,6 +435,26 @@ required = false
 binding = "builder"
 default = "false"
 
+[param_groups.binomial_steps_input]
+
+[[param_groups.binomial_steps_input.params]]
+name = "binomial_steps"
+description = "Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps."
+param_type = "Int"
+required = false
+binding = "builder"
+default = "101"
+
+[param_groups.perf_boost_intraday_flag]
+
+[[param_groups.perf_boost_intraday_flag.params]]
+name = "perf_boost_intraday"
+description = "When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted."
+param_type = "Bool"
+required = false
+binding = "builder"
+default = "false"
+
 [param_groups.year_param]
 
 [[param_groups.year_param.params]]
@@ -629,6 +649,37 @@ use = "strike_range_filter"
 use = "min_time_filter"
 
 [[templates.option_snapshot_greeks.params]]
+use = "use_market_value_flag"
+
+[templates.option_snapshot_binomial_greeks]
+extends = "option_parsed"
+subcategory = "snapshot_greeks"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "contract_identity"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "option_greeks_rate_inputs"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "stock_price_input"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "binomial_steps_input"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "version_input"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "max_dte_filter"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "strike_range_filter"
+
+[[templates.option_snapshot_binomial_greeks.params]]
+use = "min_time_filter"
+
+[[templates.option_snapshot_binomial_greeks.params]]
 use = "use_market_value_flag"
 
 [templates.option_history_eod]
@@ -831,6 +882,102 @@ use = "strike_range_filter"
 
 [[templates.option_history_trade_greeks.params]]
 use = "date_range_optional"
+
+[[templates.option_history_trade_greeks.params]]
+use = "perf_boost_intraday_flag"
+
+[templates.option_history_binomial_greeks_eod]
+extends = "option_parsed"
+subcategory = "history_greeks"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "contract_identity"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "date_range_required"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "option_greeks_rate_inputs"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "binomial_steps_input"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "version_input"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "underlyer_use_nbbo_flag"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_binomial_greeks_eod.params]]
+use = "strike_range_filter"
+
+[templates.option_history_binomial_greeks]
+extends = "option_parsed"
+subcategory = "history_greeks"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "contract_identity"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "optional_date"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "interval"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "history_time_filters"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "option_greeks_rate_inputs"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "binomial_steps_input"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "version_input"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_binomial_greeks.params]]
+use = "date_range_optional"
+
+[templates.option_history_binomial_trade_greeks]
+extends = "option_parsed"
+subcategory = "history_trade_greeks"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "contract_identity"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "optional_date"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "history_time_filters"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "option_greeks_rate_inputs"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "binomial_steps_input"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "version_input"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "max_dte_filter"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "strike_range_filter"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "date_range_optional"
+
+[[templates.option_history_binomial_trade_greeks.params]]
+use = "perf_boost_intraday_flag"
 
 [templates.option_at_time]
 extends = "option_parsed"
@@ -1393,6 +1540,18 @@ rest_path = "/v3/option/snapshot/greeks/all"
 returns = "GreeksAllTicks"
 
 [[endpoints]]
+name = "option_snapshot_binomial_greeks_all"
+template = "option_snapshot_binomial_greeks"
+description = "Get all binomial Greeks snapshot for an option contract (from ThetaData server)."
+vendor_docstring = """
+- Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
+rest_path = "/v3/option/snapshot/binomial_greeks/all"
+returns = "GreeksAllTicks"
+
+[[endpoints]]
 name = "option_snapshot_greeks_first_order"
 template = "option_snapshot_greeks"
 description = "Get first-order Greeks snapshot (delta, theta, rho) for an option contract."
@@ -1401,6 +1560,18 @@ vendor_docstring = """
 > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 """
 rest_path = "/v3/option/snapshot/greeks/first_order"
+returns = "GreeksFirstOrderTicks"
+
+[[endpoints]]
+name = "option_snapshot_binomial_greeks_first_order"
+template = "option_snapshot_binomial_greeks"
+description = "Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
+rest_path = "/v3/option/snapshot/binomial_greeks/first_order"
 returns = "GreeksFirstOrderTicks"
 
 [[endpoints]]
@@ -1415,6 +1586,18 @@ rest_path = "/v3/option/snapshot/greeks/second_order"
 returns = "GreeksSecondOrderTicks"
 
 [[endpoints]]
+name = "option_snapshot_binomial_greeks_second_order"
+template = "option_snapshot_binomial_greeks"
+description = "Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
+rest_path = "/v3/option/snapshot/binomial_greeks/second_order"
+returns = "GreeksSecondOrderTicks"
+
+[[endpoints]]
 name = "option_snapshot_greeks_third_order"
 template = "option_snapshot_greeks"
 description = "Get third-order Greeks snapshot (speed, color, ultima) for an option contract."
@@ -1423,6 +1606,18 @@ vendor_docstring = """
 > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 """
 rest_path = "/v3/option/snapshot/greeks/third_order"
+returns = "GreeksThirdOrderTicks"
+
+[[endpoints]]
+name = "option_snapshot_binomial_greeks_third_order"
+template = "option_snapshot_binomial_greeks"
+description = "Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract."
+vendor_docstring = """
+- Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+> This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+"""
+rest_path = "/v3/option/snapshot/binomial_greeks/third_order"
 returns = "GreeksThirdOrderTicks"
 
 [[endpoints]]
@@ -1513,6 +1708,19 @@ rest_path = "/v3/option/history/greeks/eod"
 returns = "GreeksEodTicks"
 
 [[endpoints]]
+name = "option_history_binomial_greeks_eod"
+template = "option_history_binomial_greeks_eod"
+description = "Fetch end-of-day binomial Greeks history for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+- **Any ``expiration=*`` request must be made day by day.**
+"""
+rest_path = "/v3/option/history/binomial_greeks/eod"
+returns = "GreeksEodTicks"
+
+[[endpoints]]
 name = "option_history_greeks_all"
 template = "option_history_greeks"
 description = "Fetch all Greeks history for an option contract (intraday, sampled by interval)."
@@ -1523,6 +1731,20 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/all"
+returns = "GreeksAllTicks"
+
+[[endpoints]]
+name = "option_history_binomial_greeks_all"
+template = "option_history_binomial_greeks"
+description = "Fetch all binomial Greeks history for an option contract (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data.
+"""
+rest_path = "/v3/option/history/binomial_greeks/all"
 returns = "GreeksAllTicks"
 
 [[endpoints]]
@@ -1539,6 +1761,20 @@ rest_path = "/v3/option/history/trade_greeks/all"
 returns = "TradeGreeksAllTicks"
 
 [[endpoints]]
+name = "option_history_binomial_trade_greeks_all"
+template = "option_history_binomial_trade_greeks"
+description = "Fetch all binomial Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculates greeks for every trade reported by OPRA.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
+rest_path = "/v3/option/history/binomial_trade_greeks/all"
+returns = "TradeGreeksAllTicks"
+
+[[endpoints]]
 name = "option_history_greeks_first_order"
 template = "option_history_greeks"
 description = "Fetch first-order Greeks history (intraday, sampled by interval)."
@@ -1549,6 +1785,20 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/first_order"
+returns = "GreeksFirstOrderTicks"
+
+[[endpoints]]
+name = "option_history_binomial_greeks_first_order"
+template = "option_history_binomial_greeks"
+description = "Fetch first-order binomial Greeks history (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data.
+"""
+rest_path = "/v3/option/history/binomial_greeks/first_order"
 returns = "GreeksFirstOrderTicks"
 
 [[endpoints]]
@@ -1565,6 +1815,20 @@ rest_path = "/v3/option/history/trade_greeks/first_order"
 returns = "TradeGreeksFirstOrderTicks"
 
 [[endpoints]]
+name = "option_history_binomial_trade_greeks_first_order"
+template = "option_history_binomial_trade_greeks"
+description = "Fetch first-order binomial Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculates greeks for every trade reported by OPRA.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
+rest_path = "/v3/option/history/binomial_trade_greeks/first_order"
+returns = "TradeGreeksFirstOrderTicks"
+
+[[endpoints]]
 name = "option_history_greeks_second_order"
 template = "option_history_greeks"
 description = "Fetch second-order Greeks history (intraday, sampled by interval)."
@@ -1575,6 +1839,20 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/second_order"
+returns = "GreeksSecondOrderTicks"
+
+[[endpoints]]
+name = "option_history_binomial_greeks_second_order"
+template = "option_history_binomial_greeks"
+description = "Fetch second-order binomial Greeks history (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data.
+"""
+rest_path = "/v3/option/history/binomial_greeks/second_order"
 returns = "GreeksSecondOrderTicks"
 
 [[endpoints]]
@@ -1591,6 +1869,20 @@ rest_path = "/v3/option/history/trade_greeks/second_order"
 returns = "TradeGreeksSecondOrderTicks"
 
 [[endpoints]]
+name = "option_history_binomial_trade_greeks_second_order"
+template = "option_history_binomial_trade_greeks"
+description = "Fetch second-order binomial Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculates greeks for every trade reported by OPRA.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
+rest_path = "/v3/option/history/binomial_trade_greeks/second_order"
+returns = "TradeGreeksSecondOrderTicks"
+
+[[endpoints]]
 name = "option_history_greeks_third_order"
 template = "option_history_greeks"
 description = "Fetch third-order Greeks history (intraday, sampled by interval)."
@@ -1604,6 +1896,20 @@ rest_path = "/v3/option/history/greeks/third_order"
 returns = "GreeksThirdOrderTicks"
 
 [[endpoints]]
+name = "option_history_binomial_greeks_third_order"
+template = "option_history_binomial_greeks"
+description = "Fetch third-order binomial Greeks history (intraday, sampled by interval)."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration. 
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data.
+"""
+rest_path = "/v3/option/history/binomial_greeks/third_order"
+returns = "GreeksThirdOrderTicks"
+
+[[endpoints]]
 name = "option_history_trade_greeks_third_order"
 template = "option_history_trade_greeks"
 description = "Fetch third-order Greeks on each trade for an option contract."
@@ -1614,6 +1920,20 @@ vendor_docstring = """
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/third_order"
+returns = "TradeGreeksThirdOrderTicks"
+
+[[endpoints]]
+name = "option_history_binomial_trade_greeks_third_order"
+template = "option_history_binomial_trade_greeks"
+description = "Fetch third-order binomial Greeks on each trade for an option contract."
+vendor_docstring = """
+- Returns the data for all contracts that share the same provided symbol and expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+- Calculates greeks for every trade reported by OPRA.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+- Multi-day requests are limited to 1 month of data, and must specify an expiration.
+"""
+rest_path = "/v3/option/history/binomial_trade_greeks/third_order"
 returns = "TradeGreeksThirdOrderTicks"
 
 [[endpoints]]
@@ -1920,6 +2240,8 @@ stock_price = "150.0"
 version = "dg3"
 use_market_value = "true"
 underlyer_use_nbbo = "true"
+binomial_steps = "51"
+perf_boost_intraday = "true"
 
 [test_fixtures.mode_overrides.concrete_iso]
 # ISO-dashed expiration acceptance is scoped to `Expiration` params.

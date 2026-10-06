@@ -4192,6 +4192,263 @@ impl OptionSnapshotGreeksAllBuilder {
 
 }
 
+/// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+///
+/// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksAllBuilder")]
+pub struct OptionSnapshotBinomialGreeksAllBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    stock_price: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    min_time: Option<String>,
+    use_market_value: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionSnapshotBinomialGreeksAllBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `stock_price` on the pending request.
+    fn stock_price<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.stock_price = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `min_time` on the pending request.
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `use_market_value` on the pending request.
+    fn use_market_value<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.use_market_value = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_all_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+}
+
 /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
 ///
 /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -4407,6 +4664,263 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
             }
             if let Some(value) = &stock_price {
                 request = request.stock_price(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+}
+
+/// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+///
+/// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksFirstOrderBuilder")]
+pub struct OptionSnapshotBinomialGreeksFirstOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    stock_price: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    min_time: Option<String>,
+    use_market_value: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionSnapshotBinomialGreeksFirstOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `stock_price` on the pending request.
+    fn stock_price<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.stock_price = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `min_time` on the pending request.
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `use_market_value` on the pending request.
+    fn use_market_value<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.use_market_value = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
             }
             if let Some(value) = &version {
                 request = request.version(value.as_str());
@@ -4672,6 +5186,263 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
 
 }
 
+/// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+///
+/// - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksSecondOrderBuilder")]
+pub struct OptionSnapshotBinomialGreeksSecondOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    stock_price: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    min_time: Option<String>,
+    use_market_value: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionSnapshotBinomialGreeksSecondOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `stock_price` on the pending request.
+    fn stock_price<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.stock_price = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `min_time` on the pending request.
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `use_market_value` on the pending request.
+    fn use_market_value<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.use_market_value = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+}
+
 /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
 ///
 /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -4887,6 +5658,263 @@ impl OptionSnapshotGreeksThirdOrderBuilder {
             }
             if let Some(value) = &stock_price {
                 request = request.stock_price(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+}
+
+/// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+///
+/// - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `use_market_value`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionSnapshotBinomialGreeksThirdOrderBuilder")]
+pub struct OptionSnapshotBinomialGreeksThirdOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    stock_price: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    min_time: Option<String>,
+    use_market_value: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionSnapshotBinomialGreeksThirdOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `stock_price` on the pending request.
+    fn stock_price<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.stock_price = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `min_time` on the pending request.
+    fn min_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.min_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `use_market_value` on the pending request.
+    fn use_market_value<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.use_market_value = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = &use_market_value {
+                request = request.use_market_value(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let stock_price = self.stock_price;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let min_time = self.min_time.clone();
+        let use_market_value = self.use_market_value;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &stock_price {
+                request = request.stock_price(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
             }
             if let Some(value) = &version {
                 request = request.version(value.as_str());
@@ -7644,6 +8672,454 @@ impl OptionHistoryGreeksEodBuilder {
     }
 }
 
+/// Fetch end-of-day binomial Greeks history for an option contract.
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+/// - **Any ``expiration=*`` request must be made day by day.**
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `underlyer_use_nbbo`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialGreeksEodBuilder")]
+pub struct OptionHistoryBinomialGreeksEodBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    start_date: String,
+    end_date: String,
+    strike: Option<String>,
+    right: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    underlyer_use_nbbo: Option<bool>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialGreeksEodBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `underlyer_use_nbbo` on the pending request.
+    fn underlyer_use_nbbo<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.underlyer_use_nbbo = Some(value);
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Replace the required `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = value.into_string();
+        slf
+    }
+
+    /// Replace the required `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksEodTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let underlyer_use_nbbo = self.underlyer_use_nbbo;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let underlyer_use_nbbo = self.underlyer_use_nbbo;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_greeks_eod` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let underlyer_use_nbbo = self.underlyer_use_nbbo;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = greeks_eod_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_greeks_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let underlyer_use_nbbo = self.underlyer_use_nbbo;
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, &expiration, &start_date, &end_date);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(*value);
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match greeks_eod_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
 ///
 /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -8140,6 +9616,527 @@ impl OptionHistoryGreeksAllBuilder {
     }
 }
 
+/// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration. 
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialGreeksAllBuilder")]
+pub struct OptionHistoryBinomialGreeksAllBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    interval: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialGreeksAllBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksAllTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_all_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match greeks_all_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// Fetch all Greeks on each trade for an option contract.
 ///
 /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -8154,6 +10151,7 @@ impl OptionHistoryGreeksAllBuilder {
 /// - `end_time`: `"16:00:00"`
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksAllBuilder")]
 pub struct OptionHistoryTradeGreeksAllBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -8172,6 +10170,7 @@ pub struct OptionHistoryTradeGreeksAllBuilder {
     strike_range: Option<i32>,
     start_date: Option<String>,
     end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -8255,6 +10254,12 @@ impl OptionHistoryTradeGreeksAllBuilder {
         slf
     }
 
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -8294,6 +10299,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_all(&symbol, &expiration);
@@ -8336,6 +10342,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8362,6 +10371,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_all(&symbol, &expiration);
@@ -8404,6 +10414,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8429,6 +10442,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -8480,6 +10494,9 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8527,6 +10544,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -8574,6 +10592,553 @@ impl OptionHistoryTradeGreeksAllBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch all binomial Greeks on each trade for an option contract.
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculates greeks for every trade reported by OPRA.
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialTradeGreeksAllBuilder")]
+pub struct OptionHistoryBinomialTradeGreeksAllBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialTradeGreeksAllBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksAllTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        trade_greeks_all_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_trade_greeks_all` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = trade_greeks_all_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9131,6 +11696,527 @@ impl OptionHistoryGreeksFirstOrderBuilder {
     }
 }
 
+/// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration. 
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialGreeksFirstOrderBuilder")]
+pub struct OptionHistoryBinomialGreeksFirstOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    interval: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialGreeksFirstOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksFirstOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match greeks_first_order_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// Fetch first-order Greeks on each trade for an option contract.
 ///
 /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -9145,6 +12231,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
 /// - `end_time`: `"16:00:00"`
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksFirstOrderBuilder")]
 pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -9163,6 +12250,7 @@ pub struct OptionHistoryTradeGreeksFirstOrderBuilder {
     strike_range: Option<i32>,
     start_date: Option<String>,
     end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -9246,6 +12334,12 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         slf
     }
 
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -9285,6 +12379,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, &expiration);
@@ -9327,6 +12422,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -9353,6 +12451,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, &expiration);
@@ -9395,6 +12494,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -9420,6 +12522,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -9471,6 +12574,9 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -9518,6 +12624,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -9565,6 +12672,553 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch first-order binomial Greeks on each trade for an option contract.
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculates greeks for every trade reported by OPRA.
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialTradeGreeksFirstOrderBuilder")]
+pub struct OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        trade_greeks_first_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_trade_greeks_first_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = trade_greeks_first_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -10122,6 +13776,527 @@ impl OptionHistoryGreeksSecondOrderBuilder {
     }
 }
 
+/// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration. 
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialGreeksSecondOrderBuilder")]
+pub struct OptionHistoryBinomialGreeksSecondOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    interval: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialGreeksSecondOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksSecondOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match greeks_second_order_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// Fetch second-order Greeks on each trade for an option contract.
 ///
 /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -10136,6 +14311,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
 /// - `end_time`: `"16:00:00"`
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksSecondOrderBuilder")]
 pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -10154,6 +14330,7 @@ pub struct OptionHistoryTradeGreeksSecondOrderBuilder {
     strike_range: Option<i32>,
     start_date: Option<String>,
     end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -10237,6 +14414,12 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         slf
     }
 
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -10276,6 +14459,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, &expiration);
@@ -10318,6 +14502,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10344,6 +14531,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, &expiration);
@@ -10386,6 +14574,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10411,6 +14602,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -10462,6 +14654,9 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -10509,6 +14704,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -10556,6 +14752,553 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch second-order binomial Greeks on each trade for an option contract.
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculates greeks for every trade reported by OPRA.
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialTradeGreeksSecondOrderBuilder")]
+pub struct OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        trade_greeks_second_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_trade_greeks_second_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = trade_greeks_second_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -11113,6 +15856,527 @@ impl OptionHistoryGreeksThirdOrderBuilder {
     }
 }
 
+/// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration. 
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `interval`: `"1s"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialGreeksThirdOrderBuilder")]
+pub struct OptionHistoryBinomialGreeksThirdOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    interval: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialGreeksThirdOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `interval` on the pending request.
+    fn interval<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.interval = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<GreeksThirdOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let interval = self.interval.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match greeks_third_order_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
 /// Fetch third-order Greeks on each trade for an option contract.
 ///
 /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -11127,6 +16391,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
 /// - `end_time`: `"16:00:00"`
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksThirdOrderBuilder")]
 pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -11145,6 +16410,7 @@ pub struct OptionHistoryTradeGreeksThirdOrderBuilder {
     strike_range: Option<i32>,
     start_date: Option<String>,
     end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -11228,6 +16494,12 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         slf
     }
 
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -11267,6 +16539,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, &expiration);
@@ -11309,6 +16582,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11335,6 +16611,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, &expiration);
@@ -11377,6 +16654,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11402,6 +16682,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -11453,6 +16734,9 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -11500,6 +16784,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -11547,6 +16832,553 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
+                // Copy the chunk out synchronously so nothing borrowed
+                // is held across the await, then run the GIL-bound
+                // handler on the blocking pool: a slow handler parks a
+                // pool thread, never a shared async worker driving other
+                // in-flight market-data calls. The handler Py<PyAny> is
+                // Arc'd once (Send + Sync); we clone the Arc per chunk
+                // (no GIL needed), never clone_ref.
+                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
+                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
+                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
+                async move {
+                    // GIL acquired strictly inside spawn_blocking — never
+                    // held on the async side while awaiting the join, so a
+                    // pool thread waiting on the GIL cannot deadlock the
+                    // task awaiting it.
+                    let join = tokio::task::spawn_blocking(move || {
+                        Python::attach(|py| {
+                            let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, chunk) {
+                                Ok(list) => list,
+                                Err(e) => {
+                                    *cb_err_for_task.lock().unwrap() = Some(e);
+                                    return;
+                                }
+                            };
+                            let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {
+                                *cb_err_for_task.lock().unwrap() = Some(e);
+                            }
+                        })
+                    }).await;
+                    if let Err(join_err) = join {
+                        // A panic in the handler task surfaces as a
+                        // re-raised RuntimeError instead of being swallowed.
+                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
+                    }
+                    // The first error ends the stream: no further chunk
+                    // is fetched or handed to the handler.
+                    if cb_err_for_join.lock().unwrap().is_some() {
+                        std::ops::ControlFlow::Break(())
+                    } else {
+                        std::ops::ControlFlow::Continue(())
+                    }
+                }
+            }).await)
+        }, move |py, stream_result| {
+            // Post-await converter, with the GIL reacquired. The callback's
+            // exception is what ended the stream.
+            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
+                return Err(py_err);
+            }
+            stream_result.map_err(to_py_err)?;
+            Ok::<_, PyErr>(py.None())
+        })
+    }
+}
+
+/// Fetch third-order binomial Greeks on each trade for an option contract.
+///
+/// - Returns the data for all contracts that share the same provided symbol and expiration.
+/// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+/// - Calculates greeks for every trade reported by OPRA.
+/// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+/// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+///
+/// Defaults (upstream):
+/// - `strike`: `"*"`
+/// - `right`: `"both"`
+/// - `start_time`: `"09:30:00"`
+/// - `end_time`: `"16:00:00"`
+/// - `rate_type`: `"sofr"`
+/// - `binomial_steps`: `101`
+/// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
+#[pyclass(module = "thetadatadx", name = "OptionHistoryBinomialTradeGreeksThirdOrderBuilder")]
+pub struct OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
+    client: std::sync::Arc<thetadatadx::Client>,
+    symbol: String,
+    expiration: String,
+    strike: Option<String>,
+    right: Option<String>,
+    date: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    annual_dividend: Option<f64>,
+    rate_type: Option<String>,
+    rate_value: Option<f64>,
+    binomial_steps: Option<i32>,
+    version: Option<String>,
+    max_dte: Option<i32>,
+    strike_range: Option<i32>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
+    timeout_ms: Option<u64>,
+}
+
+#[pymethods]
+impl OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
+    /// Set `strike` on the pending request.
+    fn strike<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.strike = Some(value.into_string());
+        slf
+    }
+
+    /// Set `right` on the pending request.
+    fn right<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.right = Some(value.into_string());
+        slf
+    }
+
+    /// Set `date` on the pending request.
+    fn date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `start_time` on the pending request.
+    fn start_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.start_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_time` on the pending request.
+    fn end_time<'py>(mut slf: PyRefMut<'py, Self>, value: PyTimeArg) -> PyRefMut<'py, Self> {
+        slf.end_time = Some(value.into_string());
+        slf
+    }
+
+    /// Set `annual_dividend` on the pending request.
+    fn annual_dividend<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.annual_dividend = Some(value);
+        slf
+    }
+
+    /// Set `rate_type` on the pending request.
+    fn rate_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.rate_type = Some(value.into_string());
+        slf
+    }
+
+    /// Set `rate_value` on the pending request.
+    fn rate_value<'py>(mut slf: PyRefMut<'py, Self>, value: f64) -> PyRefMut<'py, Self> {
+        slf.rate_value = Some(value);
+        slf
+    }
+
+    /// Set `binomial_steps` on the pending request.
+    fn binomial_steps<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.binomial_steps = Some(value);
+        slf
+    }
+
+    /// Set `version` on the pending request.
+    fn version<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.version = Some(value.into_string());
+        slf
+    }
+
+    /// Set `max_dte` on the pending request.
+    fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.max_dte = Some(value);
+        slf
+    }
+
+    /// Set `strike_range` on the pending request.
+    fn strike_range<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
+        slf.strike_range = Some(value);
+        slf
+    }
+
+    /// Set `start_date` on the pending request.
+    fn start_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.start_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `end_date` on the pending request.
+    fn end_date<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.end_date = Some(value.into_string());
+        slf
+    }
+
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
+    /// Replace the required `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = value.into_string();
+        slf
+    }
+
+    /// Replace the required `expiration` on the pending request.
+    fn expiration<'py>(mut slf: PyRefMut<'py, Self>, value: PyDateArg) -> PyRefMut<'py, Self> {
+        slf.expiration = value.into_string();
+        slf
+    }
+
+    /// Apply a per-request deadline in milliseconds.
+    fn timeout_ms<'py>(mut slf: PyRefMut<'py, Self>, value: u64) -> PyRefMut<'py, Self> {
+        slf.timeout_ms = Some(value);
+        slf
+    }
+
+    /// Execute the request and return a typed list wrapper.
+    ///
+    /// Chain `.to_polars()` / `.to_pandas()` / `.to_arrow()` / `.to_list()`
+    /// on the result to convert to the downstream representation.
+    fn list(&self, py: Python<'_>) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let ticks = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })?;
+        trade_greeks_third_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Async companion to `list()` — awaitable yields the typed list wrapper.
+    fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Stream chunks of `option_history_binomial_trade_greeks_third_order` rows into `handler` without materialising the full response in memory. `handler(chunk: list[Tick]) -> None` is called once per gRPC chunk; the chunk is freed before the stream's next chunk is fetched. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). An exception raised by `handler` stops the stream, so no further chunk is fetched, and is raised from this call.
+    fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        // Callback PyErr is captured in a Mutex<Option<PyErr>>
+        // because the chunk closure is `FnMut`, not `FnOnce`, and
+        // can't move-out of `&mut Option<PyErr>`. The Mutex also
+        // gives us `Send`, which `run_blocking`'s bound requires.
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let stream_result = run_blocking(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.stream_ticks(|chunk| {
+                Python::attach(|py| {
+                    let delivered = trade_greeks_third_order_ticks_vec_to_pylist(py, chunk).and_then(|py_list| {
+                        let _reentry_guard = crate::DeliveryHandlerGuard::enter();
+                        handler_for_closure.call1(py, (py_list,)).map(drop)
+                    });
+                    match delivered {
+                        Ok(()) => std::ops::ControlFlow::Continue(()),
+                        Err(e) => {
+                            // The first error ends the stream: no further
+                            // chunk is fetched or handed to the handler.
+                            *cb_err_for_closure.lock().unwrap() = Some(e);
+                            std::ops::ControlFlow::Break(())
+                        }
+                    }
+                })
+            }).await
+        });
+        // The callback's exception is what ended the stream.
+        if let Some(py_err) = callback_error.lock().unwrap().take() {
+            return Err(py_err);
+        }
+        stream_result?;
+        Ok(())
+    }
+
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_binomial_trade_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, one call at a time, on a worker thread; a stream's next chunk is not fetched until its handler call returns. Under `bulk_fetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (`bulk_fetch = "off"` restores it). Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
+    fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        let symbol = self.symbol.clone();
+        let expiration = self.expiration.clone();
+        let strike = self.strike.clone();
+        let right = self.right.clone();
+        let date = self.date.clone();
+        let start_time = self.start_time.clone();
+        let end_time = self.end_time.clone();
+        let annual_dividend = self.annual_dividend;
+        let rate_type = self.rate_type.clone();
+        let rate_value = self.rate_value;
+        let binomial_steps = self.binomial_steps;
+        let version = self.version.clone();
+        let max_dte = self.max_dte;
+        let strike_range = self.strike_range;
+        let start_date = self.start_date.clone();
+        let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
+        let timeout_ms = self.timeout_ms;
+        let handler_arc = std::sync::Arc::new(handler);
+        let handler_for_closure = std::sync::Arc::clone(&handler_arc);
+        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
+        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, &expiration);
+            if let Some(value) = &strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = &right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = &date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = &start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = &end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = &annual_dividend {
+                request = request.annual_dividend(*value);
+            }
+            if let Some(value) = &rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = &rate_value {
+                request = request.rate_value(*value);
+            }
+            if let Some(value) = &binomial_steps {
+                request = request.binomial_steps(*value);
+            }
+            if let Some(value) = &version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = &max_dte {
+                request = request.max_dte(*value);
+            }
+            if let Some(value) = &strike_range {
+                request = request.strike_range(*value);
+            }
+            if let Some(value) = &start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = &end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -12116,6 +17948,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
 /// - `end_time`: `"16:00:00"`
 /// - `rate_type`: `"sofr"`
 /// - `version`: `"latest"`
+/// - `perf_boost_intraday`: `false`
 #[pyclass(module = "thetadatadx", name = "OptionHistoryTradeGreeksImpliedVolatilityBuilder")]
 pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -12134,6 +17967,7 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityBuilder {
     strike_range: Option<i32>,
     start_date: Option<String>,
     end_date: Option<String>,
+    perf_boost_intraday: Option<bool>,
     timeout_ms: Option<u64>,
 }
 
@@ -12217,6 +18051,12 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         slf
     }
 
+    /// Set `perf_boost_intraday` on the pending request.
+    fn perf_boost_intraday<'py>(mut slf: PyRefMut<'py, Self>, value: bool) -> PyRefMut<'py, Self> {
+        slf.perf_boost_intraday = Some(value);
+        slf
+    }
+
     /// Replace the required `symbol` on the pending request.
     fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.symbol = value.into_string();
@@ -12256,6 +18096,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
@@ -12298,6 +18139,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12324,6 +18168,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
             let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, &expiration);
@@ -12366,6 +18211,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12391,6 +18239,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -12442,6 +18291,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -12489,6 +18341,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let strike_range = self.strike_range;
         let start_date = self.start_date.clone();
         let end_date = self.end_date.clone();
+        let perf_boost_intraday = self.perf_boost_intraday;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
         let handler_for_closure = std::sync::Arc::clone(&handler_arc);
@@ -12536,6 +18389,9 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             }
             if let Some(value) = &end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = &perf_boost_intraday {
+                request = request.perf_boost_intraday(*value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14953,9 +20809,13 @@ fn register_generated_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<
     m.add_class::<OptionSnapshotMarketValueBuilder>()?;
     m.add_class::<OptionSnapshotGreeksImpliedVolatilityBuilder>()?;
     m.add_class::<OptionSnapshotGreeksAllBuilder>()?;
+    m.add_class::<OptionSnapshotBinomialGreeksAllBuilder>()?;
     m.add_class::<OptionSnapshotGreeksFirstOrderBuilder>()?;
+    m.add_class::<OptionSnapshotBinomialGreeksFirstOrderBuilder>()?;
     m.add_class::<OptionSnapshotGreeksSecondOrderBuilder>()?;
+    m.add_class::<OptionSnapshotBinomialGreeksSecondOrderBuilder>()?;
     m.add_class::<OptionSnapshotGreeksThirdOrderBuilder>()?;
+    m.add_class::<OptionSnapshotBinomialGreeksThirdOrderBuilder>()?;
     m.add_class::<OptionHistoryEodBuilder>()?;
     m.add_class::<OptionHistoryOhlcBuilder>()?;
     m.add_class::<OptionHistoryTradeBuilder>()?;
@@ -14963,14 +20823,23 @@ fn register_generated_market_data_builders(m: &Bound<'_, PyModule>) -> PyResult<
     m.add_class::<OptionHistoryTradeQuoteBuilder>()?;
     m.add_class::<OptionHistoryOpenInterestBuilder>()?;
     m.add_class::<OptionHistoryGreeksEodBuilder>()?;
+    m.add_class::<OptionHistoryBinomialGreeksEodBuilder>()?;
     m.add_class::<OptionHistoryGreeksAllBuilder>()?;
+    m.add_class::<OptionHistoryBinomialGreeksAllBuilder>()?;
     m.add_class::<OptionHistoryTradeGreeksAllBuilder>()?;
+    m.add_class::<OptionHistoryBinomialTradeGreeksAllBuilder>()?;
     m.add_class::<OptionHistoryGreeksFirstOrderBuilder>()?;
+    m.add_class::<OptionHistoryBinomialGreeksFirstOrderBuilder>()?;
     m.add_class::<OptionHistoryTradeGreeksFirstOrderBuilder>()?;
+    m.add_class::<OptionHistoryBinomialTradeGreeksFirstOrderBuilder>()?;
     m.add_class::<OptionHistoryGreeksSecondOrderBuilder>()?;
+    m.add_class::<OptionHistoryBinomialGreeksSecondOrderBuilder>()?;
     m.add_class::<OptionHistoryTradeGreeksSecondOrderBuilder>()?;
+    m.add_class::<OptionHistoryBinomialTradeGreeksSecondOrderBuilder>()?;
     m.add_class::<OptionHistoryGreeksThirdOrderBuilder>()?;
+    m.add_class::<OptionHistoryBinomialGreeksThirdOrderBuilder>()?;
     m.add_class::<OptionHistoryTradeGreeksThirdOrderBuilder>()?;
+    m.add_class::<OptionHistoryBinomialTradeGreeksThirdOrderBuilder>()?;
     m.add_class::<OptionHistoryGreeksImpliedVolatilityBuilder>()?;
     m.add_class::<OptionHistoryTradeGreeksImpliedVolatilityBuilder>()?;
     m.add_class::<OptionAtTimeTradeBuilder>()?;
@@ -17623,6 +23492,199 @@ impl MarketDataView {
         }
     }
 
+    /// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_all(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<pyo3::types::PyList>> {
+        let mut request = self.client.market_data().option_snapshot_binomial_greeks_all(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value.as_str());
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_all_ticks_vec_to_pylist(py, ticks)
+    }
+
+    /// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_all_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_all(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_all_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_snapshot_binomial_greeks_all`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_snapshot_binomial_greeks_all()` for the sync signature; `option_snapshot_binomial_greeks_all_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_snapshot_binomial_greeks_all_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionSnapshotBinomialGreeksAllBuilder {
+        OptionSnapshotBinomialGreeksAllBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            stock_price: None,
+            binomial_steps: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            min_time: None,
+            use_market_value: None,
+            timeout_ms: None,
+        }
+    }
+
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -17794,6 +23856,199 @@ impl MarketDataView {
             rate_type: None,
             rate_value: None,
             stock_price: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            min_time: None,
+            use_market_value: None,
+            timeout_ms: None,
+        }
+    }
+
+    /// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_first_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<pyo3::types::PyList>> {
+        let mut request = self.client.market_data().option_snapshot_binomial_greeks_first_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value.as_str());
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_first_order_ticks_vec_to_pylist(py, ticks)
+    }
+
+    /// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_first_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_first_order_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_snapshot_binomial_greeks_first_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_snapshot_binomial_greeks_first_order()` for the sync signature; `option_snapshot_binomial_greeks_first_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_snapshot_binomial_greeks_first_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionSnapshotBinomialGreeksFirstOrderBuilder {
+        OptionSnapshotBinomialGreeksFirstOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            stock_price: None,
+            binomial_steps: None,
             version: None,
             max_dte: None,
             strike_range: None,
@@ -17983,6 +24238,199 @@ impl MarketDataView {
         }
     }
 
+    /// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+    ///
+    /// - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_second_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<pyo3::types::PyList>> {
+        let mut request = self.client.market_data().option_snapshot_binomial_greeks_second_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value.as_str());
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_second_order_ticks_vec_to_pylist(py, ticks)
+    }
+
+    /// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+    ///
+    /// - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_second_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_second_order_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_snapshot_binomial_greeks_second_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_snapshot_binomial_greeks_second_order()` for the sync signature; `option_snapshot_binomial_greeks_second_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_snapshot_binomial_greeks_second_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionSnapshotBinomialGreeksSecondOrderBuilder {
+        OptionSnapshotBinomialGreeksSecondOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            stock_price: None,
+            binomial_steps: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            min_time: None,
+            use_market_value: None,
+            timeout_ms: None,
+        }
+    }
+
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -18154,6 +24602,199 @@ impl MarketDataView {
             rate_type: None,
             rate_value: None,
             stock_price: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            min_time: None,
+            use_market_value: None,
+            timeout_ms: None,
+        }
+    }
+
+    /// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+    ///
+    /// - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=false, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_third_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<pyo3::types::PyList>> {
+        let mut request = self.client.market_data().option_snapshot_binomial_greeks_third_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = stock_price {
+            request = request.stock_price(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = min_time {
+            request = request.min_time(value.as_str());
+        }
+        if let Some(value) = use_market_value {
+            request = request.use_market_value(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_third_order_ticks_vec_to_pylist(py, ticks)
+    }
+
+    /// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+    ///
+    /// - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, stock_price=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, min_time=None, use_market_value=None, timeout_ms=None))]
+    fn option_snapshot_binomial_greeks_third_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        stock_price: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        min_time: Option<PyTimeArg>,
+        use_market_value: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_third_order_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_snapshot_binomial_greeks_third_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_snapshot_binomial_greeks_third_order()` for the sync signature; `option_snapshot_binomial_greeks_third_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_snapshot_binomial_greeks_third_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionSnapshotBinomialGreeksThirdOrderBuilder {
+        OptionSnapshotBinomialGreeksThirdOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            stock_price: None,
+            binomial_steps: None,
             version: None,
             max_dte: None,
             strike_range: None,
@@ -19274,6 +25915,191 @@ impl MarketDataView {
         }
     }
 
+    /// Fetch end-of-day binomial Greeks history for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+    /// - **Any ``expiration=*`` request must be made day by day.**
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `underlyer_use_nbbo`: `false`
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, underlyer_use_nbbo=false, max_dte=None, strike_range=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_eod(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        underlyer_use_nbbo: Option<bool>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<GreeksEodTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = underlyer_use_nbbo {
+            request = request.underlyer_use_nbbo(value);
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_eod_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch end-of-day binomial Greeks history for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+    /// - **Any ``expiration=*`` request must be made day by day.**
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `underlyer_use_nbbo`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, start_date, end_date, *, strike=None, right=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, underlyer_use_nbbo=None, max_dte=None, strike_range=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_eod_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        underlyer_use_nbbo: Option<bool>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(symbol.as_str(), expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_eod_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_greeks_eod`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_greeks_eod()` for the sync signature; `option_history_binomial_greeks_eod_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration, start_date, end_date))]
+    fn option_history_binomial_greeks_eod_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        start_date: PyDateArg,
+        end_date: PyDateArg,
+    ) -> OptionHistoryBinomialGreeksEodBuilder {
+        OptionHistoryBinomialGreeksEodBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            start_date: start_date.into_string(),
+            end_date: end_date.into_string(),
+            strike: None,
+            right: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            underlyer_use_nbbo: None,
+            max_dte: None,
+            strike_range: None,
+            timeout_ms: None,
+        }
+    }
+
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -19480,6 +26306,225 @@ impl MarketDataView {
         }
     }
 
+    /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_all(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<GreeksAllTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_greeks_all(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_all_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_all_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_greeks_all`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_greeks_all()` for the sync signature; `option_history_binomial_greeks_all_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_greeks_all_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialGreeksAllBuilder {
+        OptionHistoryBinomialGreeksAllBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            interval: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            timeout_ms: None,
+        }
+    }
+
     /// Fetch all Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -19494,7 +26539,8 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_all(
         &self,
         py: Python<'_>,
@@ -19513,6 +26559,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksAllTickList>> {
         let mut request = self.client.market_data().option_history_trade_greeks_all(symbol.as_str(), expiration.as_str());
@@ -19555,6 +26602,9 @@ impl MarketDataView {
         if let Some(value) = end_date {
             request = request.end_date(value.as_str());
         }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -19576,12 +26626,13 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_all_async<'py>(
         &self,
         py: Python<'py>,
@@ -19600,6 +26651,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -19644,6 +26696,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -19680,6 +26735,235 @@ impl MarketDataView {
             strike_range: None,
             start_date: None,
             end_date: None,
+            perf_boost_intraday: None,
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch all binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_all(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<TradeGreeksAllTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_trade_greeks_all(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        trade_greeks_all_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch all binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_all_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_all_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_trade_greeks_all`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_trade_greeks_all()` for the sync signature; `option_history_binomial_trade_greeks_all_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_trade_greeks_all_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialTradeGreeksAllBuilder {
+        OptionHistoryBinomialTradeGreeksAllBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            perf_boost_intraday: None,
             timeout_ms: None,
         }
     }
@@ -19890,6 +27174,225 @@ impl MarketDataView {
         }
     }
 
+    /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_first_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<GreeksFirstOrderTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_greeks_first_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_first_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_first_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_greeks_first_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_greeks_first_order()` for the sync signature; `option_history_binomial_greeks_first_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_greeks_first_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialGreeksFirstOrderBuilder {
+        OptionHistoryBinomialGreeksFirstOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            interval: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            timeout_ms: None,
+        }
+    }
+
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -19904,7 +27407,8 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_first_order(
         &self,
         py: Python<'_>,
@@ -19923,6 +27427,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
         let mut request = self.client.market_data().option_history_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
@@ -19965,6 +27470,9 @@ impl MarketDataView {
         if let Some(value) = end_date {
             request = request.end_date(value.as_str());
         }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -19986,12 +27494,13 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_first_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -20010,6 +27519,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -20054,6 +27564,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -20090,6 +27603,235 @@ impl MarketDataView {
             strike_range: None,
             start_date: None,
             end_date: None,
+            perf_boost_intraday: None,
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch first-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_first_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        trade_greeks_first_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch first-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_first_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_first_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_trade_greeks_first_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_trade_greeks_first_order()` for the sync signature; `option_history_binomial_trade_greeks_first_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_trade_greeks_first_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
+        OptionHistoryBinomialTradeGreeksFirstOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            perf_boost_intraday: None,
             timeout_ms: None,
         }
     }
@@ -20300,6 +28042,225 @@ impl MarketDataView {
         }
     }
 
+    /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_second_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<GreeksSecondOrderTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_greeks_second_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_second_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_second_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_greeks_second_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_greeks_second_order()` for the sync signature; `option_history_binomial_greeks_second_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_greeks_second_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialGreeksSecondOrderBuilder {
+        OptionHistoryBinomialGreeksSecondOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            interval: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            timeout_ms: None,
+        }
+    }
+
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -20314,7 +28275,8 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_second_order(
         &self,
         py: Python<'_>,
@@ -20333,6 +28295,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
         let mut request = self.client.market_data().option_history_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
@@ -20375,6 +28338,9 @@ impl MarketDataView {
         if let Some(value) = end_date {
             request = request.end_date(value.as_str());
         }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -20396,12 +28362,13 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_second_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -20420,6 +28387,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -20464,6 +28432,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -20500,6 +28471,235 @@ impl MarketDataView {
             strike_range: None,
             start_date: None,
             end_date: None,
+            perf_boost_intraday: None,
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch second-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_second_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        trade_greeks_second_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch second-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_second_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_second_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_trade_greeks_second_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_trade_greeks_second_order()` for the sync signature; `option_history_binomial_trade_greeks_second_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_trade_greeks_second_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
+        OptionHistoryBinomialTradeGreeksSecondOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            perf_boost_intraday: None,
             timeout_ms: None,
         }
     }
@@ -20710,6 +28910,225 @@ impl MarketDataView {
         }
     }
 
+    /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_third_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<GreeksThirdOrderTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_greeks_third_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = interval {
+            request = request.interval(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        greeks_third_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, interval=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    fn option_history_binomial_greeks_third_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        interval: Option<PyStringArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_greeks_third_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_greeks_third_order()` for the sync signature; `option_history_binomial_greeks_third_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_greeks_third_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialGreeksThirdOrderBuilder {
+        OptionHistoryBinomialGreeksThirdOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            interval: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            timeout_ms: None,
+        }
+    }
+
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -20724,7 +29143,8 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_third_order(
         &self,
         py: Python<'_>,
@@ -20743,6 +29163,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
         let mut request = self.client.market_data().option_history_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
@@ -20785,6 +29206,9 @@ impl MarketDataView {
         if let Some(value) = end_date {
             request = request.end_date(value.as_str());
         }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -20806,12 +29230,13 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_third_order_async<'py>(
         &self,
         py: Python<'py>,
@@ -20830,6 +29255,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -20874,6 +29300,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -20910,6 +29339,235 @@ impl MarketDataView {
             strike_range: None,
             start_date: None,
             end_date: None,
+            perf_boost_intraday: None,
+            timeout_ms: None,
+        }
+    }
+
+    /// Fetch third-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=101, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_third_order(
+        &self,
+        py: Python<'_>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
+        let mut request = self.client.market_data().option_history_binomial_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
+        if let Some(value) = strike {
+            request = request.strike(value.as_str());
+        }
+        if let Some(value) = right {
+            request = request.right(value.as_str());
+        }
+        if let Some(value) = date {
+            request = request.date(value.as_str());
+        }
+        if let Some(value) = start_time {
+            request = request.start_time(value.as_str());
+        }
+        if let Some(value) = end_time {
+            request = request.end_time(value.as_str());
+        }
+        if let Some(value) = annual_dividend {
+            request = request.annual_dividend(value);
+        }
+        if let Some(value) = rate_type {
+            request = request.rate_type(value.as_str());
+        }
+        if let Some(value) = rate_value {
+            request = request.rate_value(value);
+        }
+        if let Some(value) = binomial_steps {
+            request = request.binomial_steps(value);
+        }
+        if let Some(value) = version {
+            request = request.version(value.as_str());
+        }
+        if let Some(value) = max_dte {
+            request = request.max_dte(value);
+        }
+        if let Some(value) = strike_range {
+            request = request.strike_range(value);
+        }
+        if let Some(value) = start_date {
+            request = request.start_date(value.as_str());
+        }
+        if let Some(value) = end_date {
+            request = request.end_date(value.as_str());
+        }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
+        if let Some(ms) = timeout_ms {
+            request = request.with_deadline(std::time::Duration::from_millis(ms));
+        }
+        let ticks = run_blocking(py, async move { request.await })?;
+        trade_greeks_third_order_ticks_to_pyclass_list(py, ticks)
+    }
+
+    /// Fetch third-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    ///
+    ///
+    /// Async companion — returns an awaitable (`asyncio.Future`).
+    /// Shares the same shared tokio runtime as the sync variant; no
+    /// second runtime is created per call.
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, binomial_steps=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
+    fn option_history_binomial_trade_greeks_third_order_async<'py>(
+        &self,
+        py: Python<'py>,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+        strike: Option<PyStringArg>,
+        right: Option<PyStringArg>,
+        date: Option<PyDateArg>,
+        start_time: Option<PyTimeArg>,
+        end_time: Option<PyTimeArg>,
+        annual_dividend: Option<f64>,
+        rate_type: Option<PyStringArg>,
+        rate_value: Option<f64>,
+        binomial_steps: Option<i32>,
+        version: Option<PyStringArg>,
+        max_dte: Option<i32>,
+        strike_range: Option<i32>,
+        start_date: Option<PyDateArg>,
+        end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
+        timeout_ms: Option<u64>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let client = self.client.clone();
+        spawn_awaitable(py, async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(symbol.as_str(), expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        }, |py, ticks| trade_greeks_third_order_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
+    }
+
+    /// Create a fluent-builder for `option_history_binomial_trade_greeks_third_order`. Chain setters then call `.list()`
+    /// (or `.list_async()`) to execute the request; the returned typed list
+    /// wrapper exposes the chainable terminals `.to_list()` / `.to_arrow()`
+    /// / `.to_pandas()` / `.to_polars()`.
+    ///
+    /// See `option_history_binomial_trade_greeks_third_order()` for the sync signature; `option_history_binomial_trade_greeks_third_order_async()` for the awaitable companion.
+    #[pyo3(signature = (symbol, expiration))]
+    fn option_history_binomial_trade_greeks_third_order_builder(
+        &self,
+        symbol: PyStringArg,
+        expiration: PyDateArg,
+    ) -> OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
+        OptionHistoryBinomialTradeGreeksThirdOrderBuilder {
+            client: self.client.clone(),
+            symbol: symbol.into_string(),
+            expiration: expiration.into_string(),
+            strike: None,
+            right: None,
+            date: None,
+            start_time: None,
+            end_time: None,
+            annual_dividend: None,
+            rate_type: None,
+            rate_value: None,
+            binomial_steps: None,
+            version: None,
+            max_dte: None,
+            strike_range: None,
+            start_date: None,
+            end_date: None,
+            perf_boost_intraday: None,
             timeout_ms: None,
         }
     }
@@ -21131,7 +29789,8 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    /// - `perf_boost_intraday`: `false`
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=false, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility(
         &self,
         py: Python<'_>,
@@ -21150,6 +29809,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
         let mut request = self.client.market_data().option_history_trade_greeks_implied_volatility(symbol.as_str(), expiration.as_str());
@@ -21192,6 +29852,9 @@ impl MarketDataView {
         if let Some(value) = end_date {
             request = request.end_date(value.as_str());
         }
+        if let Some(value) = perf_boost_intraday {
+            request = request.perf_boost_intraday(value);
+        }
         if let Some(ms) = timeout_ms {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
@@ -21212,12 +29875,13 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, timeout_ms=None))]
+    #[pyo3(signature = (symbol, expiration, *, strike=None, right=None, date=None, start_time=None, end_time=None, annual_dividend=None, rate_type=None, rate_value=None, version=None, max_dte=None, strike_range=None, start_date=None, end_date=None, perf_boost_intraday=None, timeout_ms=None))]
     fn option_history_trade_greeks_implied_volatility_async<'py>(
         &self,
         py: Python<'py>,
@@ -21236,6 +29900,7 @@ impl MarketDataView {
         strike_range: Option<i32>,
         start_date: Option<PyDateArg>,
         end_date: Option<PyDateArg>,
+        perf_boost_intraday: Option<bool>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
@@ -21280,6 +29945,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -21316,6 +29984,7 @@ impl MarketDataView {
             strike_range: None,
             start_date: None,
             end_date: None,
+            perf_boost_intraday: None,
             timeout_ms: None,
         }
     }

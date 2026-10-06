@@ -2942,6 +2942,78 @@ cpp = true
 ffi = true
 
 [[market_data_streaming]]
+name = "option_history_binomial_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_greeks_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_trade_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_trade_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_trade_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
+name = "option_history_binomial_trade_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_streaming]]
 name = "option_history_eod"
 rust = true
 python = true
@@ -3280,6 +3352,69 @@ typescript = true
 cpp = true
 
 [[market_data_async]]
+name = "option_history_binomial_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_greeks_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_trade_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_trade_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_trade_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_history_binomial_trade_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
 name = "option_history_eod"
 rust = true
 python = true
@@ -3428,6 +3563,34 @@ cpp = true
 
 [[market_data_async]]
 name = "option_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_snapshot_binomial_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_snapshot_binomial_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_snapshot_binomial_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[market_data_async]]
+name = "option_snapshot_binomial_greeks_third_order"
 rust = true
 python = true
 typescript = true
@@ -3742,6 +3905,78 @@ cpp = true
 ffi = true
 
 [[market_data_base]]
+name = "option_history_binomial_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_greeks_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_trade_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_trade_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_trade_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_history_binomial_trade_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
 name = "option_history_eod"
 rust = true
 python = true
@@ -3911,6 +4146,38 @@ ffi = true
 
 [[market_data_base]]
 name = "option_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_snapshot_binomial_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_snapshot_binomial_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_snapshot_binomial_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[market_data_base]]
+name = "option_snapshot_binomial_greeks_third_order"
 rust = true
 python = true
 typescript = true

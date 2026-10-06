@@ -1567,6 +1567,74 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
     })
 }
 
+/// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_all_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksAllTickArray {
+    ffi_boundary!(ThetaDataDxGreeksAllTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksAllTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_all", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_binomial_greeks_all: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
 ///
 /// Accepts optional builder parameters.
@@ -1625,6 +1693,74 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
             }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_first_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_first_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksFirstOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksFirstOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_first_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_binomial_greeks_first_order: {other:?}"));
                 empty
             }
             Err(error) => {
@@ -1703,6 +1839,74 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
     })
 }
 
+/// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_second_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksSecondOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksSecondOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_second_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_binomial_greeks_second_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
 ///
 /// Accepts optional builder parameters.
@@ -1761,6 +1965,74 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
             }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_third_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_snapshot_binomial_greeks_third_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksThirdOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksThirdOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_binomial_greeks_third_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_snapshot_binomial_greeks_third_order: {other:?}"));
                 empty
             }
             Err(error) => {
@@ -2275,6 +2547,88 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
     })
 }
 
+/// Fetch end-of-day binomial Greeks history for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_eod_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    start_date: *const c_char
+,
+    end_date: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksEodTickArray {
+    ffi_boundary!(ThetaDataDxGreeksEodTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+        let start_date = require_cstr!(start_date, empty);
+        args.insert(
+            "start_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(start_date.to_string()),
+        );
+        let end_date = require_cstr!(end_date, empty);
+        args.insert(
+            "end_date".to_string(),
+            thetadatadx::EndpointArgValue::Str(end_date.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_eod", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_greeks_eod: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
 ///
 /// Accepts optional builder parameters.
@@ -2333,6 +2687,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
             }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_all: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_all_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksAllTickArray {
+    ffi_boundary!(ThetaDataDxGreeksAllTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksAllTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_all", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_greeks_all: {other:?}"));
                 empty
             }
             Err(error) => {
@@ -2411,6 +2833,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
     })
 }
 
+/// Fetch all binomial Greeks on each trade for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_all_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxTradeGreeksAllTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksAllTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksAllTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_all", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxTradeGreeksAllTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_trade_greeks_all: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch first-order Greeks history (intraday, sampled by interval).
 ///
 /// Accepts optional builder parameters.
@@ -2469,6 +2959,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
             }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_first_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_first_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksFirstOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksFirstOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_first_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_greeks_first_order: {other:?}"));
                 empty
             }
             Err(error) => {
@@ -2547,6 +3105,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
     })
 }
 
+/// Fetch first-order binomial Greeks on each trade for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_first_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxTradeGreeksFirstOrderTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksFirstOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksFirstOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_first_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxTradeGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_trade_greeks_first_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch second-order Greeks history (intraday, sampled by interval).
 ///
 /// Accepts optional builder parameters.
@@ -2605,6 +3231,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
             }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_second_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_second_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksSecondOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksSecondOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_second_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_greeks_second_order: {other:?}"));
                 empty
             }
             Err(error) => {
@@ -2683,6 +3377,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
     })
 }
 
+/// Fetch second-order binomial Greeks on each trade for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_second_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxTradeGreeksSecondOrderTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksSecondOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksSecondOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_second_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxTradeGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_trade_greeks_second_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch third-order Greeks history (intraday, sampled by interval).
 ///
 /// Accepts optional builder parameters.
@@ -2751,6 +3513,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
     })
 }
 
+/// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_greeks_third_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxGreeksThirdOrderTickArray {
+    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksThirdOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_greeks_third_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_greeks_third_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
 /// Fetch third-order Greeks on each trade for an option contract.
 ///
 /// Accepts optional builder parameters.
@@ -2809,6 +3639,74 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
             }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_third_order: {other:?}"));
+                empty
+            }
+            Err(error) => {
+                set_error_from(&thetadatadx::Error::from(error));
+                empty
+            }
+        }
+    })
+}
+
+/// Fetch third-order binomial Greeks on each trade for an option contract.
+///
+/// Accepts optional builder parameters.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_option_history_binomial_trade_greeks_third_order_with_options(
+    client: *const ThetaDataDxMarketDataClient,
+    symbol: *const c_char
+,
+    expiration: *const c_char
+,
+    options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
+) -> ThetaDataDxTradeGreeksThirdOrderTickArray {
+    ffi_boundary!(ThetaDataDxTradeGreeksThirdOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksThirdOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
+        let client = require_client!(client, empty);
+
+        let mut args = thetadatadx::EndpointArgs::new();
+        if let Err(message) = apply_endpoint_request_options(&mut args, options) {
+            crate::error::set_error_with_code(&message, crate::error::THETADATADX_ERR_INVALID_PARAMETER);
+            return empty;
+        }
+        let symbol = require_cstr!(symbol, empty);
+        args.insert(
+            "symbol".to_string(),
+            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
+        );
+        let expiration = require_cstr!(expiration, empty);
+        args.insert(
+            "expiration".to_string(),
+            thetadatadx::EndpointArgValue::Str(expiration.to_string()),
+        );
+
+        match runtime().block_on(async {
+            thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_binomial_trade_greeks_third_order", &args).await
+        }) {
+            Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => {
+                let columns = values.columns().clone();
+                match ThetaDataDxTradeGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
+            Ok(other) => {
+                set_error(&format!("internal error: unexpected endpoint output for option_history_binomial_trade_greeks_third_order: {other:?}"));
                 empty
             }
             Err(error) => {

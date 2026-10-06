@@ -198,6 +198,18 @@
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_greeks_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const GreeksEodTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
+    /// Fetch end-of-day binomial Greeks history for an option contract.
+    ///
+    /// Stream `option_history_binomial_greeks_eod` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const GreeksEodTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_greeks_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const GreeksEodTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_all` rows into `handler` without materialising the full
@@ -209,6 +221,18 @@
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+    ///
+    /// Stream `option_history_binomial_greeks_all` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const GreeksAllTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch all Greeks on each trade for an option contract.
     ///
@@ -222,6 +246,18 @@
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
+    /// Fetch all binomial Greeks on each trade for an option contract.
+    ///
+    /// Stream `option_history_binomial_trade_greeks_all` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const TradeGreeksAllTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
     /// Fetch first-order Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_first_order` rows into `handler` without materialising the full
@@ -233,6 +269,18 @@
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// Stream `option_history_binomial_greeks_first_order` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const GreeksFirstOrderTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
@@ -246,6 +294,18 @@
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
+    /// Fetch first-order binomial Greeks on each trade for an option contract.
+    ///
+    /// Stream `option_history_binomial_trade_greeks_first_order` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const TradeGreeksFirstOrderTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
     /// Fetch second-order Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_second_order` rows into `handler` without materialising the full
@@ -257,6 +317,18 @@
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// Stream `option_history_binomial_greeks_second_order` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const GreeksSecondOrderTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
@@ -270,6 +342,18 @@
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
+    /// Fetch second-order binomial Greeks on each trade for an option contract.
+    ///
+    /// Stream `option_history_binomial_trade_greeks_second_order` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const TradeGreeksSecondOrderTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
     /// Fetch third-order Greeks history (intraday, sampled by interval).
     ///
     /// Stream `option_history_greeks_third_order` rows into `handler` without materialising the full
@@ -282,6 +366,18 @@
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
+    /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// Stream `option_history_binomial_greeks_third_order` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const GreeksThirdOrderTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// Stream `option_history_trade_greeks_third_order` rows into `handler` without materialising the full
@@ -293,6 +389,18 @@
     /// `options`. Throws on a wire or decode error once the stream
     /// drains; the `Span` is valid only for the duration of each call.
     void option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
+
+    /// Fetch third-order binomial Greeks on each trade for an option contract.
+    ///
+    /// Stream `option_history_binomial_trade_greeks_third_order` rows into `handler` without materialising the full
+    /// response. `handler` is invoked once per server chunk with a
+    /// `Span<const TradeGreeksThirdOrderTick>` view over a contiguous run of rows; the chunk is
+    /// freed before the next is fetched, so peak memory tracks a single
+    /// chunk rather than the whole result. Carries the same optional
+    /// builder parameters and `timeout_ms` as the buffered method via
+    /// `options`. Throws on a wire or decode error once the stream
+    /// drains; the `Span` is valid only for the duration of each call.
+    void option_history_binomial_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options = {}) const;
 
     /// Fetch implied volatility history (intraday, sampled by interval).
     ///

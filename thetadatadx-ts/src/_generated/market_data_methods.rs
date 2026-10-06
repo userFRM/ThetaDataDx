@@ -524,6 +524,44 @@ pub struct OptionSnapshotGreeksAllOptions {
     pub timeout_ms: Option<f64>,
 }
 
+/// Optional parameters for the `optionSnapshotBinomialGreeksAll` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionSnapshotBinomialGreeksAllOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
+    pub stock_price: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Minimum time filter
+    pub min_time: Option<String>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
+    pub use_market_value: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
 /// Optional parameters for the `optionSnapshotGreeksFirstOrder` method. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
 /// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -543,6 +581,44 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
     pub rate_value: Option<f64>,
     /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Minimum time filter
+    pub min_time: Option<String>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
+    pub use_market_value: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionSnapshotBinomialGreeksFirstOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionSnapshotBinomialGreeksFirstOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
+    pub stock_price: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
@@ -596,6 +672,44 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
     pub timeout_ms: Option<f64>,
 }
 
+/// Optional parameters for the `optionSnapshotBinomialGreeksSecondOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionSnapshotBinomialGreeksSecondOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
+    pub stock_price: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Minimum time filter
+    pub min_time: Option<String>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
+    pub use_market_value: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
 /// Optional parameters for the `optionSnapshotGreeksThirdOrder` method. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
 /// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -615,6 +729,44 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
     pub rate_value: Option<f64>,
     /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
     pub stock_price: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Minimum time filter
+    pub min_time: Option<String>,
+    /// When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair.
+    pub use_market_value: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionSnapshotBinomialGreeksThirdOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionSnapshotBinomialGreeksThirdOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set.
+    pub stock_price: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Maximum days to expiration
@@ -846,6 +998,40 @@ pub struct OptionHistoryGreeksEODOptions {
     pub timeout_ms: Option<f64>,
 }
 
+/// Optional parameters for the `optionHistoryBinomialGreeksEOD` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialGreeksEODOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
+    pub underlyer_use_nbbo: Option<bool>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
 /// Optional parameters for the `optionHistoryGreeksAll` method. Keys are
 /// the camelCase parameter names; absent keys behave exactly like an
 /// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -871,6 +1057,48 @@ pub struct OptionHistoryGreeksAllOptions {
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialGreeksAll` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialGreeksAllOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    pub interval: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
@@ -919,6 +1147,52 @@ pub struct OptionHistoryTradeGreeksAllOptions {
     pub start_date: Option<String>,
     /// End date YYYYMMDD
     pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialTradeGreeksAll` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialTradeGreeksAllOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -951,6 +1225,48 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialGreeksFirstOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialGreeksFirstOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    pub interval: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
@@ -999,6 +1315,52 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
     pub start_date: Option<String>,
     /// End date YYYYMMDD
     pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialTradeGreeksFirstOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialTradeGreeksFirstOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1031,6 +1393,48 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialGreeksSecondOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialGreeksSecondOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    pub interval: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
@@ -1079,6 +1483,52 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
     pub start_date: Option<String>,
     /// End date YYYYMMDD
     pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialTradeGreeksSecondOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialTradeGreeksSecondOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1111,6 +1561,48 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
     pub rate_type: Option<String>,
     /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
     pub rate_value: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialGreeksThirdOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialGreeksThirdOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
+    pub interval: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
     /// Greeks model version. Accepted values: `latest`, `1`.
     pub version: Option<String>,
     /// Strike range filter
@@ -1159,6 +1651,52 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
     pub start_date: Option<String>,
     /// End date YYYYMMDD
     pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
+    /// Per-call deadline as a non-negative whole number of milliseconds;
+    /// on expiry the returned Promise rejects and the underlying request
+    /// is cancelled. A non-finite, negative, or fractional value is
+    /// rejected with `InvalidParameterError` rather than coerced.
+    pub timeout_ms: Option<f64>,
+}
+
+/// Optional parameters for the `optionHistoryBinomialTradeGreeksThirdOrder` method. Keys are
+/// the camelCase parameter names; absent keys behave exactly like an
+/// omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+/// returned Promise rejects and the underlying request is cancelled.
+#[napi(object)]
+#[derive(Default)]
+pub struct OptionHistoryBinomialTradeGreeksThirdOrderOptions {
+    /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
+    pub strike: Option<String>,
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
+    pub right: Option<String>,
+    /// Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range.
+    pub date: Option<String>,
+    /// Start time filter
+    pub start_time: Option<String>,
+    /// End time filter
+    pub end_time: Option<String>,
+    /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
+    pub annual_dividend: Option<f64>,
+    /// Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`.
+    pub rate_type: Option<String>,
+    /// Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate.
+    pub rate_value: Option<f64>,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: Option<f64>,
+    /// Greeks model version. Accepted values: `latest`, `1`.
+    pub version: Option<String>,
+    /// Maximum days to expiration
+    pub max_dte: Option<f64>,
+    /// Strike range filter
+    pub strike_range: Option<f64>,
+    /// Start date YYYYMMDD
+    pub start_date: Option<String>,
+    /// End date YYYYMMDD
+    pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -1239,6 +1777,8 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
     pub start_date: Option<String>,
     /// End date YYYYMMDD
     pub end_date: Option<String>,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: Option<bool>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
     /// on expiry the returned Promise rejects and the underlying request
     /// is cancelled. A non-finite, negative, or fractional value is
@@ -4651,6 +5191,171 @@ impl MarketDataView {
         })
     }
 
+    /// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksAll")]
+    pub async fn option_snapshot_binomial_greeks_all(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksAllOptions>,
+    ) -> napi::Result<Vec<GreeksAllTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksAllWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -4776,6 +5481,171 @@ impl MarketDataView {
             }
             if let Some(value) = stock_price {
                 request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrder")]
+    pub async fn option_snapshot_binomial_greeks_first_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrderWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
             }
             if let Some(value) = version {
                 request = request.version(value.as_str());
@@ -4961,6 +5831,171 @@ impl MarketDataView {
         })
     }
 
+    /// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+    ///
+    /// - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrder")]
+    pub async fn option_snapshot_binomial_greeks_second_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrderWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -5086,6 +6121,171 @@ impl MarketDataView {
             }
             if let Some(value) = stock_price {
                 request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+    ///
+    /// - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrder")]
+    pub async fn option_snapshot_binomial_greeks_third_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrderWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
             }
             if let Some(value) = version {
                 request = request.version(value.as_str());
@@ -6651,6 +7851,257 @@ impl MarketDataView {
         })
     }
 
+    /// Fetch end-of-day binomial Greeks history for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+    /// - **Any ``expiration=*`` request must be made day by day.**
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `underlyer_use_nbbo`: `false`
+    #[napi(js_name = "optionHistoryBinomialGreeksEOD")]
+    pub async fn option_history_binomial_greeks_eod(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: String,
+        options: Option<OptionHistoryBinomialGreeksEODOptions>,
+    ) -> napi::Result<Vec<GreeksEodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksEODStream")]
+    pub async fn option_history_binomial_greeks_eod_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: String,
+        options: Option<OptionHistoryBinomialGreeksEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksEodTick>, (), Vec<GreeksEodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksEODWithColumns")]
+    pub async fn option_history_binomial_greeks_eod_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: String,
+        options: Option<OptionHistoryBinomialGreeksEODOptions>,
+    ) -> napi::Result<GreeksEodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksEodTickWithColumns {
+            rows: greeks_eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -6927,6 +8378,296 @@ impl MarketDataView {
         })
     }
 
+    /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksAll")]
+    pub async fn option_history_binomial_greeks_all(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksAllOptions>,
+    ) -> napi::Result<Vec<GreeksAllTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksAllStream")]
+    pub async fn option_history_binomial_greeks_all_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksAllOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksAllWithColumns")]
+    pub async fn option_history_binomial_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch all Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -6941,6 +8682,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksAll")]
     pub async fn option_history_trade_greeks_all(
         &self,
@@ -6968,6 +8710,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -7009,6 +8752,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -7047,6 +8793,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -7089,6 +8836,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -7147,6 +8897,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -7187,6 +8938,311 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksAllTickWithColumns {
+            rows: trade_greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch all binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksAll")]
+    pub async fn option_history_binomial_trade_greeks_all(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
+    ) -> napi::Result<Vec<TradeGreeksAllTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksAllStream")]
+    pub async fn option_history_binomial_trade_greeks_all_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksAllWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
+    ) -> napi::Result<TradeGreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -7478,6 +9534,296 @@ impl MarketDataView {
         })
     }
 
+    /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksFirstOrder")]
+    pub async fn option_history_binomial_greeks_first_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderStream")]
+    pub async fn option_history_binomial_greeks_first_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderWithColumns")]
+    pub async fn option_history_binomial_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -7492,6 +9838,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrder")]
     pub async fn option_history_trade_greeks_first_order(
         &self,
@@ -7519,6 +9866,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -7560,6 +9908,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -7598,6 +9949,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -7640,6 +9992,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -7698,6 +10053,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -7738,6 +10094,311 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksFirstOrderTickWithColumns {
+            rows: trade_greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch first-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrder")]
+    pub async fn option_history_binomial_trade_greeks_first_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
+    ) -> napi::Result<Vec<TradeGreeksFirstOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderStream")]
+    pub async fn option_history_binomial_trade_greeks_first_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
+    ) -> napi::Result<TradeGreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8029,6 +10690,296 @@ impl MarketDataView {
         })
     }
 
+    /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksSecondOrder")]
+    pub async fn option_history_binomial_greeks_second_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderStream")]
+    pub async fn option_history_binomial_greeks_second_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderWithColumns")]
+    pub async fn option_history_binomial_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -8043,6 +10994,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrder")]
     pub async fn option_history_trade_greeks_second_order(
         &self,
@@ -8070,6 +11022,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -8111,6 +11064,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8149,6 +11105,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -8191,6 +11148,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8249,6 +11209,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -8289,6 +11250,311 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksSecondOrderTickWithColumns {
+            rows: trade_greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch second-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrder")]
+    pub async fn option_history_binomial_trade_greeks_second_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
+    ) -> napi::Result<Vec<TradeGreeksSecondOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderStream")]
+    pub async fn option_history_binomial_trade_greeks_second_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
+    ) -> napi::Result<TradeGreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8580,6 +11846,296 @@ impl MarketDataView {
         })
     }
 
+    /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksThirdOrder")]
+    pub async fn option_history_binomial_greeks_third_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderStream")]
+    pub async fn option_history_binomial_greeks_third_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderWithColumns")]
+    pub async fn option_history_binomial_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -8594,6 +12150,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrder")]
     pub async fn option_history_trade_greeks_third_order(
         &self,
@@ -8621,6 +12178,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -8662,6 +12220,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -8700,6 +12261,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -8742,6 +12304,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -8800,6 +12365,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -8840,6 +12406,311 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksThirdOrderTickWithColumns {
+            rows: trade_greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch third-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrder")]
+    pub async fn option_history_binomial_trade_greeks_third_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
+    ) -> napi::Result<Vec<TradeGreeksThirdOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderStream")]
+    pub async fn option_history_binomial_trade_greeks_third_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
+    ) -> napi::Result<TradeGreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9143,6 +13014,7 @@ impl MarketDataView {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatility")]
     pub async fn option_history_trade_greeks_implied_volatility(
         &self,
@@ -9170,6 +13042,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -9211,6 +13084,9 @@ impl MarketDataView {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -9249,6 +13125,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -9291,6 +13168,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -9349,6 +13229,7 @@ impl MarketDataView {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -9389,6 +13270,9 @@ impl MarketDataView {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13484,6 +17368,171 @@ impl MarketDataClient {
         })
     }
 
+    /// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksAll")]
+    pub async fn option_snapshot_binomial_greeks_all(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksAllOptions>,
+    ) -> napi::Result<Vec<GreeksAllTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksAllWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -13609,6 +17658,171 @@ impl MarketDataClient {
             }
             if let Some(value) = stock_price {
                 request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+    ///
+    /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrder")]
+    pub async fn option_snapshot_binomial_greeks_first_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksFirstOrderWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
             }
             if let Some(value) = version {
                 request = request.version(value.as_str());
@@ -13794,6 +18008,171 @@ impl MarketDataClient {
         })
     }
 
+    /// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+    ///
+    /// - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrder")]
+    pub async fn option_snapshot_binomial_greeks_second_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksSecondOrderWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -13919,6 +18298,171 @@ impl MarketDataClient {
             }
             if let Some(value) = stock_price {
                 request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+    ///
+    /// - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `use_market_value`: `false`
+    #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrder")]
+    pub async fn option_snapshot_binomial_greeks_third_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionSnapshotBinomialGreeksThirdOrderWithColumns")]
+    pub async fn option_snapshot_binomial_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionSnapshotBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_snapshot_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
             }
             if let Some(value) = version {
                 request = request.version(value.as_str());
@@ -15484,6 +20028,257 @@ impl MarketDataClient {
         })
     }
 
+    /// Fetch end-of-day binomial Greeks history for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+    /// - **Any ``expiration=*`` request must be made day by day.**
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `underlyer_use_nbbo`: `false`
+    #[napi(js_name = "optionHistoryBinomialGreeksEOD")]
+    pub async fn option_history_binomial_greeks_eod(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: String,
+        options: Option<OptionHistoryBinomialGreeksEODOptions>,
+    ) -> napi::Result<Vec<GreeksEodTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_eod_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksEODStream")]
+    pub async fn option_history_binomial_greeks_eod_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: String,
+        options: Option<OptionHistoryBinomialGreeksEODOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksEodTick>, (), Vec<GreeksEodTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_eod_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksEODWithColumns")]
+    pub async fn option_history_binomial_greeks_eod_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        start_date: String,
+        end_date: String,
+        options: Option<OptionHistoryBinomialGreeksEODOptions>,
+    ) -> napi::Result<GreeksEodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksEodTickWithColumns {
+            rows: greeks_eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -15760,6 +20555,296 @@ impl MarketDataClient {
         })
     }
 
+    /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksAll")]
+    pub async fn option_history_binomial_greeks_all(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksAllOptions>,
+    ) -> napi::Result<Vec<GreeksAllTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksAllStream")]
+    pub async fn option_history_binomial_greeks_all_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksAllOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksAllTick>, (), Vec<GreeksAllTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksAllWithColumns")]
+    pub async fn option_history_binomial_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch all Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -15774,6 +20859,7 @@ impl MarketDataClient {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksAll")]
     pub async fn option_history_trade_greeks_all(
         &self,
@@ -15801,6 +20887,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -15842,6 +20929,9 @@ impl MarketDataClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -15880,6 +20970,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -15922,6 +21013,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -15980,6 +21074,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_all(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16020,6 +21115,311 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksAllTickWithColumns {
+            rows: trade_greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch all binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksAll")]
+    pub async fn option_history_binomial_trade_greeks_all(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
+    ) -> napi::Result<Vec<TradeGreeksAllTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksAllStream")]
+    pub async fn option_history_binomial_trade_greeks_all_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksAllTick>, (), Vec<TradeGreeksAllTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_all_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksAllWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksAllOptions>,
+    ) -> napi::Result<TradeGreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16311,6 +21711,296 @@ impl MarketDataClient {
         })
     }
 
+    /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksFirstOrder")]
+    pub async fn option_history_binomial_greeks_first_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<Vec<GreeksFirstOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderStream")]
+    pub async fn option_history_binomial_greeks_first_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksFirstOrderTick>, (), Vec<GreeksFirstOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksFirstOrderWithColumns")]
+    pub async fn option_history_binomial_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -16325,6 +22015,7 @@ impl MarketDataClient {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksFirstOrder")]
     pub async fn option_history_trade_greeks_first_order(
         &self,
@@ -16352,6 +22043,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16393,6 +22085,9 @@ impl MarketDataClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -16431,6 +22126,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -16473,6 +22169,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16531,6 +22230,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_first_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16571,6 +22271,311 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksFirstOrderTickWithColumns {
+            rows: trade_greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch first-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrder")]
+    pub async fn option_history_binomial_trade_greeks_first_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
+    ) -> napi::Result<Vec<TradeGreeksFirstOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_first_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderStream")]
+    pub async fn option_history_binomial_trade_greeks_first_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksFirstOrderTick>, (), Vec<TradeGreeksFirstOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksFirstOrderWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksFirstOrderOptions>,
+    ) -> napi::Result<TradeGreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -16862,6 +22867,296 @@ impl MarketDataClient {
         })
     }
 
+    /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksSecondOrder")]
+    pub async fn option_history_binomial_greeks_second_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<Vec<GreeksSecondOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_second_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderStream")]
+    pub async fn option_history_binomial_greeks_second_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksSecondOrderTick>, (), Vec<GreeksSecondOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksSecondOrderWithColumns")]
+    pub async fn option_history_binomial_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -16876,6 +23171,7 @@ impl MarketDataClient {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksSecondOrder")]
     pub async fn option_history_trade_greeks_second_order(
         &self,
@@ -16903,6 +23199,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -16944,6 +23241,9 @@ impl MarketDataClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -16982,6 +23282,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -17024,6 +23325,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17082,6 +23386,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_second_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17122,6 +23427,311 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksSecondOrderTickWithColumns {
+            rows: trade_greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch second-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrder")]
+    pub async fn option_history_binomial_trade_greeks_second_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
+    ) -> napi::Result<Vec<TradeGreeksSecondOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_second_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderStream")]
+    pub async fn option_history_binomial_trade_greeks_second_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksSecondOrderTick>, (), Vec<TradeGreeksSecondOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksSecondOrderWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksSecondOrderOptions>,
+    ) -> napi::Result<TradeGreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17413,6 +24023,296 @@ impl MarketDataClient {
         })
     }
 
+    /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration. 
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `interval`: `"1s"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    #[napi(js_name = "optionHistoryBinomialGreeksThirdOrder")]
+    pub async fn option_history_binomial_greeks_third_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<Vec<GreeksThirdOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderStream")]
+    pub async fn option_history_binomial_greeks_third_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<GreeksThirdOrderTick>, (), Vec<GreeksThirdOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialGreeksThirdOrderWithColumns")]
+    pub async fn option_history_binomial_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -17427,6 +24327,7 @@ impl MarketDataClient {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksThirdOrder")]
     pub async fn option_history_trade_greeks_third_order(
         &self,
@@ -17454,6 +24355,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17495,6 +24397,9 @@ impl MarketDataClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -17533,6 +24438,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -17575,6 +24481,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17633,6 +24542,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_third_order(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -17673,6 +24583,311 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksThirdOrderTickWithColumns {
+            rows: trade_greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+            symbols: ticks.columns().symbols().map(|s| s.iter().map(|v| v.to_string()).collect()),
+        })
+    }
+
+    /// Fetch third-order binomial Greeks on each trade for an option contract.
+    ///
+    /// - Returns the data for all contracts that share the same provided symbol and expiration.
+    /// - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+    /// - Calculates greeks for every trade reported by OPRA.
+    /// - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+    /// - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+    ///
+    /// Defaults (upstream):
+    /// - `strike`: `"*"`
+    /// - `right`: `"both"`
+    /// - `start_time`: `"09:30:00"`
+    /// - `end_time`: `"16:00:00"`
+    /// - `rate_type`: `"sofr"`
+    /// - `binomial_steps`: `101`
+    /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrder")]
+    pub async fn option_history_binomial_trade_greeks_third_order(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
+    ) -> napi::Result<Vec<TradeGreeksThirdOrderTick>> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(trade_greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderStream")]
+    pub async fn option_history_binomial_trade_greeks_third_order_stream(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
+        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<TradeGreeksThirdOrderTick>, (), Vec<TradeGreeksThirdOrderTick>, napi::Status, false>,
+    ) -> napi::Result<()> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let callback = std::sync::Arc::new(callback);
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_ticks_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice());
+                    async move {
+                        match callback.call_async_catch(rows).await {
+                            Ok(_) => std::ops::ControlFlow::Continue(()),
+                            Err(err) => {
+                                *callback_error.lock().unwrap_or_else(|e| e.into_inner()) = Some(err);
+                                std::ops::ControlFlow::Break(())
+                            }
+                        }
+                    }
+                })
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
+        })
+        .await
+    }
+
+    /// Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol.
+    #[napi(js_name = "optionHistoryBinomialTradeGreeksThirdOrderWithColumns")]
+    pub async fn option_history_binomial_trade_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: String,
+        options: Option<OptionHistoryBinomialTradeGreeksThirdOrderOptions>,
+    ) -> napi::Result<TradeGreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let date = normalize_optional_date(options.date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let binomial_steps = validate_optional_nonneg_i32("binomialSteps", options.binomial_steps)?;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.market_data().option_history_binomial_trade_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = date {
+                request = request.date(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = binomial_steps {
+                request = request.binomial_steps(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -17976,6 +25191,7 @@ impl MarketDataClient {
     /// - `end_time`: `"16:00:00"`
     /// - `rate_type`: `"sofr"`
     /// - `version`: `"latest"`
+    /// - `perf_boost_intraday`: `false`
     #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatility")]
     pub async fn option_history_trade_greeks_implied_volatility(
         &self,
@@ -18003,6 +25219,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18044,6 +25261,9 @@ impl MarketDataClient {
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
             }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
+            }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
@@ -18082,6 +25302,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let callback = std::sync::Arc::new(callback);
         let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
         spawn_napi_task(async move {
@@ -18124,6 +25345,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -18182,6 +25406,7 @@ impl MarketDataClient {
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
+        let perf_boost_intraday = options.perf_boost_intraday;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.market_data().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str());
             if let Some(value) = strike {
@@ -18222,6 +25447,9 @@ impl MarketDataClient {
             }
             if let Some(value) = end_date {
                 request = request.end_date(value.as_str());
+            }
+            if let Some(value) = perf_boost_intraday {
+                request = request.perf_boost_intraday(value);
             }
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));

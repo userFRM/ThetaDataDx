@@ -1,6 +1,6 @@
 ---
-title: First-Order Trade Greeks
-description: "Fetch first-order Greeks on each trade for an option contract."
+title: Third-Order Binomial Trade Greeks
+description: "Fetch third-order binomial Greeks on each trade for an option contract."
 aside: false
 ---
 
@@ -8,25 +8,28 @@ aside: false
 
 <script setup>
 const cfg = {
-  httpPath: "v3/option/history/trade_greeks/first_order",
-  method: { rust: "option_history_trade_greeks_first_order", python: "option_history_trade_greeks_first_order", ts: "optionHistoryTradeGreeksFirstOrder", cpp: "option_history_trade_greeks_first_order" },
+  httpPath: "v3/option/history/binomial_trade_greeks/third_order",
+  method: { rust: "option_history_binomial_trade_greeks_third_order", python: "option_history_binomial_trade_greeks_third_order", ts: "optionHistoryBinomialTradeGreeksThirdOrder", cpp: "option_history_binomial_trade_greeks_third_order" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
-  print: ["ms_of_day", "price", "delta", "theta"],
-  returns: "TradeGreeksFirstOrderTick",
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
+  print: ["ms_of_day", "price", "speed", "zomma"],
+  returns: "TradeGreeksThirdOrderTick",
   sample: [
-    {"condition":125,"delta":0.0025,"epsilon":-0.0062,"exchange":9,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.5749,"iv_error":0.0132,"lambda":56.6408,"price":0.01,"rho":0.0061,"sequence":156249981,"size":1,"theta":-0.0134,"timestamp":"2024-11-04T09:53:54.069","underlying_price":221.33,"underlying_timestamp":"2024-11-04T09:53:54","vega":0.1858},
+    {"color":-2.2155,"condition":125,"exchange":6,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.321,"iv_error":0.0,"price":2.73,"sequence":302911465,"size":1,"speed":0.0002,"timestamp":"2024-11-04T10:30:07.884","ultima":-2.2308,"underlying_price":221.69,"underlying_timestamp":"2024-11-04T10:30:07.000","zomma":-0.1602},
+    {"color":-2.2155,"condition":125,"exchange":43,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.321,"iv_error":0.0,"price":2.73,"sequence":302911466,"size":1,"speed":0.0002,"timestamp":"2024-11-04T10:30:07.884","ultima":-2.2308,"underlying_price":221.69,"underlying_timestamp":"2024-11-04T10:30:07.000","zomma":-0.1602},
+    {"color":-2.2155,"condition":125,"exchange":5,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.321,"iv_error":0.0,"price":2.73,"sequence":302911481,"size":1,"speed":0.0002,"timestamp":"2024-11-04T10:30:07.884","ultima":-2.2308,"underlying_price":221.69,"underlying_timestamp":"2024-11-04T10:30:07.000","zomma":-0.1602},
   ],
 }
 </script>
 
-# First-Order Trade Greeks
+# Third-Order Binomial Trade Greeks
 
 <TierBadge tier="professional" />
 
-Fetch first-order Greeks on each trade for an option contract.
+Fetch third-order binomial Greeks on each trade for an option contract.
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
 - Calculates greeks for every trade reported by OPRA.
 - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -47,6 +50,7 @@ Fetch first-order Greeks on each trade for an option contract.
 | `annual_dividend` | float | no | — | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
 | `rate_type` | string | no | `sofr` | Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. |
 | `rate_value` | float | no | — | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
+| `binomial_steps` | int | no | `101` | Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. |
 | `version` | string | no | `latest` | Greeks model version. Accepted values: `latest`, `1`. |
 | `max_dte` | int | no | — | Maximum days to expiration |
 | `strike_range` | int | no | — | Strike range filter |
@@ -57,7 +61,7 @@ Fetch first-order Greeks on each trade for an option contract.
 
 ## Response
 
-Rows of `TradeGreeksFirstOrderTick`:
+Rows of `TradeGreeksThirdOrderTick`:
 
 | Field | Type | Description |
 |---|---|---|
@@ -71,12 +75,10 @@ Rows of `TradeGreeksFirstOrderTick`:
 | `size` | i32 | Number of contracts or shares traded. |
 | `exchange` | i32 | Exchange code where the trade executed. Zero is a code the vendor assigns a meaning, so read `columns()` to tell a reported zero from a response that carried no such column. |
 | `price` | f64 | Trade price. |
-| `delta` | f64 | Sensitivity of the option value to a one-dollar move in the underlying. |
-| `theta` | f64 | Sensitivity of the option value to the passage of time. |
-| `vega` | f64 | Sensitivity of the option value to a change in implied volatility. |
-| `rho` | f64 | Sensitivity of the option value to the risk-free rate. |
-| `epsilon` | f64 | Sensitivity of the option value to the dividend yield. |
-| `lambda` | f64 | Percent change in the option value per percent change in the underlying. |
+| `speed` | f64 | Rate of change of gamma with respect to the underlying price. |
+| `zomma` | f64 | Sensitivity of gamma to a change in implied volatility. |
+| `color` | f64 | Rate of change of gamma over time. |
+| `ultima` | f64 | Sensitivity of vomma to a change in implied volatility. |
 | `implied_volatility` | f64 | Implied volatility solved from the option price. The vendor names this column `IMPLIED_VOL`. |
 | `iv_error` | f64 | Residual pricing error of the implied-volatility solve. |
 | `underlying_ms_of_day` | i32 | Timestamp of the underlying price, milliseconds since midnight ET. The vendor names this column `MS_OF_DAY2`. |

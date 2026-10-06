@@ -1,6 +1,6 @@
 ---
-title: First-Order Trade Greeks
-description: "Fetch first-order Greeks on each trade for an option contract."
+title: First-Order Binomial Trade Greeks
+description: "Fetch first-order binomial Greeks on each trade for an option contract."
 aside: false
 ---
 
@@ -8,25 +8,28 @@ aside: false
 
 <script setup>
 const cfg = {
-  httpPath: "v3/option/history/trade_greeks/first_order",
-  method: { rust: "option_history_trade_greeks_first_order", python: "option_history_trade_greeks_first_order", ts: "optionHistoryTradeGreeksFirstOrder", cpp: "option_history_trade_greeks_first_order" },
+  httpPath: "v3/option/history/binomial_trade_greeks/first_order",
+  method: { rust: "option_history_binomial_trade_greeks_first_order", python: "option_history_binomial_trade_greeks_first_order", ts: "optionHistoryBinomialTradeGreeksFirstOrder", cpp: "option_history_binomial_trade_greeks_first_order" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "binomial_steps", type: "int", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
   print: ["ms_of_day", "price", "delta", "theta"],
   returns: "TradeGreeksFirstOrderTick",
   sample: [
-    {"condition":125,"delta":0.0025,"epsilon":-0.0062,"exchange":9,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.5749,"iv_error":0.0132,"lambda":56.6408,"price":0.01,"rho":0.0061,"sequence":156249981,"size":1,"theta":-0.0134,"timestamp":"2024-11-04T09:53:54.069","underlying_price":221.33,"underlying_timestamp":"2024-11-04T09:53:54","vega":0.1858},
+    {"condition":125,"delta":0.4712,"epsilon":-1.2104,"exchange":6,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.321,"iv_error":0.0,"lambda":38.2612,"price":2.73,"rho":1.1788,"sequence":302911465,"size":1,"theta":-0.3738,"timestamp":"2024-11-04T10:30:07.884","underlying_price":221.69,"underlying_timestamp":"2024-11-04T10:30:07.000","vega":9.4951},
+    {"condition":125,"delta":0.4712,"epsilon":-1.2104,"exchange":43,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.321,"iv_error":0.0,"lambda":38.2612,"price":2.73,"rho":1.1788,"sequence":302911466,"size":1,"theta":-0.3738,"timestamp":"2024-11-04T10:30:07.884","underlying_price":221.69,"underlying_timestamp":"2024-11-04T10:30:07.000","vega":9.4951},
+    {"condition":125,"delta":0.4712,"epsilon":-1.2104,"exchange":5,"ext_condition1":255,"ext_condition2":255,"ext_condition3":255,"ext_condition4":255,"implied_vol":0.321,"iv_error":0.0,"lambda":38.2612,"price":2.73,"rho":1.1788,"sequence":302911481,"size":1,"theta":-0.3738,"timestamp":"2024-11-04T10:30:07.884","underlying_price":221.69,"underlying_timestamp":"2024-11-04T10:30:07.000","vega":9.4951},
   ],
 }
 </script>
 
-# First-Order Trade Greeks
+# First-Order Binomial Trade Greeks
 
 <TierBadge tier="professional" />
 
-Fetch first-order Greeks on each trade for an option contract.
+Fetch first-order binomial Greeks on each trade for an option contract.
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
+- Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
 - Calculates greeks for every trade reported by OPRA.
 - The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
@@ -47,6 +50,7 @@ Fetch first-order Greeks on each trade for an option contract.
 | `annual_dividend` | float | no | — | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
 | `rate_type` | string | no | `sofr` | Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. |
 | `rate_value` | float | no | — | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |
+| `binomial_steps` | int | no | `101` | Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. |
 | `version` | string | no | `latest` | Greeks model version. Accepted values: `latest`, `1`. |
 | `max_dte` | int | no | — | Maximum days to expiration |
 | `strike_range` | int | no | — | Strike range filter |

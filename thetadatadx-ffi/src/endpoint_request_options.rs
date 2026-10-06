@@ -65,10 +65,18 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub use_market_value: i32,
     /// Presence flag for `use_market_value`; set to `1` to apply the value.
     pub has_use_market_value: i32,
+    /// Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps.
+    pub binomial_steps: i32,
+    /// Presence flag for `binomial_steps`; set to `1` to apply the value.
+    pub has_binomial_steps: i32,
     /// When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade.
     pub underlyer_use_nbbo: i32,
     /// Presence flag for `underlyer_use_nbbo`; set to `1` to apply the value.
     pub has_underlyer_use_nbbo: i32,
+    /// When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted.
+    pub perf_boost_intraday: i32,
+    /// Presence flag for `perf_boost_intraday`; set to `1` to apply the value.
+    pub has_perf_boost_intraday: i32,
     /// Per-call deadline in milliseconds; gated by `has_timeout_ms`.
     pub timeout_ms: u64,
     /// Presence flag for `timeout_ms`; set to `1` to apply the deadline.
@@ -104,11 +112,15 @@ const _: () = {
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 168);
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 176);
     assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 180);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 184);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 188);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 192);
-    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 200);
-    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 208);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, binomial_steps) == 184);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_binomial_steps) == 188);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 192);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 196);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, perf_boost_intraday) == 200);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_perf_boost_intraday) == 204);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 208);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 216);
+    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 224);
     assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == 8);
 };
 
@@ -157,8 +169,14 @@ fn apply_endpoint_request_options(
     if options.has_use_market_value != 0 {
         insert_bool_arg(args, "use_market_value", options.use_market_value)?;
     }
+    if options.has_binomial_steps != 0 {
+        insert_int_arg(args, "binomial_steps", options.binomial_steps);
+    }
     if options.has_underlyer_use_nbbo != 0 {
         insert_bool_arg(args, "underlyer_use_nbbo", options.underlyer_use_nbbo)?;
+    }
+    if options.has_perf_boost_intraday != 0 {
+        insert_bool_arg(args, "perf_boost_intraday", options.perf_boost_intraday)?;
     }
     if options.has_timeout_ms != 0 {
         args.set_timeout_ms(options.timeout_ms);

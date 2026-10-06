@@ -138,15 +138,20 @@ This tool does not require a ThetaData account or a network round-trip; it is av
 - `stock_history_eod`, `stock_history_ohlc`, `stock_history_trade`, `stock_history_quote`, `stock_history_trade_quote`
 - `stock_at_time_trade`, `stock_at_time_quote`
 
-### Option Data (34 tools)
+### Option Data (47 tools)
 - `option_list_symbols`, `option_list_dates`, `option_list_expirations`, `option_list_strikes`, `option_list_contracts`
 - `option_snapshot_ohlc`, `option_snapshot_trade`, `option_snapshot_quote`, `option_snapshot_open_interest`, `option_snapshot_market_value`
 - `option_snapshot_greeks_implied_volatility`, `option_snapshot_greeks_all`, `option_snapshot_greeks_first_order`, `option_snapshot_greeks_second_order`, `option_snapshot_greeks_third_order`
+- `option_snapshot_binomial_greeks_all`, `option_snapshot_binomial_greeks_first_order`, `option_snapshot_binomial_greeks_second_order`, `option_snapshot_binomial_greeks_third_order`
 - `option_history_eod`, `option_history_ohlc`, `option_history_trade`, `option_history_quote`, `option_history_trade_quote`, `option_history_open_interest`
 - `option_history_greeks_eod`, `option_history_greeks_all`, `option_history_trade_greeks_all`
+- `option_history_binomial_greeks_eod`, `option_history_binomial_greeks_all`, `option_history_binomial_trade_greeks_all`
 - `option_history_greeks_first_order`, `option_history_trade_greeks_first_order`
+- `option_history_binomial_greeks_first_order`, `option_history_binomial_trade_greeks_first_order`
 - `option_history_greeks_second_order`, `option_history_trade_greeks_second_order`
+- `option_history_binomial_greeks_second_order`, `option_history_binomial_trade_greeks_second_order`
 - `option_history_greeks_third_order`, `option_history_trade_greeks_third_order`
+- `option_history_binomial_greeks_third_order`, `option_history_binomial_trade_greeks_third_order`
 - `option_history_greeks_implied_volatility`, `option_history_trade_greeks_implied_volatility`
 - `option_at_time_trade`, `option_at_time_quote`
 

@@ -1243,6 +1243,24 @@ export declare class MarketDataClient {
   /** Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
   /**
+   * Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+   *
+   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
+  /** Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
+  /**
    * Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
    *
    * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -1258,6 +1276,24 @@ export declare class MarketDataClient {
   optionSnapshotGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
+  /**
+   * Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+   *
+   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
+  /** Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
   /**
    * Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
    *
@@ -1275,6 +1311,24 @@ export declare class MarketDataClient {
   /** Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
   /**
+   * Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+   *
+   * - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
+  /** Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
+  /**
    * Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
    *
    * - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -1290,6 +1344,24 @@ export declare class MarketDataClient {
   optionSnapshotGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
+  /**
+   * Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+   *
+   * - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
+  /** Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
   /**
    * Fetch end-of-day option data for a contract over a date range.
    *
@@ -1420,6 +1492,27 @@ export declare class MarketDataClient {
   /** Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksEODWithColumns(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryGreeksEodOptions | undefined | null): Promise<GreeksEodTickWithColumns>
   /**
+   * Fetch end-of-day binomial Greeks history for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+   * - **Any ``expiration=*`` request must be made day by day.**
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `underlyer_use_nbbo`: `false`
+   */
+  optionHistoryBinomialGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
+  /** Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksEODStream(symbol: string, expiration: string, startDate: string, endDate: string, options: OptionHistoryBinomialGreeksEodOptions | undefined | null, callback: ((arg: Array<GreeksEodTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksEODWithColumns(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<GreeksEodTickWithColumns>
+  /**
    * Fetch all Greeks history for an option contract (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -1442,6 +1535,30 @@ export declare class MarketDataClient {
   /** Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
   /**
+   * Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksAll(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
+  /** Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksAllStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksAllOptions | undefined | null, callback: ((arg: Array<GreeksAllTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
+  /**
    * Fetch all Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -1456,12 +1573,37 @@ export declare class MarketDataClient {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksAll(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksAllOptions | undefined | null): Promise<Array<TradeGreeksAllTick>>
   /** Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksAllStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksAllOptions | undefined | null, callback: ((arg: Array<TradeGreeksAllTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksAllOptions | undefined | null): Promise<TradeGreeksAllTickWithColumns>
+  /**
+   * Fetch all binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksAll(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksAllOptions | undefined | null): Promise<Array<TradeGreeksAllTick>>
+  /** Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksAllStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksAllOptions | undefined | null, callback: ((arg: Array<TradeGreeksAllTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksAllOptions | undefined | null): Promise<TradeGreeksAllTickWithColumns>
   /**
    * Fetch first-order Greeks history (intraday, sampled by interval).
    *
@@ -1485,6 +1627,30 @@ export declare class MarketDataClient {
   /** Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
   /**
+   * Fetch first-order binomial Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
+  /** Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksFirstOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<GreeksFirstOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
+  /**
    * Fetch first-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -1499,12 +1665,37 @@ export declare class MarketDataClient {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null): Promise<Array<TradeGreeksFirstOrderTick>>
   /** Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksFirstOrderStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksFirstOrderTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null): Promise<TradeGreeksFirstOrderTickWithColumns>
+  /**
+   * Fetch first-order binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksFirstOrderOptions | undefined | null): Promise<Array<TradeGreeksFirstOrderTick>>
+  /** Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksFirstOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksFirstOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksFirstOrderOptions | undefined | null): Promise<TradeGreeksFirstOrderTickWithColumns>
   /**
    * Fetch second-order Greeks history (intraday, sampled by interval).
    *
@@ -1528,6 +1719,30 @@ export declare class MarketDataClient {
   /** Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
   /**
+   * Fetch second-order binomial Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
+  /** Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksSecondOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<GreeksSecondOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
+  /**
    * Fetch second-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -1542,12 +1757,37 @@ export declare class MarketDataClient {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null): Promise<Array<TradeGreeksSecondOrderTick>>
   /** Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksSecondOrderStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksSecondOrderTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null): Promise<TradeGreeksSecondOrderTickWithColumns>
+  /**
+   * Fetch second-order binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksSecondOrderOptions | undefined | null): Promise<Array<TradeGreeksSecondOrderTick>>
+  /** Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksSecondOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksSecondOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksSecondOrderOptions | undefined | null): Promise<TradeGreeksSecondOrderTickWithColumns>
   /**
    * Fetch third-order Greeks history (intraday, sampled by interval).
    *
@@ -1571,6 +1811,30 @@ export declare class MarketDataClient {
   /** Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
   /**
+   * Fetch third-order binomial Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
+  /** Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksThirdOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<GreeksThirdOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
+  /**
    * Fetch third-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -1585,12 +1849,37 @@ export declare class MarketDataClient {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null): Promise<Array<TradeGreeksThirdOrderTick>>
   /** Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksThirdOrderStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksThirdOrderTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null): Promise<TradeGreeksThirdOrderTickWithColumns>
+  /**
+   * Fetch third-order binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksThirdOrderOptions | undefined | null): Promise<Array<TradeGreeksThirdOrderTick>>
+  /** Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksThirdOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksThirdOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksThirdOrderOptions | undefined | null): Promise<TradeGreeksThirdOrderTickWithColumns>
   /**
    * Fetch implied volatility history (intraday, sampled by interval).
    *
@@ -1626,6 +1915,7 @@ export declare class MarketDataClient {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<TradeGreeksImpliedVolatilityTick>>
   /** Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksImpliedVolatilityTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -2156,6 +2446,24 @@ export declare class MarketDataView {
   /** Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
   /**
+   * Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+   *
+   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksAll(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
+  /** Run the `optionSnapshotBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
+  /**
    * Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
    *
    * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -2171,6 +2479,24 @@ export declare class MarketDataView {
   optionSnapshotGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
   /** Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
+  /**
+   * Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+   *
+   * - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
+  /** Run the `optionSnapshotBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
   /**
    * Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
    *
@@ -2188,6 +2514,24 @@ export declare class MarketDataView {
   /** Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
   /**
+   * Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+   *
+   * - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
+  /** Run the `optionSnapshotBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
+  /**
    * Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
    *
    * - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -2203,6 +2547,24 @@ export declare class MarketDataView {
   optionSnapshotGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
   /** Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionSnapshotGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
+  /**
+   * Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+   *
+   * - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `use_market_value`: `false`
+   */
+  optionSnapshotBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
+  /** Run the `optionSnapshotBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionSnapshotBinomialGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionSnapshotBinomialGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
   /**
    * Fetch end-of-day option data for a contract over a date range.
    *
@@ -2333,6 +2695,27 @@ export declare class MarketDataView {
   /** Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksEODWithColumns(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryGreeksEodOptions | undefined | null): Promise<GreeksEodTickWithColumns>
   /**
+   * Fetch end-of-day binomial Greeks history for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+   * - **Any ``expiration=*`` request must be made day by day.**
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `underlyer_use_nbbo`: `false`
+   */
+  optionHistoryBinomialGreeksEOD(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<Array<GreeksEodTick>>
+  /** Stream `option_history_binomial_greeks_eod` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksEodTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionHistoryBinomialGreeksEOD` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksEODStream(symbol: string, expiration: string, startDate: string, endDate: string, options: OptionHistoryBinomialGreeksEodOptions | undefined | null, callback: ((arg: Array<GreeksEodTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksEODWithColumns(symbol: string, expiration: string, startDate: string, endDate: string, options?: OptionHistoryBinomialGreeksEodOptions | undefined | null): Promise<GreeksEodTickWithColumns>
+  /**
    * Fetch all Greeks history for an option contract (intraday, sampled by interval).
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -2355,6 +2738,30 @@ export declare class MarketDataView {
   /** Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
   /**
+   * Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksAll(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksAllOptions | undefined | null): Promise<Array<GreeksAllTick>>
+  /** Stream `option_history_binomial_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksAllStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksAllOptions | undefined | null, callback: ((arg: Array<GreeksAllTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksAllOptions | undefined | null): Promise<GreeksAllTickWithColumns>
+  /**
    * Fetch all Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -2369,12 +2776,37 @@ export declare class MarketDataView {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksAll(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksAllOptions | undefined | null): Promise<Array<TradeGreeksAllTick>>
   /** Stream `option_history_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksAllStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksAllOptions | undefined | null, callback: ((arg: Array<TradeGreeksAllTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksAllOptions | undefined | null): Promise<TradeGreeksAllTickWithColumns>
+  /**
+   * Fetch all binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksAll(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksAllOptions | undefined | null): Promise<Array<TradeGreeksAllTick>>
+  /** Stream `option_history_binomial_trade_greeks_all` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksAllTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksAll` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksAllStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksAllOptions | undefined | null, callback: ((arg: Array<TradeGreeksAllTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksAllWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksAllOptions | undefined | null): Promise<TradeGreeksAllTickWithColumns>
   /**
    * Fetch first-order Greeks history (intraday, sampled by interval).
    *
@@ -2398,6 +2830,30 @@ export declare class MarketDataView {
   /** Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
   /**
+   * Fetch first-order binomial Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null): Promise<Array<GreeksFirstOrderTick>>
+  /** Stream `option_history_binomial_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksFirstOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<GreeksFirstOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksFirstOrderOptions | undefined | null): Promise<GreeksFirstOrderTickWithColumns>
+  /**
    * Fetch first-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -2412,12 +2868,37 @@ export declare class MarketDataView {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null): Promise<Array<TradeGreeksFirstOrderTick>>
   /** Stream `option_history_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksFirstOrderStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksFirstOrderTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksFirstOrderOptions | undefined | null): Promise<TradeGreeksFirstOrderTickWithColumns>
+  /**
+   * Fetch first-order binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksFirstOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksFirstOrderOptions | undefined | null): Promise<Array<TradeGreeksFirstOrderTick>>
+  /** Stream `option_history_binomial_trade_greeks_first_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksFirstOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksFirstOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksFirstOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksFirstOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksFirstOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksFirstOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksFirstOrderOptions | undefined | null): Promise<TradeGreeksFirstOrderTickWithColumns>
   /**
    * Fetch second-order Greeks history (intraday, sampled by interval).
    *
@@ -2441,6 +2922,30 @@ export declare class MarketDataView {
   /** Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
   /**
+   * Fetch second-order binomial Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null): Promise<Array<GreeksSecondOrderTick>>
+  /** Stream `option_history_binomial_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksSecondOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<GreeksSecondOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksSecondOrderOptions | undefined | null): Promise<GreeksSecondOrderTickWithColumns>
+  /**
    * Fetch second-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -2455,12 +2960,37 @@ export declare class MarketDataView {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null): Promise<Array<TradeGreeksSecondOrderTick>>
   /** Stream `option_history_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksSecondOrderStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksSecondOrderTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksSecondOrderOptions | undefined | null): Promise<TradeGreeksSecondOrderTickWithColumns>
+  /**
+   * Fetch second-order binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksSecondOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksSecondOrderOptions | undefined | null): Promise<Array<TradeGreeksSecondOrderTick>>
+  /** Stream `option_history_binomial_trade_greeks_second_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksSecondOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksSecondOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksSecondOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksSecondOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksSecondOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksSecondOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksSecondOrderOptions | undefined | null): Promise<TradeGreeksSecondOrderTickWithColumns>
   /**
    * Fetch third-order Greeks history (intraday, sampled by interval).
    *
@@ -2484,6 +3014,30 @@ export declare class MarketDataView {
   /** Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
   /**
+   * Fetch third-order binomial Greeks history (intraday, sampled by interval).
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `interval`: `"1s"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   */
+  optionHistoryBinomialGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null): Promise<Array<GreeksThirdOrderTick>>
+  /** Stream `option_history_binomial_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: GreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialGreeksThirdOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<GreeksThirdOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialGreeksThirdOrderOptions | undefined | null): Promise<GreeksThirdOrderTickWithColumns>
+  /**
    * Fetch third-order Greeks on each trade for an option contract.
    *
    * - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -2498,12 +3052,37 @@ export declare class MarketDataView {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null): Promise<Array<TradeGreeksThirdOrderTick>>
   /** Stream `option_history_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
   optionHistoryTradeGreeksThirdOrderStream(symbol: string, expiration: string, options: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksThirdOrderTick>) => void)): Promise<void>
   /** Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
   optionHistoryTradeGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksThirdOrderOptions | undefined | null): Promise<TradeGreeksThirdOrderTickWithColumns>
+  /**
+   * Fetch third-order binomial Greeks on each trade for an option contract.
+   *
+   * - Returns the data for all contracts that share the same provided symbol and expiration.
+   * - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+   * - Calculates greeks for every trade reported by OPRA.
+   * - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+   * - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+   *
+   * Defaults (upstream):
+   * - `strike`: `"*"`
+   * - `right`: `"both"`
+   * - `start_time`: `"09:30:00"`
+   * - `end_time`: `"16:00:00"`
+   * - `rate_type`: `"sofr"`
+   * - `binomial_steps`: `101`
+   * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
+   */
+  optionHistoryBinomialTradeGreeksThirdOrder(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksThirdOrderOptions | undefined | null): Promise<Array<TradeGreeksThirdOrderTick>>
+  /** Stream `option_history_binomial_trade_greeks_third_order` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksThirdOrderTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryBinomialTradeGreeksThirdOrder` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
+  optionHistoryBinomialTradeGreeksThirdOrderStream(symbol: string, expiration: string, options: OptionHistoryBinomialTradeGreeksThirdOrderOptions | undefined | null, callback: ((arg: Array<TradeGreeksThirdOrderTick>) => void)): Promise<void>
+  /** Run the `optionHistoryBinomialTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryBinomialTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order), `symbol` (the response's constant root, set for option, index, and single-symbol snapshot responses), and `symbols` (the per-row root values for a multi-symbol snapshot, one per row). Feed them to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted and attributes each row to its symbol. */
+  optionHistoryBinomialTradeGreeksThirdOrderWithColumns(symbol: string, expiration: string, options?: OptionHistoryBinomialTradeGreeksThirdOrderOptions | undefined | null): Promise<TradeGreeksThirdOrderTickWithColumns>
   /**
    * Fetch implied volatility history (intraday, sampled by interval).
    *
@@ -2539,6 +3118,7 @@ export declare class MarketDataView {
    * - `end_time`: `"16:00:00"`
    * - `rate_type`: `"sofr"`
    * - `version`: `"latest"`
+   * - `perf_boost_intraday`: `false`
    */
   optionHistoryTradeGreeksImpliedVolatility(symbol: string, expiration: string, options?: OptionHistoryTradeGreeksImpliedVolatilityOptions | undefined | null): Promise<Array<TradeGreeksImpliedVolatilityTick>>
   /** Stream `option_history_trade_greeks_implied_volatility` rows into `callback` without materialising the full response in memory. `callback(chunk: TradeGreeksImpliedVolatilityTick[]) => void` is invoked once per server chunk; the chunk is freed before that stream's next chunk is fetched, so peak memory tracks a single chunk rather than the whole result. Under `bulkFetch = "auto"` a large history pull may fan out across concurrent sub-requests: every chunk is still delivered exactly once, but chunks from different sub-requests interleave in arrival order rather than the single-stream order (set `bulkFetch = "off"` to restore it). This is the memory-bounded companion to the `optionHistoryTradeGreeksImpliedVolatility` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
@@ -5095,6 +5675,402 @@ export interface OptionContractWithColumns {
 }
 
 /**
+ * Optional parameters for the `optionHistoryBinomialGreeksAll` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialGreeksAllOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  interval?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialGreeksEOD` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialGreeksEodOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** When true, use the NBBO-derived underlyer price as the Greeks input instead of the last trade. */
+  underlyerUseNbbo?: boolean
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialGreeksFirstOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialGreeksFirstOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  interval?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialGreeksSecondOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialGreeksSecondOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  interval?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialGreeksThirdOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialGreeksThirdOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Interval preset. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
+  interval?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialTradeGreeksAll` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialTradeGreeksAllOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialTradeGreeksFirstOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialTradeGreeksFirstOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialTradeGreeksSecondOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialTradeGreeksSecondOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionHistoryBinomialTradeGreeksThirdOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionHistoryBinomialTradeGreeksThirdOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Single date YYYYMMDD. Supply this for a single-day pull, or supply `start_date`/`end_date` for a range. When present, `date` takes precedence over the range. */
+  date?: string
+  /** Start time filter */
+  startTime?: string
+  /** End time filter */
+  endTime?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Start date YYYYMMDD */
+  startDate?: string
+  /** End date YYYYMMDD */
+  endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
  * Optional parameters for the `optionHistoryEOD` method. Keys are
  * the camelCase parameter names; absent keys behave exactly like an
  * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
@@ -5495,6 +6471,8 @@ export interface OptionHistoryTradeGreeksAllOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -5537,6 +6515,8 @@ export interface OptionHistoryTradeGreeksFirstOrderOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -5579,6 +6559,8 @@ export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -5621,6 +6603,8 @@ export interface OptionHistoryTradeGreeksSecondOrderOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -5663,6 +6647,8 @@ export interface OptionHistoryTradeGreeksThirdOrderOptions {
   startDate?: string
   /** End date YYYYMMDD */
   endDate?: string
+  /** When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. */
+  perfBoostIntraday?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
@@ -5845,6 +6831,166 @@ export interface OptionListStrikesOptions {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListSymbolsOptions {
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionSnapshotBinomialGreeksAll` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionSnapshotBinomialGreeksAllOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
+  stockPrice?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Minimum time filter */
+  minTime?: string
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
+  useMarketValue?: boolean
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionSnapshotBinomialGreeksFirstOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionSnapshotBinomialGreeksFirstOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
+  stockPrice?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Minimum time filter */
+  minTime?: string
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
+  useMarketValue?: boolean
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionSnapshotBinomialGreeksSecondOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionSnapshotBinomialGreeksSecondOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
+  stockPrice?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Minimum time filter */
+  minTime?: string
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
+  useMarketValue?: boolean
+  /**
+   * Per-call deadline as a non-negative whole number of milliseconds;
+   * on expiry the returned Promise rejects and the underlying request
+   * is cancelled. A non-finite, negative, or fractional value is
+   * rejected with `InvalidParameterError` rather than coerced.
+   */
+  timeoutMs?: number
+}
+
+/**
+ * Optional parameters for the `optionSnapshotBinomialGreeksThirdOrder` method. Keys are
+ * the camelCase parameter names; absent keys behave exactly like an
+ * omitted parameter. `timeoutMs` bounds the whole call: on expiry the
+ * returned Promise rejects and the underlying request is cancelled.
+ */
+export interface OptionSnapshotBinomialGreeksThirdOrderOptions {
+  /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
+  strike?: string
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`. */
+  right?: string
+  /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
+  annualDividend?: number
+  /** Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. */
+  rateType?: string
+  /** Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. */
+  rateValue?: number
+  /** Underlying price in dollars used in the Greeks calculation, overriding the observed underlying when set. */
+  stockPrice?: number
+  /** Number of steps in the binomial tree used for the Greeks calculation. Accurate at higher values and cheaper at lower ones; the server's cost grows with the square of the value. An even value is rounded up to the next odd one, and an `expiration=*` request is capped at 101 steps. */
+  binomialSteps?: number
+  /** Greeks model version. Accepted values: `latest`, `1`. */
+  version?: string
+  /** Maximum days to expiration */
+  maxDte?: number
+  /** Strike range filter */
+  strikeRange?: number
+  /** Minimum time filter */
+  minTime?: string
+  /** When true, calculate Greeks against the option market value (mid-price) instead of the NBBO bid/ask pair. */
+  useMarketValue?: boolean
   /**
    * Per-call deadline as a non-negative whole number of milliseconds;
    * on expiry the returned Promise rejects and the underlying request
