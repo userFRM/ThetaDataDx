@@ -308,6 +308,28 @@ void MarketData::option_history_greeks_eod_stream(const std::string& symbol, con
     }
 }
 
+void MarketData::option_history_binomial_greeks_eod_stream(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, std::function<void(Span<const GreeksEodTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_greeks_eod_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const GreeksEodTick>(static_cast<const GreeksEodTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_greeks_eod_stream(hist, symbol.c_str(), expiration.c_str(), start_date.c_str(), end_date.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 void MarketData::option_history_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
@@ -322,6 +344,28 @@ void MarketData::option_history_greeks_all_stream(const std::string& symbol, con
         {},
     };
     int32_t rc = thetadatadx_option_history_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
+void MarketData::option_history_binomial_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksAllTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_greeks_all_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const GreeksAllTick>(static_cast<const GreeksAllTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
     if (ctx.error) {
         std::rethrow_exception(ctx.error);
     }
@@ -352,6 +396,28 @@ void MarketData::option_history_trade_greeks_all_stream(const std::string& symbo
     }
 }
 
+void MarketData::option_history_binomial_trade_greeks_all_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksAllTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_trade_greeks_all_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const TradeGreeksAllTick>(static_cast<const TradeGreeksAllTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_trade_greeks_all_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 void MarketData::option_history_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
@@ -366,6 +432,28 @@ void MarketData::option_history_greeks_first_order_stream(const std::string& sym
         {},
     };
     int32_t rc = thetadatadx_option_history_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
+void MarketData::option_history_binomial_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_greeks_first_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const GreeksFirstOrderTick>(static_cast<const GreeksFirstOrderTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
     if (ctx.error) {
         std::rethrow_exception(ctx.error);
     }
@@ -396,6 +484,28 @@ void MarketData::option_history_trade_greeks_first_order_stream(const std::strin
     }
 }
 
+void MarketData::option_history_binomial_trade_greeks_first_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksFirstOrderTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_trade_greeks_first_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const TradeGreeksFirstOrderTick>(static_cast<const TradeGreeksFirstOrderTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_trade_greeks_first_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 void MarketData::option_history_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
@@ -410,6 +520,28 @@ void MarketData::option_history_greeks_second_order_stream(const std::string& sy
         {},
     };
     int32_t rc = thetadatadx_option_history_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
+void MarketData::option_history_binomial_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_greeks_second_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const GreeksSecondOrderTick>(static_cast<const GreeksSecondOrderTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
     if (ctx.error) {
         std::rethrow_exception(ctx.error);
     }
@@ -440,6 +572,28 @@ void MarketData::option_history_trade_greeks_second_order_stream(const std::stri
     }
 }
 
+void MarketData::option_history_binomial_trade_greeks_second_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksSecondOrderTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_trade_greeks_second_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const TradeGreeksSecondOrderTick>(static_cast<const TradeGreeksSecondOrderTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_trade_greeks_second_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 void MarketData::option_history_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
@@ -462,6 +616,28 @@ void MarketData::option_history_greeks_third_order_stream(const std::string& sym
     }
 }
 
+void MarketData::option_history_binomial_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const GreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_greeks_third_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const GreeksThirdOrderTick>(static_cast<const GreeksThirdOrderTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
 void MarketData::option_history_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
     const ThetaDataDxMarketDataClient* hist = market_data_handle();
     detail::FfiEndpointRequestOptions ffi_options(options);
@@ -476,6 +652,28 @@ void MarketData::option_history_trade_greeks_third_order_stream(const std::strin
         {},
     };
     int32_t rc = thetadatadx_option_history_trade_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
+    if (ctx.error) {
+        std::rethrow_exception(ctx.error);
+    }
+    if (rc != 0) {
+        detail::throw_last_ffi_error();
+    }
+}
+
+void MarketData::option_history_binomial_trade_greeks_third_order_stream(const std::string& symbol, const std::string& expiration, std::function<void(Span<const TradeGreeksThirdOrderTick>)> handler, const EndpointRequestOptions& options) const {
+    const ThetaDataDxMarketDataClient* hist = market_data_handle();
+    detail::FfiEndpointRequestOptions ffi_options(options);
+    thetadatadx_clear_error();
+    if (!handler) {
+        throw InvalidParameterError("thetadatadx: option_history_binomial_trade_greeks_third_order_stream handler must not be empty");
+    }
+    StreamHandlerCtx ctx{
+        [&handler](const void* rows, std::size_t len) {
+            handler(Span<const TradeGreeksThirdOrderTick>(static_cast<const TradeGreeksThirdOrderTick*>(rows), len));
+        },
+        {},
+    };
+    int32_t rc = thetadatadx_option_history_binomial_trade_greeks_third_order_stream(hist, symbol.c_str(), expiration.c_str(), &MarketData::stream_chunk_shim, &ctx, &ffi_options.raw);
     if (ctx.error) {
         std::rethrow_exception(ctx.error);
     }

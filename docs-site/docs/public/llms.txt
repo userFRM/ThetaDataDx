@@ -36,6 +36,15 @@
 /reference/index/snapshot/price — Price: Get the latest price snapshot for one or more indices.
 /reference/option/at-time/quote — Quote: Fetch the quote at a specific time of day across a date range for an option.
 /reference/option/at-time/trade — Trade: Fetch the trade at a specific time of day across a date range for an option.
+/reference/option/history/binomial-greeks/all — All Binomial Greeks: Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+/reference/option/history/binomial-greeks/eod — EOD Binomial Greeks: Fetch end-of-day binomial Greeks history for an option contract.
+/reference/option/history/binomial-greeks/first-order — First-Order Binomial Greeks: Fetch first-order binomial Greeks history (intraday, sampled by interval).
+/reference/option/history/binomial-greeks/second-order — Second-Order Binomial Greeks: Fetch second-order binomial Greeks history (intraday, sampled by interval).
+/reference/option/history/binomial-greeks/third-order — Third-Order Binomial Greeks: Fetch third-order binomial Greeks history (intraday, sampled by interval).
+/reference/option/history/binomial-trade-greeks/all — All Binomial Trade Greeks: Fetch all binomial Greeks on each trade for an option contract.
+/reference/option/history/binomial-trade-greeks/first-order — First-Order Binomial Trade Greeks: Fetch first-order binomial Greeks on each trade for an option contract.
+/reference/option/history/binomial-trade-greeks/second-order — Second-Order Binomial Trade Greeks: Fetch second-order binomial Greeks on each trade for an option contract.
+/reference/option/history/binomial-trade-greeks/third-order — Third-Order Binomial Trade Greeks: Fetch third-order binomial Greeks on each trade for an option contract.
 /reference/option/history/eod — EOD: Fetch end-of-day option data for a contract over a date range.
 /reference/option/history/greeks/all — All Greeks: Fetch all Greeks history for an option contract (intraday, sampled by interval).
 /reference/option/history/greeks/eod — EOD Greeks: Fetch end-of-day Greeks history for an option contract.
@@ -58,6 +67,10 @@
 /reference/option/list/expirations — Expirations: List available expiration dates for an option underlying.
 /reference/option/list/strikes — Strikes: List available strike prices for an option at a given expiration.
 /reference/option/list/symbols — Symbols: List all available option underlying symbols.
+/reference/option/snapshot/binomial-greeks/all — All Binomial Greeks: Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+/reference/option/snapshot/binomial-greeks/first-order — First-Order Binomial Greeks: Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+/reference/option/snapshot/binomial-greeks/second-order — Second-Order Binomial Greeks: Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+/reference/option/snapshot/binomial-greeks/third-order — Third-Order Binomial Greeks: Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
 /reference/option/snapshot/greeks/all — All Greeks: Get all Greeks snapshot for an option contract (from ThetaData server).
 /reference/option/snapshot/greeks/first-order — First-Order Greeks: Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
 /reference/option/snapshot/greeks/implied-volatility — Implied Volatility: Get implied volatility snapshot for an option contract (from ThetaData server).

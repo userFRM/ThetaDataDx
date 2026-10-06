@@ -435,6 +435,26 @@ message OptionSnapshotGreeksAllRequest {
   OptionSnapshotGreeksAllRequestQuery params = 2;
 }
 
+message OptionSnapshotBinomialGreeksAllRequestQuery {
+  ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional int32 binomial_steps = 7;
+  optional string version = 8;
+  optional int32 max_dte = 9;
+  optional int32 strike_range = 10;
+  optional string min_time = 11;
+  optional bool use_market_value = 12;
+}
+
+message OptionSnapshotBinomialGreeksAllRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotBinomialGreeksAllRequestQuery params = 2;
+}
+
 message OptionSnapshotGreeksFirstOrderRequestQuery {
   ContractSpec contract_spec = 1;
   string expiration = 2;
@@ -452,6 +472,26 @@ message OptionSnapshotGreeksFirstOrderRequestQuery {
 message OptionSnapshotGreeksFirstOrderRequest {
   QueryInfo query_info = 1;
   OptionSnapshotGreeksFirstOrderRequestQuery params = 2;
+}
+
+message OptionSnapshotBinomialGreeksFirstOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional int32 binomial_steps = 7;
+  optional string version = 8;
+  optional int32 max_dte = 9;
+  optional int32 strike_range = 10;
+  optional string min_time = 11;
+  optional bool use_market_value = 12;
+}
+
+message OptionSnapshotBinomialGreeksFirstOrderRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotBinomialGreeksFirstOrderRequestQuery params = 2;
 }
 
 message OptionSnapshotGreeksSecondOrderRequestQuery {
@@ -473,6 +513,26 @@ message OptionSnapshotGreeksSecondOrderRequest {
   OptionSnapshotGreeksSecondOrderRequestQuery params = 2;
 }
 
+message OptionSnapshotBinomialGreeksSecondOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional int32 binomial_steps = 7;
+  optional string version = 8;
+  optional int32 max_dte = 9;
+  optional int32 strike_range = 10;
+  optional string min_time = 11;
+  optional bool use_market_value = 12;
+}
+
+message OptionSnapshotBinomialGreeksSecondOrderRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotBinomialGreeksSecondOrderRequestQuery params = 2;
+}
+
 message OptionSnapshotGreeksThirdOrderRequestQuery {
   ContractSpec contract_spec = 1;
   string expiration = 2;
@@ -490,6 +550,26 @@ message OptionSnapshotGreeksThirdOrderRequestQuery {
 message OptionSnapshotGreeksThirdOrderRequest {
   QueryInfo query_info = 1;
   OptionSnapshotGreeksThirdOrderRequestQuery params = 2;
+}
+
+message OptionSnapshotBinomialGreeksThirdOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  string expiration = 2;
+  optional double annual_dividend = 3;
+  optional string rate_type = 4;
+  optional double rate_value = 5;
+  optional double stock_price = 6;
+  optional int32 binomial_steps = 7;
+  optional string version = 8;
+  optional int32 max_dte = 9;
+  optional int32 strike_range = 10;
+  optional string min_time = 11;
+  optional bool use_market_value = 12;
+}
+
+message OptionSnapshotBinomialGreeksThirdOrderRequest {
+  QueryInfo query_info = 1;
+  OptionSnapshotBinomialGreeksThirdOrderRequestQuery params = 2;
 }
 
 message OptionHistoryEodRequestQuery {
@@ -610,6 +690,26 @@ message OptionHistoryGreeksEodRequest {
   OptionHistoryGreeksEodRequestQuery params = 2;
 }
 
+message OptionHistoryBinomialGreeksEodRequestQuery {
+  ContractSpec contract_spec = 1;
+  string expiration = 2;
+  string start_date = 3;
+  string end_date = 4;
+  optional double annual_dividend = 5;
+  optional string rate_type = 6;
+  optional double rate_value = 7;
+  optional int32 binomial_steps = 8;
+  optional string version = 9;
+  optional bool underlyer_use_nbbo = 10;
+  optional int32 max_dte = 11;
+  optional int32 strike_range = 12;
+}
+
+message OptionHistoryBinomialGreeksEodRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialGreeksEodRequestQuery params = 2;
+}
+
 message OptionHistoryGreeksAllRequestQuery {
   ContractSpec contract_spec = 1;
   optional string date = 2;
@@ -631,6 +731,28 @@ message OptionHistoryGreeksAllRequest {
   OptionHistoryGreeksAllRequestQuery params = 2;
 }
 
+message OptionHistoryBinomialGreeksAllRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional int32 binomial_steps = 10;
+  optional string version = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+}
+
+message OptionHistoryBinomialGreeksAllRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialGreeksAllRequestQuery params = 2;
+}
+
 message OptionHistoryTradeGreeksAllRequestQuery {
   ContractSpec contract_spec = 1;
   optional string date = 2;
@@ -645,11 +767,35 @@ message OptionHistoryTradeGreeksAllRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional bool perf_boost_intraday = 14;
 }
 
 message OptionHistoryTradeGreeksAllRequest {
   QueryInfo query_info = 1;
   OptionHistoryTradeGreeksAllRequestQuery params = 2;
+}
+
+message OptionHistoryBinomialTradeGreeksAllRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional int32 binomial_steps = 9;
+  optional string version = 10;
+  optional int32 max_dte = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+  optional bool perf_boost_intraday = 15;
+}
+
+message OptionHistoryBinomialTradeGreeksAllRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialTradeGreeksAllRequestQuery params = 2;
 }
 
 message OptionHistoryGreeksFirstOrderRequestQuery {
@@ -676,6 +822,28 @@ message OptionHistoryGreeksFirstOrderRequest {
   OptionHistoryGreeksFirstOrderRequestQuery params = 2;
 }
 
+message OptionHistoryBinomialGreeksFirstOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional int32 binomial_steps = 10;
+  optional string version = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+}
+
+message OptionHistoryBinomialGreeksFirstOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialGreeksFirstOrderRequestQuery params = 2;
+}
+
 message OptionHistoryTradeGreeksFirstOrderRequestQuery {
   ContractSpec contract_spec = 1;
   optional string date = 2;
@@ -690,11 +858,35 @@ message OptionHistoryTradeGreeksFirstOrderRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional bool perf_boost_intraday = 14;
 }
 
 message OptionHistoryTradeGreeksFirstOrderRequest {
   QueryInfo query_info = 1;
   OptionHistoryTradeGreeksFirstOrderRequestQuery params = 2;
+}
+
+message OptionHistoryBinomialTradeGreeksFirstOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional int32 binomial_steps = 9;
+  optional string version = 10;
+  optional int32 max_dte = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+  optional bool perf_boost_intraday = 15;
+}
+
+message OptionHistoryBinomialTradeGreeksFirstOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialTradeGreeksFirstOrderRequestQuery params = 2;
 }
 
 message OptionHistoryGreeksSecondOrderRequestQuery {
@@ -718,6 +910,28 @@ message OptionHistoryGreeksSecondOrderRequest {
   OptionHistoryGreeksSecondOrderRequestQuery params = 2;
 }
 
+message OptionHistoryBinomialGreeksSecondOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional int32 binomial_steps = 10;
+  optional string version = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+}
+
+message OptionHistoryBinomialGreeksSecondOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialGreeksSecondOrderRequestQuery params = 2;
+}
+
 message OptionHistoryTradeGreeksSecondOrderRequestQuery {
   ContractSpec contract_spec = 1;
   optional string date = 2;
@@ -732,11 +946,35 @@ message OptionHistoryTradeGreeksSecondOrderRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional bool perf_boost_intraday = 14;
 }
 
 message OptionHistoryTradeGreeksSecondOrderRequest {
   QueryInfo query_info = 1;
   OptionHistoryTradeGreeksSecondOrderRequestQuery params = 2;
+}
+
+message OptionHistoryBinomialTradeGreeksSecondOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional int32 binomial_steps = 9;
+  optional string version = 10;
+  optional int32 max_dte = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+  optional bool perf_boost_intraday = 15;
+}
+
+message OptionHistoryBinomialTradeGreeksSecondOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialTradeGreeksSecondOrderRequestQuery params = 2;
 }
 
 message OptionHistoryGreeksThirdOrderRequestQuery {
@@ -760,6 +998,28 @@ message OptionHistoryGreeksThirdOrderRequest {
   OptionHistoryGreeksThirdOrderRequestQuery params = 2;
 }
 
+message OptionHistoryBinomialGreeksThirdOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  string interval = 6;
+  optional double annual_dividend = 7;
+  optional string rate_type = 8;
+  optional double rate_value = 9;
+  optional int32 binomial_steps = 10;
+  optional string version = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+}
+
+message OptionHistoryBinomialGreeksThirdOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialGreeksThirdOrderRequestQuery params = 2;
+}
+
 message OptionHistoryTradeGreeksThirdOrderRequestQuery {
   ContractSpec contract_spec = 1;
   optional string date = 2;
@@ -774,11 +1034,35 @@ message OptionHistoryTradeGreeksThirdOrderRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional bool perf_boost_intraday = 14;
 }
 
 message OptionHistoryTradeGreeksThirdOrderRequest {
   QueryInfo query_info = 1;
   OptionHistoryTradeGreeksThirdOrderRequestQuery params = 2;
+}
+
+message OptionHistoryBinomialTradeGreeksThirdOrderRequestQuery {
+  ContractSpec contract_spec = 1;
+  optional string date = 2;
+  string expiration = 3;
+  optional string start_time = 4;
+  optional string end_time = 5;
+  optional double annual_dividend = 6;
+  optional string rate_type = 7;
+  optional double rate_value = 8;
+  optional int32 binomial_steps = 9;
+  optional string version = 10;
+  optional int32 max_dte = 11;
+  optional int32 strike_range = 12;
+  optional string start_date = 13;
+  optional string end_date = 14;
+  optional bool perf_boost_intraday = 15;
+}
+
+message OptionHistoryBinomialTradeGreeksThirdOrderRequest {
+  QueryInfo query_info = 1;
+  OptionHistoryBinomialTradeGreeksThirdOrderRequestQuery params = 2;
 }
 
 message OptionHistoryGreeksImpliedVolatilityRequestQuery {
@@ -819,6 +1103,7 @@ message OptionHistoryTradeGreeksImpliedVolatilityRequestQuery {
   optional int32 strike_range = 11;
   optional string start_date = 12;
   optional string end_date = 13;
+  optional bool perf_boost_intraday = 14;
 }
 
 message OptionHistoryTradeGreeksImpliedVolatilityRequest {
@@ -1046,11 +1331,19 @@ service BetaThetaTerminal {
 
   rpc GetOptionSnapshotGreeksAll (OptionSnapshotGreeksAllRequest) returns (stream ResponseData);
 
+  rpc GetOptionSnapshotBinomialGreeksAll (OptionSnapshotBinomialGreeksAllRequest) returns (stream ResponseData);
+
   rpc GetOptionSnapshotGreeksFirstOrder (OptionSnapshotGreeksFirstOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotBinomialGreeksFirstOrder (OptionSnapshotBinomialGreeksFirstOrderRequest) returns (stream ResponseData);
 
   rpc GetOptionSnapshotGreeksSecondOrder (OptionSnapshotGreeksSecondOrderRequest) returns (stream ResponseData);
 
+  rpc GetOptionSnapshotBinomialGreeksSecondOrder (OptionSnapshotBinomialGreeksSecondOrderRequest) returns (stream ResponseData);
+
   rpc GetOptionSnapshotGreeksThirdOrder (OptionSnapshotGreeksThirdOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionSnapshotBinomialGreeksThirdOrder (OptionSnapshotBinomialGreeksThirdOrderRequest) returns (stream ResponseData);
 
   rpc GetOptionHistoryEod (OptionHistoryEodRequest) returns (stream ResponseData);
 
@@ -1066,21 +1359,39 @@ service BetaThetaTerminal {
 
   rpc GetOptionHistoryGreeksEod (OptionHistoryGreeksEodRequest) returns (stream ResponseData);
 
+  rpc GetOptionHistoryBinomialGreeksEod (OptionHistoryBinomialGreeksEodRequest) returns (stream ResponseData);
+
   rpc GetOptionHistoryGreeksAll (OptionHistoryGreeksAllRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryBinomialGreeksAll (OptionHistoryBinomialGreeksAllRequest) returns (stream ResponseData);
 
   rpc GetOptionHistoryTradeGreeksAll (OptionHistoryTradeGreeksAllRequest) returns (stream ResponseData);
 
+  rpc GetOptionHistoryBinomialTradeGreeksAll (OptionHistoryBinomialTradeGreeksAllRequest) returns (stream ResponseData);
+
   rpc GetOptionHistoryGreeksFirstOrder (OptionHistoryGreeksFirstOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryBinomialGreeksFirstOrder (OptionHistoryBinomialGreeksFirstOrderRequest) returns (stream ResponseData);
 
   rpc GetOptionHistoryTradeGreeksFirstOrder (OptionHistoryTradeGreeksFirstOrderRequest) returns (stream ResponseData);
 
+  rpc GetOptionHistoryBinomialTradeGreeksFirstOrder (OptionHistoryBinomialTradeGreeksFirstOrderRequest) returns (stream ResponseData);
+
   rpc GetOptionHistoryGreeksSecondOrder (OptionHistoryGreeksSecondOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryBinomialGreeksSecondOrder (OptionHistoryBinomialGreeksSecondOrderRequest) returns (stream ResponseData);
 
   rpc GetOptionHistoryTradeGreeksSecondOrder (OptionHistoryTradeGreeksSecondOrderRequest) returns (stream ResponseData);
 
+  rpc GetOptionHistoryBinomialTradeGreeksSecondOrder (OptionHistoryBinomialTradeGreeksSecondOrderRequest) returns (stream ResponseData);
+
   rpc GetOptionHistoryGreeksThirdOrder (OptionHistoryGreeksThirdOrderRequest) returns (stream ResponseData);
 
+  rpc GetOptionHistoryBinomialGreeksThirdOrder (OptionHistoryBinomialGreeksThirdOrderRequest) returns (stream ResponseData);
+
   rpc GetOptionHistoryTradeGreeksThirdOrder (OptionHistoryTradeGreeksThirdOrderRequest) returns (stream ResponseData);
+
+  rpc GetOptionHistoryBinomialTradeGreeksThirdOrder (OptionHistoryBinomialTradeGreeksThirdOrderRequest) returns (stream ResponseData);
 
   rpc GetOptionHistoryGreeksImpliedVolatility (OptionHistoryGreeksImpliedVolatilityRequest) returns (stream ResponseData);
 

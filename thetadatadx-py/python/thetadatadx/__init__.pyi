@@ -1381,12 +1381,16 @@ IvTick = Any
 OptionSnapshotGreeksImpliedVolatilityBuilder = Any
 GreeksAllTick = Any
 OptionSnapshotGreeksAllBuilder = Any
+OptionSnapshotBinomialGreeksAllBuilder = Any
 GreeksFirstOrderTick = Any
 OptionSnapshotGreeksFirstOrderBuilder = Any
+OptionSnapshotBinomialGreeksFirstOrderBuilder = Any
 GreeksSecondOrderTick = Any
 OptionSnapshotGreeksSecondOrderBuilder = Any
+OptionSnapshotBinomialGreeksSecondOrderBuilder = Any
 GreeksThirdOrderTick = Any
 OptionSnapshotGreeksThirdOrderBuilder = Any
+OptionSnapshotBinomialGreeksThirdOrderBuilder = Any
 OptionHistoryEodBuilder = Any
 OptionHistoryOhlcBuilder = Any
 OptionHistoryTradeBuilder = Any
@@ -1396,22 +1400,31 @@ OpenInterestTickList = Any
 OptionHistoryOpenInterestBuilder = Any
 GreeksEodTickList = Any
 OptionHistoryGreeksEodBuilder = Any
+OptionHistoryBinomialGreeksEodBuilder = Any
 GreeksAllTickList = Any
 OptionHistoryGreeksAllBuilder = Any
+OptionHistoryBinomialGreeksAllBuilder = Any
 TradeGreeksAllTickList = Any
 OptionHistoryTradeGreeksAllBuilder = Any
+OptionHistoryBinomialTradeGreeksAllBuilder = Any
 GreeksFirstOrderTickList = Any
 OptionHistoryGreeksFirstOrderBuilder = Any
+OptionHistoryBinomialGreeksFirstOrderBuilder = Any
 TradeGreeksFirstOrderTickList = Any
 OptionHistoryTradeGreeksFirstOrderBuilder = Any
+OptionHistoryBinomialTradeGreeksFirstOrderBuilder = Any
 GreeksSecondOrderTickList = Any
 OptionHistoryGreeksSecondOrderBuilder = Any
+OptionHistoryBinomialGreeksSecondOrderBuilder = Any
 TradeGreeksSecondOrderTickList = Any
 OptionHistoryTradeGreeksSecondOrderBuilder = Any
+OptionHistoryBinomialTradeGreeksSecondOrderBuilder = Any
 GreeksThirdOrderTickList = Any
 OptionHistoryGreeksThirdOrderBuilder = Any
+OptionHistoryBinomialGreeksThirdOrderBuilder = Any
 TradeGreeksThirdOrderTickList = Any
 OptionHistoryTradeGreeksThirdOrderBuilder = Any
+OptionHistoryBinomialTradeGreeksThirdOrderBuilder = Any
 IvTickList = Any
 OptionHistoryGreeksImpliedVolatilityBuilder = Any
 TradeGreeksImpliedVolatilityTickList = Any
@@ -2763,6 +2776,87 @@ class MarketDataView:
         """Fluent builder for `option_snapshot_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_snapshot_binomial_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksAllTick]:
+        """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_all_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[List[GreeksAllTick]]:
+        """Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksAllBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def option_snapshot_greeks_first_order(
         self,
         symbol: str,
@@ -2836,6 +2930,87 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
     ) -> OptionSnapshotGreeksFirstOrderBuilder:
         """Fluent builder for `option_snapshot_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_binomial_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksFirstOrderTick]:
+        """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_first_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[List[GreeksFirstOrderTick]]:
+        """Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+
+        - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksFirstOrderBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def option_snapshot_greeks_second_order(
@@ -2913,6 +3088,87 @@ class MarketDataView:
         """Fluent builder for `option_snapshot_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_snapshot_binomial_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksSecondOrderTick]:
+        """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+
+        - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_second_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[List[GreeksSecondOrderTick]]:
+        """Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+
+        - Retrieve a real-time last second order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksSecondOrderBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def option_snapshot_greeks_third_order(
         self,
         symbol: str,
@@ -2986,6 +3242,87 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
     ) -> OptionSnapshotGreeksThirdOrderBuilder:
         """Fluent builder for `option_snapshot_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_snapshot_binomial_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> List[GreeksThirdOrderTick]:
+        """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+
+        - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_third_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        stock_price: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        min_time: Optional[Union[str, time, datetime]] = None,
+        use_market_value: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[List[GreeksThirdOrderTick]]:
+        """Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+
+        - Retrieve a real-time last third order binomial greeks calculation for all option contracts that lie on a provided expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `use_market_value`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_snapshot_binomial_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionSnapshotBinomialGreeksThirdOrderBuilder:
+        """Fluent builder for `option_snapshot_binomial_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def option_history_eod(
@@ -3493,6 +3830,91 @@ class MarketDataView:
         """Fluent builder for `option_history_greeks_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_history_binomial_greeks_eod(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        underlyer_use_nbbo: Optional[bool] = False,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksEodTickList:
+        """Fetch end-of-day binomial Greeks history for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+        - **Any ``expiration=*`` request must be made day by day.**
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `underlyer_use_nbbo`: `false`
+        """
+        ...
+
+    def option_history_binomial_greeks_eod_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        underlyer_use_nbbo: Optional[bool] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[GreeksEodTickList]:
+        """Fetch end-of-day binomial Greeks history for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
+        - **Any ``expiration=*`` request must be made day by day.**
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `underlyer_use_nbbo`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_greeks_eod_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        start_date: Union[str, date, datetime],
+        end_date: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksEodBuilder:
+        """Fluent builder for `option_history_binomial_greeks_eod`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def option_history_greeks_all(
         self,
         symbol: str,
@@ -3580,6 +4002,99 @@ class MarketDataView:
         """Fluent builder for `option_history_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_history_binomial_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksAllTickList:
+        """Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_all_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[GreeksAllTickList]:
+        """Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksAllBuilder:
+        """Fluent builder for `option_history_binomial_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def option_history_trade_greeks_all(
         self,
         symbol: str,
@@ -3598,6 +4113,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksAllTickList:
         """Fetch all Greeks on each trade for an option contract.
@@ -3614,6 +4130,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -3635,6 +4152,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksAllTickList]:
         """Fetch all Greeks on each trade for an option contract.
@@ -3651,6 +4169,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3663,6 +4182,101 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksAllBuilder:
         """Fluent builder for `option_history_trade_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_all(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksAllTickList:
+        """Fetch all binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_all_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[TradeGreeksAllTickList]:
+        """Fetch all binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_all_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksAllBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_all`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def option_history_greeks_first_order(
@@ -3752,6 +4366,99 @@ class MarketDataView:
         """Fluent builder for `option_history_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_history_binomial_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksFirstOrderTickList:
+        """Fetch first-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_first_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[GreeksFirstOrderTickList]:
+        """Fetch first-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksFirstOrderBuilder:
+        """Fluent builder for `option_history_binomial_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def option_history_trade_greeks_first_order(
         self,
         symbol: str,
@@ -3770,6 +4477,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksFirstOrderTickList:
         """Fetch first-order Greeks on each trade for an option contract.
@@ -3786,6 +4494,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -3807,6 +4516,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksFirstOrderTickList]:
         """Fetch first-order Greeks on each trade for an option contract.
@@ -3823,6 +4533,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -3835,6 +4546,101 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksFirstOrderBuilder:
         """Fluent builder for `option_history_trade_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_first_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksFirstOrderTickList:
+        """Fetch first-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_first_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[TradeGreeksFirstOrderTickList]:
+        """Fetch first-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_first_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksFirstOrderBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_first_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def option_history_greeks_second_order(
@@ -3924,6 +4730,99 @@ class MarketDataView:
         """Fluent builder for `option_history_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_history_binomial_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksSecondOrderTickList:
+        """Fetch second-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_second_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[GreeksSecondOrderTickList]:
+        """Fetch second-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksSecondOrderBuilder:
+        """Fluent builder for `option_history_binomial_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def option_history_trade_greeks_second_order(
         self,
         symbol: str,
@@ -3942,6 +4841,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksSecondOrderTickList:
         """Fetch second-order Greeks on each trade for an option contract.
@@ -3958,6 +4858,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -3979,6 +4880,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksSecondOrderTickList]:
         """Fetch second-order Greeks on each trade for an option contract.
@@ -3995,6 +4897,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -4007,6 +4910,101 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksSecondOrderBuilder:
         """Fluent builder for `option_history_trade_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_second_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksSecondOrderTickList:
+        """Fetch second-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_second_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[TradeGreeksSecondOrderTickList]:
+        """Fetch second-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_second_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksSecondOrderBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_second_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def option_history_greeks_third_order(
@@ -4096,6 +5094,99 @@ class MarketDataView:
         """Fluent builder for `option_history_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
+    def option_history_binomial_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> GreeksThirdOrderTickList:
+        """Fetch third-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        """
+        ...
+
+    def option_history_binomial_greeks_third_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        interval: Optional[str] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[GreeksThirdOrderTickList]:
+        """Fetch third-order binomial Greeks history (intraday, sampled by interval).
+
+        - Returns the data for all contracts that share the same provided symbol and expiration. 
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `interval`: `"1s"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialGreeksThirdOrderBuilder:
+        """Fluent builder for `option_history_binomial_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
     def option_history_trade_greeks_third_order(
         self,
         symbol: str,
@@ -4114,6 +5205,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksThirdOrderTickList:
         """Fetch third-order Greeks on each trade for an option contract.
@@ -4130,6 +5222,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -4151,6 +5244,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksThirdOrderTickList]:
         """Fetch third-order Greeks on each trade for an option contract.
@@ -4167,6 +5261,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
@@ -4179,6 +5274,101 @@ class MarketDataView:
         expiration: Union[str, date, datetime],
     ) -> OptionHistoryTradeGreeksThirdOrderBuilder:
         """Fluent builder for `option_history_trade_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
+        ...
+
+    def option_history_binomial_trade_greeks_third_order(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = 101,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
+        timeout_ms: Optional[int] = None,
+    ) -> TradeGreeksThirdOrderTickList:
+        """Fetch third-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_third_order_async(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+        *,
+        strike: Optional[str] = None,
+        right: Optional[str] = None,
+        date: Optional[Union[str, date, datetime]] = None,
+        start_time: Optional[Union[str, time, datetime]] = None,
+        end_time: Optional[Union[str, time, datetime]] = None,
+        annual_dividend: Optional[float] = None,
+        rate_type: Optional[str] = None,
+        rate_value: Optional[float] = None,
+        binomial_steps: Optional[int] = None,
+        version: Optional[str] = None,
+        max_dte: Optional[int] = None,
+        strike_range: Optional[int] = None,
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
+        timeout_ms: Optional[int] = None,
+    ) -> Awaitable[TradeGreeksThirdOrderTickList]:
+        """Fetch third-order binomial Greeks on each trade for an option contract.
+
+        - Returns the data for all contracts that share the same provided symbol and expiration.
+        - Greeks are calculated with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style.
+        - Calculates greeks for every trade reported by OPRA.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
+        - Multi-day requests are limited to 1 month of data, and must specify an expiration.
+
+        Defaults (upstream):
+        - `strike`: `"*"`
+        - `right`: `"both"`
+        - `start_time`: `"09:30:00"`
+        - `end_time`: `"16:00:00"`
+        - `rate_type`: `"sofr"`
+        - `binomial_steps`: `101`
+        - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
+
+
+        Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
+        """
+        ...
+
+    def option_history_binomial_trade_greeks_third_order_builder(
+        self,
+        symbol: str,
+        expiration: Union[str, date, datetime],
+    ) -> OptionHistoryBinomialTradeGreeksThirdOrderBuilder:
+        """Fluent builder for `option_history_binomial_trade_greeks_third_order`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""
         ...
 
     def option_history_greeks_implied_volatility(
@@ -4284,6 +5474,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = False,
         timeout_ms: Optional[int] = None,
     ) -> TradeGreeksImpliedVolatilityTickList:
         """Fetch implied volatility on each trade for an option contract.
@@ -4299,6 +5490,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
         """
         ...
 
@@ -4320,6 +5512,7 @@ class MarketDataView:
         strike_range: Optional[int] = None,
         start_date: Optional[Union[str, date, datetime]] = None,
         end_date: Optional[Union[str, date, datetime]] = None,
+        perf_boost_intraday: Optional[bool] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[TradeGreeksImpliedVolatilityTickList]:
         """Fetch implied volatility on each trade for an option contract.
@@ -4335,6 +5528,7 @@ class MarketDataView:
         - `end_time`: `"16:00:00"`
         - `rate_type`: `"sofr"`
         - `version`: `"latest"`
+        - `perf_boost_intraday`: `false`
 
 
         Awaitable companion of the sync variant. The returned object resolves the request off the calling thread so a running event loop keeps servicing other coroutines.
