@@ -11,7 +11,7 @@ const cfg = {
   httpPath: "v3/option/history/trade_greeks/implied_volatility",
   method: { rust: "option_history_trade_greeks_implied_volatility", python: "option_history_trade_greeks_implied_volatility", ts: "optionHistoryTradeGreeksImpliedVolatility", cpp: "option_history_trade_greeks_implied_volatility" },
   required: [{ key: "symbol", type: "string", default: "SPY" }, { key: "expiration", type: "date", default: "20250321" }],
-  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }],
+  optional: [{ key: "strike", type: "string", default: "570" }, { key: "right", type: "string", default: "C" }, { key: "date", type: "date", default: "" }, { key: "start_time", type: "string", default: "" }, { key: "end_time", type: "string", default: "" }, { key: "annual_dividend", type: "float", default: "" }, { key: "rate_type", type: "string", default: "" }, { key: "rate_value", type: "float", default: "" }, { key: "version", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }, { key: "strike_range", type: "int", default: "" }, { key: "start_date", type: "date", default: "" }, { key: "end_date", type: "date", default: "" }, { key: "perf_boost_intraday", type: "bool", default: "" }],
   print: ["ms_of_day", "price", "implied_volatility"],
   returns: "TradeGreeksImpliedVolatilityTick",
   sample: [
@@ -53,6 +53,7 @@ Fetch implied volatility on each trade for an option contract.
 | `strike_range` | int | no | — | Strike range filter |
 | `start_date` | date | no | — | Start date YYYYMMDD |
 | `end_date` | date | no | — | End date YYYYMMDD |
+| `perf_boost_intraday` | bool | no | `false` | When true, the underlying price for a current-day query is looked up with 1-second precision instead of millisecond precision, which answers faster. Defaults to false, matching the terminal, which sends false when the value is omitted. |
 | `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

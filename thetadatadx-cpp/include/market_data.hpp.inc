@@ -402,6 +402,20 @@
         });
     }
 
+    /// Get all binomial Greeks snapshot for an option contract (from ThetaData server).
+    std::vector<GreeksAllTick> option_snapshot_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksAllTick>> option_snapshot_binomial_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_snapshot_binomial_greeks_all(symbol, expiration, options);
+        });
+    }
+
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     std::vector<GreeksFirstOrderTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -413,6 +427,20 @@
     std::future<std::vector<GreeksFirstOrderTick>> option_snapshot_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return self.option_snapshot_greeks_first_order(symbol, expiration, options);
+        });
+    }
+
+    /// Get first-order binomial Greeks snapshot (delta, theta, rho) for an option contract.
+    std::vector<GreeksFirstOrderTick> option_snapshot_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksFirstOrderTick>> option_snapshot_binomial_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_snapshot_binomial_greeks_first_order(symbol, expiration, options);
         });
     }
 
@@ -430,6 +458,20 @@
         });
     }
 
+    /// Get second-order binomial Greeks snapshot (gamma, vanna, charm) for an option contract.
+    std::vector<GreeksSecondOrderTick> option_snapshot_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksSecondOrderTick>> option_snapshot_binomial_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_snapshot_binomial_greeks_second_order(symbol, expiration, options);
+        });
+    }
+
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     std::vector<GreeksThirdOrderTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -441,6 +483,20 @@
     std::future<std::vector<GreeksThirdOrderTick>> option_snapshot_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return self.option_snapshot_greeks_third_order(symbol, expiration, options);
+        });
+    }
+
+    /// Get third-order binomial Greeks snapshot (speed, color, ultima) for an option contract.
+    std::vector<GreeksThirdOrderTick> option_snapshot_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksThirdOrderTick>> option_snapshot_binomial_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_snapshot_binomial_greeks_third_order(symbol, expiration, options);
         });
     }
 
@@ -542,6 +598,20 @@
         });
     }
 
+    /// Fetch end-of-day binomial Greeks history for an option contract.
+    std::vector<GreeksEodTick> option_history_binomial_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksEodTick>> option_history_binomial_greeks_eod_async(std::string symbol, std::string expiration, std::string start_date, std::string end_date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), start_date = std::move(start_date), end_date = std::move(end_date), options = std::move(options)]() {
+            return self.option_history_binomial_greeks_eod(symbol, expiration, start_date, end_date, options);
+        });
+    }
+
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
     std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -553,6 +623,20 @@
     std::future<std::vector<GreeksAllTick>> option_history_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return self.option_history_greeks_all(symbol, expiration, options);
+        });
+    }
+
+    /// Fetch all binomial Greeks history for an option contract (intraday, sampled by interval).
+    std::vector<GreeksAllTick> option_history_binomial_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksAllTick>> option_history_binomial_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_greeks_all(symbol, expiration, options);
         });
     }
 
@@ -570,6 +654,20 @@
         });
     }
 
+    /// Fetch all binomial Greeks on each trade for an option contract.
+    std::vector<TradeGreeksAllTick> option_history_binomial_trade_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<TradeGreeksAllTick>> option_history_binomial_trade_greeks_all_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_trade_greeks_all(symbol, expiration, options);
+        });
+    }
+
     /// Fetch first-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -581,6 +679,20 @@
     std::future<std::vector<GreeksFirstOrderTick>> option_history_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return self.option_history_greeks_first_order(symbol, expiration, options);
+        });
+    }
+
+    /// Fetch first-order binomial Greeks history (intraday, sampled by interval).
+    std::vector<GreeksFirstOrderTick> option_history_binomial_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksFirstOrderTick>> option_history_binomial_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_greeks_first_order(symbol, expiration, options);
         });
     }
 
@@ -598,6 +710,20 @@
         });
     }
 
+    /// Fetch first-order binomial Greeks on each trade for an option contract.
+    std::vector<TradeGreeksFirstOrderTick> option_history_binomial_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<TradeGreeksFirstOrderTick>> option_history_binomial_trade_greeks_first_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_trade_greeks_first_order(symbol, expiration, options);
+        });
+    }
+
     /// Fetch second-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -609,6 +735,20 @@
     std::future<std::vector<GreeksSecondOrderTick>> option_history_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return self.option_history_greeks_second_order(symbol, expiration, options);
+        });
+    }
+
+    /// Fetch second-order binomial Greeks history (intraday, sampled by interval).
+    std::vector<GreeksSecondOrderTick> option_history_binomial_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksSecondOrderTick>> option_history_binomial_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_greeks_second_order(symbol, expiration, options);
         });
     }
 
@@ -626,6 +766,20 @@
         });
     }
 
+    /// Fetch second-order binomial Greeks on each trade for an option contract.
+    std::vector<TradeGreeksSecondOrderTick> option_history_binomial_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<TradeGreeksSecondOrderTick>> option_history_binomial_trade_greeks_second_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_trade_greeks_second_order(symbol, expiration, options);
+        });
+    }
+
     /// Fetch third-order Greeks history (intraday, sampled by interval).
     std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -640,6 +794,20 @@
         });
     }
 
+    /// Fetch third-order binomial Greeks history (intraday, sampled by interval).
+    std::vector<GreeksThirdOrderTick> option_history_binomial_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<GreeksThirdOrderTick>> option_history_binomial_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_greeks_third_order(symbol, expiration, options);
+        });
+    }
+
     /// Fetch third-order Greeks on each trade for an option contract.
     std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
@@ -651,6 +819,20 @@
     std::future<std::vector<TradeGreeksThirdOrderTick>> option_history_trade_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
         return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
             return self.option_history_trade_greeks_third_order(symbol, expiration, options);
+        });
+    }
+
+    /// Fetch third-order binomial Greeks on each trade for an option contract.
+    std::vector<TradeGreeksThirdOrderTick> option_history_binomial_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
+
+    /// The detached task captures a copy of this object (`self = *this`), so the
+    /// returned future co-owns the FFI handle and may safely outlive the object
+    /// it was launched from — including a temporary `client.market_data()` view.
+    /// The handle is freed only once the last owner (this object or the
+    /// in-flight future) drops, so there is no dangling-`this` window.
+    std::future<std::vector<TradeGreeksThirdOrderTick>> option_history_binomial_trade_greeks_third_order_async(std::string symbol, std::string expiration, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [self = *this, symbol = std::move(symbol), expiration = std::move(expiration), options = std::move(options)]() {
+            return self.option_history_binomial_trade_greeks_third_order(symbol, expiration, options);
         });
     }
 

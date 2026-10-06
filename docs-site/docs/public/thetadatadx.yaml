@@ -327,6 +327,27 @@ x-anchors:
       type: string
     description: Greeks calculation model version
 
+  binomial_steps-param: &binomial_steps-param
+    name: binomial_steps
+    in: query
+    required: false
+    schema:
+      type: integer
+      format: int32
+      minimum: 5
+      maximum: 201
+      default: 101
+    description: Steps in the binomial tree used for the Greeks calculation. An even value is rounded up to the next odd one, and an expiration=* request is capped at 101 steps.
+
+  perf_boost_intraday-param: &perf_boost_intraday-param
+    name: perf_boost_intraday
+    in: query
+    required: false
+    schema:
+      type: boolean
+      default: false
+    description: Look the underlying price up with 1-second precision instead of millisecond precision on a current-day query, which answers faster
+
   use_market_value-param: &use_market_value-param
     name: use_market_value
     in: query
@@ -1411,6 +1432,47 @@ paths:
           source: |
             auto greeks = client.market_data().option_snapshot_greeks_all("SPY", "20240419", "500", "C");
 
+  /v3/option/snapshot/binomial_greeks/all:
+    x-min-subscription: professional
+    get:
+      operationId: optionSnapshotBinomialGreeksAll
+      summary: Option all binomial Greeks snapshot
+      description: |
+        Snapshot of all 22 binomial Greeks, computed on a Leisen-Reimer tree that allows early exercise at every node.
+        gRPC: GetOptionSnapshotBinomialGreeksAll
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *use_market_value-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_snapshot_binomial_greeks_all("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_snapshot_binomial_greeks_all("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_snapshot_binomial_greeks_all("SPY", "20240419");
+
   /v3/option/snapshot/greeks/first_order:
     x-min-subscription: standard
     get:
@@ -1451,6 +1513,47 @@ paths:
           source: |
             auto g1 = client.market_data().option_snapshot_greeks_first_order("SPY", "20240419", "500", "C");
 
+  /v3/option/snapshot/binomial_greeks/first_order:
+    x-min-subscription: standard
+    get:
+      operationId: optionSnapshotBinomialGreeksFirstOrder
+      summary: Option first-order binomial Greeks snapshot
+      description: |
+        First-order binomial Greeks snapshot (delta, theta, vega, rho, epsilon, lambda).
+        gRPC: GetOptionSnapshotBinomialGreeksFirstOrder
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *use_market_value-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_snapshot_binomial_greeks_first_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_snapshot_binomial_greeks_first_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_snapshot_binomial_greeks_first_order("SPY", "20240419");
+
   /v3/option/snapshot/greeks/second_order:
     x-min-subscription: professional
     get:
@@ -1490,6 +1593,47 @@ paths:
           label: C++
           source: |
             auto g2 = client.market_data().option_snapshot_greeks_second_order("SPY", "20240419", "500", "C");
+
+  /v3/option/snapshot/binomial_greeks/second_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionSnapshotBinomialGreeksSecondOrder
+      summary: Option second-order binomial Greeks snapshot
+      description: |
+        Second-order binomial Greeks snapshot (gamma, vanna, charm, vomma, veta, dual_delta, dual_gamma).
+        gRPC: GetOptionSnapshotBinomialGreeksSecondOrder
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *use_market_value-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_snapshot_binomial_greeks_second_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_snapshot_binomial_greeks_second_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_snapshot_binomial_greeks_second_order("SPY", "20240419");
 
   /v3/option/snapshot/greeks/third_order:
     x-min-subscription: professional
@@ -1534,6 +1678,47 @@ paths:
   # =========================================================================
   # OPTION / HISTORY
   # =========================================================================
+
+  /v3/option/snapshot/binomial_greeks/third_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionSnapshotBinomialGreeksThirdOrder
+      summary: Option third-order binomial Greeks snapshot
+      description: |
+        Third-order binomial Greeks snapshot (speed, zomma, color, ultima).
+        gRPC: GetOptionSnapshotBinomialGreeksThirdOrder
+      tags: [Option / Snapshot Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *max_dte-param
+        - *strike_range-param
+        - *min_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *stock_price-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *use_market_value-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_snapshot_binomial_greeks_third_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_snapshot_binomial_greeks_third_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_snapshot_binomial_greeks_third_order("SPY", "20240419");
 
   /v3/option/history/eod:
     x-min-subscription: free
@@ -1853,6 +2038,47 @@ paths:
           source: |
             auto greeks = client.market_data().option_history_greeks_eod("SPY", "20240419", "500", "C", "20240101", "20240301");
 
+  /v3/option/history/binomial_greeks/eod:
+    x-min-subscription: standard
+    get:
+      operationId: optionHistoryBinomialGreeksEod
+      summary: Option EOD binomial Greeks history
+      description: |
+        End-of-day binomial Greeks history for an option contract.
+        gRPC: GetOptionHistoryBinomialGreeksEod
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *start_date-param
+        - *end_date-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *underlyer_use_nbbo-param
+        - *max_dte-param
+        - *strike_range-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_greeks_eod("SPY", "20240419", "20240101", "20240301").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_greeks_eod("SPY", "20240419", "20240101", "20240301")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_greeks_eod("SPY", "20240419", "20240101", "20240301");
+
   /v3/option/history/greeks/all:
     x-min-subscription: professional
     get:
@@ -1904,6 +2130,59 @@ paths:
           label: C++
           source: |
             auto greeks = client.market_data().option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "1m");
+
+  /v3/option/history/binomial_greeks/all:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialGreeksAll
+      summary: Option all binomial Greeks history (intraday)
+      description: |
+        All 22 binomial Greeks history, sampled at a given interval.
+        gRPC: GetOptionHistoryBinomialGreeksAll
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_greeks_all("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_greeks_all("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_greeks_all("SPY", "20240419");
 
   /v3/option/history/greeks/first_order:
     x-min-subscription: standard
@@ -1957,6 +2236,59 @@ paths:
           source: |
             auto g1 = client.market_data().option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "1m");
 
+  /v3/option/history/binomial_greeks/first_order:
+    x-min-subscription: standard
+    get:
+      operationId: optionHistoryBinomialGreeksFirstOrder
+      summary: Option first-order binomial Greeks history (intraday)
+      description: |
+        First-order binomial Greeks history (delta, theta, vega, rho), sampled at a given interval.
+        gRPC: GetOptionHistoryBinomialGreeksFirstOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_greeks_first_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_greeks_first_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_greeks_first_order("SPY", "20240419");
+
   /v3/option/history/greeks/second_order:
     x-min-subscription: professional
     get:
@@ -2009,6 +2341,59 @@ paths:
           source: |
             auto g2 = client.market_data().option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "1m");
 
+  /v3/option/history/binomial_greeks/second_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialGreeksSecondOrder
+      summary: Option second-order binomial Greeks history (intraday)
+      description: |
+        Second-order binomial Greeks history (gamma, vanna, charm, vomma, veta), sampled at a given interval.
+        gRPC: GetOptionHistoryBinomialGreeksSecondOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_greeks_second_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_greeks_second_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_greeks_second_order("SPY", "20240419");
+
   /v3/option/history/greeks/third_order:
     x-min-subscription: professional
     get:
@@ -2060,6 +2445,59 @@ paths:
           label: C++
           source: |
             auto g3 = client.market_data().option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "1m");
+
+  /v3/option/history/binomial_greeks/third_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialGreeksThirdOrder
+      summary: Option third-order binomial Greeks history (intraday)
+      description: |
+        Third-order binomial Greeks history (speed, zomma, color, ultima), sampled at a given interval.
+        gRPC: GetOptionHistoryBinomialGreeksThirdOrder
+      tags: [Option / History Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-no-star-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *interval-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_greeks_third_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_greeks_third_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_greeks_third_order("SPY", "20240419");
 
   /v3/option/history/greeks/implied_volatility:
     x-min-subscription: standard
@@ -2152,6 +2590,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2168,6 +2607,60 @@ paths:
           label: C++
           source: |
             auto tg = client.market_data().option_history_trade_greeks_all("SPY", "20240419", "500", "C", "20240315");
+
+  /v3/option/history/binomial_trade_greeks/all:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialTradeGreeksAll
+      summary: Option all binomial Greeks on each trade
+      description: |
+        All 22 binomial Greeks computed on each individual trade for an option contract.
+        gRPC: GetOptionHistoryBinomialTradeGreeksAll
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_trade_greeks_all("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_trade_greeks_all("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_trade_greeks_all("SPY", "20240419");
 
   /v3/option/history/trade_greeks/first_order:
     x-min-subscription: professional
@@ -2204,6 +2697,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2220,6 +2714,60 @@ paths:
           label: C++
           source: |
             auto tg1 = client.market_data().option_history_trade_greeks_first_order("SPY", "20240419", "500", "C", "20240315");
+
+  /v3/option/history/binomial_trade_greeks/first_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialTradeGreeksFirstOrder
+      summary: Option first-order binomial Greeks on each trade
+      description: |
+        First-order binomial Greeks (delta, theta, vega, rho) computed on each individual trade.
+        gRPC: GetOptionHistoryBinomialTradeGreeksFirstOrder
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_trade_greeks_first_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_trade_greeks_first_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_trade_greeks_first_order("SPY", "20240419");
 
   /v3/option/history/trade_greeks/second_order:
     x-min-subscription: professional
@@ -2256,6 +2804,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2272,6 +2821,60 @@ paths:
           label: C++
           source: |
             auto tg2 = client.market_data().option_history_trade_greeks_second_order("SPY", "20240419", "500", "C", "20240315");
+
+  /v3/option/history/binomial_trade_greeks/second_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialTradeGreeksSecondOrder
+      summary: Option second-order binomial Greeks on each trade
+      description: |
+        Second-order binomial Greeks (gamma, vanna, charm, vomma, veta) computed on each individual trade.
+        gRPC: GetOptionHistoryBinomialTradeGreeksSecondOrder
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_trade_greeks_second_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_trade_greeks_second_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_trade_greeks_second_order("SPY", "20240419");
 
   /v3/option/history/trade_greeks/third_order:
     x-min-subscription: professional
@@ -2308,6 +2911,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
         - *format-param
       responses:
         '200': *v3-response
@@ -2324,6 +2928,60 @@ paths:
           label: C++
           source: |
             auto tg3 = client.market_data().option_history_trade_greeks_third_order("SPY", "20240419", "500", "C", "20240315");
+
+  /v3/option/history/binomial_trade_greeks/third_order:
+    x-min-subscription: professional
+    get:
+      operationId: optionHistoryBinomialTradeGreeksThirdOrder
+      summary: Option third-order binomial Greeks on each trade
+      description: |
+        Third-order binomial Greeks (speed, zomma, color, ultima) computed on each individual trade.
+        gRPC: GetOptionHistoryBinomialTradeGreeksThirdOrder
+      tags: [Option / History Trade Greeks]
+      parameters:
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+        - *date-optional-param
+        - *start_time-param
+        - *end_time-param
+        - *annual_dividend-param
+        - *rate_type-param
+        - *rate_value-param
+        - *binomial_steps-param
+        - *greeks_version-param
+        - *max_dte-param
+        - *strike_range-param
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Start date (YYYYMMDD)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+          description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
+        - *format-param
+      responses:
+        '200': *v3-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let greeks = client.market_data().option_history_binomial_trade_greeks_third_order("SPY", "20240419").await?;
+        - lang: python
+          label: Python
+          source: |
+            greeks = client.market_data.option_history_binomial_trade_greeks_third_order("SPY", "20240419")
+        - lang: cpp
+          label: C++
+          source: |
+            auto greeks = client.market_data().option_history_binomial_trade_greeks_third_order("SPY", "20240419");
 
   /v3/option/history/trade_greeks/implied_volatility:
     x-min-subscription: professional
@@ -2360,6 +3018,7 @@ paths:
           schema:
             type: string
           description: End date (YYYYMMDD)
+        - *perf_boost_intraday-param
         - *format-param
       responses:
         '200': *v3-response

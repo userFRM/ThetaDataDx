@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The vendor's binomial Greeks endpoints are now served, on every surface.** The vendor computes a second set of Greeks with a Leisen-Reimer binomial tree that allows early exercise at every node, so the values are American-style rather than the European values its Black-Scholes routes carry, and it serves them on thirteen routes: `option/snapshot/binomial_greeks/` `all`, `first_order`, `second_order` and `third_order`; `option/history/binomial_greeks/` `eod`, `all`, `first_order`, `second_order` and `third_order`; and `option/history/binomial_trade_greeks/` `all`, `first_order`, `second_order` and `third_order`. This SDK served none of them, so anyone who wanted them had to run the terminal beside it. Each route takes the parameters of its non-binomial counterpart plus `binomial_steps`, the number of steps in the tree, and returns the same columns as that counterpart. The SDK sends the vendor's default of 101 steps when the caller leaves the parameter unset; the vendor accepts 5 to 201, rounds an even value up to the next odd one, and caps a request for every expiration at 101. The routes reach Rust, Python, TypeScript, C++ and the C ABI, the local server answers them on the vendor's own paths, and the MCP server advertises one tool for each.
+
+- **The option trade Greeks history endpoints take `perf_boost_intraday`.** The vendor answers a current-day query faster when it may look the underlying price up with 1-second precision instead of millisecond precision. This SDK had no way to ask for that: no binding exposed the parameter and the local server did not recognise the name, so a request carrying `perf_boost_intraday=true` was answered at millisecond precision without saying so. It is now an optional boolean on `option/history/trade_greeks/` `all`, `first_order`, `second_order`, `third_order` and `implied_volatility`, and on the binomial trade Greeks routes, from every binding and through the local server. The SDK sends `false` when the caller leaves it unset, which is what the terminal sends, so existing calls are unchanged.
+
 ## [0.5.1] - 2026-10-02
 
 ### Fixed
