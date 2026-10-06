@@ -91,16 +91,19 @@ impl ContractAssigned {
     fn kind(&self) -> &'static str { "contract_assigned" }
 }
 
-/// Streaming server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
+/// Streaming connection ended. `reason` is the integer disconnect code: the server's own when the server sent a disconnect message (wire code 12), and otherwise the code the client has always reported for the way the connection ended (4 TimedOut for its own read deadline, -1 Unspecified for a socket that closed or failed). Read the resolved reason-name field for its symbolic name, and the cause field for where the disconnect came from.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Disconnected {
     #[pyo3(get)] pub reason: i32,
+    #[pyo3(get)] pub cause: i32,
+    #[pyo3(get)] pub cause_io_error_kind: String,
+    #[pyo3(get)] pub cause_timeout_ms: u64,
 }
 #[pymethods]
 impl Disconnected {
     fn __repr__(&self) -> String {
-        format!("Disconnected(reason={})", self.reason)
+        format!("Disconnected(reason={}, cause={}, cause_io_error_kind={:?}, cause_timeout_ms={})", self.reason, self.cause, self.cause_io_error_kind, self.cause_timeout_ms)
     }
 
     #[getter]
@@ -112,6 +115,14 @@ impl Disconnected {
     #[getter]
     fn reason_name(&self) -> &'static str {
         thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
+    }
+
+    /// Resolved disconnect-cause name: `"ServerSent"`,
+    /// `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or
+    /// `"ReadTimeout"`. Derived from the `cause` integer.
+    #[getter]
+    fn cause_name(&self) -> &'static str {
+        thetadatadx::fpss::DisconnectCause::name_for_code(self.cause)
     }
 }
 
@@ -363,18 +374,21 @@ impl ReconnectedServer {
     fn kind(&self) -> &'static str { "reconnected_server" }
 }
 
-/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
+/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. `reason` and the cause fields describe the disconnect that triggered the attempt.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Reconnecting {
     #[pyo3(get)] pub reason: i32,
+    #[pyo3(get)] pub cause: i32,
+    #[pyo3(get)] pub cause_io_error_kind: String,
+    #[pyo3(get)] pub cause_timeout_ms: u64,
     #[pyo3(get)] pub attempt: i32,
     #[pyo3(get)] pub delay_ms: u64,
 }
 #[pymethods]
 impl Reconnecting {
     fn __repr__(&self) -> String {
-        format!("Reconnecting(reason={}, attempt={}, delay_ms={})", self.reason, self.attempt, self.delay_ms)
+        format!("Reconnecting(reason={}, cause={}, cause_io_error_kind={:?}, cause_timeout_ms={}, attempt={}, delay_ms={})", self.reason, self.cause, self.cause_io_error_kind, self.cause_timeout_ms, self.attempt, self.delay_ms)
     }
 
     #[getter]
@@ -387,19 +401,30 @@ impl Reconnecting {
     fn reason_name(&self) -> &'static str {
         thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
     }
+
+    /// Resolved disconnect-cause name: `"ServerSent"`,
+    /// `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or
+    /// `"ReadTimeout"`. Derived from the `cause` integer.
+    #[getter]
+    fn cause_name(&self) -> &'static str {
+        thetadatadx::fpss::DisconnectCause::name_for_code(self.cause)
+    }
 }
 
-/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name and the cause field for where that drop came from. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ReconnectsExhausted {
     #[pyo3(get)] pub reason: i32,
+    #[pyo3(get)] pub cause: i32,
+    #[pyo3(get)] pub cause_io_error_kind: String,
+    #[pyo3(get)] pub cause_timeout_ms: u64,
     #[pyo3(get)] pub attempts: i32,
 }
 #[pymethods]
 impl ReconnectsExhausted {
     fn __repr__(&self) -> String {
-        format!("ReconnectsExhausted(reason={}, attempts={})", self.reason, self.attempts)
+        format!("ReconnectsExhausted(reason={}, cause={}, cause_io_error_kind={:?}, cause_timeout_ms={}, attempts={})", self.reason, self.cause, self.cause_io_error_kind, self.cause_timeout_ms, self.attempts)
     }
 
     #[getter]
@@ -411,6 +436,14 @@ impl ReconnectsExhausted {
     #[getter]
     fn reason_name(&self) -> &'static str {
         thetadatadx::RemoveReason::from_code(self.reason as i16).as_str()
+    }
+
+    /// Resolved disconnect-cause name: `"ServerSent"`,
+    /// `"ClosedByServer"`, `"ReadFailed"`, `"WriteFailed"` or
+    /// `"ReadTimeout"`. Derived from the `cause` integer.
+    #[getter]
+    fn cause_name(&self) -> &'static str {
+        thetadatadx::fpss::DisconnectCause::name_for_code(self.cause)
     }
 }
 
@@ -687,10 +720,13 @@ pub(crate) fn fpss_event_to_typed(
                 },
             )
             .map(|p| p.into_any()),
-            fpss::StreamControl::Disconnected { reason } => Py::new(
+            fpss::StreamControl::Disconnected { reason, cause } => Py::new(
                 py,
                 Disconnected {
                     reason: i32::from(*reason as i16),
+                    cause: cause.code(),
+                    cause_io_error_kind: cause.io_error_kind_name(),
+                    cause_timeout_ms: cause.read_timeout_ms(),
                 },
             )
             .map(|p| p.into_any()),
@@ -719,19 +755,25 @@ pub(crate) fn fpss_event_to_typed(
             .map(|p| p.into_any()),
             fpss::StreamControl::Reconnected => Py::new(py, Reconnected).map(|p| p.into_any()),
             fpss::StreamControl::ReconnectedServer => Py::new(py, ReconnectedServer).map(|p| p.into_any()),
-            fpss::StreamControl::Reconnecting { reason, attempt, delay_ms } => Py::new(
+            fpss::StreamControl::Reconnecting { reason, cause, attempt, delay_ms } => Py::new(
                 py,
                 Reconnecting {
                     reason: i32::from(*reason as i16),
+                    cause: cause.code(),
+                    cause_io_error_kind: cause.io_error_kind_name(),
+                    cause_timeout_ms: cause.read_timeout_ms(),
                     attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                     delay_ms: *delay_ms,
                 },
             )
             .map(|p| p.into_any()),
-            fpss::StreamControl::ReconnectsExhausted { reason, attempts } => Py::new(
+            fpss::StreamControl::ReconnectsExhausted { reason, cause, attempts } => Py::new(
                 py,
                 ReconnectsExhausted {
                     reason: i32::from(*reason as i16),
+                    cause: cause.code(),
+                    cause_io_error_kind: cause.io_error_kind_name(),
+                    cause_timeout_ms: cause.read_timeout_ms(),
                     attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
                 },
             )

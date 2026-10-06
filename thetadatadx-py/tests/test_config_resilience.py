@@ -172,3 +172,10 @@ def test_reconnects_exhausted_event_class_exported():
     assert hasattr(cls, "attempts")
     assert hasattr(cls, "kind")
     assert hasattr(cls, "reason_name")
+    # The cause beside the reason: without it a terminal drop reported
+    # `TimedOut` and the operator could not tell a server timeout from
+    # this client's own read deadline.
+    assert hasattr(cls, "cause")
+    assert hasattr(cls, "cause_name")
+    assert hasattr(cls, "cause_io_error_kind")
+    assert hasattr(cls, "cause_timeout_ms")

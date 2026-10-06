@@ -251,11 +251,17 @@ pub struct ThetaDataDxStreamContractAssigned {
     pub contract: ThetaDataDxContract,
 }
 
-/// Streaming server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
+/// Streaming connection ended. `reason` is the integer disconnect code: the server's own when the server sent a disconnect message (wire code 12), and otherwise the code the client has always reported for the way the connection ended (4 TimedOut for its own read deadline, -1 Unspecified for a socket that closed or failed). Read the resolved reason-name field for its symbolic name, and the cause field for where the disconnect came from.
 #[repr(C)]
 pub struct ThetaDataDxStreamDisconnected {
-    /// Reason the server gave for dropping the connection.
+    /// Disconnect code: the server's own when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended.
     pub reason: i32,
+    /// Where the disconnect came from: 0 the server sent a disconnect message, 1 the server ended the stream without one, 2 a read failed, 3 a write failed, 4 nothing arrived inside the client read deadline.
+    pub cause: i32,
+    /// Name of the I/O error kind behind a read or write failure (`"ConnectionReset"`, `"BrokenPipe"`, ...). Empty for every other cause.
+    pub cause_io_error_kind: *const c_char,
+    /// Client read deadline that expired, in milliseconds. Zero for every other cause.
+    pub cause_timeout_ms: u64,
 }
 
 /// Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
@@ -317,22 +323,34 @@ pub struct ThetaDataDxStreamReconnectedServer {
     pub _padding: u8,
 }
 
-/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
+/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. `reason` and the cause fields describe the disconnect that triggered the attempt.
 #[repr(C)]
 pub struct ThetaDataDxStreamReconnecting {
-    /// Reason the server gave for dropping the connection.
+    /// Disconnect code: the server's own when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended.
     pub reason: i32,
+    /// Where the disconnect came from: 0 the server sent a disconnect message, 1 the server ended the stream without one, 2 a read failed, 3 a write failed, 4 nothing arrived inside the client read deadline.
+    pub cause: i32,
+    /// Name of the I/O error kind behind a read or write failure (`"ConnectionReset"`, `"BrokenPipe"`, ...). Empty for every other cause.
+    pub cause_io_error_kind: *const c_char,
+    /// Client read deadline that expired, in milliseconds. Zero for every other cause.
+    pub cause_timeout_ms: u64,
     /// 1-based index of this reconnect attempt.
     pub attempt: i32,
     /// Delay, in milliseconds, before the attempt fires.
     pub delay_ms: u64,
 }
 
-/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name and the cause field for where that drop came from. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
 #[repr(C)]
 pub struct ThetaDataDxStreamReconnectsExhausted {
-    /// Reason the server gave for dropping the connection.
+    /// Disconnect code: the server's own when it sent a disconnect message, and otherwise the code the client reports for the way the connection ended.
     pub reason: i32,
+    /// Where the disconnect came from: 0 the server sent a disconnect message, 1 the server ended the stream without one, 2 a read failed, 3 a write failed, 4 nothing arrived inside the client read deadline.
+    pub cause: i32,
+    /// Name of the I/O error kind behind a read or write failure (`"ConnectionReset"`, `"BrokenPipe"`, ...). Empty for every other cause.
+    pub cause_io_error_kind: *const c_char,
+    /// Client read deadline that expired, in milliseconds. Zero for every other cause.
+    pub cause_timeout_ms: u64,
     /// Number of consecutive reconnect attempts consumed before giving up.
     pub attempts: i32,
 }
@@ -481,8 +499,8 @@ const _: () = {
     assert!(core::mem::align_of::<ThetaDataDxStreamContractAssigned>() == 8);
 };
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxStreamDisconnected>() == 4);
-    assert!(core::mem::align_of::<ThetaDataDxStreamDisconnected>() == 4);
+    assert!(core::mem::size_of::<ThetaDataDxStreamDisconnected>() == 24);
+    assert!(core::mem::align_of::<ThetaDataDxStreamDisconnected>() == 8);
 };
 const _: () = {
     assert!(core::mem::size_of::<ThetaDataDxStreamLoginSuccess>() == 8);
@@ -513,12 +531,12 @@ const _: () = {
     assert!(core::mem::align_of::<ThetaDataDxStreamReconnectedServer>() == 1);
 };
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxStreamReconnecting>() == 16);
+    assert!(core::mem::size_of::<ThetaDataDxStreamReconnecting>() == 40);
     assert!(core::mem::align_of::<ThetaDataDxStreamReconnecting>() == 8);
 };
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxStreamReconnectsExhausted>() == 8);
-    assert!(core::mem::align_of::<ThetaDataDxStreamReconnectsExhausted>() == 4);
+    assert!(core::mem::size_of::<ThetaDataDxStreamReconnectsExhausted>() == 32);
+    assert!(core::mem::align_of::<ThetaDataDxStreamReconnectsExhausted>() == 8);
 };
 const _: () = {
     assert!(core::mem::size_of::<ThetaDataDxStreamReqResponse>() == 8);
@@ -541,7 +559,7 @@ const _: () = {
     assert!(core::mem::align_of::<ThetaDataDxStreamUnknownFrame>() == 8);
 };
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxStreamEvent>() == 728);
+    assert!(core::mem::size_of::<ThetaDataDxStreamEvent>() == 792);
     assert!(core::mem::align_of::<ThetaDataDxStreamEvent>() == 8);
 };
 
@@ -615,6 +633,9 @@ pub(crate) const ZERO_CONTRACT_ASSIGNED: ThetaDataDxStreamContractAssigned = The
 };
 pub(crate) const ZERO_DISCONNECTED: ThetaDataDxStreamDisconnected = ThetaDataDxStreamDisconnected {
     reason: 0,
+    cause: 0,
+    cause_io_error_kind: ptr::null(),
+    cause_timeout_ms: 0,
 };
 pub(crate) const ZERO_LOGIN_SUCCESS: ThetaDataDxStreamLoginSuccess = ThetaDataDxStreamLoginSuccess {
     permissions: ptr::null(),
@@ -640,11 +661,17 @@ pub(crate) const ZERO_RECONNECTED_SERVER: ThetaDataDxStreamReconnectedServer = T
 };
 pub(crate) const ZERO_RECONNECTING: ThetaDataDxStreamReconnecting = ThetaDataDxStreamReconnecting {
     reason: 0,
+    cause: 0,
+    cause_io_error_kind: ptr::null(),
+    cause_timeout_ms: 0,
     attempt: 0,
     delay_ms: 0,
 };
 pub(crate) const ZERO_RECONNECTS_EXHAUSTED: ThetaDataDxStreamReconnectsExhausted = ThetaDataDxStreamReconnectsExhausted {
     reason: 0,
+    cause: 0,
+    cause_io_error_kind: ptr::null(),
+    cause_timeout_ms: 0,
     attempts: 0,
 };
 pub(crate) const ZERO_REQ_RESPONSE: ThetaDataDxStreamReqResponse = ThetaDataDxStreamReqResponse {

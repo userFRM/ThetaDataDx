@@ -28,7 +28,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             },
             _contract_symbol: None,
             _login_permissions: None,
-            _control_message: None,
+            _control_string: None,
             _payload_bytes: None,
         }
     }
@@ -75,7 +75,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 },
                 _contract_symbol: contract_symbol_cstring,
                 _login_permissions: None,
-                _control_message: None,
+                _control_string: None,
                 _payload_bytes: None,
             }
         }
@@ -125,7 +125,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 },
                 _contract_symbol: contract_symbol_cstring,
                 _login_permissions: None,
-                _control_message: None,
+                _control_string: None,
                 _payload_bytes: None,
             }
         }
@@ -181,7 +181,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 },
                 _contract_symbol: contract_symbol_cstring,
                 _login_permissions: None,
-                _control_message: None,
+                _control_string: None,
                 _payload_bytes: None,
             }
         }
@@ -227,7 +227,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 },
                 _contract_symbol: contract_symbol_cstring,
                 _login_permissions: None,
-                _control_message: None,
+                _control_string: None,
                 _payload_bytes: None,
             }
         }
@@ -287,7 +287,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 },
                 _contract_symbol: contract_symbol_cstring,
                 _login_permissions: None,
-                _control_message: None,
+                _control_string: None,
                 _payload_bytes: None,
             }
         }
@@ -341,7 +341,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 },
                 _contract_symbol: contract_symbol_cstring,
                 _login_permissions: None,
-                _control_message: None,
+                _control_string: None,
                 _payload_bytes: None,
             }
         }
@@ -358,7 +358,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
@@ -393,22 +393,28 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: contract_symbol_cstring,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
-            StreamControl::Disconnected { reason } => {
+            StreamControl::Disconnected { reason, cause } => {
+                let cause_io_error_kind = cause.io_error_kind_name();
+                let cstring_owned = Some(cstring_for_ffi(cause_io_error_kind.as_str()));
+                let cause_io_error_kind_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {
                         kind: ThetaDataDxStreamEventKind::Disconnected,
                         disconnected: ThetaDataDxStreamDisconnected {
                             reason: i32::from(*reason as i16),
+                            cause: cause.code(),
+                            cause_io_error_kind: cause_io_error_kind_ptr,
+                            cause_timeout_ms: cause.read_timeout_ms(),
                         },
                         ..ZERO_STREAM_EVENT
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: cstring_owned,
                     _payload_bytes: None,
                 }
             }
@@ -425,7 +431,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: cstring_owned,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
@@ -440,7 +446,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
@@ -455,7 +461,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
@@ -472,7 +478,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: cstring_owned,
+                    _control_string: cstring_owned,
                     _payload_bytes: None,
                 }
             }
@@ -491,7 +497,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: Some(bytes_owned),
                 }
             }
@@ -506,7 +512,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
@@ -521,16 +527,22 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
-            StreamControl::Reconnecting { reason, attempt, delay_ms } => {
+            StreamControl::Reconnecting { reason, cause, attempt, delay_ms } => {
+                let cause_io_error_kind = cause.io_error_kind_name();
+                let cstring_owned = Some(cstring_for_ffi(cause_io_error_kind.as_str()));
+                let cause_io_error_kind_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {
                         kind: ThetaDataDxStreamEventKind::Reconnecting,
                         reconnecting: ThetaDataDxStreamReconnecting {
                             reason: i32::from(*reason as i16),
+                            cause: cause.code(),
+                            cause_io_error_kind: cause_io_error_kind_ptr,
+                            cause_timeout_ms: cause.read_timeout_ms(),
                             attempt: i32::try_from(*attempt).unwrap_or(i32::MAX),
                             delay_ms: *delay_ms,
                         },
@@ -538,23 +550,29 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: cstring_owned,
                     _payload_bytes: None,
                 }
             }
-            StreamControl::ReconnectsExhausted { reason, attempts } => {
+            StreamControl::ReconnectsExhausted { reason, cause, attempts } => {
+                let cause_io_error_kind = cause.io_error_kind_name();
+                let cstring_owned = Some(cstring_for_ffi(cause_io_error_kind.as_str()));
+                let cause_io_error_kind_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {
                         kind: ThetaDataDxStreamEventKind::ReconnectsExhausted,
                         reconnects_exhausted: ThetaDataDxStreamReconnectsExhausted {
                             reason: i32::from(*reason as i16),
+                            cause: cause.code(),
+                            cause_io_error_kind: cause_io_error_kind_ptr,
+                            cause_timeout_ms: cause.read_timeout_ms(),
                             attempts: i32::try_from(*attempts).unwrap_or(i32::MAX),
                         },
                         ..ZERO_STREAM_EVENT
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: cstring_owned,
                     _payload_bytes: None,
                 }
             }
@@ -570,7 +588,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
@@ -585,7 +603,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: None,
                 }
             }
@@ -602,7 +620,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: cstring_owned,
+                    _control_string: cstring_owned,
                     _payload_bytes: None,
                 }
             }
@@ -622,7 +640,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     },
                     _contract_symbol: None,
                     _login_permissions: None,
-                    _control_message: None,
+                    _control_string: None,
                     _payload_bytes: Some(bytes_owned),
                 }
             }

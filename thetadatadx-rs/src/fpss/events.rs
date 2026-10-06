@@ -3,7 +3,9 @@
 //! These are the wire-protocol-agnostic value types that flow from the I/O
 //! thread into the event ring and out to user callbacks.
 
+use std::io::ErrorKind;
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
@@ -199,6 +201,143 @@ pub enum StreamData {
     },
 }
 
+/// Where a disconnect came from, beside the server's [`RemoveReason`]
+/// vocabulary.
+///
+/// `reason` answers "which code", and only the server has codes, so
+/// every end of a session the server never described has always had to
+/// borrow one: `TimedOut` for the client's own read deadline,
+/// `Unspecified` for a socket that closed or failed. The cause is the
+/// field that tells those apart. A `TimedOut` with
+/// [`DisconnectCause::ServerSent`] is the server saying the session
+/// timed out; the same `reason` with [`DisconnectCause::ReadTimeout`]
+/// is this client deciding nothing arrived inside the deadline it was
+/// configured with.
+///
+/// Carried on [`StreamControl::Disconnected`],
+/// [`StreamControl::Reconnecting`] and
+/// [`StreamControl::ReconnectsExhausted`]. It is a small `Copy` value so
+/// the I/O loop can carry it from the drop through the reconnect
+/// decision without allocating.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum DisconnectCause {
+    /// The server sent a disconnect message and `reason` is its code.
+    ServerSent,
+    /// The server ended the stream without sending a disconnect message.
+    ClosedByServer,
+    /// A read on the connection failed, with the kind of I/O error it failed with.
+    ReadFailed(ErrorKind),
+    /// A write to the connection failed, with the kind of I/O error it failed with.
+    WriteFailed(ErrorKind),
+    /// No recognised frame arrived inside the client read deadline,
+    /// which is the configured timeout carried here. Decided by this
+    /// client, not by the server.
+    ReadTimeout(Duration),
+}
+
+impl DisconnectCause {
+    /// Stable cross-binding code for this cause. This is the integer the
+    /// Python, TypeScript, C and C++ surfaces carry as `cause`, so the
+    /// values are fixed once published and a new cause takes the next
+    /// free one.
+    #[must_use]
+    pub const fn code(self) -> i32 {
+        match self {
+            Self::ServerSent => 0,
+            Self::ClosedByServer => 1,
+            Self::ReadFailed(_) => 2,
+            Self::WriteFailed(_) => 3,
+            Self::ReadTimeout(_) => 4,
+        }
+    }
+
+    /// Symbolic name for this cause (`"ServerSent"`, `"ReadFailed"`,
+    /// ...). This is what the bindings publish as `cause_name`, the same
+    /// way they publish [`RemoveReason::as_str`] as `reason_name`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ServerSent => "ServerSent",
+            Self::ClosedByServer => "ClosedByServer",
+            Self::ReadFailed(_) => "ReadFailed",
+            Self::WriteFailed(_) => "WriteFailed",
+            Self::ReadTimeout(_) => "ReadTimeout",
+        }
+    }
+
+    /// Symbolic name for a cause code, the inverse of
+    /// [`DisconnectCause::code`].
+    ///
+    /// The bindings carry the cause as the integer `code` produced and
+    /// resolve the name from it, the same way they resolve `reason_name`
+    /// from `reason`. A code this build does not know resolves to
+    /// `"Unknown"`, so a caller stays total without handling an absent
+    /// name.
+    #[must_use]
+    pub const fn name_for_code(code: i32) -> &'static str {
+        match code {
+            0 => "ServerSent",
+            1 => "ClosedByServer",
+            2 => "ReadFailed",
+            3 => "WriteFailed",
+            4 => "ReadTimeout",
+            _ => "Unknown",
+        }
+    }
+
+    /// Name of the I/O error kind behind a read or write failure
+    /// (`"ConnectionReset"`, `"BrokenPipe"`, ...), or an empty string for
+    /// every other cause.
+    ///
+    /// A name rather than a number because `std::io::ErrorKind` is an
+    /// open set with no stable numbering: the standard library adds
+    /// kinds, and a code assigned here would either run out or start
+    /// lying. A kind this build does not recognise still names itself.
+    #[must_use]
+    pub fn io_error_kind_name(self) -> String {
+        match self {
+            Self::ReadFailed(kind) | Self::WriteFailed(kind) => format!("{kind:?}"),
+            _ => String::new(),
+        }
+    }
+
+    /// The read deadline that expired, in milliseconds, or `0` for every
+    /// other cause. This is the timeout the session was configured with,
+    /// not the time actually spent waiting.
+    #[must_use]
+    pub fn read_timeout_ms(self) -> u64 {
+        match self {
+            Self::ReadTimeout(timeout) => u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX),
+            _ => 0,
+        }
+    }
+
+    /// The disconnect reason this cause alone implies.
+    ///
+    /// `reason` is the server's vocabulary, so a drop the server never
+    /// described borrows a code from it: the client read deadline
+    /// reports `TimedOut` and every other end the client observed itself
+    /// reports `Unspecified`. These are the exact codes those paths
+    /// reported before the cause existed, so code matching on `reason`
+    /// is unaffected.
+    ///
+    /// [`DisconnectCause::ServerSent`] implies nothing, because the
+    /// server supplied the code and the decoder reads it off the wire;
+    /// it maps to `Unspecified`, which is literally "no reason
+    /// supplied".
+    #[must_use]
+    pub const fn implied_reason(self) -> RemoveReason {
+        match self {
+            Self::ReadTimeout(_) => RemoveReason::TimedOut,
+            Self::ServerSent
+            | Self::ClosedByServer
+            | Self::ReadFailed(_)
+            | Self::WriteFailed(_) => RemoveReason::Unspecified,
+        }
+    }
+}
+
 /// Control/lifecycle events from the FPSS stream.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -250,17 +389,30 @@ pub enum StreamControl {
         /// Human-readable error text from the server.
         message: String,
     },
-    /// Server disconnected us (code 12).
+    /// The connection ended (the server's code 12, or any other way the
+    /// session stopped).
+    ///
+    /// `reason` is the server's code when the server sent a disconnect
+    /// message, and otherwise the code this client has always reported
+    /// for the way the connection ended: `TimedOut` for its own read
+    /// deadline, `Unspecified` for a socket that closed or failed.
+    /// `cause` says which of those happened, so a server-sent `TimedOut`
+    /// and a client read timeout are no longer the same event.
     Disconnected {
-        /// Reason the server gave for dropping the connection.
+        /// Disconnect code, the server's own when `cause` is
+        /// [`DisconnectCause::ServerSent`].
         reason: RemoveReason,
+        /// Where the disconnect came from.
+        cause: DisconnectCause,
     },
     /// Auto-reconnect is about to attempt reconnection.
     ///
     /// Emitted before sleeping for the delay. `attempt` is 1-based.
     Reconnecting {
-        /// Disconnect reason that triggered the reconnect attempt.
+        /// Disconnect code that triggered the reconnect attempt.
         reason: RemoveReason,
+        /// Where the disconnect that triggered the reconnect came from.
+        cause: DisconnectCause,
         /// 1-based index of this reconnect attempt.
         attempt: u32,
         /// Delay, in milliseconds, before the attempt fires.
@@ -281,13 +433,15 @@ pub enum StreamControl {
     /// intervention" from a clean `shutdown()` — which emits no
     /// terminal event because the caller initiated it.
     ///
-    /// `reason` is the disconnect reason of the final drop; `attempts`
+    /// `reason` and `cause` describe the final drop; `attempts`
     /// is the number of consecutive reconnect attempts consumed before
     /// giving up (`0` when no reconnect was attempted, e.g. permanent
     /// reasons and the `Manual` policy).
     ReconnectsExhausted {
-        /// Disconnect reason of the final drop before recovery was abandoned.
+        /// Disconnect code of the final drop before recovery was abandoned.
         reason: RemoveReason,
+        /// Where the final drop came from.
+        cause: DisconnectCause,
         /// Number of consecutive reconnect attempts consumed before giving up.
         attempts: u32,
     },
@@ -709,21 +863,104 @@ mod tests {
     fn fpss_control_reconnecting_variant() {
         let evt = StreamEvent::Control(StreamControl::Reconnecting {
             reason: RemoveReason::ServerRestarting,
+            cause: DisconnectCause::ServerSent,
             attempt: 1,
             delay_ms: 2000,
         });
         if let StreamEvent::Control(StreamControl::Reconnecting {
             reason,
+            cause,
             attempt,
             delay_ms,
         }) = &evt
         {
             assert_eq!(*reason, RemoveReason::ServerRestarting);
+            assert_eq!(*cause, DisconnectCause::ServerSent);
             assert_eq!(*attempt, 1);
             assert_eq!(*delay_ms, 2000);
         } else {
             panic!("expected Reconnecting");
         }
+    }
+
+    /// The cross-binding cause vocabulary, pinned once.
+    ///
+    /// `code` is the integer the Python, TypeScript, C and C++ surfaces
+    /// publish as `cause` and `as_str` is the `cause_name` beside it, so
+    /// a drift in either silently rewrites what every binding reports.
+    /// `implied_reason` is the one place the correspondence between a
+    /// cause and the server-vocabulary code it borrows is written down,
+    /// and the I/O loop reads it rather than repeating literals at each
+    /// drop site.
+    #[test]
+    fn disconnect_cause_vocabulary_is_pinned() {
+        let cases = [
+            (
+                DisconnectCause::ServerSent,
+                0,
+                "ServerSent",
+                "",
+                0,
+                RemoveReason::Unspecified,
+            ),
+            (
+                DisconnectCause::ClosedByServer,
+                1,
+                "ClosedByServer",
+                "",
+                0,
+                RemoveReason::Unspecified,
+            ),
+            (
+                DisconnectCause::ReadFailed(ErrorKind::ConnectionReset),
+                2,
+                "ReadFailed",
+                "ConnectionReset",
+                0,
+                RemoveReason::Unspecified,
+            ),
+            (
+                DisconnectCause::WriteFailed(ErrorKind::BrokenPipe),
+                3,
+                "WriteFailed",
+                "BrokenPipe",
+                0,
+                RemoveReason::Unspecified,
+            ),
+            (
+                DisconnectCause::ReadTimeout(Duration::from_millis(45_000)),
+                4,
+                "ReadTimeout",
+                "",
+                45_000,
+                RemoveReason::TimedOut,
+            ),
+        ];
+        for (cause, code, name, kind_name, timeout_ms, reason) in cases {
+            assert_eq!(cause.code(), code, "{cause:?} code");
+            assert_eq!(cause.as_str(), name, "{cause:?} name");
+            assert_eq!(
+                DisconnectCause::name_for_code(cause.code()),
+                cause.as_str(),
+                "{cause:?}: the code the bindings carry must resolve back to the same name"
+            );
+            assert_eq!(
+                cause.io_error_kind_name(),
+                kind_name,
+                "{cause:?} I/O error kind name"
+            );
+            assert_eq!(
+                cause.read_timeout_ms(),
+                timeout_ms,
+                "{cause:?} read timeout"
+            );
+            assert_eq!(cause.implied_reason(), reason, "{cause:?} implied reason");
+        }
+        assert_eq!(
+            DisconnectCause::name_for_code(99),
+            "Unknown",
+            "a code this build does not know still resolves to a name"
+        );
     }
 
     #[test]
@@ -739,11 +976,20 @@ mod tests {
     fn fpss_control_reconnects_exhausted_variant() {
         let evt = StreamEvent::Control(StreamControl::ReconnectsExhausted {
             reason: RemoveReason::TimedOut,
+            cause: DisconnectCause::ReadTimeout(Duration::from_secs(30)),
             attempts: 30,
         });
-        if let StreamEvent::Control(StreamControl::ReconnectsExhausted { reason, attempts }) = &evt
+        if let StreamEvent::Control(StreamControl::ReconnectsExhausted {
+            reason,
+            cause,
+            attempts,
+        }) = &evt
         {
             assert_eq!(*reason, RemoveReason::TimedOut);
+            assert_eq!(
+                *cause,
+                DisconnectCause::ReadTimeout(Duration::from_secs(30))
+            );
             assert_eq!(*attempts, 30);
         } else {
             panic!("expected ReconnectsExhausted");
@@ -752,6 +998,7 @@ mod tests {
         // other control variant.
         let internal = FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
             reason: RemoveReason::Unspecified,
+            cause: DisconnectCause::ClosedByServer,
             attempts: 0,
         });
         assert!(matches!(

@@ -30,6 +30,7 @@ pub(in crate::fpss) use ping::ping_loop;
 
 use std::collections::HashMap;
 use std::io::BufReader;
+use std::io::ErrorKind;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
@@ -53,7 +54,7 @@ use crate::error::Error;
 use super::connection;
 use super::decode::decode_frame;
 use super::delta::DeltaState;
-use super::events::{FpssEventInternal, IoCommand, StreamControl};
+use super::events::{DisconnectCause, FpssEventInternal, IoCommand, StreamControl};
 use super::framing::{
     self, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush, FrameRead,
 };
@@ -85,12 +86,25 @@ fn next_active_gen() -> u64 {
     NEXT_ACTIVE_GEN.fetch_add(1, Ordering::Relaxed)
 }
 
-fn reconnect_reason_for_decoded_event(event: &FpssEventInternal) -> Option<RemoveReason> {
+/// How one session ended: the code the disconnect events carry and
+/// where the drop came from. The pair travels together from the break
+/// site through the reconnect decision so `Disconnected`, `Reconnecting`
+/// and `ReconnectsExhausted` all report both.
+type SessionDrop = (RemoveReason, DisconnectCause);
+
+/// Pair a drop this client observed itself with the code it reports.
+/// The correspondence lives on [`DisconnectCause::implied_reason`], so
+/// no drop site repeats it as a literal.
+fn client_drop(cause: DisconnectCause) -> SessionDrop {
+    (cause.implied_reason(), cause)
+}
+
+fn reconnect_drop_for_decoded_event(event: &FpssEventInternal) -> Option<SessionDrop> {
     match event {
-        FpssEventInternal::Control(StreamControl::Disconnected { reason })
+        FpssEventInternal::Control(StreamControl::Disconnected { reason, cause })
             if reconnect_delay(*reason).is_some() =>
         {
-            Some(*reason)
+            Some((*reason, *cause))
         }
         _ => None,
     }
@@ -682,12 +696,17 @@ pub(in crate::fpss) fn apply_req_response_for_test(
 fn mark_and_publish_exhausted(
     reconnects_exhausted: &AtomicBool,
     dropped: &AtomicU64,
-    reason: RemoveReason,
+    session_drop: SessionDrop,
     attempts: u32,
     try_publish: impl FnOnce(FpssEventInternal) -> Result<(), ()>,
 ) {
+    let (reason, cause) = session_drop;
     reconnects_exhausted.store(true, Ordering::Release);
-    let event = FpssEventInternal::Control(StreamControl::ReconnectsExhausted { reason, attempts });
+    let event = FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
+        reason,
+        cause,
+        attempts,
+    });
     if try_publish(event).is_err() {
         dropped.fetch_add(1, Ordering::Relaxed);
         tracing::warn!(
@@ -762,11 +781,11 @@ where
     // user-initiated shutdown, so operators can distinguish
     // budget exhaustion from a clean `shutdown()` call.
     macro_rules! publish_exhausted {
-        ($reason:expr, $attempts:expr) => {
+        ($drop:expr, $attempts:expr) => {
             mark_and_publish_exhausted(
                 &reconnects_exhausted,
                 &dropped,
-                $reason,
+                $drop,
                 $attempts,
                 |event| {
                     producer
@@ -876,7 +895,7 @@ where
     );
     let mut last_known_good_host = None;
 
-    // Originating disconnect reason carried across consecutive FAILED
+    // Originating disconnect carried across consecutive FAILED
     // redials. A rate-limited (`TooManyRequests`) or `ServerRestarting`
     // drop sets a long cooldown floor and a large attempt budget; if the
     // first redial after that drop fails before the reader is replaced
@@ -884,12 +903,13 @@ where
     // dead, pre-drop `reader` to read from. That read can only time out
     // and re-derive a generic `TimedOut` (Transient) reason, which would
     // silently downgrade the class to the fast ladder and the smaller
-    // budget. Holding the originating reason here preserves the class
-    // across the redial-failure streak. It is `take`n at the top of each
-    // session: a live read on a successfully reconnected session always
-    // re-derives a fresh reason, so a genuinely new disconnect reason
-    // still overrides once the connection is re-established.
-    let mut pending_reason: Option<RemoveReason> = None;
+    // budget. Holding the originating reason and cause here preserves the
+    // class, and what the user is told, across the redial-failure streak.
+    // It is `take`n at the top of each session: a live read on a
+    // successfully reconnected session always re-derives a fresh drop, so
+    // a genuinely new disconnect still overrides once the connection is
+    // re-established.
+    let mut pending_drop: Option<SessionDrop> = None;
 
     'session: loop {
         // Session-local liveness clock: starts at session entry so a
@@ -910,15 +930,16 @@ where
         // a live read on it always re-derives a fresh class below: the
         // carry only holds the class WHILE we are still failing to
         // re-establish the connection, never after.
-        if pending_reason.is_some() && shutdown.load(Ordering::Relaxed) {
+        if pending_drop.is_some() && shutdown.load(Ordering::Relaxed) {
             break 'session;
         }
 
         // --- Inner read/write loop for one connection session ---
-        // When the inner loop breaks, `disconnect_reason` holds the reason.
-        // A carried reason from a failed redial bypasses the read so the
-        // stale dead stream is never re-read and the class is preserved.
-        let disconnect_reason: RemoveReason = if let Some(carried) = pending_reason.take() {
+        // When the inner loop breaks, `disconnect` holds the reason and
+        // the cause. A carried drop from a failed redial bypasses the read
+        // so the stale dead stream is never re-read and the class is
+        // preserved.
+        let disconnect: SessionDrop = if let Some(carried) = pending_drop.take() {
             // The liveness clock belongs to the read path; the carried
             // branch never consults it but the binding must remain for the
             // read arm below.
@@ -943,16 +964,20 @@ where
                         // within `read_timeout` means the session is dead, reconnect.
                         let quiet = last_frame_at.elapsed();
                         if quiet >= read_timeout {
+                            let (reason, cause) =
+                                client_drop(DisconnectCause::ReadTimeout(read_timeout));
                             tracing::warn!(
                                 timeout_ms = read_timeout_ms_total,
                                 quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                cause = ?cause,
                                 "FPSS delivering only unknown frames past the read deadline; reconnecting",
                             );
                             if producer
                                 .try_publish(|slot| {
                                     slot.event =
                                         FpssEventInternal::Control(StreamControl::Disconnected {
-                                            reason: RemoveReason::TimedOut,
+                                            reason,
+                                            cause,
                                         });
                                 })
                                 .is_err()
@@ -964,7 +989,7 @@ where
                                 );
                             }
                             authenticated.store(false, Ordering::Release);
-                            break 'inner RemoveReason::TimedOut;
+                            break 'inner (reason, cause);
                         }
                     }
                     Ok(FrameRead::Frame(code, payload_len)) => {
@@ -1023,15 +1048,16 @@ where
                         // reads the session as still trying, for ever. It is
                         // published after the `Disconnected` it follows from,
                         // because nothing may follow the terminal event.
-                        let permanent_reason = match &primary {
+                        let permanent_drop = match &primary {
                             Some(FpssEventInternal::Control(StreamControl::Disconnected {
                                 reason,
-                            })) if reconnect_delay(*reason).is_none() => Some(*reason),
+                                cause,
+                            })) if reconnect_delay(*reason).is_none() => Some((*reason, *cause)),
                             _ => None,
                         };
 
                         if let Some(evt) = primary {
-                            let reconnect_reason = reconnect_reason_for_decoded_event(&evt);
+                            let reconnect_drop = reconnect_drop_for_decoded_event(&evt);
                             if producer
                                 .try_publish(|slot| {
                                     slot.event = evt;
@@ -1046,23 +1072,25 @@ where
                                 // user callback.
                                 dropped.fetch_add(1, Ordering::Relaxed);
                             }
-                            if let Some(reason) = reconnect_reason {
+                            if let Some(session_drop) = reconnect_drop {
                                 authenticated.store(false, Ordering::Release);
-                                break 'inner reason;
+                                break 'inner session_drop;
                             }
                         }
-                        if let Some(reason) = permanent_reason {
-                            publish_exhausted!(reason, 0);
+                        if let Some(session_drop) = permanent_drop {
+                            publish_exhausted!(session_drop, 0);
                         }
                     }
                     Ok(FrameRead::Eof) => {
                         // Clean EOF
-                        tracing::warn!("FPSS connection closed by server");
+                        let (reason, cause) = client_drop(DisconnectCause::ClosedByServer);
+                        tracing::warn!(cause = ?cause, "FPSS connection closed by server");
                         if producer
                             .try_publish(|slot| {
                                 slot.event =
                                     FpssEventInternal::Control(StreamControl::Disconnected {
-                                        reason: RemoveReason::Unspecified,
+                                        reason,
+                                        cause,
                                     });
                             })
                             .is_err()
@@ -1070,25 +1098,29 @@ where
                             dropped.fetch_add(1, Ordering::Relaxed);
                             tracing::warn!(
                                 target: "thetadatadx::fpss::io_loop",
-                                "ring full while publishing Disconnected (Unspecified); dropped",
+                                "ring full while publishing Disconnected (closed by server); dropped",
                             );
                         }
                         authenticated.store(false, Ordering::Release);
-                        break 'inner RemoveReason::Unspecified;
+                        break 'inner (reason, cause);
                     }
                     Err(ref e) if is_read_timeout(e) => {
                         let quiet = last_frame_at.elapsed();
                         if quiet >= read_timeout {
+                            let (reason, cause) =
+                                client_drop(DisconnectCause::ReadTimeout(read_timeout));
                             tracing::warn!(
                                 timeout_ms = read_timeout_ms_total,
                                 quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                cause = ?cause,
                                 "FPSS read timed out (no frames inside the read deadline)",
                             );
                             if producer
                                 .try_publish(|slot| {
                                     slot.event =
                                         FpssEventInternal::Control(StreamControl::Disconnected {
-                                            reason: RemoveReason::TimedOut,
+                                            reason,
+                                            cause,
                                         });
                                 })
                                 .is_err()
@@ -1096,21 +1128,24 @@ where
                                 dropped.fetch_add(1, Ordering::Relaxed);
                                 tracing::warn!(
                                     target: "thetadatadx::fpss::io_loop",
-                                    "ring full while publishing Disconnected (TimedOut); dropped",
+                                    "ring full while publishing Disconnected (read timeout); dropped",
                                 );
                             }
                             authenticated.store(false, Ordering::Release);
-                            break 'inner RemoveReason::TimedOut;
+                            break 'inner (reason, cause);
                         }
                         // Otherwise, fall through to drain commands.
                     }
                     Err(e) => {
-                        tracing::error!(error = %e, "FPSS read error");
+                        let (reason, cause) =
+                            client_drop(DisconnectCause::ReadFailed(io_error_kind(&e)));
+                        tracing::error!(error = %e, cause = ?cause, "FPSS read error");
                         if producer
                             .try_publish(|slot| {
                                 slot.event =
                                     FpssEventInternal::Control(StreamControl::Disconnected {
-                                        reason: RemoveReason::Unspecified,
+                                        reason,
+                                        cause,
                                     });
                             })
                             .is_err()
@@ -1122,7 +1157,7 @@ where
                             );
                         }
                         authenticated.store(false, Ordering::Release);
-                        break 'inner RemoveReason::Unspecified;
+                        break 'inner (reason, cause);
                     }
                 }
 
@@ -1148,13 +1183,13 @@ where
                                 // deferring to the next read timeout. Mirror the
                                 // disconnect-and-break shape the read-error and
                                 // EOF branches use.
-                                tracing::warn!(error = %e, "frame write failed; treating socket as broken and reconnecting");
+                                let (reason, cause) =
+                                    client_drop(DisconnectCause::WriteFailed(io_error_kind(&e)));
+                                tracing::warn!(error = %e, cause = ?cause, "frame write failed; treating socket as broken and reconnecting");
                                 if producer
                                     .try_publish(|slot| {
                                         slot.event = FpssEventInternal::Control(
-                                            StreamControl::Disconnected {
-                                                reason: RemoveReason::Unspecified,
-                                            },
+                                            StreamControl::Disconnected { reason, cause },
                                         );
                                     })
                                     .is_err()
@@ -1166,7 +1201,7 @@ where
                                     );
                                 }
                                 authenticated.store(false, Ordering::Release);
-                                break 'inner RemoveReason::Unspecified;
+                                break 'inner (reason, cause);
                             }
                         }
                         Ok(IoCommand::Shutdown) => {
@@ -1200,7 +1235,7 @@ where
                     }
                 }
             }
-        }; // end inner read loop (yields RemoveReason)
+        }; // end inner read loop (yields the session's reason + cause)
 
         // If shutdown was requested (explicit or channel disconnect), exit entirely.
         if shutdown.load(Ordering::Relaxed) {
@@ -1208,20 +1243,20 @@ where
         }
 
         // --- Reconnection decision ---
-        let reason = disconnect_reason;
+        let (reason, cause) = disconnect;
 
         let (delay, reconnect_attempt) = match &policy {
             ReconnectPolicy::Manual => {
-                tracing::info!(reason = ?reason, "manual reconnect policy -- not reconnecting");
-                publish_exhausted!(reason, 0);
+                tracing::info!(reason = ?reason, cause = ?cause, "manual reconnect policy -- not reconnecting");
+                publish_exhausted!(disconnect, 0);
                 break 'session;
             }
             ReconnectPolicy::Auto(limits) => {
                 // Permanent reasons short-circuit before consulting any
                 // budget — no amount of retrying will fix bad credentials.
                 let Some(class) = ReconnectAttemptLimits::class_for(reason) else {
-                    tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
-                    publish_exhausted!(reason, 0);
+                    tracing::error!(reason = ?reason, cause = ?cause, "permanent disconnect -- not reconnecting");
+                    publish_exhausted!(disconnect, 0);
                     break 'session;
                 };
                 // Optional time-based reset BEFORE incrementing. A
@@ -1247,6 +1282,7 @@ where
                         tracing::error!(
                             attempts = attempts_consumed,
                             class = ?class,
+                            cause = ?cause,
                             max_elapsed_ms =
                                 u64::try_from(limits.max_elapsed.as_millis()).unwrap_or(u64::MAX),
                             "reconnect wall-clock envelope exhausted, giving up"
@@ -1255,10 +1291,11 @@ where
                         tracing::error!(
                             attempts = attempts_consumed,
                             class = ?class,
+                            cause = ?cause,
                             "max reconnect attempts reached for this class, giving up"
                         );
                     }
-                    publish_exhausted!(reason, attempts_consumed);
+                    publish_exhausted!(disconnect, attempts_consumed);
                     break 'session;
                 }
                 let delay = match class {
@@ -1322,8 +1359,8 @@ where
                 // short-circuit and is part of the documented
                 // `ReconnectPolicy::Custom` contract.
                 if ReconnectAttemptLimits::class_for(reason).is_none() {
-                    tracing::error!(reason = ?reason, "permanent disconnect -- not reconnecting");
-                    publish_exhausted!(reason, 0);
+                    tracing::error!(reason = ?reason, cause = ?cause, "permanent disconnect -- not reconnecting");
+                    publish_exhausted!(disconnect, 0);
                     break 'session;
                 }
                 // Custom policies bypass the split-budget enforcement
@@ -1355,8 +1392,8 @@ where
                     break 'session;
                 }
                 let Some(d) = decision else {
-                    tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
-                    publish_exhausted!(reason, attempt - 1);
+                    tracing::info!(reason = ?reason, cause = ?cause, "custom policy returned None -- not reconnecting");
+                    publish_exhausted!(disconnect, attempt - 1);
                     break 'session;
                 };
                 (d, attempt)
@@ -1383,6 +1420,7 @@ where
         let delay_ms = u64::try_from(delay.as_millis()).unwrap_or(u64::MAX);
         tracing::info!(
             reason = ?reason,
+            cause = ?cause,
             attempt = reconnect_attempt,
             delay_ms,
             "auto-reconnecting FPSS"
@@ -1392,6 +1430,7 @@ where
             .try_publish(|slot| {
                 slot.event = FpssEventInternal::Control(StreamControl::Reconnecting {
                     reason,
+                    cause,
                     attempt: reconnect_attempt,
                     delay_ms,
                 });
@@ -1463,7 +1502,7 @@ where
                 // originating reason so the next cycle re-derives the same
                 // class (floor + budget) rather than reading the dead
                 // stream and downgrading to a generic TimedOut.
-                pending_reason = Some(reason);
+                pending_drop = Some(disconnect);
                 continue 'session;
             }
         };
@@ -1487,7 +1526,7 @@ where
             tracing::warn!(error = %e, "failed to send credentials on reconnect");
             // Reader is still the dead pre-drop stream here; carry the
             // class so the next cycle keeps its floor + budget.
-            pending_reason = Some(reason);
+            pending_drop = Some(disconnect);
             continue 'session;
         }
 
@@ -1509,7 +1548,7 @@ where
                 tracing::warn!(error = %e, "login failed on reconnect");
                 // Reader is still the dead pre-drop stream here; carry the
                 // class so the next cycle keeps its floor + budget.
-                pending_reason = Some(reason);
+                pending_drop = Some(disconnect);
                 continue 'session;
             }
         };
@@ -1519,7 +1558,13 @@ where
                 tracing::info!(permissions = %p, "re-authenticated on reconnect");
                 p
             }
-            LoginResult::Disconnected(reason) => {
+            LoginResult::Disconnected(rejection) => {
+                // The server described this one itself, so the drop it
+                // produces is a server-sent rejection with the server's
+                // own code, not the originating drop carried in
+                // `disconnect`.
+                let rejection = (rejection, DisconnectCause::ServerSent);
+                let (reason, cause) = rejection;
                 if matches!(
                     reason,
                     RemoveReason::InvalidCredentials
@@ -1531,7 +1576,7 @@ where
                          try URL-encoding them."
                     );
                 }
-                tracing::warn!(reason = ?reason, "server rejected login on reconnect");
+                tracing::warn!(reason = ?reason, cause = ?cause, "server rejected login on reconnect");
                 // Permanent rejection -- mirror the initial-login
                 // `connect_with_stream` behaviour instead of burning
                 // MAX_RECONNECT_ATTEMPTS cycles of Disconnected /
@@ -1548,8 +1593,10 @@ where
                     );
                     if producer
                         .try_publish(|slot| {
-                            slot.event =
-                                FpssEventInternal::Control(StreamControl::Disconnected { reason });
+                            slot.event = FpssEventInternal::Control(StreamControl::Disconnected {
+                                reason,
+                                cause,
+                            });
                         })
                         .is_err()
                     {
@@ -1561,9 +1608,10 @@ where
                     }
                     // Same terminal-event contract as the budget /
                     // permanent paths above: recovery has stopped for
-                    // a non-user-initiated cause. The inner `reason`
-                    // (the login rejection) is the one operators need.
-                    publish_exhausted!(reason, reconnect_attempt);
+                    // a non-user-initiated cause. The login rejection
+                    // is the one operators need, not the drop that
+                    // started the reconnect.
+                    publish_exhausted!(rejection, reconnect_attempt);
                     shutdown.store(true, Ordering::Release);
                     break 'session;
                 }
@@ -1573,7 +1621,7 @@ where
                 // the originating drop's, so the next cycle's floor +
                 // budget reflect the most recent server signal instead of
                 // a stale read's generic TimedOut.
-                pending_reason = Some(reason);
+                pending_drop = Some(rejection);
                 continue 'session;
             }
         };
@@ -1594,7 +1642,7 @@ where
             // The new stream never became the live `reader` (that swap is
             // below), so the next cycle would re-read the dead pre-drop
             // stream. Carry the class to keep its floor + budget.
-            pending_reason = Some(reason);
+            pending_drop = Some(disconnect);
             continue 'session;
         }
 
@@ -1740,7 +1788,7 @@ where
                 // re-enters reconnect on the right ladder instead of
                 // reading the broken socket and downgrading to a generic
                 // TimedOut.
-                pending_reason = Some(reason);
+                pending_drop = Some(disconnect);
                 continue 'session;
             }
             track_replay_correlation_if_tracked(
@@ -1755,7 +1803,7 @@ where
             tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
                 tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
-                pending_reason = Some(reason);
+                pending_drop = Some(disconnect);
                 continue 'session;
             }
             if shutdown.load(Ordering::Relaxed) {
@@ -1768,7 +1816,7 @@ where
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
                 tracing::warn!(error = %e, sec_type = ?sec_type, req_id, "re-subscribe write failed; treating socket as broken and reconnecting");
-                pending_reason = Some(reason);
+                pending_drop = Some(disconnect);
                 continue 'session;
             }
             track_replay_correlation_if_tracked(
@@ -1783,7 +1831,7 @@ where
             tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
                 tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
-                pending_reason = Some(reason);
+                pending_drop = Some(disconnect);
                 continue 'session;
             }
             if shutdown.load(Ordering::Relaxed) {
@@ -1797,7 +1845,7 @@ where
             // session whose replay never reached the server.
             if let Err(e) = writer.flush() {
                 tracing::warn!(error = %e, "re-subscribe batch flush failed; treating socket as broken and reconnecting");
-                pending_reason = Some(reason);
+                pending_drop = Some(disconnect);
                 continue 'session;
             }
         }
@@ -1826,7 +1874,7 @@ where
                         // this drain succeeds), so the broken socket never
                         // looks live.
                         tracing::warn!(error = %e, "queued-frame write failed on reconnect; treating socket as broken and reconnecting");
-                        pending_reason = Some(reason);
+                        pending_drop = Some(disconnect);
                         continue 'session;
                     }
                 }
@@ -2234,6 +2282,19 @@ fn is_read_timeout(e: &Error) -> bool {
     }
 }
 
+/// The I/O error kind a failed read or write reports to the user.
+///
+/// A framing failure is not always an I/O error: a truncated or
+/// malformed frame arrives as a protocol error with no kind of its own,
+/// and `Other` is what `std` itself uses for a failure that fits none of
+/// its kinds.
+fn io_error_kind(e: &Error) -> ErrorKind {
+    match e {
+        Error::Io(io_err) => io_err.kind(),
+        _ => ErrorKind::Other,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2523,6 +2584,8 @@ mod tests {
     /// by the time the read loop publishes it, so this is the last point where
     /// `TooManyRequests` / `ServerRestarting` can retain their patient cadence
     /// instead of being downgraded to a generic EOF/read timeout reason.
+    /// The cause rides with it, so the `Reconnecting` the loop then
+    /// publishes still says the server asked for this.
     #[test]
     fn decoded_disconnect_reason_reaches_reconnect_classifier() {
         for reason in [
@@ -2530,25 +2593,29 @@ mod tests {
             RemoveReason::ServerRestarting,
             RemoveReason::TimedOut,
         ] {
-            let event = FpssEventInternal::Control(StreamControl::Disconnected { reason });
+            let event = FpssEventInternal::Control(StreamControl::Disconnected {
+                reason,
+                cause: DisconnectCause::ServerSent,
+            });
             assert_eq!(
-                reconnect_reason_for_decoded_event(&event),
-                Some(reason),
-                "decoded reconnectable DISCONNECTED({reason:?}) must break the read loop with its exact reason"
+                reconnect_drop_for_decoded_event(&event),
+                Some((reason, DisconnectCause::ServerSent)),
+                "decoded reconnectable DISCONNECTED({reason:?}) must break the read loop with its exact reason and cause"
             );
         }
 
         let permanent = FpssEventInternal::Control(StreamControl::Disconnected {
             reason: RemoveReason::InvalidCredentials,
+            cause: DisconnectCause::ServerSent,
         });
         assert_eq!(
-            reconnect_reason_for_decoded_event(&permanent),
+            reconnect_drop_for_decoded_event(&permanent),
             None,
             "permanent disconnects must not enter the reconnect classifier"
         );
 
         let non_disconnect = FpssEventInternal::Control(StreamControl::Connected);
-        assert_eq!(reconnect_reason_for_decoded_event(&non_disconnect), None);
+        assert_eq!(reconnect_drop_for_decoded_event(&non_disconnect), None);
     }
 
     /// Stable-window reset: a session that ran cleanly for at least
@@ -3933,13 +4000,13 @@ mod tests {
 
     /// Source guard: every reconnect-path replay/drain failure
     /// branch that re-enters the session loop must first set
-    /// `pending_reason`, so a broken reconnected socket re-enters
+    /// `pending_drop`, so a broken reconnected socket re-enters
     /// reconnect on the originating class instead of being re-read as a
     /// generic timeout. Counts the `continue 'session` sites in the
     /// replay/drain region and asserts each is immediately preceded by a
-    /// `pending_reason = Some(reason)` assignment.
+    /// `pending_drop = Some(disconnect)` assignment.
     #[test]
-    fn reconnect_replay_failures_set_pending_reason_before_continue() {
+    fn reconnect_replay_failures_set_pending_drop_before_continue() {
         let src = include_str!("mod.rs");
         let cfg_test_pos = src
             .find("#[cfg(test)]\nmod tests")
@@ -3964,11 +4031,11 @@ mod tests {
             continue_sites >= 5,
             "expected the five replay/drain failure escalations; found {continue_sites}"
         );
-        let pending_marks = region.matches("pending_reason = Some(reason);").count();
+        let pending_marks = region.matches("pending_drop = Some(disconnect);").count();
         assert_eq!(
             pending_marks, continue_sites,
             "every replay/drain `continue 'session` must be preceded by a \
-             `pending_reason = Some(reason)` so the broken socket re-enters reconnect \
+             `pending_drop = Some(disconnect)` so the broken socket re-enters reconnect \
              on the originating class; found {pending_marks} marks for {continue_sites} \
              continue sites"
         );
@@ -3992,7 +4059,13 @@ mod tests {
         let dropped = AtomicU64::new(0);
 
         // A ring that is always full: the event never lands.
-        mark_and_publish_exhausted(&flag, &dropped, RemoveReason::TimedOut, 7, |_event| Err(()));
+        mark_and_publish_exhausted(
+            &flag,
+            &dropped,
+            client_drop(DisconnectCause::ReadTimeout(Duration::from_secs(30))),
+            7,
+            |_event| Err(()),
+        );
         assert!(
             flag.load(Ordering::Acquire),
             "a failed publish must still leave the session recorded as exhausted"
@@ -4011,7 +4084,10 @@ mod tests {
         mark_and_publish_exhausted(
             &flag,
             &dropped,
-            RemoveReason::AccountAlreadyConnected,
+            (
+                RemoveReason::AccountAlreadyConnected,
+                DisconnectCause::ServerSent,
+            ),
             3,
             |event| {
                 seen = Some(event);
@@ -4023,9 +4099,11 @@ mod tests {
         match seen {
             Some(FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
                 reason,
+                cause,
                 attempts,
             })) => {
                 assert_eq!(reason, RemoveReason::AccountAlreadyConnected);
+                assert_eq!(cause, DisconnectCause::ServerSent);
                 assert_eq!(attempts, 3);
             }
             other => panic!("expected a ReconnectsExhausted event, got {other:?}"),

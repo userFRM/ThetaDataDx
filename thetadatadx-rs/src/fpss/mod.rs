@@ -47,7 +47,7 @@ mod session;
 
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;
-pub use self::events::{StreamControl, StreamData, StreamEvent};
+pub use self::events::{DisconnectCause, StreamControl, StreamData, StreamEvent};
 use self::io_loop::{io_loop, ping_loop, wait_for_login, LoginResult};
 pub use self::session::{reconnect_delay, reconnect_delay_for};
 
