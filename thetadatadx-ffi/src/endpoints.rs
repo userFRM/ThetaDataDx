@@ -105,6 +105,41 @@ impl TickChunkSink {
     }
 }
 
+/// Run one buffered endpoint to completion on the shared runtime.
+///
+/// Every generated `thetadatadx_<endpoint>*` entry calls this rather than
+/// wrapping `invoke_endpoint` in an `async` block of its own. Each such block
+/// is a distinct future type embedding the dispatch future, which spans every
+/// endpoint, so `block_on` and the future's drop glue were compiled once per
+/// endpoint: work that grew with the square of the endpoint count. One
+/// non-generic call site keeps it to a single instantiation.
+#[inline(never)]
+fn invoke_endpoint_blocking(
+    client: &thetadatadx::mdds::MarketDataClient,
+    name: &str,
+    args: &thetadatadx::EndpointArgs,
+) -> Result<thetadatadx::EndpointOutput, thetadatadx::EndpointError> {
+    runtime().block_on(thetadatadx::endpoint::invoke_endpoint(client, name, args))
+}
+
+/// Streaming counterpart of [`invoke_endpoint_blocking`]. The chunk handler
+/// is built here, once, so `invoke_endpoint_stream`, which is generic over
+/// it, is instantiated for one closure type instead of one per endpoint.
+#[inline(never)]
+fn invoke_endpoint_stream_blocking(
+    client: &thetadatadx::mdds::MarketDataClient,
+    name: &str,
+    args: &thetadatadx::EndpointArgs,
+    sink: TickChunkSink,
+) -> Result<(), thetadatadx::EndpointError> {
+    runtime().block_on(thetadatadx::endpoint::invoke_endpoint_stream(
+        client,
+        name,
+        args,
+        move |rows, len| sink.emit(rows, len),
+    ))
+}
+
 include!("endpoint_request_options.rs");
 include!("endpoint_with_options.rs");
 include!("endpoint_stream.rs");
