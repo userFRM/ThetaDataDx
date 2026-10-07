@@ -19,7 +19,8 @@
 //! and a transient connection blip must heal transparently underneath
 //! the caller's retry shell.
 
-mod grpc_mock_server;
+#[path = "common/grpc_mock.rs"]
+pub mod grpc_mock_server;
 
 use std::net::SocketAddr;
 use std::time::Duration;

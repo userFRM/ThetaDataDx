@@ -4312,9 +4312,9 @@ export interface GreeksAllTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -4437,9 +4437,9 @@ export interface GreeksEodTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -4536,9 +4536,9 @@ export interface GreeksFirstOrderTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -4634,9 +4634,9 @@ export interface GreeksSecondOrderTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -4731,9 +4731,9 @@ export interface GreeksThirdOrderTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -5196,9 +5196,9 @@ export interface IvTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -8018,9 +8018,9 @@ export interface TradeGreeksAllTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -8124,9 +8124,9 @@ export interface TradeGreeksFirstOrderTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -8224,9 +8224,9 @@ export interface TradeGreeksImpliedVolatilityTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -8329,9 +8329,9 @@ export interface TradeGreeksSecondOrderTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }
@@ -8433,9 +8433,9 @@ export interface TradeGreeksThirdOrderTick {
    */
   timestampMs?: bigint
   /**
-   * Unix epoch milliseconds (UTC, DST-aware) combining `date` with
+   * Unix epoch milliseconds (UTC, DST-aware) combining `underlying_date` with
    * `underlying_ms_of_day` (Eastern-Time milliseconds-of-day). `undefined` when
-   * `date` is absent (`0`).
+   * `underlying_date` is absent (`0`).
    */
   underlyingTimestampMs?: bigint
 }

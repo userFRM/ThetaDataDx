@@ -4295,18 +4295,6 @@ mod tests {
         }
     }
 
-    /// Every greeks variant's full CSV header string must match its v3 spec
-    /// `text/csv` example column order EXACTLY, in BOTH snapshot and history
-    /// forms (where both exist). This is the comprehensive SSOT guard: it pins
-    /// the contract-identity prefix, the per-variant data block order, and the
-    /// snapshot-vs-history shape distinction, so any greeks column reordering or
-    /// shape drift fails here against the spec.
-    ///
-    /// The spec headers are identical for the snapshot and history form of each
-    /// shared-tick variant (`greeks/all`, `greeks/first_order`,
-    /// `greeks/second_order`, `greeks/third_order`) — both render contract-first
-    /// (`symbol,expiration,strike,right,timestamp,...`). `greeks/eod` and the
-    /// `trade_greeks/*` family are history-only.
     /// `underlying_timestamp` carries the underlying's own date on every
     /// Greeks variant.
     ///
@@ -4428,6 +4416,18 @@ mod tests {
         }
     }
 
+    /// Every greeks variant's full CSV header string must match its v3 spec
+    /// `text/csv` example column order EXACTLY, in BOTH snapshot and history
+    /// forms (where both exist). This is the comprehensive SSOT guard: it pins
+    /// the contract-identity prefix, the per-variant data block order, and the
+    /// snapshot-vs-history shape distinction, so any greeks column reordering or
+    /// shape drift fails here against the spec.
+    ///
+    /// The spec headers are identical for the snapshot and history form of each
+    /// shared-tick variant (`greeks/all`, `greeks/first_order`,
+    /// `greeks/second_order`, `greeks/third_order`) — both render contract-first
+    /// (`symbol,expiration,strike,right,timestamp,...`). `greeks/eod` and the
+    /// `trade_greeks/*` family are history-only.
     #[test]
     fn greeks_csv_headers_match_v3_spec_every_variant() {
         // greeks/all — snapshot (spec ~:3453) AND history (spec ~:5579), same

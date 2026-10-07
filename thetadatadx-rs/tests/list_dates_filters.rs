@@ -72,8 +72,8 @@ struct CapturedSymbolsRequest {
     params: Option<CapturedSymbolsQuery>,
 }
 
-#[path = "grpc_mock_server.rs"]
-mod mock;
+#[path = "common/grpc_mock.rs"]
+pub mod mock;
 
 /// Serve one empty response and hand back the request bytes the client wrote.
 async fn client_capturing_request() -> (mock::MockServer, MarketDataClient, Arc<Mutex<Vec<u8>>>) {

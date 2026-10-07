@@ -22,8 +22,8 @@ use thetadatadx::wire::{
     ResponseData,
 };
 
-#[path = "grpc_mock_server.rs"]
-mod mock;
+#[path = "common/grpc_mock.rs"]
+pub mod mock;
 
 /// Build a `ResponseData` carrying a single-column `DataTable` with
 /// the given symbols, zstd-compressed exactly the way the upstream
