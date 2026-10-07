@@ -105,7 +105,8 @@ impl FfiCallback {
         // returned `FfiBufferedEvent` owns the heap memory backing every
         // borrowed pointer in the event (`Contract.symbol`,
         // `LoginSuccess.permissions`, `ServerError.message`,
-        // `Error.message`, `UnknownFrame.payload`, `Ping.payload`);
+        // `Error.message`, `UnknownFrame.payload`, `Ping.payload`, and
+        // `cause_io_error_kind` on the three disconnect events);
         // it is dropped at the end of this function,
         // after the user callback returns. The user MUST NOT retain the
         // `*const ThetaDataDxStreamEvent` pointer past the callback boundary.

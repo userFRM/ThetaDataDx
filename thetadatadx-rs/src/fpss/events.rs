@@ -859,30 +859,6 @@ mod tests {
         assert!(FpssEventInternal::Empty.as_public().is_none());
     }
 
-    #[test]
-    fn fpss_control_reconnecting_variant() {
-        let evt = StreamEvent::Control(StreamControl::Reconnecting {
-            reason: RemoveReason::ServerRestarting,
-            cause: DisconnectCause::ServerSent,
-            attempt: 1,
-            delay_ms: 2000,
-        });
-        if let StreamEvent::Control(StreamControl::Reconnecting {
-            reason,
-            cause,
-            attempt,
-            delay_ms,
-        }) = &evt
-        {
-            assert_eq!(*reason, RemoveReason::ServerRestarting);
-            assert_eq!(*cause, DisconnectCause::ServerSent);
-            assert_eq!(*attempt, 1);
-            assert_eq!(*delay_ms, 2000);
-        } else {
-            panic!("expected Reconnecting");
-        }
-    }
-
     /// The cross-binding cause vocabulary, pinned once.
     ///
     /// `code` is the integer the Python, TypeScript, C and C++ surfaces
@@ -972,30 +948,12 @@ mod tests {
         ));
     }
 
+    /// The terminal event round-trips through the internal/public
+    /// reborrow like every other control variant. Only the reborrow is
+    /// asserted: reading a field back from a value the test just built
+    /// runs no code and cannot fail.
     #[test]
     fn fpss_control_reconnects_exhausted_variant() {
-        let evt = StreamEvent::Control(StreamControl::ReconnectsExhausted {
-            reason: RemoveReason::TimedOut,
-            cause: DisconnectCause::ReadTimeout(Duration::from_secs(30)),
-            attempts: 30,
-        });
-        if let StreamEvent::Control(StreamControl::ReconnectsExhausted {
-            reason,
-            cause,
-            attempts,
-        }) = &evt
-        {
-            assert_eq!(*reason, RemoveReason::TimedOut);
-            assert_eq!(
-                *cause,
-                DisconnectCause::ReadTimeout(Duration::from_secs(30))
-            );
-            assert_eq!(*attempts, 30);
-        } else {
-            panic!("expected ReconnectsExhausted");
-        }
-        // Round-trips through the internal/public reborrow like every
-        // other control variant.
         let internal = FpssEventInternal::Control(StreamControl::ReconnectsExhausted {
             reason: RemoveReason::Unspecified,
             cause: DisconnectCause::ClosedByServer,
